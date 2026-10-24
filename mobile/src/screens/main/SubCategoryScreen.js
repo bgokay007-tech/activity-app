@@ -100,6 +100,23 @@ const TEAM_SPORTS = new Set(['football', 'volleyball']);
 // FORMATINA (tekli/çiftli) göre doğru puan, "T ELO"/"Ç ELO" (İngilizce "S ELO"/"D ELO") gibi
 // açıkça etiketlenmiş şekilde görünsün — hangi puanın gösterildiği belirsiz kalmasın diye.
 const UTR_MOBILE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
+function appLocale(lang) {
+    if (lang === 'tr') return 'tr-TR';
+    if (lang === 'ru') return 'ru-RU';
+    if (lang === 'de') return 'de-DE';
+    return 'en-US';
+}
+function localizedSurfaceLabel(sf, t) {
+    if (!sf) return '';
+    if (sf.labelKey) return t[sf.labelKey] || '';
+    if (sf.labelEn || sf.labelRu || sf.labelDe) {
+        if (t.lang === 'tr') return sf.label;
+        if (t.lang === 'ru') return sf.labelRu || sf.labelEn || sf.label;
+        if (t.lang === 'de') return sf.labelDe || sf.labelEn || sf.label;
+        return sf.labelEn || sf.label;
+    }
+    return t['surface' + String(sf.id || '').toUpperCase()] || sf.label || sf.id || '';
+}
 function utrDisplayRating(interest, sub, isDoubles) {
     if (!interest || !UTR_MOBILE_SUBS.has(sub)) return null;
     const raw = isDoubles ? interest.doublesRating : interest.singlesRating;
@@ -214,12 +231,12 @@ function compareStandingsRows(a, b, tournamentType, tournamentId, matches) {
 }
 
 const FOOTBALL_SURFACES = [
-    { id: 'HALI_SAHA', label: 'Halı Saha', emoji: '🟩' },
-    { id: 'CIM_SAHA',  label: 'Çim Saha',  emoji: '🌿' },
-    { id: 'FUTSAL',    label: 'Futsal',    emoji: '🏟️' },
-    { id: 'SOKAK',     label: 'Sokak',     emoji: '🛣️' },
-    { id: 'BEACH',     label: 'Plaj',      emoji: '🏖️' },
-    { id: 'BALON',     label: 'Balon',     emoji: '🎈' },
+    { id: 'HALI_SAHA', emoji: '🟩' },
+    { id: 'CIM_SAHA',  emoji: '🌿' },
+    { id: 'FUTSAL',    emoji: '🏟️' },
+    { id: 'SOKAK',     emoji: '🛣️' },
+    { id: 'BEACH',     emoji: '🏖️' },
+    { id: 'BALON',     labelKey: 'sc_surface_balon', emoji: '🎈' },
 ];
 // Voleybolde bu alan "zemin" değil, dalın türünü seçtiriyor.
 const VOLLEYBALL_SURFACES = [
@@ -232,7 +249,11 @@ const VOLLEYBALL_SURFACES = [
 // "Kort" yerine hangi voleybol türü seçildiyse onun kısa adı gösterilsin diye (ör. "Salon/Saat",
 // "Plaj/Saat") — kullanıcı isteği. VOLLEYBALL_VENUE_NOUN'daki uzun ("Voleybol Salonu" gibi)
 // isimlerden farklı, sadece tek kelimelik kısa etiket.
-const VOLLEYBALL_VENUE_SHORT = { INDOOR: 'Salon', BEACH: 'Plaj', GRASS: 'Çim', STREET: 'Mahalle', CLAY: 'Toprak' };
+function volleyVenueShort(id, t) {
+    return ({
+        INDOOR: t.sc_vs_indoor, BEACH: t.sc_vs_beach, GRASS: t.sc_vs_grass, STREET: t.sc_vs_street, CLAY: t.sc_vs_clay,
+    })[id] || '';
+}
 // "-a/-e" hâli (Korta/Salona/Plaja gibi) gereken cümleler için — kullanıcı isteği: gelmeme
 // bildirimi/no-show ekranında voleybolda hâlâ "Kort" yazıyordu, salon/plaj türüne göre değişmeli.
 const VOLLEYBALL_VENUE_SHORT_DAT = { INDOOR: 'Salona', BEACH: 'Plaja', GRASS: 'Çime', STREET: 'Mahalleye', CLAY: 'Toprağa' };
@@ -245,12 +266,12 @@ function hasGenderCountInfo(item) {
     return (item.requiredMaleCount != null && (item.genderCountMode == null || item.genderCountMode === 'EXACT'))
         || (['MIN', 'MIN_PER_TEAM'].includes(item.genderCountMode) && item.minGenderCount != null);
 }
-function genderCountDisplayLabel(item) {
+function genderCountDisplayLabel(item, t) {
     if (item.genderCountMode === 'MIN' && item.minGenderCount != null) {
         return `${item.minGenderReq === 'MALE' ? '👨' : '👩'}${item.minGenderCount}+`;
     }
     if (item.genderCountMode === 'MIN_PER_TEAM' && item.minGenderCount != null) {
-        return `${item.minGenderReq === 'MALE' ? '👨' : '👩'}${item.minGenderCount}+/takım`;
+        return t.sc_0001(item.minGenderReq === 'MALE' ? '👨' : '👩', item.minGenderCount);
     }
     if (item.requiredMaleCount != null) {
         return `👨${item.requiredMaleCount} 👩${2 * item.teamSize - item.requiredMaleCount}`;
@@ -259,13 +280,11 @@ function genderCountDisplayLabel(item) {
 }
 // Tür seçimine göre alan etiketi + arama placeholder'ı ("Voleybol Salonu ara..." /
 // "Plaj Sahası ara..." gibi) — VOLLEYBALL_SURFACES'teki id'lerle birebir eşleşir.
-const VOLLEYBALL_VENUE_NOUN = {
-    INDOOR: { tr: 'Voleybol Salonu', en: 'Volleyball Hall' },
-    BEACH:  { tr: 'Plaj Sahası',     en: 'Beach Court' },
-    GRASS:  { tr: 'Çim Saha',        en: 'Grass Court' },
-    STREET: { tr: 'Mahalle Sahası',  en: 'Street Court' },
-    CLAY:   { tr: 'Toprak Saha',     en: 'Clay Court' },
-};
+function volleyballVenueNoun(id, t) {
+    return ({
+        INDOOR: t.sc_vn_indoor, BEACH: t.sc_vn_beach, GRASS: t.sc_vn_grass, STREET: t.sc_vn_street, CLAY: t.sc_vn_clay,
+    })[id] || t.sc_vn_indoor;
+}
 const FOOTBALL_SIZES = [2,3,4,5,6,7,8,9,10,11];
 const VOLLEYBALL_SIZES = [1,2,3,4,5,6];
 const WINS_NEEDED_OPTIONS = Array.from({ length: 10 }, (_, i) => i + 1); // 1..10
@@ -370,7 +389,13 @@ function reqGenderParen(gender, lang) {
     return '';
 }
 
-const FEE_METHOD_LABEL = { CASH: 'Nakit', EFT: 'EFT', ONLINE: 'Online', CREDIT_CARD: 'Kredi Kartı' };
+function feeMethodLabel(code, t) {
+    if (code === 'CASH') return t.sc_fee_cash;
+    if (code === 'EFT') return t.sc_fee_eft;
+    if (code === 'ONLINE') return t.sc_fee_online;
+    if (code === 'CREDIT_CARD') return t.sc_fee_card;
+    return code || '';
+}
 // Kort ücreti ödeme yöntemine göre farklıysa (ör. kredi kartı komisyonu) bilgi amaçlı kırılım
 // listesi üretir — sadece nakit dışı gerçek bir fark varsa gösterilir, yoksa boş dizi döner.
 function feeByMethodEntries(byMethod) {
@@ -381,10 +406,10 @@ function feeByMethodEntries(byMethod) {
     return entries;
 }
 // Tek satırlık " · " ile ayrılmış özet — dar kolonlarda (ör. RivalCard, UpcomingCard) kullanılıyor.
-function feeByMethodHint(byMethod) {
+function feeByMethodHint(byMethod, t) {
     const entries = feeByMethodEntries(byMethod);
     if (entries.length === 0) return null;
-    return entries.map(([k, v]) => `${FEE_METHOD_LABEL[k] || k}: ${v}₺`).join(' · ');
+    return entries.map(([k, v]) => `${feeMethodLabel(k, t)}: ${v}₺`).join(' · ');
 }
 
 // Basitleştirilmiş sekme setiyle açılan yeni dallar — rekabetçi maç/turnuva/hakem
@@ -417,17 +442,17 @@ const SIMPLIFIED_FEE_SUBS = new Set([
 // alanı (voleybolda zemin türünü tutan aynı genel-amaçlı string) buradaki
 // değeri taşımak için tekrar kullanılıyor, yeni migration gerekmiyor.
 const EXTREME_SPORT_TYPES = [
-    { id: 'PARAGLIDING', label: 'Yamaç Paraşütü' },
-    { id: 'BUNGEE_JUMPING', label: 'Bungee Jumping' },
-    { id: 'SKYDIVING', label: 'Skydiving' },
-    { id: 'BASE_JUMPING', label: 'BASE Jumping' },
-    { id: 'RAFTING', label: 'Rafting' },
-    { id: 'SURF_KITESURF', label: 'Sörf ve Uçurtma Sörfü' },
-    { id: 'SCUBA_DIVING', label: 'Scuba Diving / Mağara Dalışı' },
-    { id: 'MOUNTAINEERING_ICE_CLIMBING', label: 'Dağcılık ve Buz Tırmanışı' },
-    { id: 'SNOWBOARD_SKI', label: 'Snowboard ve Kayak' },
-    { id: 'MOUNTAIN_BIKING', label: 'Dağ Bisikleti' },
-    { id: 'MOTOCROSS', label: 'Motokros' },
+    { id: 'PARAGLIDING', labelKey: 'sc_ex_para' },
+    { id: 'BUNGEE_JUMPING', labelKey: 'sc_ex_bungee' },
+    { id: 'SKYDIVING', labelKey: 'sc_ex_sky' },
+    { id: 'BASE_JUMPING', labelKey: 'sc_ex_base' },
+    { id: 'RAFTING', labelKey: 'sc_ex_raft' },
+    { id: 'SURF_KITESURF', labelKey: 'sc_ex_surf' },
+    { id: 'SCUBA_DIVING', labelKey: 'sc_ex_scuba' },
+    { id: 'MOUNTAINEERING_ICE_CLIMBING', labelKey: 'sc_ex_mount' },
+    { id: 'SNOWBOARD_SKI', labelKey: 'sc_ex_snow' },
+    { id: 'MOUNTAIN_BIKING', labelKey: 'sc_ex_mtb' },
+    { id: 'MOTOCROSS', labelKey: 'sc_ex_moto' },
 ];
 
 function getTabs(sub, category) {
@@ -550,7 +575,7 @@ function splitDoublesSlots(pairs, solos, byUserId, maxPlayers) {
 // Opens the device's maps app at the court location, falling back to a Google Maps search.
 // Kort adına dokunuşlar çoğunlukla ilan kartı/detayı açmaya çalışırken yanlışlıkla
 // oluyor — direkt haritayı açmadan önce son bir kez onay istiyoruz.
-const openCourtMap = (courtName, courtLat, courtLng, courtAddress) => {
+const openCourtMap = (courtName, courtLat, courtLng, courtAddress, t) => {
     const go = () => {
         if (courtLat && courtLng) {
             const url = Platform.OS === 'ios'
@@ -565,11 +590,11 @@ const openCourtMap = (courtName, courtLat, courtLng, courtAddress) => {
         }
     };
     Alert.alert(
-        '📍 Konumu Aç',
-        `${courtName || courtAddress || 'Bu konum'} haritalarda açılsın mı?`,
+        t.sc_0002,
+        t.sc_0003(courtName || courtAddress || t.sc_x_4275206b6f),
         [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Aç', onPress: go },
+            { text: t.sc_0004, style: 'cancel' },
+            { text: t.sc_0005, onPress: go },
         ]
     );
 };
@@ -743,7 +768,7 @@ function UserProfileModal({ visible, userId, onClose, navigation, category, sub 
                                             <View style={{ flex: 1 }}>
                                                 <Text style={s.profileInterestName}>{getSubCategoryLabel(i.subCategory, t.lang)}</Text>
                                                 {(i.wins > 0 || i.losses > 0) && (
-                                                    <Text style={s.profileWL}>{i.wins}G · {i.losses}M</Text>
+                                                    <Text style={s.profileWL}>{i.wins}{t.sc_0006} {i.losses}{t.sc_wl_lost}</Text>
                                                 )}
                                             </View>
                                             <View style={{ alignItems: 'flex-end', gap: 3 }}>
@@ -775,7 +800,7 @@ function UserProfileModal({ visible, userId, onClose, navigation, category, sub 
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10, paddingHorizontal:2 }}>
                                     {profile.contactPhone && (<>
                                         <TouchableOpacity onPress={() => Linking.openURL(`tel:${profile.contactPhone}`)} style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#16a34a50' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📞 Ara</Text>
+                                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0007}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={() => Linking.openURL(`whatsapp://send?phone=${profile.contactPhone.replace(/\D/g,'')}`)} style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#16a34a50' }}>
                                             <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>💬 WhatsApp</Text>
@@ -788,7 +813,7 @@ function UserProfileModal({ visible, userId, onClose, navigation, category, sub 
                                     )}
                                     {profile.contactEmail && (
                                         <TouchableOpacity onPress={() => Linking.openURL(`mailto:${profile.contactEmail}`)} style={{ backgroundColor:'#78350f20', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#78350f50' }}>
-                                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>✉️ E-Posta</Text>
+                                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.sc_0008}</Text>
                                         </TouchableOpacity>
                                     )}
                                     {profile.contactInstagram && (
@@ -806,7 +831,7 @@ function UserProfileModal({ visible, userId, onClose, navigation, category, sub 
                                     disabled={challenging}
                                     onPress={sendChallenge}
                                 >
-                                    <Text style={s.submitBtnText}>{challenging ? '...' : (t.challengeBtn || '⚔️ Meydan Oku')}</Text>
+                                    <Text style={s.submitBtnText}>{challenging ? '...' : (t.challengeBtn || t.sc_0009)}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
@@ -920,9 +945,9 @@ const det = StyleSheet.create({
 // Kullanıcı raporu: uzun (14sn) bir video paylaşırken yükleme "biraz geç" hissettiriyordu —
 // gerçek yükleme hızını değiştiremeyiz (dosya boyutu/bağlantıya bağlı) ama en azından ilerleme
 // yüzdesi göstererek "takıldı mı" belirsizliğini gideriyoruz (bkz. onProgress parametresi).
-async function pickAndUploadMatchMedia(onProgress) {
+async function pickAndUploadMatchMedia(onProgress, t) {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return null; }
+    if (!perm.granted) { Alert.alert('', t.sc_0010); return null; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images', 'videos'], quality: 0.85 });
     if (result.canceled) return null;
     const asset = result.assets[0];
@@ -945,7 +970,8 @@ async function pickAndUploadMatchMedia(onProgress) {
 // İÇİNDE (koşullu/döngüsel çağrı) kullanılamaz (Rules of Hooks) — her karo kendi player'ını
 // kendi bileşen örneğinde tutar.
 function MediaTile({ post, dataSaverMode, onOpenFullscreen }) {
-    const [inlineUnlocked, setInlineUnlocked] = useState(false);
+        const t = useT();
+const [inlineUnlocked, setInlineUnlocked] = useState(false);
     const isVideo = !post.imageUrl && !!post.videoUrl;
     const shouldPlayInline = isVideo && (!dataSaverMode || inlineUnlocked);
     const player = useVideoPlayer(null);
@@ -982,7 +1008,7 @@ function MediaTile({ post, dataSaverMode, onOpenFullscreen }) {
             ) : (
                 <View style={{ width: '100%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0a0a14' }}>
                     <Text style={{ fontSize: 46 }}>▶️</Text>
-                    {dataSaverMode && <Text style={{ color: '#fff', fontSize: 10, marginTop: 6, opacity: 0.8 }}>Veri tasarrufu · dokun</Text>}
+                    {dataSaverMode && <Text style={{ color: '#fff', fontSize: 10, marginTop: 6, opacity: 0.8 }}>{t.sc_0011}</Text>}
                 </View>
             )}
         </TouchableOpacity>
@@ -1275,7 +1301,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setSharingMedia(true);
         setMediaUploadProgress(0);
         try {
-            const media = await pickAndUploadMatchMedia(setMediaUploadProgress);
+            const media = await pickAndUploadMatchMedia(setMediaUploadProgress, t);
             if (!media) return;
             setPickedMediaForShare(media);
             setShareToSanalAlemChecked(false);
@@ -1309,8 +1335,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             setShowMediaShareOptions(false);
             setPickedMediaForShare(null);
             Alert.alert('', shareToSanalAlemChecked
-                ? `Medya paylaşıldı ✓ (İlan + ${getSubCategoryLabel(item.subCategory, t.lang)} Medya + Sanal Alem)`
-                : `Medya paylaşıldı ✓ (İlan + ${getSubCategoryLabel(item.subCategory, t.lang)} Medya)`);
+                ? t.sc_0012(getSubCategoryLabel(item.subCategory, t.lang))
+                : t.sc_0013(getSubCategoryLabel(item.subCategory, t.lang)));
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
         } finally {
@@ -1475,7 +1501,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             setLoadingComments(true);
             api.get(`/rivals/${item.id}/comments`)
                 .then(res => setComments(res.data || []))
-                .catch(e => Alert.alert('Hata', e?.response?.data?.message || 'Yorumlar yüklenemedi'))
+                .catch(e => Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0015))
                 .finally(() => setLoadingComments(false));
             loadMatchMedia();
             if (item.subCategory === 'volleyball') {
@@ -1673,7 +1699,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             ? t.cancelMatchPenaltyWarning(leaveCancelPenaltyWindowHours, leaveCancelPenaltyAmount)
             : t.cancelMatchConfirmMsg;
         Alert.alert(t.cancelMatchTitle, msg, [
-            { text: 'Vazgeç', style: 'cancel' },
+            { text: t.sc_0004, style: 'cancel' },
             {
                 text: leaveWithinPenaltyWindow ? `${t.cancelMatchBtn} (-${leaveCancelPenaltyAmount.toFixed(2)})` : t.cancelMatchBtn,
                 style: 'destructive',
@@ -1724,7 +1750,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const partnerGenderReq = localGender?.partnerGenderReq ?? item.partnerGenderReq ?? 'MIX';
     const opp1GenderReq = localGender?.opp1GenderReq ?? item.opp1GenderReq ?? 'MIX';
     const opp2GenderReq = localGender?.opp2GenderReq ?? item.opp2GenderReq ?? 'MIX';
-    const genderLabel = (g) => g === 'MALE' ? '♂ Erkek' : g === 'FEMALE' ? '♀ Kadın' : null;
+    const genderLabel = (g) => g === 'MALE' ? t.sc_g_male : g === 'FEMALE' ? t.sc_g_female : null;
     const required = item.matchType === 'DOUBLE'
         ? ((Array.isArray(item.senderTeam) && item.senderTeam.length > 0) ? 2 : 3)
         : (item.teamSize || 1);
@@ -1892,11 +1918,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // İlan sahibi yanlışlıkla kabul ettiği bir katılımcıyı (çiftlerde takımın tamamını) çıkarır
     const removeRivalParticipant = (participantUserId, participantName) => {
         Alert.alert(
-            'Katılımcıyı Çıkar',
-            `${participantName ? participantName : 'Bu kullanıcı'} maçtan çıkarılacak. Emin misiniz?`,
+            t.sc_0016,
+            t.sc_0017(participantName ? participantName : t.sc_x_4275206b75),
             [
-                { text: 'Vazgeç', style: 'cancel' },
-                { text: 'Çıkar', style: 'destructive', onPress: async () => {
+                { text: t.sc_0004, style: 'cancel' },
+                { text: t.sc_0018, style: 'destructive', onPress: async () => {
                     try {
                         const { data } = await api.delete(`/rivals/${item.id}/participants/${participantUserId}`);
                         // Kullanıcı raporu: bu çıkarma artık atanmamış/yedek listesinden de
@@ -2105,9 +2131,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         }
         if (mode === 'assignDoubleJersey') {
             const doubleActions = [
-                !rosterFilled(senderTeamArr[0]) && genderFitsSlot(p.gender, partnerGenderReq) && { label: `${t.cardParticipantLabel(1)}'e Ata`, onPress: () => assignDoubleSlot(p.id, 'partner') },
-                !rosterFilled(participants[0]) && genderFitsSlot(p.gender, opp1GenderReq) && { label: `${t.cardParticipantLabel(2)}'e Ata`, onPress: () => assignDoubleSlot(p.id, 'opp1') },
-                !rosterFilled(participants[1]) && genderFitsSlot(p.gender, opp2GenderReq) && { label: `${t.cardParticipantLabel(3)}'e Ata`, onPress: () => assignDoubleSlot(p.id, 'opp2') },
+                !rosterFilled(senderTeamArr[0]) && genderFitsSlot(p.gender, partnerGenderReq) && { label: t.sc_0019(t.cardParticipantLabel(1)), onPress: () => assignDoubleSlot(p.id, 'partner') },
+                !rosterFilled(participants[0]) && genderFitsSlot(p.gender, opp1GenderReq) && { label: t.sc_0020(t.cardParticipantLabel(2)), onPress: () => assignDoubleSlot(p.id, 'opp1') },
+                !rosterFilled(participants[1]) && genderFitsSlot(p.gender, opp2GenderReq) && { label: t.sc_0021(t.cardParticipantLabel(3)), onPress: () => assignDoubleSlot(p.id, 'opp2') },
             ].filter(Boolean);
             return { visible: true, title: name, actions: doubleActions };
         }
@@ -2116,7 +2142,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const oppositeLabel = oppositeSide === 'my' ? (item.founderTeamName || t.myTeamLabel) : (item.opponentTeamName || t.oppTeamLabel);
         const actions = [];
         if (!oppositeFull) {
-            actions.push({ label: `${oppositeLabel}'a Taşı`, onPress: () => (p.id ? assignUnassignedToSide(p.id, oppositeSide) : assignManualToSide(p.manualName, oppositeSide)) });
+            actions.push({ label: t.sc_0022(oppositeLabel), onPress: () => (p.id ? assignUnassignedToSide(p.id, oppositeSide) : assignManualToSide(p.manualName, oppositeSide)) });
         } else {
             // Kullanıcı isteği: karşı taraf doluyken atanmamışa atıp sonra yeniden dağıtmakla
             // uğraşmak yerine, doğrudan karşı taraftaki bir oyuncuyla yer değiştirilebilsin.
@@ -2125,11 +2151,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 : [...participants.filter(x => x?.id || x?.manualName), ...oppManualNames.map(n => ({ manualName: n }))];
             for (const target of oppositeRoster) {
                 const targetName = target.id ? playerDisplayName(target) : target.manualName;
-                actions.push({ label: `🔁 ${targetName} ile Değiş`, onPress: () => swapTeamPlayer(p, target) });
+                actions.push({ label: t.sc_0023(targetName), onPress: () => swapTeamPlayer(p, target) });
             }
         }
-        actions.push({ label: 'Atanmamışa Taşı', onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
-        if (p.id) actions.push({ label: 'Çıkar', destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
+        actions.push({ label: t.sc_0024, onPress: () => (p.id ? assignUnassignedToSide(p.id, null) : assignManualToSide(p.manualName, null)) });
+        if (p.id) actions.push({ label: t.sc_0018, destructive: true, onPress: () => removeRivalParticipant(p.id, p.username) });
         return { visible: true, title: name, actions };
     })();
 
@@ -2207,7 +2233,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             .catch(e => Alert.alert(t.error, e?.response?.data?.message || t.actionFailed));
     };
 
-    const SLOT_LABELS = { partner: 'Kurucu Takımı (Partner)', opp1: 'Rakip 1', opp2: 'Rakip 2' };
+    const SLOT_LABELS = { partner: t.sc_slot_partner, opp1: t.sc_0079, opp2: t.sc_0080 };
     const doubleSlotGReq = { partner: partnerGenderReq, opp1: opp1GenderReq, opp2: opp2GenderReq };
     const getDoubleSlotPlayer = (slot) => {
         if (slot === 'partner') return rosterFilled(senderTeamArr[0]) ? senderTeamArr[0] : null;
@@ -2251,20 +2277,20 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const canSelf = !isOwner && item.teamFlexibility !== 'STRICT' && mySlot === fromSlot;
         if (!isOwner && !canSelf) return;
         if (item.teamFlexibility === 'STRICT') {
-            Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
+            Alert.alert(t.sc_0025, t.sc_0026);
             return;
         }
         const targets = ['partner', 'opp1', 'opp2'].filter(s => canSwapDoubleSlots(fromSlot, s));
         if (targets.length === 0) {
-            Alert.alert('', t.noValidSwapSlots || 'Cinsiyet uyumlu değiştirilecek slot yok.');
+            Alert.alert('', t.noValidSwapSlots || t.sc_0027);
             return;
         }
         Alert.alert(
-            canSelf ? (t.changeOwnTeamTitle || 'Takımını değiştir') : (t.changeSlotTitle || 'Oyuncuyu Değiştir'),
-            canSelf ? (t.changeOwnTeamMsg || 'Hangi takım slotuna geçmek istersin?') : (t.changeSlotMsg || 'Bu oyuncu nereye geçsin?'),
+            canSelf ? (t.changeOwnTeamTitle || t.sc_0028) : (t.changeSlotTitle || t.sc_0029),
+            canSelf ? (t.changeOwnTeamMsg || t.sc_0030) : (t.changeSlotMsg || t.sc_0031),
             [
                 ...targets.map(s => ({ text: SLOT_LABELS[s], onPress: () => movePlayer(fromSlot, s) })),
-                { text: 'Vazgeç', style: 'cancel' },
+                { text: t.sc_0004, style: 'cancel' },
             ]
         );
     };
@@ -2282,13 +2308,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const canSelfAct = !isOwner && flexible && (mySlot === slot || (!!swapSlot && mySlot === swapSlot));
         if (!isOwner && !canSelfAct) return;
         if (item.teamFlexibility === 'STRICT') {
-            Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
+            Alert.alert(t.sc_0025, t.sc_0026);
             return;
         }
         if (!swapSlot) { setSwapSlot(slot); return; }
         if (swapSlot === slot) { setSwapSlot(null); return; }
         if (!canSwapDoubleSlots(swapSlot, slot)) {
-            Alert.alert('', t.noValidSwapSlots || 'Cinsiyet uyumlu değiştirilecek slot yok.');
+            Alert.alert('', t.noValidSwapSlots || t.sc_0027);
             return;
         }
         const s1 = swapSlot; const s2 = slot;
@@ -2318,10 +2344,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 const target = byUserId.get(p1.partnerId);
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>⏳ {nameOf(target) || '...'} {t.sc_0032}</Text>
                         {isMine && (
                             <TouchableOpacity onPress={() => setMyRivalJoinPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>✕ Geri Çek</Text>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.sc_0033}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -2329,10 +2355,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             } else if (invitedBy) {
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(invitedBy)} davet etti</Text>
+                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(invitedBy)} {t.sc_0034}</Text>
                         {isMine && (
                             <TouchableOpacity onPress={() => setMyRivalJoinPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
-                                <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
+                                <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>{t.sc_0035}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -2340,13 +2366,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             } else {
                 slot2 = (
                     <View>
-                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Partner aranıyor</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.sc_0036}</Text>
                         {isMine && (
                             <TouchableOpacity
                                 onPress={() => { setJoinInviteCandidates(solos.filter(s => s.userId !== myId)); setShowJoinInvitePicker(true); }}
                                 disabled={partnerActionLoading}
                                 style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
-                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>+ Davet Et</Text>
+                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>{t.sc_0037}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -2360,14 +2386,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'900', textAlign:'center', marginVertical:2 }}>+</Text>
                 {slot2}
                 {isOwner && (p1.status === 'AWAITING_JOINER_CONFIRM' || p2?.status === 'AWAITING_JOINER_CONFIRM' ? (
-                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700', textAlign:'center', marginTop:4 }}>⏳ Son Onay Bekleniyor</Text>
+                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700', textAlign:'center', marginTop:4 }}>{t.sc_0038}</Text>
                 ) : (
                     <View style={{ flexDirection:'row', gap:3, marginTop:4 }}>
                         <TouchableOpacity onPress={() => acceptLocal(p1.id)} style={{ flex:1, backgroundColor:'#16a34a30', borderRadius:5, paddingVertical:0, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
-                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>Kabul</Text>
+                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>{t.sc_0039}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => rejectLocal(p1.id)} style={{ flex:1, backgroundColor:'#dc262630', borderRadius:5, paddingVertical:0, alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
-                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Red</Text>
+                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0040}</Text>
                         </TouchableOpacity>
                     </View>
                 ))}
@@ -2393,7 +2419,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             setComments(p => p.some(c => c.id === res.data.id) ? p : [...p, res.data]);
             setCommentText('');
             setReplyingTo(null);
-        } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum gönderilemedi'); }
+        } catch(e) { Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0041); }
         finally { setSendingComment(false); }
     };
 
@@ -2401,7 +2427,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         try {
             await api.delete(`/rivals/comments/${commentId}`);
             setComments(p => p.filter(c => c.id !== commentId && c.parentId !== commentId));
-        } catch(e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum silinemedi'); }
+        } catch(e) { Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0042); }
     };
     // Kullanıcı isteği: yorumu silmeden önce, yazarı hariç birileri bu yorumu zaten
     // görmüşse "yine de silmek istiyor musunuz?" diye sorsun (bkz. backend viewedBy).
@@ -2409,11 +2435,11 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const seenByOthers = Array.isArray(comment.viewedBy) ? comment.viewedBy.filter(uid => uid !== myId).length : 0;
         if (seenByOthers > 0) {
             Alert.alert(
-                'Bu yorum görüldü',
-                `Bu yorumu ${seenByOthers} kişi gördü. Yine de silmek istiyor musunuz?`,
+                t.sc_0043,
+                t.sc_0044(seenByOthers),
                 [
-                    { text: 'Vazgeç', style: 'cancel' },
-                    { text: 'Yine de Sil', style: 'destructive', onPress: () => doDeleteComment(comment.id) },
+                    { text: t.sc_0004, style: 'cancel' },
+                    { text: t.sc_0045, style: 'destructive', onPress: () => doDeleteComment(comment.id) },
                 ]
             );
             return;
@@ -2475,7 +2501,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             })()}
                             {item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item) && (
                                 <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
-                                    {genderCountDisplayLabel(item)}
+                                    {genderCountDisplayLabel(item, t)}
                                 </Text>
                             )}
                             {(() => {
@@ -2498,14 +2524,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             )}
                             {feeByMethodEntries(item.courtFeePerPersonByMethod).length > 0 && feeByMethodEntries(item.courtFeePerPersonByMethod).map(([k, v]) => (
                                 <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1}>
-                                    {FEE_METHOD_LABEL[k] || k}: {v}₺
+                                    {feeMethodLabel(k, t) || k}: {v}₺
                                 </Text>
                             ))}
                             <Text style={{ fontSize:moderateScale(10), fontWeight:'700', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
                                 {item.isCourtReserved
                                     ? sportFacilityLabels(sub, t).reserved
                                     : item.location === 'Ortaklaşa Kararlaştırılır'
-                                        ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
+                                        ? (t.courtMutualBtn || t.sc_0046)
                                         : sportFacilityLabels(sub, t).notReserved}
                             </Text>
                         </View>
@@ -2523,7 +2549,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                 </Text>
                                 <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
-                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
                             {item.matchDate && (
@@ -2548,7 +2574,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 </Text>
                             )}
                             {item.courtName && (
-                                <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
+                                <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress, t)}>
                                     <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>{item.courtName}</Text>
                                 </TouchableOpacity>
                             )}
@@ -2589,8 +2615,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     tutarlı olsun diye "Oyuncular" yerine "Katılan Oyuncular"
                                     (kullanıcı isteği: voleybolda da aynı etiket kullanılsın). */}
                                 👥 {(item.matchType === 'DOUBLE' || item.matchType === 'SINGLE' || (item.teamSize || 1) > 1)
-                                    ? (showTeamCards ? (t.rosterTeamsLabel || 'Takımlar') : t.rosterPoolLabel)
-                                    : (t.players || 'Oyuncular')} {isRefereeAd && item.linkedRival
+                                    ? (showTeamCards ? (t.rosterTeamsLabel || t.sc_0048) : t.rosterPoolLabel)
+                                    : (t.players || t.sc_0049)} {isRefereeAd && item.linkedRival
                                     ? `(${linkedSenderSideCount + linkedFilled} / ${linkedTotalCapacity})`
                                     /* Kullanıcı isteği: DOUBLE'da kabul edilip henüz Takım Arkadaşı/Rakip1/
                                        Rakip2'ye atanmamış oyuncular ("atanmamış havuzu") artık ön yüzde
@@ -2604,7 +2630,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             {item.matchType === 'DOUBLE' && !isRefereeAd && (
                                 <TouchableOpacity onPress={() => { cancelHighlightSequence(); toggleTeamCards(!showTeamCards); }} style={{ backgroundColor:'#ffffff10', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#ffffff20', position:'relative' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>
-                                        {showTeamCards ? '🔄 Çevir' : (isOwner ? '🗂️ Takımları Düzenle' : '🗂️ Takımları Gör')}
+                                        {showTeamCards ? t.sc_0050 : (isOwner ? t.sc_0051 : t.sc_0052)}
                                     </Text>
                                     {flipHintActive && !showTeamCards && (
                                         <Animated.View style={{ position:'absolute', top:-3, right:-3, width:9, height:9, borderRadius:5, backgroundColor:'#ef4444', opacity: highlightPulse }} />
@@ -2637,7 +2663,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     <Avatar name={item.linkedRival.sender?.username} avatar={item.linkedRival.sender?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => item.linkedRival.senderId && navigation.push('Profile', { userId: item.linkedRival.senderId })} />
                                     <View style={{ flex:1 }}>
                                         <Text style={det.playerName}>{playerDisplayName(item.linkedRival.sender)}</Text>
-                                        <Text style={det.playerSub}>{item.linkedRival.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                        <Text style={det.playerSub}>{item.linkedRival.sender?.username} · {t.founder || t.sc_0053}</Text>
                                     </View>
                                 </View>
                                 {[...linkedSenderTeam, ...linkedParticipants].filter(p => p?.id).map((p, i) => (
@@ -2655,7 +2681,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
                                         </View>
                                         <View style={{ flex:1 }}>
-                                            <Text style={[det.playerSub, { color: colors.textMuted }]}>Bekleniyor</Text>
+                                            <Text style={[det.playerSub, { color: colors.textMuted }]}>{t.sc_0054}</Text>
                                         </View>
                                     </View>
                                 ))}
@@ -2665,7 +2691,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Avatar name={item.refereeUser.username} avatar={item.refereeUser.avatar} size={moderateScale(32)} color={'#f59e0b'} onPress={() => navigation.push('Profile', { userId: item.refereeUser.id })} />
                                             <View style={{ flex:1 }}>
                                                 <Text style={det.playerName}>{playerDisplayName(item.refereeUser)}</Text>
-                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>🧑‍⚖️ Hakem</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{t.sc_0055}</Text>
                                             </View>
                                         </>
                                     ) : item.manualRefereeName ? (
@@ -2675,7 +2701,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             </View>
                                             <View style={{ flex:1 }}>
                                                 <Text style={det.playerName}>{item.manualRefereeName}</Text>
-                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>🧑‍⚖️ Hakem</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:moderateScale(11), fontWeight:'700' }}>{t.sc_0055}</Text>
                                             </View>
                                         </>
                                     ) : (
@@ -2687,9 +2713,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 {/* Kendi başvurusu bekleyen/karşı teklif almış görüntüleyici bunu genel
                                                     "Hakem — Bekleniyor" yerine kendi durumu olarak görsün. */}
                                                 <Text style={[det.playerSub, { color:'#f59e0b' }]}>
-                                                    {mySentReq === 'PENDING' ? 'İsteğiniz Bekleniyor'
-                                                        : mySentReq === 'COUNTERED' ? 'Karşı Teklif Aldınız'
-                                                        : 'Hakem — Bekleniyor'}
+                                                    {mySentReq === 'PENDING' ? t.sc_0056
+                                                        : mySentReq === 'COUNTERED' ? t.sc_0057
+                                                        : t.sc_0058}
                                                 </Text>
                                             </View>
                                         </>
@@ -2712,7 +2738,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 // doğrudan formanın içinde arama/davet (kullanıcı isteği: "voleyboldeki
                                 // mantığı yap"). Dıştaki TouchableOpacity'nin İÇİNE gömülmez — TextInput'un
                                 // odaklanma/dokunma davranışıyla çakışır, bu yüzden erken ayrı render edilir.
-                                if (!p && !locked && isOwner && !swapSlot) {
+                                                                const t = useT();
+if (!p && !locked && isOwner && !swapSlot) {
                                     return (
                                         <View>
                                             {gReqLabel && <Text style={{ color:'#a855f7', fontSize:8, fontWeight:'700', marginBottom:1 }}>{gReqLabel}</Text>}
@@ -2803,13 +2830,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         {(isOwner || canSelfTeamChange) && item.teamFlexibility !== 'STRICT' && (
                                                             <TouchableOpacity onPress={() => promptMove(slot)}>
                                                                 <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>
-                                                                    {t.changeSlotBtn || '⇄ Değiştir'}
+                                                                    {t.changeSlotBtn || t.sc_0059}
                                                                 </Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {onRemove && (
                                                             <TouchableOpacity onPress={onRemove}>
-                                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.sc_0018}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                     </View>
@@ -2851,7 +2878,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // Ön yüz = kabul sırasına göre Katılan Oyuncular (takım slotlarından BAĞIMSIZ).
                             // Arka yüz = Partner/Rakip1/Rakip2. acceptedAt varsa ona göre sırala;
                             // yoksa ekleme sırası (unassigned → partner → opp1 → opp2) korunur.
-                            const gParen = (g) => g === 'MALE' ? ' (Erkek)' : g === 'FEMALE' ? ' (Kadın)' : '';
+                            const gParen = (g) => g === 'MALE' ? t.sc_0060 : g === 'FEMALE' ? t.sc_0061 : '';
                             const allTeamSlots = [
                                 { key: 'partner', p: PartnerContent, gReq: partnerGenderReq },
                                 { key: 'opp1', p: rosterFilled(participants[0]) ? participants[0] : null, gReq: opp1GenderReq },
@@ -2921,7 +2948,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                                         )}
                                                     </View>
-                                                    <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                                    <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || t.sc_0053}</Text>
                                                 </View>
                                             </TouchableOpacity>
                                         </View>
@@ -2951,7 +2978,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </TouchableOpacity>
                                                 {isOwner && (
                                                     <TouchableOpacity onPress={() => removeRivalParticipant(sl.p.id, sl.p.username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>{t.sc_0018}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -2977,7 +3004,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         </View>
                                                         <View style={{ flex:1 }}>
                                                             <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>{t.cardParticipantLabel(i + 1)}</Text>
-                                                            <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
+                                                            <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>{t.sc_0054}</Text>
                                                         </View>
                                                     </View>
                                                 )}
@@ -2987,12 +3014,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             highlightSlot ? (
                                                 <Animated.View style={{ opacity: highlightPulse, alignItems:'center', paddingVertical:6, width:'100%' }}>
                                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
-                                                    <Text style={[det.emptyTxt, { marginTop:2 }]}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                                                    <Text style={[det.emptyTxt, { marginTop:2 }]}>{t.noPlayersYet || t.sc_0062}</Text>
                                                 </Animated.View>
                                             ) : null
                                         )}
                                         <Text style={{ color: colors.textMuted, fontSize:9, width:'100%', marginTop:2, marginBottom:2 }}>
-                                            {t.rosterFrontJoinHint || 'Boş slota başvur veya kartı çevirip takım slotundan istek at.'}
+                                            {t.rosterFrontJoinHint || t.sc_0063}
                                         </Text>
                                     </View>
                                 );
@@ -3048,18 +3075,18 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <View>
                                     {swapSlot && (
                                         <View style={{ backgroundColor:'#f59e0b18', borderRadius:6, padding:3, marginBottom:6, alignItems:'center' }}>
-                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>Taşınacak oyuncu seçildi — hedef slota dokun</Text>
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.sc_0064}</Text>
                                             <TouchableOpacity onPress={() => setSwapSlot(null)} style={{ marginTop:3 }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:10 }}>İptal</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10 }}>{t.sc_0065}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>👑 Kurucu Takımı</Text>
+                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.sc_0066}</Text>
                                                 {founderTeamAvgDetail != null && (
-                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(sub, isDoublesFmt, t.lang, founderTeamAvgDetail)}</Text>
+                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.sc_0067} {ratingBadgeText(sub, isDoublesFmt, t.lang, founderTeamAvgDetail)}</Text>
                                                 )}
                                             </View>
                                             {/* Kurucu sabit — taşınamaz */}
@@ -3083,12 +3110,12 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                         <View style={{ width:'48%', backgroundColor:'#1e293b', borderRadius:8, borderWidth:1, borderColor: colors.border+'40', paddingVertical:5, paddingHorizontal:5, marginBottom:6 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', marginBottom:4 }}>
-                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>⚔️ Rakip Takımı</Text>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.sc_0068}</Text>
                                                 {oppTeamAvgDetail != null && (
-                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(sub, isDoublesFmt, t.lang, oppTeamAvgDetail)}</Text>
+                                                    <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.sc_0067} {ratingBadgeText(sub, isDoublesFmt, t.lang, oppTeamAvgDetail)}</Text>
                                                 )}
                                             </View>
-                                            <SlotBox slot="opp1" p={rosterFilled(participants[0]) ? participants[0] : null} fallback="Henüz katılan yok"
+                                            <SlotBox slot="opp1" p={rosterFilled(participants[0]) ? participants[0] : null} fallback={t.sc_0062}
                                                 gReqLabel={genderLabel(opp1GenderReq)} gReqValue={opp1GenderReq}
                                                 highlighted={highlightSlot?.doubleSlot === 'opp1'}
                                                 onRemove={isOwner && participants[0] ? () => removeRivalParticipant(participants[0].id, participants[0].username) : null}
@@ -3100,7 +3127,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             {/* gReqLabel=null: cinsiyet etiketi zaten hemen üstündeki "+" satırında
                                                 gösteriliyor (bkz. yukarıdaki genderLabel(opp2GenderReq)) — burada da
                                                 geçilirse "♀ Kadın" iki kez üst üste yazılıyordu (kullanıcı raporu). */}
-                                            <SlotBox slot="opp2" p={rosterFilled(participants[1]) ? participants[1] : null} fallback="Henüz katılan yok"
+                                            <SlotBox slot="opp2" p={rosterFilled(participants[1]) ? participants[1] : null} fallback={t.sc_0062}
                                                 gReqLabel={null} gReqValue={opp2GenderReq}
                                                 highlighted={highlightSlot?.doubleSlot === 'opp2'}
                                                 onRemove={isOwner && participants[1] ? () => removeRivalParticipant(participants[1].id, participants[1].username) : null}
@@ -3114,7 +3141,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         yanıp söner — davet edilen kişi pozisyonun değişmeyeceğini fark etsin. */}
                                     {highlightSlot?.doubleSlot && item.teamFlexibility === 'STRICT' ? (
                                         <Animated.View style={{ opacity: highlightPulse, backgroundColor:'#ef444418', borderRadius:6, padding:5, marginTop:6, alignItems:'center' }}>
-                                            <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'800' }}>🔒 Takım değişikliği kapalı — bu pozisyonda kalacaksınız</Text>
+                                            <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'800' }}>{t.sc_0069}</Text>
                                         </Animated.View>
                                     ) : (
                                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', textAlign:'center', marginTop:6 }}>
@@ -3123,7 +3150,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                     {unassignedDoubleSlots.length > 0 && (
                                         <View style={{ marginTop:8 }}>
-                                            <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
+                                            <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>{t.sc_0070}</Text>
                                             {unassignedDoubleSlots.map(p => {
                                                 const isMe = p.id === myId;
                                                 // Takım adına değil BOŞ FORMANIN numarasına ata. Eski "Takım 2'ye
@@ -3148,13 +3175,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         {canAssignDouble && (
                                                             <TouchableOpacity onPress={() => setSlotActionTarget({ p, mode: 'assignDoubleJersey' })}
                                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>Takımlara Ata</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.sc_0071}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {isOwner && (
                                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)}
                                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630' }}>
-                                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.sc_0018}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                     </View>
@@ -3187,7 +3214,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // listesinden yapılıyor (bkz. promptAssignTeam), ön yüz sadece görüntüleme +
                             // atanmamışlar için kırmızı yanıp sönen uyarı (unassignedWarning).
                             const Cell = ({ p, side, allowRemove, unassignedWarning }) => {
-                                const isFounder = p.id && p.id === item.senderId;
+                                                                const t = useT();
+const isFounder = p.id && p.id === item.senderId;
                                 const isMe = p.id != null && p.id === myId;
                                 // İlan sahibi (item.sender) SENDER_SELECT+interests ilişkisiyle geliyor
                                 // (interests[0].skillRating), diğer oyuncular ise senderTeam/participants
@@ -3252,7 +3280,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     küçük bir pencerede Çıkar / Atanmamışa Taşı sorulur (bkz. promptSlotAction). */}
                                                 {isOwner && !isFounder && (
                                                     <TouchableOpacity onPress={() => promptSlotAction(p, side)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Çıkar/Değiştir</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>{t.sc_0072}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -3280,7 +3308,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                         <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', minHeight:0, borderColor: cfg.color+'60' }]}>
                                             <Text style={{ color: cfg.color, fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:8 }} numberOfLines={1}>{t.noPlayersYet || t.sc_0062}</Text>
                                         </View>
                                     </Animated.View>
                                 ) : (
@@ -3289,7 +3317,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             <Text style={{ color: colors.textMuted, fontSize:8 }}>?</Text>
                                         </View>
                                         <View style={[s.fieldInput, { flex:1, marginBottom:0, paddingVertical:2, paddingHorizontal:5, justifyContent:'center', minHeight:0 }]}>
-                                            <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>Bekleniyor</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1}>{t.sc_0054}</Text>
                                         </View>
                                     </View>
                                 )
@@ -3301,7 +3329,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             // bilinmeyen çok eski kayıtlar) sabit slotların ALTINDA, ekstra
                             // satırlar olarak ayrıca gösterilir, kaybolmasınlar diye.
                             const TeamColBack = ({ label, color, peoplePositional, legacyManualExtra = [], total, allowRemove, side, onEditName }) => {
-                                const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || null);
+                                                                const t = useT();
+const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || null);
                                 // Kullanıcı isteği: "takımlar belli olduğuna göre takımların ortalama
                                 // derecesi kaç, rekabetçi maç modu önemli" — dolu forma sayısı üzerinden
                                 // (henüz derecesi olmayan/manuel oyuncular ortalamaya katılmıyor).
@@ -3321,7 +3350,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             )}
                                             <View style={{ flex:1 }} />
                                             {teamAvgRating != null && (
-                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {teamAvgRating.toFixed(2)}★</Text>
+                                                <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.sc_0067} {teamAvgRating.toFixed(2)}★</Text>
                                             )}
                                         </View>
                                         {slots.map((p, i) => {
@@ -3491,7 +3520,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
-                                                <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                                <Text style={det.playerSub} numberOfLines={1}>{item.sender?.username} · {t.founder || t.sc_0053}</Text>
                                             </View>
                                         </TouchableOpacity>
                                     </View>
@@ -3510,14 +3539,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                             )}
                                                         </View>
                                                         <Text style={det.playerSub} numberOfLines={1}>
-                                                            {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
+                                                            {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? t.sc_0073 : t.sc_0074}</Text>}
                                                             {participants[0].username}
                                                         </Text>
                                                     </View>
                                                 </TouchableOpacity>
                                                 {isOwner && (
                                                     <TouchableOpacity onPress={() => removeRivalParticipant(participants[0].id, participants[0].username)} style={{ marginTop:3, alignSelf:'flex-end' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>Çıkar</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:moderateScale(10), fontWeight:'700' }}>{t.sc_0018}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </>
@@ -3528,10 +3557,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 </View>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={[det.playerSub, { color: colors.textMuted }]} numberOfLines={1}>
-                                                        {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
-                                                        {t.opponentTeamShortLabel || 'Rakip'}
+                                                        {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? t.sc_0073 : t.sc_0074}</Text>}
+                                                        {t.opponentTeamShortLabel || t.sc_0075}
                                                     </Text>
-                                                    <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>Bekleniyor</Text>
+                                                    <Text style={[det.playerSub, { color: colors.textMuted, fontSize:9 }]} numberOfLines={1}>{t.sc_0054}</Text>
                                                 </View>
                                             </View>
                                         )}
@@ -3567,7 +3596,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <View style={{ width:moderateScale(36), height:moderateScale(36), borderRadius:moderateScale(18), borderWidth:1, borderStyle:'dashed', borderColor: colors.textMuted, alignItems:'center', justifyContent:'center' }}>
                                             <Text style={{ color: colors.textMuted, fontSize:14 }}>?</Text>
                                         </View>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>Bekleniyor</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>{t.sc_0054}</Text>
                                     </View>
                                 ))}
                             </View>
@@ -3590,7 +3619,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', marginLeft:4 }} numberOfLines={1}>{ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}</Text>
                                             )}
                                         </View>
-                                        <Text style={det.playerSub}>{item.sender?.username} · {t.founder || 'Kurucu'}</Text>
+                                        <Text style={det.playerSub}>{item.sender?.username} · {t.founder || t.sc_0053}</Text>
                                     </View>
                                 </View>
                                 {participants.filter(p => p?.id).map((p, i) => (
@@ -3609,13 +3638,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                 )}
                                             </View>
                                             <Text style={det.playerSub}>
-                                                {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
+                                                {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? t.sc_0073 : t.sc_0074}</Text>}
                                                 {p.username}
                                             </Text>
                                         </View>
                                         {isOwner && (
                                             <TouchableOpacity onPress={() => removeRivalParticipant(p.id, p.username)} style={{ padding:3 }}>
-                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>Çıkar</Text>
+                                                <Text style={{ color:'#f87171', fontSize:moderateScale(11), fontWeight:'700' }}>{t.sc_0018}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -3627,8 +3656,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                         <View style={{ flex:1 }}>
                                             <Text style={[det.playerSub, { color: colors.textMuted }]}>
-                                                {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? '(Erkek) ' : '(Kadın) '}</Text>}
-                                                Bekleniyor
+                                                {genderReq !== 'MIX' && <Text style={{ color:'#a855f7', fontWeight:'700' }}>{genderReq === 'MALE' ? t.sc_0073 : t.sc_0074}</Text>}
+                                                {t.sc_0054}
                                             </Text>
                                         </View>
                                     </View>
@@ -3655,15 +3684,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 onPress={() => setShowSentInvites(v => !v)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}
                             >
-                                <Text style={det.sectionTitle}>📨 Gönderilen Davetler ({joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length})</Text>
+                                <Text style={det.sectionTitle}>{t.sc_0076}{joinRequests.filter(jr => jr.initiatedBy === 'OWNER').length})</Text>
                                 <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showSentInvites ? '0deg' : '-90deg' }] }}>▼</Text>
                             </TouchableOpacity>
                             {showSentInvites && joinRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => {
-                                const slotLabel = isRefereeAd ? '🟨 Hakemlik Daveti'
+                                const slotLabel = isRefereeAd ? t.sc_0077
                                     : item.matchType !== 'DOUBLE' ? null
-                                    : jr.isPartnerInvite ? 'Takım Arkadaşı'
-                                    : jr.requestedSlot === 'opp1' ? 'Rakip 1'
-                                    : jr.requestedSlot === 'opp2' ? 'Rakip 2'
+                                    : jr.isPartnerInvite ? t.sc_0078
+                                    : jr.requestedSlot === 'opp1' ? t.sc_0079
+                                    : jr.requestedSlot === 'opp2' ? t.sc_0080
                                     : null;
                                 const isMyInvite = jr.userId === myId;
                                 return (
@@ -3671,7 +3700,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
                                         <View style={{ flex:1 }}>
                                             <Text style={det.playerName}>{playerDisplayName(jr.user)}{!isRefereeAd && eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}</Text>
-                                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>{slotLabel ? `${slotLabel} — ` : ''}⏳ Onay Bekleniyor</Text>
+                                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>{slotLabel ? `${slotLabel} — ` : ''}{t.sc_0081}</Text>
                                             {/* Kullanıcı isteği: hakem daveti bildiriminden gelen kişi, kabul/red
                                                 etmeden önce kendisine teklif edilen ücret/mesajı görebilmeli —
                                                 önceden bu satırda hiç gösterilmiyordu, ne teklif edildiği belirsizdi. */}
@@ -3761,7 +3790,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 yoksa hiç göremeyip "hiçbir şey olmadı" sanıyordu. */}
                             {Array.isArray(item.refereeQueue) && item.refereeQueue.length > 0 && (
                                 <Text style={{ color:'#f59e0b', fontSize:moderateScale(10), fontWeight:'600', marginTop:6, paddingTop:6, borderTopWidth:1, borderTopColor:'#f59e0b30' }}>
-                                    🕓 Yedek Sırası: {item.refereeQueue.map((q, i) => `${i + 1}. ${q.fullName || q.username}${q.userId === myId ? ' (Sen)' : ''}`).join('  ·  ')}
+                                    {t.sc_0082} {item.refereeQueue.map((q, i) => `${i + 1}. ${q.fullName || q.username}${q.userId === myId ? t.sc_0083 : ''}`).join('  ·  ')}
                                 </Text>
                             )}
                             </View>
@@ -3827,7 +3856,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </View>
                                     )}
                                     {app.initiatedBy === 'OWNER' && app.status === 'PENDING' && app.userId !== myId && (
-                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>Davet gönderildi — onay bekleniyor</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(9), marginTop:2, fontStyle:'italic' }}>{t.sc_0084}</Text>
                                     )}
                                     {isOwner && app.initiatedBy !== 'OWNER' && app.status === 'PENDING' && counterInputFor !== app.id && (
                                         <View style={{ flexDirection:'row', gap:4, marginTop:4 }}>
@@ -3925,7 +3954,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     style={[s.cancelBtn, { flex:1, backgroundColor:'#22c55e20', borderColor:'#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                                     onPress={() => setOrderVenueId(item.venueId)}
                                                 >
-                                                    <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
+                                                    <Text style={[s.cancelBtnText, { color:'#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.sc_0085}</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
@@ -3945,7 +3974,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                                     onPress={() => shareRival(item, t)}
                                                 >
-                                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                                    <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || t.sc_0086}</Text>
                                                 </TouchableOpacity>
                                             )}
                                             {canLeaveHere && (
@@ -3978,7 +4007,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     }
                                 }}
                             >
-                                <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(12) }]}>{seedingDemoRival ? '...' : '🤖 Demo Başvuru Gönder'}</Text>
+                                <Text style={[s.joinBtnText, { color:'#a78bfa', fontSize: moderateScale(12) }]}>{seedingDemoRival ? '...' : t.sc_0087}</Text>
                             </TouchableOpacity>
                         )}
                         {item.ticketUrl && (
@@ -4008,13 +4037,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => shareRival(item, t)}
                                         >
-                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || '📤 Paylaş'}</Text>
+                                            <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.shareBtn || t.sc_0086}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[s.cancelBtn, { flex: 1, backgroundColor: colors.purple + '20', borderColor: colors.purple + '40', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => { onClose(); setTimeout(onEdit, 300); }}
                                         >
-                                            <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✏️ Düzenle</Text>
+                                            <Text style={[s.cancelBtnText, { color: colors.purple, fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.sc_0088}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity
                                             style={[s.cancelBtn, { flex: 1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
@@ -4031,7 +4060,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             style={[s.cancelBtn, { flex: 1, backgroundColor: '#22c55e20', borderColor: '#22c55e50', borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}
                                             onPress={() => setOrderVenueId(item.venueId)}
                                         >
-                                            <Text style={[s.cancelBtnText, { color: '#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📋 Sipariş Ver</Text>
+                                            <Text style={[s.cancelBtnText, { color: '#22c55e', fontSize: moderateScale(11) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.sc_0085}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -4058,13 +4087,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                             sendOne();
                                         }}
                                     >
-                                        <Text style={[s.joinBtnText, { color: demoSpamActive ? '#f87171' : '#a78bfa', fontSize: moderateScale(12) }]}>{demoSpamActive ? '⏹ Demo Botları Durdur' : '🤖 Demo Botları Başlat (2sn/istek)'}</Text>
+                                        <Text style={[s.joinBtnText, { color: demoSpamActive ? '#f87171' : '#a78bfa', fontSize: moderateScale(12) }]}>{demoSpamActive ? t.sc_0089 : t.sc_0090}</Text>
                                     </TouchableOpacity>
                                 )}
                             </>
                         ) : isLinkedMatchPlayer ? (
                             <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
-                                <Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
+                                <Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.sc_0091}</Text>
                             </View>
                         ) : myInvite ? (
                             <View style={{ gap:3 }}>
@@ -4072,7 +4101,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     👉 {t.invitedTeamSlotBlink || t.youAreInvitedHere}
                                 </Animated.Text>
                                 {myInvite.isPartnerInvite && (
-                                    <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>🤝 Partner Daveti</Text>
+                                    <Text style={{ color:'#a78bfa', fontSize: moderateScale(11), fontWeight:'700', textAlign:'center' }}>{t.sc_0092}</Text>
                                 )}
                                 {(myInvite.offerPrice || myInvite.offerMessage) && (
                                     <View style={{ backgroundColor:'#f59e0b0d', borderRadius: moderateScale(8), borderWidth:1, borderColor:'#f59e0b30', paddingHorizontal:8, paddingVertical:6 }}>
@@ -4087,7 +4116,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         yol açıyordu. acceptLocal/rejectLocal API'nin döndürdüğü güncel veriyle
                                         (participants/senderTeam/joinRequests) anında local state'i güncelliyor. */}
                                     <TouchableOpacity style={[s.joinBtn, { flex:1, backgroundColor:'#16a34a', borderRadius: moderateScale(8), paddingVertical: moderateScale(6) }]} onPress={() => acceptLocal(myInvite.id)}>
-                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{myInvite.isPartnerInvite ? 'Partner Ol' : t.inviteAcceptBtn}</Text>
+                                        <Text style={[s.joinBtnText, { fontSize: moderateScale(12) }]}>{myInvite.isPartnerInvite ? t.sc_0093 : t.inviteAcceptBtn}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={[s.cancelBtn, { flex:1, borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]} onPress={() => rejectLocal(myInvite.id)}>
                                         <Text style={[s.cancelBtnText, { fontSize: moderateScale(11) }]}>{t.inviteRejectBtn}</Text>
@@ -4139,7 +4168,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             null
                         ) : isFull ? (
                             <View style={{ gap:6 }}>
-                                <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || 'İlan doldu'}</Text></View>
+                                <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}><Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>{t.ilanFull || t.sc_0094}</Text></View>
                                 {item.refereeRequested && !item.refereeUser && (
                                     <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                         <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
@@ -4252,10 +4281,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                             {replyingTo && (
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>
-                                        Yanıtlanıyor: {playerDisplayName(comments.find(c => c.id === replyingTo)?.user, sub)}
+                                        {t.sc_0095} {playerDisplayName(comments.find(c => c.id === replyingTo)?.user, sub)}
                                     </Text>
                                     <TouchableOpacity onPress={() => setReplyingTo(null)}>
-                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>✕ Vazgeç</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>{t.sc_0096}</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -4289,7 +4318,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 <TextInput
                                     ref={commentInputRef}
                                     style={[s.fieldInput, { flex:1, height:moderateScale(44), marginBottom:0, fontSize:moderateScale(14) }]}
-                                    placeholder={replyingTo ? (t.matchCommentReplyPh || 'Yanıt yaz... (@ ile etiketle)') : (t.matchCommentPlaceholder)}
+                                    placeholder={replyingTo ? (t.matchCommentReplyPh || t.sc_0097) : (t.matchCommentPlaceholder)}
                                     placeholderTextColor={colors.textMuted}
                                     value={commentText}
                                     onChangeText={setCommentText}
@@ -4355,7 +4384,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                         </TouchableOpacity>
                                         {!isReply && (
                                             <TouchableOpacity onPress={() => startReplyToComment(c)}>
-                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }}>{t.matchCommentReplyBtn || t.sc_0098}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -4373,8 +4402,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         disabled={sharingMedia}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:'#0ea5e918', borderRadius:12, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:11, marginTop:4, opacity: sharingMedia ? 0.6 : 1 }}>
                         {sharingMedia
-                            ? <><ActivityIndicator color="#38bdf8" size="small" /><Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800' }}>{mediaUploadProgress > 0 ? `Yükleniyor... %${mediaUploadProgress}` : 'Yükleniyor...'}</Text></>
-                            : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>📷 Medya Paylaş</Text>}
+                            ? <><ActivityIndicator color="#38bdf8" size="small" /><Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800' }}>{mediaUploadProgress > 0 ? t.sc_0099(mediaUploadProgress) : t.sc_0100}</Text></>
+                            : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>{t.sc_0101}</Text>}
                     </TouchableOpacity>
 
                     {/* Kullanıcı isteği: bu ilanda paylaşılan medyalar "Medya" diye altında
@@ -4384,7 +4413,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:14, marginBottom: showMatchMediaList ? 8 : 4 }}
                     >
                         <Text style={{ color:'#fff', fontSize:moderateScale(15), fontWeight:'800' }}>
-                            📷 Medya{matchMediaList.length > 0 ? ` (${matchMediaList.length})` : ''}
+                            {t.sc_0102}{matchMediaList.length > 0 ? ` (${matchMediaList.length})` : ''}
                         </Text>
                         <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showMatchMediaList ? '0deg' : '-90deg' }] }}>▼</Text>
                     </TouchableOpacity>
@@ -4392,7 +4421,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         loadingMatchMedia ? (
                             <ActivityIndicator color={cfg.color} style={{ marginTop:8 }} />
                         ) : matchMediaList.length === 0 ? (
-                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:4, marginBottom:8, fontSize:moderateScale(13) }}>Henüz medya paylaşılmadı.</Text>
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:4, marginBottom:8, fontSize:moderateScale(13) }}>{t.sc_0103}</Text>
                         ) : (
                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
                                 {matchMediaList.map((mp, idx) => (
@@ -4449,7 +4478,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                                     </Text>
                                                 </View>
                                                 {invitedUserIds.has(u.id) ? (
-                                                    <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>✓ Davet Gönderildi</Text>
+                                                    <Text style={{ color:'#4ade80', fontSize:moderateScale(12), fontWeight:'700' }}>{t.sc_0104}</Text>
                                                 ) : (
                                                     <TouchableOpacity
                                                         style={[s.joinBtn, { paddingHorizontal:moderateScale(14), paddingVertical:moderateScale(7), borderRadius: moderateScale(10) }, invitingUserId === u.id && { opacity:0.6 }]}
@@ -4481,15 +4510,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         <Modal visible={showMediaShareOptions} transparent animationType="fade" onRequestClose={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}>
             <View style={{ flex:1, backgroundColor:'#000000a0', justifyContent:'center', padding:24 }}>
                 <View style={{ backgroundColor: colors.surface, borderRadius:18, padding:17 }}>
-                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:4 }}>📷 Medyayı Nerede Paylaşayım?</Text>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:4 }}>{t.sc_0105}</Text>
                     <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:14, lineHeight:17 }}>
-                        Bu ilanın altında ve {getSubCategoryLabel(item.subCategory, t.lang)} Medya sekmesinde otomatik görünecek. İsterseniz aynı anda Sanal Alem'de de paylaşabilirsiniz.
+                        {t.sc_0106} {getSubCategoryLabel(item.subCategory, t.lang)} {t.sc_0107}
                     </Text>
                     {pickedMediaForShare && (
                         pickedMediaForShare.isVideo ? (
                             <View style={{ width:'100%', height:140, borderRadius:12, marginBottom:14, backgroundColor: colors.surface2, alignItems:'center', justifyContent:'center' }}>
                                 <Text style={{ fontSize:32 }}>🎬</Text>
-                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>Video seçildi</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>{t.sc_0108}</Text>
                             </View>
                         ) : (
                             <Image source={{ uri: pickedMediaForShare.url }} style={{ width:'100%', height:160, borderRadius:12, marginBottom:14 }} resizeMode="cover" />
@@ -4497,15 +4526,15 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     )}
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8 }}>
                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>
-                            {cfg.emoji} {getSubCategoryLabel(item.subCategory, t.lang)} Medya'da Paylaş
+                            {cfg.emoji} {getSubCategoryLabel(item.subCategory, t.lang)} {t.sc_0109}
                         </Text>
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✓ Otomatik</Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{t.sc_0110}</Text>
                     </View>
                     <TouchableOpacity
                         onPress={() => setShareToSanalAlemChecked(v => !v)}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: shareToSanalAlemChecked ? '#0ea5e920' : colors.surface2, borderRadius:10, padding:10, marginBottom:16, borderWidth:1, borderColor: shareToSanalAlemChecked ? '#0ea5e960' : colors.border }}
                     >
-                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>🌐 Sanal Alem'de de Paylaş</Text>
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>{t.sc_0111}</Text>
                         <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: shareToSanalAlemChecked ? '#0ea5e9' : colors.textMuted, backgroundColor: shareToSanalAlemChecked ? '#0ea5e9' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                             {shareToSanalAlemChecked && <Text style={{ color:'#fff', fontSize:13, fontWeight:'900' }}>✓</Text>}
                         </View>
@@ -4514,14 +4543,14 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         <TouchableOpacity
                             onPress={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}
                             style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
-                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0004}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={confirmItemMediaShare} disabled={sharingMedia}
                             style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: cfg.color, opacity: sharingMedia ? 0.6 : 1 }}>
                             {sharingMedia
                                 ? <ActivityIndicator color="#fff" size="small" />
-                                : <Text style={{ color:'#fff', fontWeight:'800' }}>✓ Paylaş</Text>}
+                                : <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0112}</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -4544,9 +4573,9 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:66, zIndex:10 }} onPress={() => {
                         const mp = matchMediaList[matchMediaViewIdx];
                         if (!mp) return;
-                        Alert.alert('Medyayı Sil', 'Bu fotoğraf/videoyu kalıcı olarak silmek istediğinize emin misiniz?', [
-                            { text: 'Vazgeç', style: 'cancel' },
-                            { text: 'Sil', style: 'destructive', onPress: async () => {
+                        Alert.alert(t.sc_0113, t.sc_0114, [
+                            { text: t.sc_0004, style: 'cancel' },
+                            { text: t.sc_delete, style: 'destructive', onPress: async () => {
                                 try {
                                     await api.delete(`/posts/${mp.id}`);
                                     setMatchMediaList(prev => prev.filter(p => p.id !== mp.id));
@@ -4606,22 +4635,22 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
                 <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
                     <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
-                        {teamNameEdit?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
+                        {teamNameEdit?.side === 'founder' ? t.sc_0115 : t.sc_0116}
                     </Text>
                     <TextInput
                         value={teamNameEdit?.value || ''}
                         onChangeText={(v) => setTeamNameEdit(p => ({ ...p, value: v }))}
-                        placeholder="Ör: Şimşekler"
+                        placeholder={t.sc_0117}
                         placeholderTextColor={colors.textMuted}
                         maxLength={24}
                         style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
                     />
                     <View style={{ flexDirection:'row', gap:8 }}>
                         <TouchableOpacity onPress={() => setTeamNameEdit(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
-                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0004}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={saveTeamNameEdit} disabled={savingTeamNameEdit} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: savingTeamNameEdit ? 0.6 : 1 }}>
-                            <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamNameEdit ? '...' : 'Kaydet'}</Text>
+                            <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamNameEdit ? '...' : t.sc_0118}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -4635,10 +4664,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         <Modal visible={showJoinInvitePicker} animationType="fade" transparent onRequestClose={() => setShowJoinInvitePicker(false)}>
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
                 <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
-                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>👥 Partner Davet Et</Text>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>{t.sc_0119}</Text>
                     <ScrollView>
                         {joinInviteCandidates.length === 0 ? (
-                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>Davet edilebilecek bireysel başvuran yok</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>{t.sc_0120}</Text>
                         ) : joinInviteCandidates.map(c => (
                             <TouchableOpacity key={c.userId} onPress={() => setMyRivalJoinPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                 <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
@@ -4650,7 +4679,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                         ))}
                     </ScrollView>
                     <TouchableOpacity onPress={() => setShowJoinInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
-                        <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
+                        <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>{t.sc_0004}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -4854,7 +4883,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 if (!alreadyReferenced) {
                     const sportLabel = getSubCategoryLabel(item.subCategory || sub, t.lang);
                     await api.post(`/messages/send/${otherId}`, {
-                        content: (t.rivalChatFirstMessage || '📋 "{sport}" ilanınız hakkında yazıyorum.').replace('{sport}', sportLabel),
+                        content: (t.rivalChatFirstMessage || '').replace('{sport}', sportLabel),
                         activityRequestId: item.id,
                     });
                 }
@@ -4898,7 +4927,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // sırayla onaylanırken ana kadro dolarsa, dışarda kalan (yedek kontenjanı
                 // varsa) yedeğe alınıyor — bu durumda sessizce geçmek yerine kullanıcıya
                 // ayrıca haber verilir (createNotification zaten kalıcı bildirim de gönderiyor).
-                if (data?.toSubstitute) Alert.alert('🔄', t.lateAcceptSubstitutedMsg || 'Onayınızı beklerken ana kadro doldu — yedek kadroya alındınız.');
+                if (data?.toSubstitute) Alert.alert('🔄', t.lateAcceptSubstitutedMsg || t.sc_0121);
                 setTimeout(onRefresh, 1200);
             }
             else { setLocalJoinStatus(null); onRefresh(); }
@@ -4951,11 +4980,11 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             // dolduracağı pencereye yönlendirme (bkz. backend requireActiveInterest err.code).
             if (['ASSESSMENT_REQUIRED', 'DOUBLES_ASSESSMENT_REQUIRED', 'SINGLES_ASSESSMENT_REQUIRED'].includes(code)) {
                 Alert.alert(
-                    '📋 Derecelendirme Anketi Gerekli',
-                    `${msg}\n\nAnketi şimdi doldurup katılım isteğini hemen ardından gönderebilirsin.`,
+                    t.sc_0122,
+                    t.sc_0123(msg),
                     [
-                        { text: 'Vazgeç', style: 'cancel' },
-                        { text: 'Anketi Doldur', onPress: async () => {
+                        { text: t.sc_0004, style: 'cancel' },
+                        { text: t.sc_0124, onPress: async () => {
                             try {
                                 const { data } = await api.get('/interests/my');
                                 let interest = Array.isArray(data) ? data.find(i => i.subCategory === sub && !i.hidden) : null;
@@ -4979,7 +5008,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             }
             if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('no longer')) {
                 onRefresh();
-                if (msg.toLowerCase().includes('no longer')) Alert.alert(t.error, t.requestNoLongerOpen || 'Bu ilan artık açık değil.');
+                if (msg.toLowerCase().includes('no longer')) Alert.alert(t.error, t.requestNoLongerOpen || t.sc_0125);
                 return;
             }
             Alert.alert(t.error, msg || t.requestFailed);
@@ -5074,10 +5103,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     {(cardFounderTeamAvg != null || cardOppTeamAvg != null) && (
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6, gap:6 }}>
                             {cardFounderTeamAvg != null && (
-                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', flex:1 }} numberOfLines={1}>👑 Ort {ratingBadgeText(sub, true, t.lang, cardFounderTeamAvg)}</Text>
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', flex:1 }} numberOfLines={1}>{t.sc_0126} {ratingBadgeText(sub, true, t.lang, cardFounderTeamAvg)}</Text>
                             )}
                             {cardOppTeamAvg != null && (
-                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', flex:1, textAlign: cardFounderTeamAvg != null ? 'right' : 'left' }} numberOfLines={1}>⚔️ Ort {ratingBadgeText(sub, true, t.lang, cardOppTeamAvg)}</Text>
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', flex:1, textAlign: cardFounderTeamAvg != null ? 'right' : 'left' }} numberOfLines={1}>{t.sc_0127} {ratingBadgeText(sub, true, t.lang, cardOppTeamAvg)}</Text>
                             )}
                         </View>
                     )}
@@ -5085,10 +5114,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         myInvite ? (
                             <Animated.View style={{ opacity: invitePulse }}>
                                 <Text style={{ color: cfg.color, fontSize:moderateScale(12), fontWeight:'800' }}>{t.invitedTeamSlotBlink || t.youAreInvitedHere}</Text>
-                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:2 }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), marginTop:2 }}>{t.noPlayersYet || t.sc_0062}</Text>
                             </Animated.View>
                         ) : (
-                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(11) }}>{t.noPlayersYet || t.sc_0062}</Text>
                         )
                     ) : (
                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: moderateScale(4) }}>
@@ -5112,13 +5141,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
                         <TouchableOpacity onPress={() => setDetailVisible(true)} style={{ marginTop:6 }}>
                             <Text style={{ color: colors.purple, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
-                                📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests || 'istek'}
+                                📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests}
                             </Text>
                         </TouchableOpacity>
                     )}
                     {item.venueId && isRivalParticipant && (
                         <TouchableOpacity onPress={() => setOrderVenueId(item.venueId)} style={{ marginTop:6 }}>
-                            <Text style={{ color:'#22c55e', fontSize: moderateScale(11), fontWeight:'600' }}>📋 Sipariş Ver</Text>
+                            <Text style={{ color:'#22c55e', fontSize: moderateScale(11), fontWeight:'600' }}>{t.sc_0085}</Text>
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
@@ -5170,7 +5199,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     )}
                                 </Text>
                                 <Text style={{ color: cfg.color, fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight: '700' }} numberOfLines={1}>
-                                    {TEAM_SPORTS.has(sub) ? `${item.teamSize||1}v${item.teamSize||1}` : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
                                 </Text>
                             </View>
                             {(() => {
@@ -5288,7 +5317,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                         <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:3, flexWrap:'wrap' }}>
                             {hasGenderCount && (
                                 <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }}>
-                                    {genderCountDisplayLabel(item)}
+                                    {genderCountDisplayLabel(item, t)}
                                 </Text>
                             )}
                             {hasCancelPenalty && (
@@ -5308,7 +5337,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </Text>
                 )}
                 {item.courtName && (
-                    <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress)}>
+                    <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress, t)}>
                         <Text style={{ fontSize:moderateScale(11), marginBottom:3, color:'#60a5fa', textDecorationLine:'underline' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{shortenCourtNameForCard(item.courtName)}</Text>
                     </TouchableOpacity>
                 )}
@@ -5341,7 +5370,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     const reservedLabel = item.isCourtReserved
                         ? sportFacilityLabels(item.subCategory || sub, t).reserved
                         : item.location === 'Ortaklaşa Kararlaştırılır'
-                            ? (t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır')
+                            ? (t.courtMutualBtn || t.sc_0046)
                             : sportFacilityLabels(item.subCategory || sub, t).notReserved;
                     const statusColor = item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171';
                     return (
@@ -5442,7 +5471,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                 ) : null}
                 {isOwner ? null : isLinkedMatchPlayer ? (
-                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>Bu maça oyuncu olarak katıldığınız için hakemlik başvurusu yapamazsınız.</Text>
+                    <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={2}>{t.sc_0091}</Text>
                 ) : myInvite ? (() => {
                     // Kullanıcı isteğiyle davet rozeti artık hangi takıma/role davet edildiğini
                     // açıkça yazıyor — önceden hepsi aynı genel "Davet Edildi" yazısıydı, oyuncu
@@ -5483,13 +5512,13 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                             <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.withdrawReqBtn}</Text>
                         </TouchableOpacity>
                         <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {Array.isArray(item.positions) && item.positions.includes('REFEREE') ? 'İsteğiniz Bekleniyor' : t.waitingReq}
+                            {Array.isArray(item.positions) && item.positions.includes('REFEREE') ? t.sc_0056 : t.waitingReq}
                         </Text>
                     </View>
                 ) : mySentReq === 'ACCEPTED' ? (
-                    <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>✓ Kabul</Text>
+                    <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.sc_0128}</Text>
                 ) : isFull ? (
-                    <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ilanFull || 'Dolu'}</Text>
+                    <Text style={{ color:colors.textMuted, fontSize:moderateScale(10), textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.ilanFull || t.sc_0129}</Text>
                 ) : null}
             </View>
             </>
@@ -5552,9 +5581,9 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
         <Modal visible={showPositionPicker} animationType="fade" transparent onRequestClose={() => setShowPositionPicker(false)}>
             <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
                 <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
-                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:4 }}>Pozisyon Tercihi</Text>
+                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:4 }}>{t.sc_0130}</Text>
                     <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:12 }}>
-                        İstersen oynamak istediğin pozisyon(lar)ı öncelik sırasıyla seç (dokunduğun sıra önceliğin olur) — dilersen hiç seçmeden de katılabilirsin.
+                        {t.sc_0131}
                     </Text>
                     <View style={{ flexDirection:'row', gap:6, marginBottom:16 }}>
                         {[['SETTER', t.positionSetter], ['SPIKER', t.positionSpiker], ['LIBERO', t.positionLibero]].map(([pos, label]) => {
@@ -5571,7 +5600,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                     </View>
                     <View style={{ flexDirection:'row', gap:8 }}>
                         <TouchableOpacity onPress={() => { setShowPositionPicker(false); setSelectedPositions([]); }} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
-                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0004}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={confirmJoinWithPosition} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: cfg.color }}>
                             <Text style={{ color:'#fff', fontWeight:'800' }}>{t.joinBtn}</Text>
@@ -5705,7 +5734,7 @@ function TextPostCard({ post, cfg }) {
                     <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                         <TextInput
                             style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
-                            placeholder="Yorum yaz..."
+                            placeholder={t.sc_0132}
                             placeholderTextColor={colors.textMuted}
                             value={commentText}
                             onChangeText={setCommentText}
@@ -5761,17 +5790,18 @@ const sc = StyleSheet.create({
 // ikisi yer değiştirir. Basit dokunma tabanlı — ScrollView/Modal içinde güvenilir
 // çalışması için özel jest (PanResponder/basılı tut) kullanılmıyor.
 function TeamSlot({ slot, player, color, label, disabled, isSelected, isTarget, onTap }) {
-    if (!player) {
+        const t = useT();
+if (!player) {
         return (
             <View style={{ borderRadius:8, marginBottom:4,
                 backgroundColor: isTarget ? '#4ade8015' : '#1e293b', borderWidth: isTarget ? 1.5 : 1, borderColor: isTarget ? '#4ade80' : '#ffffff10' }}>
                 {isTarget ? (
                     <TouchableOpacity onPress={() => onTap(slot)} activeOpacity={0.7} style={{ paddingHorizontal:5, paddingVertical:5, alignItems:'center' }}>
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>↔ Buraya taşı</Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0133}</Text>
                     </TouchableOpacity>
                 ) : (
                     <View style={{ paddingHorizontal:5, paddingVertical:3 }}>
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>— {label} bekleniyor —</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>— {label} {t.sc_0134}</Text>
                     </View>
                 )}
             </View>
@@ -6330,8 +6360,8 @@ function MatchLiveScreen({
         buttons.push({ text: t.cancelBtn || 'Tamam', style: 'cancel' });
         const delay = setTimeout(() => {
             Alert.alert(
-                t.matchStartLiveExternalTitle || 'Canlı Yayın',
-                t.matchStartLiveExternalMsg || 'Seçtiğin platformda canlı yayını başlat. Uygulamadaki maç ekranı açık kalır.',
+                t.matchStartLiveExternalTitle || t.sc_0135,
+                t.matchStartLiveExternalMsg || t.sc_0136,
                 buttons,
             );
         }, 450);
@@ -6578,8 +6608,8 @@ function MatchLiveScreen({
                         <View style={{ backgroundColor:'#dc2626', borderRadius:8, paddingHorizontal:12, paddingVertical:4, marginBottom:14 }}>
                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:13 }}>● LIVE</Text>
                         </View>
-                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', textAlign:'center', marginBottom:8 }}>{t.matchStartLiveExternalRunningTitle || 'Canlı yayın seçildi'}</Text>
-                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', lineHeight:18, marginBottom:18 }}>{t.matchStartLiveExternalRunningMsg || 'YouTube / Instagram uygulamasında yayını sürdür. Bitince buradan kapatabilirsin.'}</Text>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', textAlign:'center', marginBottom:8 }}>{t.matchStartLiveExternalRunningTitle || t.sc_0137}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', lineHeight:18, marginBottom:18 }}>{t.matchStartLiveExternalRunningMsg || t.sc_0138}</Text>
                         {liveYoutube && (
                             <TouchableOpacity onPress={() => Linking.openURL('https://www.youtube.com/live_dashboard').catch(() => {})}
                                 style={{ backgroundColor: colors.surface2, borderRadius:12, paddingVertical:12, paddingHorizontal:18, marginBottom:8, borderWidth:1, borderColor: colors.border, width:'100%', alignItems:'center' }}>
@@ -6594,7 +6624,7 @@ function MatchLiveScreen({
                         )}
                         <TouchableOpacity onPress={onClose}
                             style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, paddingHorizontal:18, marginTop:8, width:'100%', alignItems:'center' }}>
-                            <Text style={{ color:'#fff', fontWeight:'800' }}>{t.matchLiveFinishBtn || 'Bitir'}</Text>
+                            <Text style={{ color:'#fff', fontWeight:'800' }}>{t.matchLiveFinishBtn || t.sc_0139}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : (
@@ -7055,7 +7085,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         try {
             const { data } = await api.patch(`/rivals/join/${myInvite.id}`, { action });
             if (action === 'accept' && data?.toSubstitute) {
-                Alert.alert('🔄', t.lateAcceptSubstitutedMsg || 'Onayınızı beklerken ana kadro doldu — yedek listesine alındınız.');
+                Alert.alert('🔄', t.lateAcceptSubstitutedMsg || t.sc_0140);
             }
             onRefresh();
         } catch (e) {
@@ -7180,12 +7210,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         try {
             await api.patch(`/rivals/${match.id}/swap-positions`, { slot1: s1, slot2: s2 });
             onRefresh();
-        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yer değiştirme başarısız'); }
+        } catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0141); }
     };
 
     const handleSwapTap = (slot) => {
         if (match.teamFlexibility === 'STRICT') {
-            Alert.alert('Takım Sabit', 'Bu ilan katı ayarlı: oyuncular başvururken seçtikleri slotta sabit kalır. Değiştirmek için o katılımcıyı çıkarıp slotu yeniden açabilirsin.');
+            Alert.alert(t.sc_0025, t.sc_0026);
             return;
         }
         if (!swapSlot) { setSwapSlot(slot); return; }
@@ -7196,11 +7226,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
 
     const removePlayer = (userId, name) => {
-        Alert.alert('Katılımcıyı Çıkar', `${name} ilanınızdan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
-            { text: 'Vazgeç', style:'cancel' },
-            { text: 'Çıkar', style:'destructive', onPress: async () => {
+        Alert.alert(t.sc_0016, t.sc_0142(name), [
+            { text: t.sc_0004, style:'cancel' },
+            { text: t.sc_0018, style:'destructive', onPress: async () => {
                 try { await api.delete(`/rivals/${match.id}/participants/${userId}`); onRefresh(); }
-                catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+                catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0014); }
             }},
         ]);
     };
@@ -7235,7 +7265,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             setTeamNameModal(null);
             onRefresh();
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Hata');
+            Alert.alert('', e?.response?.data?.message || t.sc_0014);
         } finally {
             setSavingTeamName(false);
         }
@@ -7300,7 +7330,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 const target = i === 4 ? 15 : 25;
                 const valid = (hi === target && lo <= target - 2) || (hi > target && hi - lo === 2);
                 if (!valid) {
-                    Alert.alert('Geçersiz Set Skoru', `${p1}-${p2} geçersiz. ${i === 4 ? '5. set' : `${i + 1}. set`} ${target} sayıya (en az 2 fark şartıyla) ulaşan tarafça kazanılmalı.`);
+                    Alert.alert(t.sc_0143, t.sc_0144(p1, p2, i === 4 ? t.sc_x_352e207365 : t.sc_set_nth(i + 1), target));
                     return;
                 }
             }
@@ -7366,7 +7396,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         setSharingMedia(true);
         setMediaUploadProgress(0);
         try {
-            const media = await pickAndUploadMatchMedia(setMediaUploadProgress);
+            const media = await pickAndUploadMatchMedia(setMediaUploadProgress, t);
             if (!media) return;
             setPickedMediaForShare({ ...media, hideMatchInfo });
             setShareToSanalAlemChecked(false);
@@ -7405,8 +7435,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             setShowMediaShareOptions(false);
             setPickedMediaForShare(null);
             Alert.alert('', shareToSanalAlemChecked
-                ? `Medya paylaşıldı ✓ (Maç + ${getSubCategoryLabel(match.subCategory, t.lang)} Medya + Sanal Alem)`
-                : `Medya paylaşıldı ✓ (Maç + ${getSubCategoryLabel(match.subCategory, t.lang)} Medya)`);
+                ? t.sc_0145(getSubCategoryLabel(match.subCategory, t.lang))
+                : t.sc_0146(getSubCategoryLabel(match.subCategory, t.lang)));
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
         } finally {
@@ -7464,8 +7494,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         try {
             await api.post(`/rivals/${match.id}/request-bill-payment`, {});
             await refreshBillView();
-            Alert.alert('', 'Diğer katılımcılara ödeme talebi gönderildi.');
-        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || 'İstek gönderilemedi'); }
+            Alert.alert('', t.sc_0147);
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.sc_0148); }
         finally { setBillActionBusy(false); }
     };
     const reportBillUnpaidPress = async () => {
@@ -7473,8 +7503,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         setBillActionBusy(true);
         try {
             await api.post(`/rivals/${match.id}/report-bill-unpaid`, {});
-            Alert.alert('', 'Admine bildirildi.');
-        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || 'Bildirilemedi'); }
+            Alert.alert('', t.sc_0149);
+        } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.sc_0150); }
         finally { setBillActionBusy(false); }
     };
 
@@ -7576,7 +7606,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
     const handleLeavePromotedPress = () => {
         Alert.alert(t.leavePromotedSubTitle, t.leavePromotedSubConfirmMsg, [
-            { text: 'Vazgeç', style: 'cancel' },
+            { text: t.sc_0004, style: 'cancel' },
             { text: t.leavePromotedSubBtn, onPress: doLeaveAsPromoted, style: 'destructive' },
         ]);
     };
@@ -7589,7 +7619,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             t.cancelMatchTitle,
             msg,
             [
-                { text: 'Vazgeç', style: 'cancel' },
+                { text: t.sc_0004, style: 'cancel' },
                 {
                     text: withinPenaltyWindow ? `${t.cancelMatchBtn} (-${cancelPenaltyAmount.toFixed(2)})` : t.cancelMatchBtn,
                     onPress: doCancel,
@@ -7629,7 +7659,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
 
     const submitProposal = async () => {
-        if (!propDate || !propTime) { Alert.alert('', 'Tarih ve saat seçin'); return; }
+        if (!propDate || !propTime) { Alert.alert('', t.sc_0151); return; }
         setPropSubmitting(true);
         try {
             const courtName = propSelectedCourt?.name || (propShowManual ? propManualName.trim() : null) || propCourtText.trim() || null;
@@ -7652,7 +7682,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             });
             setShowScheduleForm(false);
             onRefresh();
-        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Gönderilemedi'); }
+        } catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0152); }
         finally { setPropSubmitting(false); }
     };
 
@@ -7661,17 +7691,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         try {
             await api.post(`/rivals/${match.id}/accept-schedule`, {});
             onRefresh();
-        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Kabul edilemedi'); }
+        } catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0153); }
         finally { setPropAccepting(false); }
     };
 
     const getScheduleCountdown = () => {
         if (!match.schedulingDeadline) return null;
         const diff = new Date(match.schedulingDeadline) - new Date();
-        if (diff <= 0) return '⏰ Süre doldu';
+        if (diff <= 0) return t.sc_0154;
         const h = Math.floor(diff / (1000 * 60 * 60));
         const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        return `${h}s ${m}dk kaldı`;
+        return t.sc_0155(h, m);
     };
 
     const doMutualCancel = async () => {
@@ -7694,9 +7724,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         const msg = isConfirming
             ? t.mutualCancelConfirmOther
             : t.mutualCancelConfirmSelf;
-        Alert.alert('🤝 Karşılıklı İptal', msg, [
-            { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
-            { text: t.confirmBtn || 'Onayla', onPress: doMutualCancel },
+        Alert.alert(t.sc_0156, msg, [
+            { text: t.cancelBtn || t.sc_0004, style: 'cancel' },
+            { text: t.confirmBtn || t.sc_0157, onPress: doMutualCancel },
         ]);
     };
 
@@ -7719,7 +7749,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
     const pickNoShowPhoto = async () => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             quality: 0.7,
@@ -7730,7 +7760,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     };
 
     const submitNoShow = async () => {
-        if (noShowAbsent.length === 0) { Alert.alert('', 'En az bir oyuncu seçin'); return; }
+        if (noShowAbsent.length === 0) { Alert.alert('', t.sc_0158); return; }
         setNoShowSubmitting(true);
         try {
             let courtPhotoUrl = null;
@@ -7743,14 +7773,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 setNoShowUploading(false);
             }
             await api.post(`/rivals/${match.id}/no-show`, { absentUserIds: noShowAbsent, courtPhotoUrl });
-            Alert.alert('✅', 'Bildirim admin onayına gönderildi');
+            Alert.alert('✅', t.sc_0159);
             setShowNoShow(false);
             setNoShowAbsent([]);
             setNoShowPhoto(null);
             onRefresh();
         } catch(e) {
             setNoShowUploading(false);
-            Alert.alert('Hata', e?.response?.data?.message || 'Gönderilemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0152);
         }
         finally { setNoShowSubmitting(false); }
     };
@@ -7899,7 +7929,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             setLocalCommentText('');
             setLocalReplyingTo(null);
             onRefresh?.();
-        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yorum gönderilemedi'); }
+        } catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0041); }
         finally { setSendingLocalComment(false); }
     };
 
@@ -7965,7 +7995,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 <TouchableOpacity activeOpacity={0.85} onPress={openDetail}>
                     <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6 }}>👥 {t.rosterPoolLabel}</Text>
                     {backFacePlayers.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.noPlayersYet || 'Henüz katılan yok'}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.noPlayersYet || t.sc_0062}</Text>
                     ) : (
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {backFacePlayers.map((p, i) => (
@@ -7988,7 +8018,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         açılan arka yüzde, oyuncu listesinin altında. */}
                     {match.venueId && isParticipant && (
                         <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
-                            <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>📋 Sipariş Ver</Text>
+                            <Text style={{ color:'#22c55e', fontSize:12, fontWeight:'600' }}>{t.sc_0085}</Text>
                         </TouchableOpacity>
                     )}
                 </TouchableOpacity>
@@ -8012,7 +8042,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
                 <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                     <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                        {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? `${match.teamSize}v${match.teamSize}` : '1v1'}
+                        {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? t.sc_0160(match.teamSize, match.teamSize) : '1v1'}
                     </Text>
                 </View>
                 {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
@@ -8027,7 +8057,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 )}
                 {match.flexibleSchedule && (
                     <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
-                        <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>{isVolleyball ? 'Esnek' : '📅 Esnek'}</Text>
+                        <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>{isVolleyball ? t.sc_0161 : t.sc_0162}</Text>
                     </View>
                 )}
             </View>
@@ -8051,7 +8081,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 matchEnded ? (
                     <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2 }]}>{isVolleyball ? '' : '🏟️ '}{shortenCourtNameForCard(match.courtName)}</Text>
                 ) : (
-                    <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                    <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress, t)}>
                         <Text style={[s.cardSub, { color:'#60a5fa', marginTop:2, textDecorationLine:'underline' }]}>{isVolleyball ? '' : '🏟️ '}{shortenCourtNameForCard(match.courtName)}</Text>
                     </TouchableOpacity>
                 )
@@ -8136,13 +8166,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom:8 }}>
                         <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                             <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                                {TEAM_SPORTS.has(match.subCategory) ? `${match.teamSize||1}v${match.teamSize||1}` : (match.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                {TEAM_SPORTS.has(match.subCategory) ? t.sc_0163(match.teamSize||1, match.teamSize||1) : (match.matchType==='DOUBLE' ? '2v2' : '1v1')}
                             </Text>
                         </View>
                         <ModeBadge mode={match.matchMode} />
                         {match.flexibleSchedule && (
                             <View style={[s.modeBadge, { backgroundColor:'#f59e0b20', borderColor:'#f59e0b40' }]}>
-                                <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>📅 Esnek</Text>
+                                <Text style={[s.modeBadgeText, { color:'#f59e0b' }]}>{t.sc_0162}</Text>
                             </View>
                         )}
                         {match.genderReq && match.genderReq !== 'MIX' && (
@@ -8185,7 +8215,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             matchEnded ? (
                                 <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4 }}>🏟️ {match.courtName}</Text>
                             ) : (
-                                <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress)}>
+                                <TouchableOpacity onPress={() => openCourtMap(match.courtName, match.courtLat, match.courtLng, match.courtAddress, t)}>
                                     <Text style={{ color:'#60a5fa', fontSize:13, marginTop:4, textDecorationLine:'underline' }}>🏟️ {match.courtName}</Text>
                                 </TouchableOpacity>
                             )
@@ -8197,9 +8227,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     : `${match.courtFeePerPerson}₺${match.refereeRequested && !match.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''}`} / {t.perPerson}
                             </Text>
                         )}
-                        {!!feeByMethodHint(match.courtFeePerPersonByMethod) && (
+                        {!!feeByMethodHint(match.courtFeePerPersonByMethod, t) && (
                             <Text style={{ color:'#86efac', fontSize:11, marginTop:2 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                {feeByMethodHint(match.courtFeePerPersonByMethod)}
+                                {feeByMethodHint(match.courtFeePerPersonByMethod, t)}
                             </Text>
                         )}
                         {SIMPLIFIED_FEE_SUBS.has(match.subCategory) && !match.courtFeePerPerson && (
@@ -8207,7 +8237,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.subCategory === 'extreme_sports' && match.surface && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
-                                🏔️ {EXTREME_SPORT_TYPES.find(t2 => t2.id === match.surface)?.label || match.surface}
+                                🏔️ {t[EXTREME_SPORT_TYPES.find(t2 => t2.id === match.surface)?.labelKey] || match.surface}
                             </Text>
                         )}
                         {match.subCategory === 'running' && RUN_ACTIVITY_TYPES.some(x => x.id === match.surface) && (() => {
@@ -8223,7 +8253,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.subCategory === 'airsoft' && match.teamSize > 1 && (
                             <Text style={{ color: colors.textMuted, fontSize:13, marginTop:4 }}>
-                                👥 {match.teamSize}v{match.teamSize}{hasGenderCountInfo(match) ? ` · ${genderCountDisplayLabel(match)}` : ''}
+                                👥 {match.teamSize}v{match.teamSize}{hasGenderCountInfo(match) ? ` · ${genderCountDisplayLabel(match, t)}` : ''}
                             </Text>
                         )}
                         {match.subCategory === 'airsoft' && match.winsNeeded != null && (
@@ -8233,7 +8263,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         )}
                         {match.venueId && isParticipant && (
                             <TouchableOpacity onPress={() => setOrderVenueId(match.venueId)} style={{ marginTop:6 }}>
-                                <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>📋 Sipariş Ver</Text>
+                                <Text style={{ color:'#22c55e', fontSize:13, fontWeight:'600' }}>{t.sc_0085}</Text>
                             </TouchableOpacity>
                         )}
                         {match.refereeRequested && (match.refereeUser || match.manualRefereeName || !matchEnded) && (
@@ -8284,17 +8314,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 )}
                                 {match.subCategory === 'volleyball' && match.teamSize > 1 && hasGenderCountInfo(match) && (
                                     <Text style={{ color: colors.textMuted, fontSize:13 }}>
-                                        {genderCountDisplayLabel(match)}
+                                        {genderCountDisplayLabel(match, t)}
                                     </Text>
                                 )}
                             </View>
                         )}
                         {Array.isArray(match.extraServices) && match.extraServices.length > 0 && (
                             <View style={{ marginTop:6 }}>
-                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:2 }}>EKSTRA HİZMETLER</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:2 }}>{t.sc_0164}</Text>
                                 {match.extraServices.map(sv => (
                                     <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:12, marginTop:1 }}>
-                                        🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>Dahil</Text> : `+${sv.price}₺`}
+                                        🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>{t.sc_0165}</Text> : `+${sv.price}₺`}
                                     </Text>
                                 ))}
                             </View>
@@ -8377,12 +8407,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <TouchableOpacity
                                                 onPress={() => setSlotChangeTarget({ slot, player: p })}
                                                 style={{ flex:1, paddingVertical:0, alignItems:'center', backgroundColor:'#a855f712', borderRadius:6, borderWidth:1, borderColor:'#a855f730' }}>
-                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>Değiştir</Text>
+                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>{t.sc_0166}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 onPress={() => removePlayer(p.id, senderAlias(p))}
                                                 style={{ flex:1, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
-                                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0018}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -8411,7 +8441,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             return 0;
                         });
                         const doublePool = [
-                            { p: { ...match.sender, skillRating: match.senderSkillRating }, filled: true, label: t.founder || 'Kurucu' },
+                            { p: { ...match.sender, skillRating: match.senderSkillRating }, filled: true, label: t.founder || t.sc_0053 },
                             { p: acceptedPool[0], filled: rosterFilled(acceptedPool[0]), label: t.cardParticipantLabel(1) },
                             { p: acceptedPool[1], filled: rosterFilled(acceptedPool[1]), label: t.cardParticipantLabel(2) },
                             { p: acceptedPool[2], filled: rosterFilled(acceptedPool[2]), label: t.cardParticipantLabel(3) },
@@ -8456,15 +8486,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     ) : (
                                         <>
                                             <View style={{ flexDirection:'row', alignItems:'center', marginBottom:6 }}>
-                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterTeamsLabel || 'Takımlar'}</Text>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', flex:1 }} numberOfLines={1}>{t.rosterTeamsLabel || t.sc_0048}</Text>
                                                 <TouchableOpacity onPress={flipDoubleCard} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                                     <Text style={{ fontSize:14 }}>🔄</Text>
                                                 </TouchableOpacity>
                                             </View>
                                             {swapSlot && (
                                                 <View style={{ backgroundColor:'#f59e0b10', borderRadius:5, padding:1, marginBottom:4, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}>
-                                                    <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>Hedef slota dokun</Text>
-                                                    <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>İptal</Text></TouchableOpacity>
+                                                    <Text style={{ color:'#f59e0b', fontSize:9, fontWeight:'700' }}>{t.sc_0167}</Text>
+                                                    <TouchableOpacity onPress={() => setSwapSlot(null)}><Text style={{ color: colors.textMuted, fontSize:9 }}>{t.sc_0065}</Text></TouchableOpacity>
                                                 </View>
                                             )}
                                             {/* Takım 1 (Kurucu+Partner) | Takım 2 (Rakip1+Rakip2) — voleybolün Digimon
@@ -8475,14 +8505,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <View style={{ flexDirection:'row', gap:6 }}>
                                                 <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
                                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                                        <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{match.founderTeamName || 'Takım 1'}</Text>
+                                                        <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{match.founderTeamName || t.sc_0168}</Text>
                                                         {canEditFounder && (
                                                             <TouchableOpacity onPress={() => setTeamNameModal({ side:'founder', value: match.founderTeamName || '' })}>
                                                                 <Text style={{ fontSize:9 }}>✎</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {founderTeamAvg != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, founderTeamAvg)}</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.sc_0067} {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, founderTeamAvg)}</Text>
                                                         )}
                                                     </View>
                                                     <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
@@ -8496,14 +8526,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 </View>
                                                 <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
                                                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{match.opponentTeamName || 'Takım 2'}</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{match.opponentTeamName || t.sc_0169}</Text>
                                                         {canEditOpponent && (
                                                             <TouchableOpacity onPress={() => setTeamNameModal({ side:'opponent', value: match.opponentTeamName || '' })}>
                                                                 <Text style={{ fontSize:9 }}>✎</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {oppTeamAvg != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, oppTeamAvg)}</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.sc_0067} {ratingBadgeText(match.subCategory, isDoublesFmt, t.lang, oppTeamAvg)}</Text>
                                                         )}
                                                     </View>
                                                     <Text style={{ color:'#f87171', fontSize:8, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{oppLabel1}</Text>
@@ -8513,7 +8543,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 </View>
                                             </View>
                                             {(senderTeamArr.length > 0 || participantsArr.length > 0) && !swapSlot && !locked && (
-                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>↕ Bir oyuncuya dokun → seç → diğerine dokun → yer değiştir</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, marginTop:4, textAlign:'center' }}>{t.sc_0170}</Text>
                                             )}
                                             <SlotActionSheet
                                                 visible={!!slotChangeTarget}
@@ -8532,7 +8562,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                         // taraftaki oyuncu benim slotuma, ben de onun slotuna uymalıyım.
                                                         && genderFitsSlot(s.p.gender, slotGReq[slotChangeTarget.slot])
                                                         && genderFitsSlot(slotChangeTarget.player?.gender, slotGReq[s.key]))
-                                                        .map(s => ({ label: `🔁 ${senderAlias(s.p)} ile yer değiştir`, onPress: () => performSwap(slotChangeTarget.slot, s.key) })),
+                                                        .map(s => ({ label: t.sc_swap_with(senderAlias(s.p)), onPress: () => performSwap(slotChangeTarget.slot, s.key) })),
                                                     // Kullanıcı isteği: sadece dolu bir slotla yer değiştirme değil, karşı tarafta
                                                     // BOŞ ve oyuncunun cinsiyetine uygun bir slot varsa doğrudan oraya taşıma
                                                     // seçeneği de olsun — Atanmamış'a atmaya gerek kalmadan.
@@ -8542,8 +8572,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                         { key: 'opp2', label: SLOT_LABEL.opp2, gReq: match.opp2GenderReq, p: opp2 },
                                                     ].filter(s => s.key !== slotChangeTarget.slot && !s.p?.id
                                                         && genderFitsSlot(slotChangeTarget.player?.gender, s.gReq))
-                                                        .map(s => ({ label: `➡️ ${s.label}'e Değiştir`, onPress: () => assignDoubleSlot(slotChangeTarget.player.id, s.key) })),
-                                                    { label: 'Atanmamış Listesine Ata', onPress: () => assignDoubleSlot(slotChangeTarget.player.id, null) },
+                                                        .map(s => ({ label: t.sc_move_to(s.label), onPress: () => assignDoubleSlot(slotChangeTarget.player.id, s.key) })),
+                                                    { label: t.sc_0171, onPress: () => assignDoubleSlot(slotChangeTarget.player.id, null) },
                                                 ] : []}
                                             />
                                             {/* Atanmamış — kabul edilmiş ama henüz Takım Arkadaşı/Rakip1/Rakip2'ye
@@ -8551,7 +8581,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 aynı bölümün buradaki karşılığı — önceden burada hiç gösterilmiyordu. */}
                                             {unassignedArr.length > 0 && (
                                                 <View style={{ marginTop:8 }}>
-                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>Atanmamış</Text>
+                                                    <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'800', marginBottom:4 }}>{t.sc_0070}</Text>
                                                     {unassignedArr.map(p => {
                                                         const isMe = p.id === myId;
                                                         const openSlotOptions = [
@@ -8583,13 +8613,13 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                                             options: openSlotOptions.map(opt => ({ label: `${opt.label}'e Ata`, onPress: () => assignDoubleSlot(p.id, opt.key) })),
                                                                         })}
                                                                         style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor: cfg.color+'20', borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>Takımlara Ata</Text>
+                                                                        <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.sc_0071}</Text>
                                                                     </TouchableOpacity>
                                                                 )}
                                                                 {isOwner && (
                                                                     <TouchableOpacity onPress={() => removePlayer(p.id, playerDisplayName(p))}
                                                                         style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630' }}>
-                                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                                                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.sc_0018}</Text>
                                                                     </TouchableOpacity>
                                                                 )}
                                                             </View>
@@ -8732,7 +8762,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {/* Kullanıcı isteği: liste uzarsa "Yedek İstekleri"ndeki gibi kendi ok
                                 işaretiyle gizlenip gösterilebilsin. */}
                             <TouchableOpacity onPress={() => setSentInvitesExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, flex:1 }}>📨 Gönderilen Davetler ({subRequests.filter(jr => jr.initiatedBy === 'OWNER').length})</Text>
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, flex:1 }}>{t.sc_0076}{subRequests.filter(jr => jr.initiatedBy === 'OWNER').length})</Text>
                                 <Text style={{ color:'#fff', fontSize:14 }}>{sentInvitesExpanded ? '▼' : '◀'}</Text>
                             </TouchableOpacity>
                             {sentInvitesExpanded && subRequests.filter(jr => jr.initiatedBy === 'OWNER').map(jr => (
@@ -8748,7 +8778,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             hem gereksiz tekrar hem de takım ismi sonradan değiştirilince burada
                                             hâlâ eski/genel etiket kalıyordu. Sınıflandırma zaten kadro kartının
                                             arka yüzünde. */}
-                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>⏳ Onay Bekleniyor</Text>
+                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0081}</Text>
                                     </View>
                                     {isOwner && (
                                         <TouchableOpacity onPress={() => withdrawSentInviteFromCard(jr.id)} style={{ backgroundColor:'#dc262620', borderRadius:8, width:28, height:28, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor:'#dc262650' }}>
@@ -8770,7 +8800,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {/* Kullanıcı isteği: yer tasarrufu için en sağdaki oka dokununca açılıp
                                 kapanıyor — varsayılan kapalı. */}
                             <TouchableOpacity onPress={() => setSubRequestsExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
-                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, flex:1 }}>🪑 Yedek İstekleri ({subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:8, flex:1 }}>{t.sc_0172}{subRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
                                 <Text style={{ color:'#fff', fontSize:14 }}>{subRequestsExpanded ? '▼' : '◀'}</Text>
                             </TouchableOpacity>
                             {subRequestsExpanded && subRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
@@ -8780,10 +8810,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {isOwner && (
                                         <>
                                             <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'accept')} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:5 }}>
-                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{t.sc_0039}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => respondToSubRequest(jr.id, 'reject')} style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:10, paddingVertical:5, borderWidth:1, borderColor:'#ef444440' }}>
-                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0040}</Text>
                                             </TouchableOpacity>
                                         </>
                                     )}
@@ -8794,11 +8824,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {/* Kullanıcı isteği: maç başladıktan 5 dakika sonra yedek başvurusu da anlamsız. */}
                     {!isOwner && !isParticipant && !matchStartedOver5Min && substituteSlotsOpen && (
                         subJoinSent || myPendingSubRequest ? (
-                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', textAlign:'center', marginBottom:12 }}>⏳ Yedek başvurun bekleniyor</Text>
+                            <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', textAlign:'center', marginBottom:12 }}>{t.sc_0173}</Text>
                         ) : (
                             <TouchableOpacity onPress={applyAsSubstitute} disabled={subJoinSubmitting}
                                 style={{ backgroundColor: cfg.color+'20', borderRadius:10, paddingVertical:9, alignItems:'center', borderWidth:1, borderColor: cfg.color+'50', marginBottom:12, opacity: subJoinSubmitting ? 0.6 : 1 }}>
-                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>🪑 Yedek Olarak Başvur</Text>
+                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>{t.sc_0174}</Text>
                             </TouchableOpacity>
                         )
                     )}
@@ -8829,22 +8859,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
                             <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
                                 <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
-                                    {teamNameModal?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
+                                    {teamNameModal?.side === 'founder' ? t.sc_0115 : t.sc_0116}
                                 </Text>
                                 <TextInput
                                     value={teamNameModal?.value || ''}
                                     onChangeText={(v) => setTeamNameModal(p => ({ ...p, value: v }))}
-                                    placeholder="Ör: Şimşekler"
+                                    placeholder={t.sc_0117}
                                     placeholderTextColor={colors.textMuted}
                                     maxLength={24}
                                     style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
                                 />
                                 <View style={{ flexDirection:'row', gap:8 }}>
                                     <TouchableOpacity onPress={() => setTeamNameModal(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
-                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0004}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={saveTeamName} disabled={savingTeamName} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple, opacity: savingTeamName ? 0.6 : 1 }}>
-                                        <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamName ? '...' : 'Kaydet'}</Text>
+                                        <Text style={{ color:'#fff', fontWeight:'800' }}>{savingTeamName ? '...' : t.sc_0118}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -8906,14 +8936,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             </View>
                                             <View style={{ flexDirection:'row', gap:6 }}>
                                                 <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
-                                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || 'Kurucu'}</Text>
+                                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || t.sc_0053}</Text>
                                                     <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
                                                         <Avatar name={match.sender?.username} avatar={match.sender?.avatar} size={14} color={cfg.color} />
                                                         <Text style={{ color:'#fff', fontSize:10, flex:1 }} numberOfLines={1}>{senderAlias(match.sender)}</Text>
                                                     </View>
                                                 </View>
                                                 <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
-                                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.opponentTeamShortLabel || 'Rakip'}</Text>
+                                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.opponentTeamShortLabel || t.sc_0075}</Text>
                                                     {opp ? (
                                                         <View style={{ flexDirection:'row', alignItems:'center', gap:2, backgroundColor: colors.surface2, borderRadius:8, borderWidth:1, borderColor: colors.border, paddingVertical:2, paddingHorizontal:5 }}>
                                                             <Avatar name={opp.username} avatar={opp.avatar} size={14} color={cfg.color} />
@@ -8925,7 +8955,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                     {isOwner && opp && (
                                                         <TouchableOpacity onPress={() => removePlayer(opp.id, senderAlias(opp))}
                                                             style={{ marginTop:2, paddingVertical:0, alignItems:'center', backgroundColor:'#dc262612', borderRadius:6, borderWidth:1, borderColor:'#dc262630' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0018}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
@@ -8948,7 +8978,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <View key={p.id} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:7, paddingVertical:3 }}>
                                     <Text style={{ color:'#94a3b8', fontSize:13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
                                     <TouchableOpacity onPress={() => removePlayer(p.id, senderAlias(p))}>
-                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>Çıkar</Text>
+                                        <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{t.sc_0018}</Text>
                                     </TouchableOpacity>
                                 </View>
                             ))}
@@ -8959,7 +8989,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     {match.flexibleSchedule && !match.matchDate && (
                         <View style={{ backgroundColor:'#f59e0b10', borderRadius:10, padding:7, marginBottom:12, borderWidth:1, borderColor:'#f59e0b40' }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }}>📅 Tarih/Saat/Yer Belirle</Text>
+                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'800' }}>{t.sc_0175}</Text>
                                 {match.schedulingDeadline && (
                                     <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{getScheduleCountdown()}</Text>
                                 )}
@@ -8967,17 +8997,17 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {match.scheduleProposal ? (
                                 match.scheduleProposal.userId === myId ? (
                                     <View>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Öneriniz bekleniyor:</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.sc_0176}</Text>
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
                                             {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
                                         </Text>
                                         <TouchableOpacity onPress={() => setShowScheduleForm(v => !v)} style={{ marginTop:6 }}>
-                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>✏️ Değiştir</Text>
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.sc_0177}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 ) : (
                                     <View>
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Rakibinizin önerisi:</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.sc_0178}</Text>
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginTop:2 }}>
                                             {`📅 ${match.scheduleProposal.date}  🕐 ${match.scheduleProposal.time}${match.scheduleProposal.location ? `  📍 ${match.scheduleProposal.location}` : ''}`}
                                         </Text>
@@ -8985,12 +9015,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <TouchableOpacity
                                                 style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50', alignItems:'center' }}
                                                 onPress={acceptProposal} disabled={propAccepting}>
-                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{propAccepting ? '...' : '✅ Kabul Et'}</Text>
+                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{propAccepting ? '...' : t.sc_0179}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={{ flex:1, backgroundColor:'#f59e0b15', borderRadius:8, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40', alignItems:'center' }}
                                                 onPress={() => setShowScheduleForm(v => !v)}>
-                                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Farklı Öner</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>{t.sc_0180}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -8999,7 +9029,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 <TouchableOpacity
                                     style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:5, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}
                                     onPress={() => setShowScheduleForm(v => !v)}>
-                                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>📅 Tarih/Saat/Yer Öner</Text>
+                                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>{t.sc_0181}</Text>
                                 </TouchableOpacity>
                             )}
                             {showScheduleForm && (
@@ -9008,14 +9038,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, borderWidth:1, borderColor: propDate ? '#f59e0b60' : colors.border }}
                                         onPress={() => setShowPropDatePicker(true)}>
                                         <Text style={{ color: propDate ? '#fff' : colors.textMuted, fontSize:13 }}>
-                                            {propDate ? `📅 ${String(propDate.getDate()).padStart(2,'0')}/${String(propDate.getMonth()+1).padStart(2,'0')}/${propDate.getFullYear()}` : '📅 Tarih Seç'}
+                                            {propDate ? `📅 ${String(propDate.getDate()).padStart(2,'0')}/${String(propDate.getMonth()+1).padStart(2,'0')}/${propDate.getFullYear()}` : t.sc_0182}
                                         </Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, borderWidth:1, borderColor: propTime ? '#f59e0b60' : colors.border }}
                                         onPress={() => setShowPropTimePicker(true)}>
                                         <Text style={{ color: propTime ? '#fff' : colors.textMuted, fontSize:13 }}>
-                                            {propTime ? `🕐 ${propTime}` : '🕐 Saat Seç'}
+                                            {propTime ? `🕐 ${propTime}` : t.sc_0183}
                                         </Text>
                                     </TouchableOpacity>
                                     {/* Court search */}
@@ -9027,7 +9057,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     ) : (
                                         <TextInput
                                             style={{ backgroundColor: colors.surface2, borderRadius:8, padding:7, borderWidth:1, borderColor: propCourtText ? '#f59e0b60' : colors.border, color:'#fff', fontSize:13 }}
-                                            placeholder="🔍 Kort Ara (isteğe bağlı)"
+                                            placeholder={t.sc_0184}
                                             placeholderTextColor={colors.textMuted}
                                             value={propCourtText}
                                             onChangeText={searchPropCourts}
@@ -9047,41 +9077,41 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                             <TouchableOpacity
                                                 style={{ padding:7, borderTopWidth:1, borderTopColor: colors.border + '40' }}
                                                 onPress={() => { setPropCourtResults([]); setPropShowManual(true); }}>
-                                                <Text style={{ color:'#f59e0b', fontSize:12 }}>+ "{propCourtText}" olarak ekle → admin onayına gider</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:12 }}>+ "{propCourtText}{t.sc_0185}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
                                     {!propSelectedCourt && !propCourtSearching && propCourtText.length >= 2 && propCourtResults.length === 0 && !propShowManual && (
                                         <TouchableOpacity style={{ marginTop:4, paddingVertical:3, paddingHorizontal:0 }} onPress={() => setPropShowManual(true)}>
-                                            <Text style={{ color:'#f59e0b', fontSize:12 }}>+ Kort bulunamadı — manuel ekle (onay bekler)</Text>
+                                            <Text style={{ color:'#f59e0b', fontSize:12 }}>{t.sc_0186}</Text>
                                         </TouchableOpacity>
                                     )}
                                     {propShowManual && (
                                         <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginTop:4, borderWidth:1, borderColor:'#f59e0b40', gap:3 }}>
-                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⚠️ Admin onayına gönderilecek</Text>
+                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.sc_0187}</Text>
                                             <TextInput
                                                 style={{ backgroundColor: colors.surface2, borderRadius:6, padding:5, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
-                                                placeholder="Kort / Tesis Adı"
+                                                placeholder={t.sc_0188}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={propManualName}
                                                 onChangeText={setPropManualName}
                                             />
                                             <TextInput
                                                 style={{ backgroundColor: colors.surface2, borderRadius:6, padding:5, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:13 }}
-                                                placeholder="İl / Adres"
+                                                placeholder={t.sc_0189}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={propManualCity}
                                                 onChangeText={setPropManualCity}
                                             />
                                             <TouchableOpacity onPress={() => setPropShowManual(false)} style={{ alignSelf:'flex-start' }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>✕ İptal</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.sc_0190}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
                                     <TouchableOpacity
                                         style={{ backgroundColor:'#f59e0b30', borderRadius:8, paddingVertical:6, borderWidth:1, borderColor:'#f59e0b60', alignItems:'center' }}
                                         onPress={submitProposal} disabled={propSubmitting}>
-                                        <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : '📤 Öneriyi Gönder'}</Text>
+                                        <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{propSubmitting ? '...' : t.sc_0191}</Text>
                                     </TouchableOpacity>
                                     <CalendarPickerModal
                                         visible={showPropDatePicker}
@@ -9091,7 +9121,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     />
                                     <TimePickerModal
                                         visible={showPropTimePicker}
-                                        title="Saat Seç"
+                                        title={t.sc_0192}
                                         value={propTime}
                                         onSelect={(v) => { setPropTime(v); setShowPropTimePicker(false); }}
                                         onClose={() => setShowPropTimePicker(false)}
@@ -9135,7 +9165,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <View key={i}>
                                         <View style={sc.setRow}>
                                             <Text style={[sc.setScore, { color: mySc > oppSc ? '#4ade80' : mySc < oppSc ? '#f87171' : '#fff' }]}>{mySc}</Text>
-                                            <Text style={[sc.colLabel, row.matchTiebreak && { color: '#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : `Set ${i + 1}`}</Text>
+                                            <Text style={[sc.colLabel, row.matchTiebreak && { color: '#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : t.sc_0193(i + 1)}</Text>
                                             <Text style={[sc.setScore, { color: oppSc > mySc ? '#4ade80' : oppSc < mySc ? '#f87171' : '#fff' }]}>{oppSc}</Text>
                                         </View>
                                         {showTb ? (
@@ -9265,7 +9295,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 placeholderTextColor={colors.textMuted}
                                                 maxLength={2}
                                             />
-                                            <Text style={[sc.colLabel, row.matchTiebreak && { color: '#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : `Set ${i + 1}`}</Text>
+                                            <Text style={[sc.colLabel, row.matchTiebreak && { color: '#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : t.sc_0193(i + 1)}</Text>
                                             <TextInput
                                                 style={sc.setInput}
                                                 value={row.opp}
@@ -9314,7 +9344,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             ) : null}
                             {sets.some(r => r.my !== '') && (
                                 <TouchableOpacity style={sc.drawBtn} onPress={() => setSets(prev => prev.map(row => ({ ...row, opp: row.my })))}>
-                                    <Text style={sc.drawBtnTxt}>🤝 Beraberlik</Text>
+                                    <Text style={sc.drawBtnTxt}>{t.sc_0194}</Text>
                                 </TouchableOpacity>
                             )}
                             {hasAnyInput && (
@@ -9433,7 +9463,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         <TouchableOpacity
                                             style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
                                             onPress={() => { setPendingMediaAfterScore(false); setHideMatchInfoInMedia(false); setShowScore(v => !v); }}>
-                                            <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? '▲ Kapat' : t.enterScore}</Text>
+                                            <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>{showScore ? t.sc_0195 : t.enterScore}</Text>
                                         </TouchableOpacity>
                                         {!showScore && (
                                             <TouchableOpacity
@@ -9455,7 +9485,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#7c3aed50', backgroundColor:'#7c3aed18', alignItems:'center' }}
                                         onPress={openBillView}>
-                                        <Text style={{ color:'#a78bfa', fontSize:13, fontWeight:'700' }}>Adisyon</Text>
+                                        <Text style={{ color:'#a78bfa', fontSize:13, fontWeight:'700' }}>{t.sc_0196}</Text>
                                     </TouchableOpacity>
                                 )}
                             </>
@@ -9471,7 +9501,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: colors.purple+'60', backgroundColor: colors.purple+'18', alignItems:'center' }}
                                         onPress={() => setEditVisible(true)}>
                                         <Text style={{ color: colors.purple, fontSize:13, fontWeight:'700' }}>
-                                            ✏️ {(match.subCategory === 'volleyball' && VOLLEYBALL_VENUE_SHORT[match.surface]) || 'Kort'}/Saat
+                                            ✏️ {(match.subCategory === 'volleyball' && volleyVenueShort(match.surface, t)) || t.sc_0197}/Saat
                                         </Text>
                                     </TouchableOpacity>
                                 )}
@@ -9479,12 +9509,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#2563eb50', backgroundColor:'#2563eb18', alignItems:'center' }}
                                         onPress={() => handleMutualCancelPress(false)} disabled={cancelling}>
-                                        <Text style={{ color:'#60a5fa', fontSize:13, fontWeight:'700' }}>🤝 Karşılıklı</Text>
+                                        <Text style={{ color:'#60a5fa', fontSize:13, fontWeight:'700' }}>{t.sc_0198}</Text>
                                     </TouchableOpacity>
                                 )}
                                 {withinPenaltyWindow && iAlreadyRequestedMutual && (
                                     <View style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#2563eb30', backgroundColor:'#2563eb10', alignItems:'center' }}>
-                                        <Text style={{ color:'#60a5fa', fontSize:13 }}>⏳ İstendi</Text>
+                                        <Text style={{ color:'#60a5fa', fontSize:13 }}>{t.sc_0199}</Text>
                                     </View>
                                 )}
                                 {promotedWithinGrace ? (
@@ -9501,7 +9531,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <TouchableOpacity
                                         style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#dc262650', backgroundColor:'#dc262618', alignItems:'center' }}
                                         onPress={handleCancelPress} disabled={cancelling}>
-                                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>✕ İptal{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
+                                        <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.sc_0190}{withinPenaltyWindow ? ' ⚠️' : ''}</Text>
                                     </TouchableOpacity>
                                 )}
                             </>
@@ -9510,12 +9540,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             <TouchableOpacity
                                 style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#f9731650', backgroundColor:'#f9731618', alignItems:'center' }}
                                 onPress={() => { setNoShowAbsent([]); setNoShowPhoto(null); setShowNoShow(true); }}>
-                                <Text style={{ color:'#fb923c', fontSize:13, fontWeight:'700' }}>🚫 Gelmedi</Text>
+                                <Text style={{ color:'#fb923c', fontSize:13, fontWeight:'700' }}>{t.sc_0200}</Text>
                             </TouchableOpacity>
                         )}
                         {match._myNoShowPending && (
                             <View style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor:'#f9731630', backgroundColor:'#f9731610', alignItems:'center' }}>
-                                <Text style={{ color:'#fb923c', fontSize:13 }}>⏳ Bildirildi</Text>
+                                <Text style={{ color:'#fb923c', fontSize:13 }}>{t.sc_0201}</Text>
                             </View>
                         )}
                     </View>
@@ -9586,10 +9616,10 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             {localReplyingTo && (
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                        Yanıtlanıyor: {playerDisplayName(localComments.find(c => c.id === localReplyingTo)?.user, localSportSub)}
+                                        {t.sc_0095} {playerDisplayName(localComments.find(c => c.id === localReplyingTo)?.user, localSportSub)}
                                     </Text>
                                     <TouchableOpacity onPress={() => setLocalReplyingTo(null)}>
-                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕ Vazgeç</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.sc_0096}</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
@@ -9622,7 +9652,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     ref={localCommentInputRef}
                                     style={{ flex:1, backgroundColor: colors.surface2, borderRadius:10, paddingHorizontal:9,
                                         paddingVertical:5, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
-                                    placeholder={localReplyingTo ? (t.matchCommentReplyPh || 'Yanıt yaz... (@ ile etiketle)') : (t.matchCommentPlaceholder)}
+                                    placeholder={localReplyingTo ? (t.matchCommentReplyPh || t.sc_0097) : (t.matchCommentPlaceholder)}
                                     placeholderTextColor={colors.textMuted}
                                     value={localCommentText}
                                     onChangeText={setLocalCommentText}
@@ -9634,7 +9664,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         borderRadius:10, paddingHorizontal:11, justifyContent:'center', alignItems:'center' }}
                                     onPress={sendLocalComment}
                                     disabled={sendingLocalComment || !localCommentText.trim()}>
-                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Gönder</Text>
+                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{t.sc_0202}</Text>
                                 </TouchableOpacity>
                             </View>
                         </>
@@ -9647,7 +9677,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: showLocalComments ? 12 : 4 }}
                     >
                         <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>
-                            💬 Yorumlar{localComments.length > 0 ? ` (${localComments.length})` : ''}
+                            {t.sc_0203}{localComments.length > 0 ? ` (${localComments.length})` : ''}
                         </Text>
                         <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showLocalComments ? '0deg' : '-90deg' }] }}>▼</Text>
                     </TouchableOpacity>
@@ -9655,7 +9685,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         loadingLocalComments ? (
                             <ActivityIndicator color={cfg.color} style={{ marginVertical:16 }} />
                         ) : localComments.length === 0 ? (
-                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz yorum yok.</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>{t.sc_0204}</Text>
                         ) : (() => {
                             const topLevel = localComments.filter(c => !c.parentId);
                             const repliesOf = (id) => localComments.filter(c => c.parentId === id);
@@ -9670,7 +9700,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     <Text style={{ color: colors.textSecondary, fontSize:13 }}>{renderMentionContent(c.content, cfg.color)}</Text>
                                     {!isReply && (
                                         <TouchableOpacity onPress={() => startLocalReply(c)} style={{ marginTop:6, alignSelf:'flex-start' }}>
-                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.matchCommentReplyBtn || t.sc_0098}</Text>
                                         </TouchableOpacity>
                                     )}
                                     {repliesOf(c.id).map(r => renderRow(r, true))}
@@ -9689,8 +9719,8 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         disabled={sharingMedia}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:6, backgroundColor:'#0ea5e918', borderRadius:12, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:11, marginTop:14, opacity: sharingMedia ? 0.6 : 1 }}>
                         {sharingMedia
-                            ? <><ActivityIndicator color="#38bdf8" size="small" /><Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800' }}>{mediaUploadProgress > 0 ? `Yükleniyor... %${mediaUploadProgress}` : 'Yükleniyor...'}</Text></>
-                            : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>📷 Medya Paylaş</Text>}
+                            ? <><ActivityIndicator color="#38bdf8" size="small" /><Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800' }}>{mediaUploadProgress > 0 ? t.sc_0099(mediaUploadProgress) : t.sc_0100}</Text></>
+                            : <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'800' }}>{t.sc_0101}</Text>}
                     </TouchableOpacity>
 
                     {/* Kullanıcı isteği: bu maçta paylaşılan medyalar "Medya" diye altında
@@ -9700,7 +9730,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:14, marginBottom: showMatchMediaList ? 8 : 4 }}
                     >
                         <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>
-                            📷 Medya{matchMediaList.length > 0 ? ` (${matchMediaList.length})` : ''}
+                            {t.sc_0102}{matchMediaList.length > 0 ? ` (${matchMediaList.length})` : ''}
                         </Text>
                         <Text style={{ color: colors.textMuted, fontSize:16, transform:[{ rotate: showMatchMediaList ? '0deg' : '-90deg' }] }}>▼</Text>
                     </TouchableOpacity>
@@ -9708,7 +9738,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         loadingMatchMedia ? (
                             <ActivityIndicator color={cfg.color} style={{ marginTop:8 }} />
                         ) : matchMediaList.length === 0 ? (
-                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:4, marginBottom:8, fontSize:13 }}>Henüz medya paylaşılmadı.</Text>
+                            <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:4, marginBottom:8, fontSize:13 }}>{t.sc_0103}</Text>
                         ) : (
                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8 }}>
                                 {matchMediaList.map((mp, idx) => (
@@ -9781,15 +9811,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
         <Modal visible={showMediaShareOptions} transparent animationType="fade" onRequestClose={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}>
             <View style={{ flex:1, backgroundColor:'#000000a0', justifyContent:'center', padding:24 }}>
                 <View style={{ backgroundColor: colors.surface, borderRadius:18, padding:17 }}>
-                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:4 }}>📷 Medyayı Nerede Paylaşayım?</Text>
+                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:4 }}>{t.sc_0105}</Text>
                     <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:14, lineHeight:17 }}>
-                        Bu maçın altında ve {getSubCategoryLabel(match.subCategory, t.lang)} Medya sekmesinde otomatik görünecek. İsterseniz aynı anda Sanal Alem'de de paylaşabilirsiniz.
+                        {t.sc_0205} {getSubCategoryLabel(match.subCategory, t.lang)} {t.sc_0107}
                     </Text>
                     {pickedMediaForShare && (
                         pickedMediaForShare.isVideo ? (
                             <View style={{ width:'100%', height:140, borderRadius:12, marginBottom:14, backgroundColor: colors.surface2, alignItems:'center', justifyContent:'center' }}>
                                 <Text style={{ fontSize:32 }}>🎬</Text>
-                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>Video seçildi</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:11, marginTop:4 }}>{t.sc_0108}</Text>
                             </View>
                         ) : (
                             <Image source={{ uri: pickedMediaForShare.url }} style={{ width:'100%', height:160, borderRadius:12, marginBottom:14 }} resizeMode="cover" />
@@ -9797,15 +9827,15 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     )}
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:8 }}>
                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>
-                            {cfg.emoji} {getSubCategoryLabel(match.subCategory, t.lang)} Medya'da Paylaş
+                            {cfg.emoji} {getSubCategoryLabel(match.subCategory, t.lang)} {t.sc_0109}
                         </Text>
-                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✓ Otomatik</Text>
+                        <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{t.sc_0110}</Text>
                     </View>
                     <TouchableOpacity
                         onPress={() => setShareToSanalAlemChecked(v => !v)}
                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: shareToSanalAlemChecked ? '#0ea5e920' : colors.surface2, borderRadius:10, padding:10, marginBottom:16, borderWidth:1, borderColor: shareToSanalAlemChecked ? '#0ea5e960' : colors.border }}
                     >
-                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>🌐 Sanal Alem'de de Paylaş</Text>
+                        <Text style={{ color:'#fff', fontSize:13, fontWeight:'700', flex:1 }}>{t.sc_0111}</Text>
                         <View style={{ width:22, height:22, borderRadius:6, borderWidth:2, borderColor: shareToSanalAlemChecked ? '#0ea5e9' : colors.textMuted, backgroundColor: shareToSanalAlemChecked ? '#0ea5e9' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                             {shareToSanalAlemChecked && <Text style={{ color:'#fff', fontSize:13, fontWeight:'900' }}>✓</Text>}
                         </View>
@@ -9814,14 +9844,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <TouchableOpacity
                             onPress={() => { setShowMediaShareOptions(false); setPickedMediaForShare(null); }}
                             style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
-                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                            <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0004}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             onPress={confirmMediaShare} disabled={sharingMedia}
                             style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: cfg.color, opacity: sharingMedia ? 0.6 : 1 }}>
                             {sharingMedia
                                 ? <ActivityIndicator color="#fff" size="small" />
-                                : <Text style={{ color:'#fff', fontWeight:'800' }}>✓ Paylaş</Text>}
+                                : <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0112}</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -9841,9 +9871,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <TouchableOpacity style={{ position:'absolute', top: insets.top + 12, right:66, zIndex:10 }} onPress={() => {
                         const mp = matchMediaList[matchMediaViewIdx];
                         if (!mp) return;
-                        Alert.alert('Medyayı Sil', 'Bu fotoğraf/videoyu kalıcı olarak silmek istediğinize emin misiniz?', [
-                            { text: 'Vazgeç', style: 'cancel' },
-                            { text: 'Sil', style: 'destructive', onPress: async () => {
+                        Alert.alert(t.sc_0113, t.sc_0114, [
+                            { text: t.sc_0004, style: 'cancel' },
+                            { text: t.sc_delete, style: 'destructive', onPress: async () => {
                                 try {
                                     await api.delete(`/posts/${mp.id}`);
                                     setMatchMediaList(prev => prev.filter(p => p.id !== mp.id));
@@ -9870,7 +9900,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             <View style={s.modalOverlay}>
                 <View style={[s.modalBox, { paddingBottom:37 }]}>
                     <View style={s.modalHeader}>
-                        <Text style={s.modalTitle}>Adisyon</Text>
+                        <Text style={s.modalTitle}>{t.sc_0196}</Text>
                         <TouchableOpacity onPress={() => setShowBillView(false)}>
                             <Text style={s.modalClose}>✕</Text>
                         </TouchableOpacity>
@@ -9881,11 +9911,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         <ScrollView showsVerticalScrollIndicator={false}>
                             {billView?.courtFeePaid === false && (
                                 <View style={{ backgroundColor:'#ef444418', borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor:'#ef444440' }}>
-                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>⚠️ Kort ücretiniz gerçekleşmedi</Text>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700' }}>{t.sc_0206}</Text>
                                 </View>
                             )}
                             {!billView?.bill ? (
-                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Bu rezervasyon için adisyon oluşturulmamış.</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>{t.sc_0207}</Text>
                             ) : (
                                 <>
                                     {billView.bill.status !== 'PAID' && (() => {
@@ -9894,27 +9924,27 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         const canEscalate = requestedAt && elapsedMs >= 2 * 60 * 60 * 1000;
                                         return (
                                         <View style={{ backgroundColor:'#ef444418', borderRadius:10, padding:10, marginBottom:10, borderWidth:1, borderColor:'#ef444440' }}>
-                                            <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700', marginBottom: requestedAt ? 8 : 0 }}>⚠️ Adisyon ödemeniz gerçekleşmedi</Text>
+                                            <Text style={{ color:'#f87171', fontSize:13, fontWeight:'700', marginBottom: requestedAt ? 8 : 0 }}>{t.sc_0208}</Text>
                                             {!requestedAt ? (
                                                 <TouchableOpacity disabled={billActionBusy} onPress={requestBillPaymentPress}
                                                     style={{ backgroundColor:'#7c3aed', borderRadius:8, paddingVertical:9, alignItems:'center', opacity: billActionBusy ? 0.6 : 1 }}>
-                                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Katılımcılardan Ödeme İste</Text>
+                                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{t.sc_0209}</Text>
                                                 </TouchableOpacity>
                                             ) : canEscalate ? (
                                                 <TouchableOpacity disabled={billActionBusy} onPress={reportBillUnpaidPress}
                                                     style={{ backgroundColor:'#dc2626', borderRadius:8, paddingVertical:9, alignItems:'center', opacity: billActionBusy ? 0.6 : 1 }}>
-                                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>Admine Bildir</Text>
+                                                    <Text style={{ color:'#fff', fontWeight:'800', fontSize:13 }}>{t.sc_0210}</Text>
                                                 </TouchableOpacity>
                                             ) : (
                                                 <Text style={{ color:'#fca5a5', fontSize:12 }}>
-                                                    Ödeme talebi gönderildi, 2 saat içinde ödenmezse admine bildirebilirsiniz.
+                                                    {t.sc_0211}
                                                 </Text>
                                             )}
                                         </View>
                                         );
                                     })()}
                                     {(billView.bill.items || []).length === 0 ? (
-                                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>Henüz ürün eklenmemiş.</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', marginVertical:12 }}>{t.sc_0212}</Text>
                                     ) : billView.bill.items.map(it => (
                                         <View key={it.id} style={{ flexDirection:'row', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:10, marginBottom:6, borderWidth:1, borderColor: colors.border }}>
                                             <Text style={{ color:'#fff', fontSize:13 }}>{it.quantity}× {it.name}</Text>
@@ -9922,11 +9952,11 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                         </View>
                                     ))}
                                     <View style={{ flexDirection:'row', justifyContent:'space-between', marginTop:8, paddingTop:10, borderTopWidth:1, borderTopColor: colors.border }}>
-                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>Toplam</Text>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>{t.sc_0213}</Text>
                                         <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>{billView.bill.totalPrice}₺</Text>
                                     </View>
                                     <Text style={{ color: billView.bill.status === 'PAID' ? '#4ade80' : '#facc15', fontSize:12, fontWeight:'700', marginTop:8, textAlign:'center' }}>
-                                        {billView.bill.status === 'PAID' ? '✅ Ödendi' : '⏳ Ödenmedi'}
+                                        {billView.bill.status === 'PAID' ? t.sc_0214 : t.sc_0215}
                                     </Text>
                                 </>
                             )}
@@ -10036,7 +10066,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                     {abanSets.map((row, i) => (
                                         <View key={i} style={sc.setInputRow}>
                                             <TextInput style={sc.setInput} value={row.my} onChangeText={v => setAbanSets(p => p.map((r, idx) => idx === i ? { ...r, my: v } : r))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
-                                            <Text style={sc.colLabel}>Set {i + 1}</Text>
+                                            <Text style={sc.colLabel}>{t.sc_0216} {i + 1}</Text>
                                             <TextInput style={sc.setInput} value={row.opp} onChangeText={v => setAbanSets(p => p.map((r, idx) => idx === i ? { ...r, opp: v } : r))} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
                                             {abanSets.length > 1 && (
                                                 <TouchableOpacity style={sc.removeBtn} onPress={() => setAbanSets(p => p.filter((_, idx) => idx !== i))}>
@@ -10071,14 +10101,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <KeyboardAvoidingView behavior="padding">
                         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, padding:17, paddingBottom:33 }}>
                             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🚫 Gelmeme Bildirimi</Text>
+                                <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{t.sc_0217}</Text>
                                 <TouchableOpacity onPress={() => setShowNoShow(false)}>
                                     <Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text>
                                 </TouchableOpacity>
                             </View>
 
                             <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:12 }}>
-                                {(isVolleyball && VOLLEYBALL_VENUE_SHORT_DAT[match.surface]) || 'Korta'} gelmeyen oyuncu/oyuncuları seçin. Admin onayıyla 0.40 puan kesilir.
+                                {t.sc_noshow_pick(volleyVenueShort(match.surface, t) || t.sc_court)}
                             </Text>
 
                             {/* Player selection */}
@@ -10108,7 +10138,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             >
                                 <Text style={{ fontSize:18 }}>📷</Text>
                                 <Text style={{ color: noShowPhoto ? '#fb923c' : colors.textMuted, fontSize:13, fontWeight:'700', flex:1 }}>
-                                    {noShowPhoto ? 'Fotoğraf seçildi ✓' : `${(isVolleyball && VOLLEYBALL_VENUE_SHORT[match.surface]) || 'Kort'} fotoğrafı ekle (opsiyonel)`}
+                                    {noShowPhoto ? t.sc_0220 : t.sc_0221((isVolleyball && volleyVenueShort(match.surface, t)) || t.sc_0197)}
                                 </Text>
                                 {noShowPhoto && (
                                     <TouchableOpacity onPress={() => setNoShowPhoto(null)}>
@@ -10126,7 +10156,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 disabled={noShowSubmitting || noShowAbsent.length===0}
                             >
                                 <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                    {noShowUploading ? 'Fotoğraf yükleniyor...' : noShowSubmitting ? 'Gönderiliyor...' : 'Admin Onayına Gönder'}
+                                    {noShowUploading ? t.sc_0222 : noShowSubmitting ? t.sc_0223 : t.sc_0224}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -10517,7 +10547,7 @@ function TeamSizeModal({ visible, value, onConfirm, onClose, t }) {
                             autoFocus
                         />
                         {valid && (
-                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:8, textAlign:'center' }}>{`${n}v${n} — ${2 * n} ${t.rosterPoolLabel}`}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:8, textAlign:'center' }}>{t.sc_0225(n, n, 2 * n, t.rosterPoolLabel)}</Text>
                         )}
                         <TouchableOpacity onPress={() => { if (valid) { onConfirm(n); onClose(); } }}
                             disabled={!valid}
@@ -10818,16 +10848,16 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     const guardMin = (onSelect, otherMax, checkOwn = true, genderFilter = null) => (v) => {
         const nv = numOf(v), om = numOf(otherMax);
         if (nv != null && om != null && nv > om) {
-            Alert.alert('', 'Alt limit üst limitten büyük olamaz.');
+            Alert.alert('', t.sc_0226);
             return;
         }
         if (checkOwn && ownRating != null && nv != null && ownRating < nv) {
-            Alert.alert('', `Bu kısıtlamayı koyamazsınız: kendi puanınız ${ownRating.toFixed(2)}★, en az ${nv}★ isteyemezsiniz.`);
+            Alert.alert('', t.sc_0227(ownRating.toFixed(2), nv));
             return;
         }
         const violator = rosterViolator(nv, (r, n) => r < n, genderFilter);
         if (violator) {
-            Alert.alert('', `${violator.label} kişisinden dolayı bu derece kısıtlamasını koyamazsınız: puanı ${violator.rating.toFixed(2)}★, en az ${nv}★ isteyemezsiniz. Ya kısıtlamayı değiştirin ya da bu kişiyi kadrodan çıkarıp davet edemezsiniz.`);
+            Alert.alert('', t.sc_0228(violator.label, violator.rating.toFixed(2), nv));
             return;
         }
         onSelect(v);
@@ -10835,16 +10865,16 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
     const guardMax = (onSelect, otherMin, checkOwn = true, genderFilter = null) => (v) => {
         const nv = numOf(v), om = numOf(otherMin);
         if (nv != null && om != null && nv < om) {
-            Alert.alert('', 'Üst limit alt limitten küçük olamaz.');
+            Alert.alert('', t.sc_0229);
             return;
         }
         if (checkOwn && ownRating != null && nv != null && ownRating > nv) {
-            Alert.alert('', `Bu kısıtlamayı koyamazsınız: kendi puanınız ${ownRating.toFixed(2)}★, en fazla ${nv}★ diyemezsiniz.`);
+            Alert.alert('', t.sc_0230(ownRating.toFixed(2), nv));
             return;
         }
         const violator = rosterViolator(nv, (r, n) => r > n, genderFilter);
         if (violator) {
-            Alert.alert('', `${violator.label} kişisinden dolayı bu derece kısıtlamasını koyamazsınız: puanı ${violator.rating.toFixed(2)}★, en fazla ${nv}★ diyemezsiniz. Ya kısıtlamayı değiştirin ya da bu kişiyi kadrodan çıkarıp davet edemezsiniz.`);
+            Alert.alert('', t.sc_0231(violator.label, violator.rating.toFixed(2), nv));
             return;
         }
         onSelect(v);
@@ -10875,10 +10905,10 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                             </>
                         ) : (
                             <>
-                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{noEmojiStr(t.genderMale || '👨 Erkek')}</Text>
+                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8 }}>{noEmojiStr(t.genderMale || t.sc_0232)}</Text>
                                 <RatingGrid label={t.ratingMinHeader} value={maleMin} onSelect={guardMin(onSelectMaleMin, maleMax, ownGender === 'MALE', 'MALE')} ratings={ratings} t={t} />
                                 <RatingGrid label={t.ratingMaxHeader} value={maleMax} onSelect={guardMax(onSelectMaleMax, maleMin, ownGender === 'MALE', 'MALE')} ratings={ratings} t={t} />
-                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8, marginTop:6 }}>{noEmojiStr(t.genderFemale || '👩 Kadın')}</Text>
+                                <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:8, marginTop:6 }}>{noEmojiStr(t.genderFemale || t.sc_0233)}</Text>
                                 <RatingGrid label={t.ratingMinHeader} value={femaleMin} onSelect={guardMin(onSelectFemaleMin, femaleMax, ownGender === 'FEMALE', 'FEMALE')} ratings={ratings} t={t} />
                                 <RatingGrid label={t.ratingMaxHeader} value={femaleMax} onSelect={guardMax(onSelectFemaleMax, femaleMin, ownGender === 'FEMALE', 'FEMALE')} ratings={ratings} t={t} />
                             </>
@@ -10887,7 +10917,7 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                     <TouchableOpacity
                         onPress={onClose}
                         style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:10 }}>
-                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
+                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -11012,7 +11042,7 @@ const TOURN_NO_COURT_TENNIS_SURFACES = [
     { id: 'OTHER',          emoji: '⬜' },
 ];
 const PADEL_SURFACES = [
-    { id: 'ARTIFICIAL', emoji: '🟩', label: 'Suni Çim' },
+    { id: 'ARTIFICIAL', emoji: '🟩' },
 ];
 const TOURN_NO_COURT_PADEL_SURFACES = [
     { id: 'PLAYERS_DECIDE', emoji: '🤝' },
@@ -11021,10 +11051,15 @@ const TOURN_NO_COURT_PADEL_SURFACES = [
 
 // ─── Venue Menu Order Modal ───────────────────────────────────────────────────
 
-const CAT_LABELS = { EQUIPMENT: '🎾 Ekipman', FOOD: '🍔 Yiyecek', DRINK: '☕ İçecek', OTHER: '🛍 Diğer' };
+function menuCatLabel(cat, t) {
+    return ({
+        EQUIPMENT: t.sc_cat_equip, FOOD: t.sc_cat_food, DRINK: t.sc_cat_drink, OTHER: t.sc_cat_other,
+    })[cat] || cat;
+}
 
 function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) {
-    const insets = useSafeAreaInsets();
+        const t = useT();
+const insets = useSafeAreaInsets();
     const [items, setItems]   = useState([]);
     const [loading, setLoading] = useState(false);
     const [cart, setCart]     = useState({});
@@ -11058,11 +11093,11 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
         setPlacing(true);
         try {
             await api.post(`/venues/${venueId}/orders`, { items: orderItems, notes: notes || undefined, rivalId: rivalId || undefined });
-            Alert.alert('✅ Sipariş Verildi', 'İşletme siparişinizi aldı.');
+            Alert.alert(t.sc_0234, t.sc_0235);
             onSuccess?.();
             onClose();
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Sipariş verilemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0236);
         } finally { setPlacing(false); }
     };
 
@@ -11071,7 +11106,7 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
             <View style={vm.overlay}>
                 <View style={vm.sheet}>
                     <View style={vm.header}>
-                        <Text style={vm.title}>📋 Ekstra Hizmetler</Text>
+                        <Text style={vm.title}>{t.sc_0237}</Text>
                         <TouchableOpacity onPress={onClose} style={vm.closeBtn}>
                             <Text style={vm.closeX}>✕</Text>
                         </TouchableOpacity>
@@ -11081,16 +11116,16 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
                             (adisyona işlenmesi + hazırlanması) bilgi/uyarı olarak gösterilsin. */}
                         <View style={{ backgroundColor:'#22c55e15', borderRadius:10, borderWidth:1, borderColor:'#22c55e40', padding:10, marginBottom:14 }}>
                             <Text style={{ color:'#4ade80', fontSize:12, lineHeight:17 }}>
-                                ℹ️ Siparişiniz işletme tarafından onaylanınca adisyonunuz oluşacak ve siparişiniz hazırlanacak.
+                                {t.sc_0238}
                             </Text>
                         </View>
                         {loading && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
                         {!loading && items.length === 0 && (
-                            <Text style={vm.emptyTxt}>Menü bulunamadı</Text>
+                            <Text style={vm.emptyTxt}>{t.sc_0239}</Text>
                         )}
                         {!loading && cats.map(cat => (
                             <View key={cat} style={{ marginBottom: 12 }}>
-                                <Text style={vm.catLabel}>{CAT_LABELS[cat] || cat}</Text>
+                                <Text style={vm.catLabel}>{menuCatLabel(cat, t) || cat}</Text>
                                 {items.filter(i => i.category === cat && i.available).map(item => (
                                     <View key={item.id} style={vm.itemRow}>
                                         <View style={{ flex: 1 }}>
@@ -11112,10 +11147,10 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
                         ))}
                         {!loading && items.length > 0 && (
                             <View style={{ marginTop: 8 }}>
-                                <Text style={vm.catLabel}>Not (isteğe bağlı)</Text>
+                                <Text style={vm.catLabel}>{t.sc_0240}</Text>
                                 <TextInput
                                     style={vm.notesInput}
-                                    placeholder="Özel istek..."
+                                    placeholder={t.sc_0241}
                                     placeholderTextColor="#555"
                                     value={notes}
                                     onChangeText={setNotes}
@@ -11128,13 +11163,13 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
                     {cartCount > 0 && (
                         <View style={[vm.footer, { paddingBottom: Math.max(14, insets.bottom + 10) }]}>
                             <View style={{ flex: 1 }}>
-                                <Text style={vm.totalLabel}>Toplam</Text>
+                                <Text style={vm.totalLabel}>{t.sc_0213}</Text>
                                 <Text style={vm.totalPrice}>{totalPrice} ₺</Text>
                             </View>
                             <TouchableOpacity style={vm.orderBtn} onPress={placeOrder} disabled={placing}>
                                 {placing
                                     ? <ActivityIndicator color="#fff" />
-                                    : <Text style={vm.orderBtnTxt}>Sipariş Ver ({cartCount})</Text>}
+                                    : <Text style={vm.orderBtnTxt}>{t.sc_0242}{cartCount})</Text>}
                             </TouchableOpacity>
                         </View>
                     )}
@@ -11149,7 +11184,8 @@ function VenueMenuOrderModal({ visible, venueId, onClose, onSuccess, rivalId }) 
 // işletmenin Siparişler sekmesinde işaretlediği ile aynı veri (bkz. getMyRivalOrders).
 // Salt okunur — durumu sadece işletme değiştirebilir.
 function MyOrderStatusModal({ visible, rivalId, onClose }) {
-    const [loading, setLoading] = useState(false);
+        const t = useT();
+const [loading, setLoading] = useState(false);
     const [orders, setOrders] = useState([]);
 
     useEffect(() => {
@@ -11177,7 +11213,7 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
             <View style={vm.overlay}>
                 <View style={[vm.sheet, { height:'60%' }]}>
                     <View style={vm.header}>
-                        <Text style={vm.title}>📋 Siparişim</Text>
+                        <Text style={vm.title}>{t.sc_0243}</Text>
                         <TouchableOpacity onPress={onClose} style={vm.closeBtn}>
                             <Text style={vm.closeX}>✕</Text>
                         </TouchableOpacity>
@@ -11185,14 +11221,14 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
                     <ScrollView style={vm.body} showsVerticalScrollIndicator={false}>
                         {loading && <ActivityIndicator color="#22c55e" style={{ marginVertical: 24 }} />}
                         {!loading && orders.length === 0 && (
-                            <Text style={vm.emptyTxt}>Sipariş bulunamadı</Text>
+                            <Text style={vm.emptyTxt}>{t.sc_0244}</Text>
                         )}
                         {!loading && orders.map(order => {
                             const statusInfo = {
-                                PENDING:   { label: '⏳ Onay Bekliyor', color: '#facc15' },
-                                CONFIRMED: { label: '✅ Onaylandı',     color: '#4ade80' },
-                                READY:     { label: '🟢 Hazır',         color: '#4ade80' },
-                                CANCELLED: { label: '❌ İptal Edildi',  color: '#f87171' },
+                                PENDING:   { label: t.sc_0245, color: '#facc15' },
+                                CONFIRMED: { label: t.sc_0246,     color: '#4ade80' },
+                                READY:     { label: t.sc_0247,         color: '#4ade80' },
+                                CANCELLED: { label: t.sc_0248,  color: '#f87171' },
                             }[order.status] || { label: order.status, color: '#facc15' };
                             return (
                             <View key={order.id} style={{ backgroundColor:'#ffffff08', borderRadius:10, padding:12, marginBottom:10 }}>
@@ -11202,21 +11238,21 @@ function MyOrderStatusModal({ visible, rivalId, onClose }) {
                                         {it.quantity}× {it.menuItem?.name} — {it.unitPrice * it.quantity}₺
                                     </Text>
                                 ))}
-                                <Text style={{ color:'#22c55e', fontWeight:'700', marginTop:4, fontSize:13 }}>Toplam: {order.totalPrice}₺</Text>
+                                <Text style={{ color:'#22c55e', fontWeight:'700', marginTop:4, fontSize:13 }}>{t.sc_0249} {order.totalPrice}₺</Text>
                                 <View style={{ flexDirection:'row', gap:8, marginTop:8 }}>
                                     <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.delivered ? '#16a34a30' : '#ef444420', borderWidth:1, borderColor: order.delivered ? '#16a34a80' : '#ef444450' }}>
-                                        <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>{order.delivered ? '✅ Teslim Edildi' : '📦 Teslim Edilmedi'}</Text>
+                                        <Text style={{ color: order.delivered ? '#4ade80' : '#f87171', fontSize:12, fontWeight:'700' }}>{order.delivered ? t.sc_0250 : t.sc_0251}</Text>
                                     </View>
                                     <View style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', backgroundColor: order.paymentStatus === 'PAID' ? '#16a34a30' : order.paymentStatus === 'COMPED' ? '#0ea5e930' : '#ef444420', borderWidth:1, borderColor: order.paymentStatus === 'PAID' ? '#16a34a80' : order.paymentStatus === 'COMPED' ? '#0ea5e980' : '#ef444450' }}>
                                         <Text style={{ color: order.paymentStatus === 'PAID' ? '#4ade80' : order.paymentStatus === 'COMPED' ? '#38bdf8' : '#f87171', fontSize:12, fontWeight:'700' }}>
-                                            {order.paymentStatus === 'PAID' ? '✅ Ücret Alındı' : order.paymentStatus === 'COMPED' ? '🎁 İkram' : '💰 Ücret Alınmadı'}
+                                            {order.paymentStatus === 'PAID' ? t.sc_0252 : order.paymentStatus === 'COMPED' ? t.sc_0253 : t.sc_0254}
                                         </Text>
                                     </View>
                                 </View>
                                 {/* Kullanıcı isteği: teslim edildi ama ücreti alınmadıysa (ikram
                                     değilse) borç belirgin, kırmızı yazıyla gösterilir. */}
                                 {order.delivered && order.paymentStatus === 'UNPAID' && (
-                                    <Text style={{ color:'#ef4444', fontSize:14, fontWeight:'900', marginTop:8 }}>🔴 Borç: {order.totalPrice}₺</Text>
+                                    <Text style={{ color:'#ef4444', fontSize:14, fontWeight:'900', marginTop:8 }}>{t.sc_0255} {order.totalPrice}₺</Text>
                                 )}
                             </View>
                             );
@@ -11278,7 +11314,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     };
     const toM = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
     const toT = (mins) => `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`;
-    const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
+    const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString(appLocale(t.lang),
         { weekday: 'short', day: 'numeric', month: 'short' });
     // Esnek saatte pencerenin ham başlangıcı bugün için geçtiyse, kalan süreyi boşa
     // kaçırmamak adına (işletmenin son dakika ikramı gibi) şimdiki saat 10 dakikaya
@@ -11395,7 +11431,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
 
     const selectSlot = (cId, slot) => {
         if (isPastSlot(selDate, slot.start)) {
-            Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            Alert.alert(t.sc_0256, t.sc_0257);
             return;
         }
         setSelSlot(prev =>
@@ -11414,7 +11450,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     const tapGridSlot = (court, cData, tappedSlot) => {
         if (!tappedSlot.free) return;
         if (isPastSlot(selDate, tappedSlot.start)) {
-            Alert.alert('Geçmiş Saat', 'Geçmişte kalan bir saate rezervasyon yapamazsınız. Lütfen farklı bir saat seçin.');
+            Alert.alert(t.sc_0256, t.sc_0257);
             return;
         }
         setSelSlot(prev => {
@@ -11502,7 +11538,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                 ...(excludeReservationId && { excludeReservationId }),
             });
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Bu saat seçilemiyor, lütfen başka bir saat seçin.');
+            Alert.alert('', e?.response?.data?.message || t.sc_0258);
             setValidatingSlot(false);
             return;
         }
@@ -11539,11 +11575,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     // daha da geç, "İlan Oluştur"a basılınca oluşuyordu (bkz. submit()), bu değişmedi.
 
     const slotTypeLabel = (type) => {
-        if (type === 'FULL_HOUR')   return { label: 'Tam Saat',   color: '#22d3ee', bg: '#083344' };
-        if (type === 'HALF_HOUR')   return { label: 'Buçuklu',    color: '#a3e635', bg: '#1a2e05' };
-        if (type === 'NINETY_MIN')  return { label: '90 Dakika',  color: '#fb923c', bg: '#431407' };
-        if (type === 'VAR_DURATION') return { label: 'Esnek Saat', color: '#c084fc', bg: '#2e1065' };
-        if (type === 'FLEXIBLE')    return { label: 'Esnek Saat', color: '#c084fc', bg: '#2e1065' };
+        if (type === 'FULL_HOUR')   return { label: t.sc_0259,   color: '#22d3ee', bg: '#083344' };
+        if (type === 'HALF_HOUR')   return { label: t.sc_0260,    color: '#a3e635', bg: '#1a2e05' };
+        if (type === 'NINETY_MIN')  return { label: t.sc_0261,  color: '#fb923c', bg: '#431407' };
+        if (type === 'VAR_DURATION') return { label: t.sc_0262, color: '#c084fc', bg: '#2e1065' };
+        if (type === 'FLEXIBLE')    return { label: t.sc_0262, color: '#c084fc', bg: '#2e1065' };
         return null;
     };
 
@@ -11569,7 +11605,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     yazmasına gerek yok, onlar artık bilgilerde yazmalı") — saat ızgarasına daha
                     çok yer kalsın diye kolon başlığı sadeleştirildi. */}
                 {cs?.loading && <ActivityIndicator color="#22c55e" style={{ marginTop:3 }} size="small" />}
-                {!cs?.loading && !cData && <Text style={vb.colEmpty}>Bilgi yok</Text>}
+                {!cs?.loading && !cData && <Text style={vb.colEmpty}>{t.sc_0263}</Text>}
 
                 {/* paddingBottom: alttaki seçim/ödeme paneli artık position:'absolute' ile bu
                     sütunların ÜZERİNE biniyor (bkz. yukarıdaki yorum) — en alttaki saatler
@@ -11600,10 +11636,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             <Text style={[vb.colSlotSub,
                                 !sl.free && { color: isPend ? '#fbbf2480' : (isPast ? '#a1a1aa80' : '#ef444480') },
                                 isSel && { color:'#fff', opacity:0.8 }]}>
-                                {isPend ? 'Onay Bek.' : sl.end}
+                                {isPend ? t.sc_0264 : sl.end}
                             </Text>
                             {!sl.free && !isPend && (
-                                <Text style={{ color: isPast ? '#a1a1aa' : '#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>{isPast ? 'Geçmiş' : 'Dolu'}</Text>
+                                <Text style={{ color: isPast ? '#a1a1aa' : '#ef4444', fontSize:8, fontWeight:'800', marginTop:1 }}>{isPast ? t.sc_0265 : t.sc_0129}</Text>
                             )}
                             {sl.free && slotPrice > 0 && (
                                 <Text style={[vb.colSlotPrice, isSel && { color:'#bbf7d0' }]}>{slotPrice}₺</Text>
@@ -11620,7 +11656,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                         ...freeWins.map(w  => ({ ...w, _t: 'free' })),
                         ...takenBlks.map(t => ({ ...t, _t: t.status === 'PENDING' ? 'pending' : 'taken' })),
                     ].sort((a, b) => toM(a.start) - toM(b.start));
-                    if (allBlocks.length === 0) return <Text style={vb.colEmpty}>Müsait yok</Text>;
+                    if (allBlocks.length === 0) return <Text style={vb.colEmpty}>{t.sc_0266}</Text>;
                     return allBlocks.map((block, wi) => {
                         if (block._t !== 'free') {
                             const isPend = block._t === 'pending';
@@ -11630,7 +11666,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                         {isPend ? '⏳' : '🔴'} {block.start}–{block.end}
                                     </Text>
                                     <Text style={{ color: isPend ? '#fbbf24' : '#f87171', fontSize:11, marginTop:2, fontWeight:'800' }}>
-                                        {isPend ? 'Onay Bekleniyor' : 'Dolu'}
+                                        {isPend ? t.sc_0267 : t.sc_0129}
                                     </Text>
                                 </View>
                             );
@@ -11668,11 +11704,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     </TouchableOpacity>
                                     {isWinSel && roundedNowIfPast(selDate, w) !== w.start && (
                                         <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700', marginBottom:3 }}>
-                                            🎁 Pencere {w.start}'te başladı, kort boş kalmasın diye şimdiden ({roundedNowIfPast(selDate, w)}) rezerve edebilirsiniz
+                                            {t.sc_0268} {w.start}{t.sc_0269}{roundedNowIfPast(selDate, w)}{t.sc_0270}
                                         </Text>
                                     )}
                                     {isWinSel && (<>
-                                        <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Başlangıç</Text>
+                                        <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.sc_0271}</Text>
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
                                             {(() => {
                                                 const nowM = toM(roundedNowIfPast(selDate, w));
@@ -11692,7 +11728,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             })()}
                                         </View>
                                         {validStart && (<>
-                                            <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>Süre</Text>
+                                            <Text style={{ color:'#888', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.sc_0272}</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:3 }}>
                                                 {Array.from({ length: 23 }, (_, i) => 60 + i * 30).filter(d => {
                                                     if (startM + d > winEndM) return false;
@@ -11709,7 +11745,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                         <TouchableOpacity key={d}
                                                             onPress={() => { setVarDurMap(p => ({ ...p, [court.id]: d })); setSelSlot(null); }}
                                                             style={{ width:'48%', paddingVertical:3, borderRadius:8, backgroundColor: isSd ? '#9333ea' : '#ffffff10', alignItems:'center', borderWidth:1, borderColor: isSd ? '#9333ea' : '#ffffff20' }}>
-                                                            <Text style={{ color: isSd ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{d<60?`${d}dk`:`${d/60}sa`}</Text>
+                                                            <Text style={{ color: isSd ? '#fff' : '#aaa', fontSize:10, fontWeight:'700' }}>{d<60?t.sc_0273(d):t.sc_0274(d/60)}</Text>
                                                             {dPrice != null && dPrice > 0 && (
                                                                 <Text style={{ color: isSd ? '#bbf7d0' : '#6b7280', fontSize:9, fontWeight:'700', marginTop:1 }}>{dPrice}₺</Text>
                                                             )}
@@ -11723,7 +11759,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                     style={{ backgroundColor: isReserved ? '#9333ea' : '#9333ea30', borderRadius:8, paddingVertical:3, alignItems:'center', borderWidth:1, borderColor:'#9333ea' }}
                                                     activeOpacity={0.75}>
                                                     <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>
-                                                        {isReserved ? '✅ Seçildi' : `${customStart}–${endT} Rezerve Et`}
+                                                        {isReserved ? t.sc_0275 : t.sc_0276(customStart, endT)}
                                                     </Text>
                                                     {!isReserved && (() => { const q = computeVarDurationPrice(w, customStart, dur); const bp = (q.priceByMethod?.CASH ?? q.price) || (venue?.pricePerSlot || null); return bp>0 ? <Text style={{ color:'#bbf7d0', fontSize:10, fontWeight:'700', marginTop:1 }}>{bp}₺</Text> : null; })()}
                                                 </TouchableOpacity>
@@ -11751,7 +11787,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     {/* Header */}
                     <View style={[vb.header, { padding: 3 }]}>
                         <View style={{ flex: 1 }}>
-                            <Text style={vb.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{venue?.name || 'Tesis'}</Text>
+                            <Text style={vb.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{venue?.name || t.sc_0277}</Text>
                             {venue && <Text style={vb.subtitle}>{venue.branch} · {venue.city}</Text>}
                         </View>
                     </View>
@@ -11769,10 +11805,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                             };
                             const links = [
                                 { key: 'whatsapp',  icon: '💬', label: 'WhatsApp', url: v => { const d = v.replace(/\D/g,''); return `https://wa.me/${d.startsWith('0') ? '90'+d.slice(1) : d}`; } },
-                                { key: 'phone',     icon: '📞', label: 'Beni Ara',  url: v => `tel:${v}` },
+                                { key: 'phone',     icon: '📞', label: t.sc_0278,  url: v => `tel:${v}` },
                                 { key: 'telegram',  icon: '✈️', label: 'Telegram',  url: v => `https://t.me/${v.replace('@','')}` },
                                 { key: 'instagram', icon: '📸', label: 'Instagram', url: v => `https://instagram.com/${v.replace('@','')}` },
-                                { key: 'email',     icon: '📧', label: 'E-posta',   url: v => `mailto:${v}` },
+                                { key: 'email',     icon: '📧', label: t.sc_0279,   url: v => `mailto:${v}` },
                             ].filter(l => effectiveCl[l.key]);
                             return (
                                 <>
@@ -11835,13 +11871,13 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 <TouchableOpacity key={yStr} onPress={() => { selDateWasChangedManually.current = true; setSelDate(yStr); }}
                                                     style={[vb.dateChip, isSel && vb.dateChipSel]}>
                                                     <Text style={[vb.dateChipDay, isSel && vb.dateChipDaySel]}>
-                                                        {d.toLocaleDateString('tr-TR', { weekday:'short' })}
+                                                        {d.toLocaleDateString(appLocale(t.lang), { weekday:'short' })}
                                                     </Text>
                                                     <Text style={[vb.dateChipNum, isSel && vb.dateChipNumSel]}>
                                                         {d.getDate()}
                                                     </Text>
                                                     <Text style={[vb.dateChipMonth, isSel && vb.dateChipMonthSel]}>
-                                                        {d.toLocaleDateString('tr-TR', { month:'short' })}
+                                                        {d.toLocaleDateString(appLocale(t.lang), { month:'short' })}
                                                     </Text>
                                                 </TouchableOpacity>
                                             );
@@ -11853,15 +11889,15 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 <View style={[vb.legend, { paddingHorizontal:3, marginBottom:1 }]}>
                                     <View style={vb.legendItem}>
                                         <View style={[vb.legendDot, { backgroundColor:'#16a34a' }]} />
-                                        <Text style={vb.legendTxt}>Boş</Text>
+                                        <Text style={vb.legendTxt}>{t.sc_0280}</Text>
                                     </View>
                                     <View style={vb.legendItem}>
                                         <View style={[vb.legendDot, { backgroundColor:'#dc2626' }]} />
-                                        <Text style={vb.legendTxt}>Dolu</Text>
+                                        <Text style={vb.legendTxt}>{t.sc_0129}</Text>
                                     </View>
                                     <View style={vb.legendItem}>
                                         <View style={[vb.legendDot, { backgroundColor:'#d97706' }]} />
-                                        <Text style={vb.legendTxt}>⏳ Onay Bek.</Text>
+                                        <Text style={vb.legendTxt}>{t.sc_0281}</Text>
                                     </View>
                                 </View>
 
@@ -11882,7 +11918,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 panel dibe değil, tekrar bir miktar yukarıda kalırdı. */}
                             <View style={{ position:'absolute', left:0, right:0, bottom:0, backgroundColor: colors.bg }}>
                             {!selSlot && (
-                                <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:3 }]}>Yukarıdan bir saat seçin</Text>
+                                <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:3 }]}>{t.sc_0282}</Text>
                             )}
                             {selSlot && (() => {
                                 const courtData = courtsSlots[selSlot.courtId]?.data;
@@ -11923,9 +11959,9 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 <Text style={{ color:'#888', fontSize:16 }}>↩</Text>
                                             </TouchableOpacity>
                                         </View>
-                                        <Text style={vb.sectionLabel}>Ödeme Yöntemi</Text>
+                                        <Text style={vb.sectionLabel}>{t.sc_0283}</Text>
                                         <View style={vb.payRow}>
-                                            {[['CASH','💵 Kortta Nakit Öde'],['EFT','🏦 EFT / Havale'],['CREDIT_CARD','💳 Kortta Kredi Kartı'],['ONLINE','🌐 Online (Bakımda)']].filter(([m]) => {
+                                            {[['CASH',t.sc_0284],['EFT',t.sc_0285],['CREDIT_CARD',t.sc_0286],['ONLINE',t.sc_0287]].filter(([m]) => {
                                                 if (m === 'CREDIT_CARD') {
                                                     const acc = Array.isArray(venue?.acceptedPayments) ? venue.acceptedPayments : [];
                                                     return acc.includes(m);
@@ -11941,7 +11977,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                         <Text style={[vb.payBtnTxt, payMethod===m && vb.payBtnTxtSel]}>{label}</Text>
                                                         {mPrice > 0 && (
                                                             <Text style={[vb.payBtnPrice, payMethod===m && vb.payBtnPriceSel]}>
-                                                                {mPrice}₺{rangeSlots && rangeSlots.length > 1 ? ` (${rangeSlots.length}s)` : ''}
+                                                                {mPrice}₺{rangeSlots && rangeSlots.length > 1 ? t.sc_0288(rangeSlots.length) : ''}
                                                             </Text>
                                                         )}
                                                     </TouchableOpacity>
@@ -11953,12 +11989,12 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 {(venue?.businessIban || venue?.user?.businessIban) ? (
                                                     <>
                                                         {(venue.businessIbanHolder || venue.user?.businessIbanHolder) && (
-                                                            <Text style={vb.ibanRow}>Hesap Sahibi: <Text style={vb.ibanVal}>{venue.businessIbanHolder || venue.user?.businessIbanHolder}</Text></Text>
+                                                            <Text style={vb.ibanRow}>{t.sc_0289} <Text style={vb.ibanVal}>{venue.businessIbanHolder || venue.user?.businessIbanHolder}</Text></Text>
                                                         )}
                                                         <Text style={vb.ibanRow}>IBAN: <Text style={[vb.ibanVal,{fontFamily:'monospace'}]} selectable>{venue.businessIban || venue.user?.businessIban}</Text></Text>
                                                     </>
                                                 ) : (
-                                                    <Text style={[vb.ibanRow, { color:'#f59e0b' }]}>📞 EFT bilgisi için lütfen tesis ile iletişime geçin.</Text>
+                                                    <Text style={[vb.ibanRow, { color:'#f59e0b' }]}>{t.sc_0290}</Text>
                                                 )}
                                             </View>
                                         )}
@@ -11973,16 +12009,16 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                             {validatingSlot ? (
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                                     <ActivityIndicator color="#fff" size="small" />
-                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>Kontrol ediliyor...</Text>
+                                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>{t.sc_0291}</Text>
                                                 </View>
                                             ) : (
                                                 <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>
-                                                    {canConfirm ? '✓ Onayla ve Devam Et' : `Devam etmek için en az 60dk seçin`}
+                                                    {canConfirm ? t.sc_0292 : t.sc_0293}
                                                 </Text>
                                             )}
                                         </TouchableOpacity>
                                         <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center' }}>
-                                            Kort, ilanı oluşturduğunuzda rezerve edilir.
+                                            {t.sc_0294}
                                         </Text>
                                     </ScrollView>
                                 );
@@ -12008,7 +12044,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                     </View>
                     <ScrollView style={{ padding:14 }} showsVerticalScrollIndicator={false}>
                         {venue && (() => {
-                            const DAYS_TR = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+                            const DAYS_TR = [t.sc_0295, t.sc_0296, t.sc_0297, t.sc_0298, t.sc_0299, t.sc_0300, t.sc_0301];
                             const openDays = Array.isArray(venue.openDays) ? venue.openDays : [1,2,3,4,5,6,7];
                             const pw = Array.isArray(venue.pricingWindows) ? venue.pricingWindows : [];
                             const base = venue.pricePerSlot;
@@ -12078,7 +12114,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     {(pw.length > 0 || base > 0) && (
                                         <Section label={t.venuePriceInfoLabel} color="#c084fc">
                                             {base > 0 && pw.length === 0 && (
-                                                <Text style={{ color:'#e5e7eb', fontSize:13 }}>💰 {base}₺/slot</Text>
+                                                <Text style={{ color:'#e5e7eb', fontSize:13 }}>💰 {base}{t.sc_0302}</Text>
                                             )}
                                             {pw.map((rule, i) => {
                                                 const cName = rule.courtId ? (venue.courts||[]).find(c=>c.id===rule.courtId)?.name : null;
@@ -12089,11 +12125,11 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                                 return (
                                                     <View key={i} style={{ marginBottom:6 }}>
                                                         <Text style={{ color:'#e5e7eb', fontSize:13 }}>
-                                                            💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : 'Ücretsiz'}{cName ? ` · ${cName}` : ''}
+                                                            💰 {rule.from}–{rule.to}: {rule.price > 0 ? `${rule.price}₺` : t.sc_0303}{cName ? ` · ${cName}` : ''}
                                                         </Text>
                                                         {methodRows.length > 0 && (
                                                             <Text style={{ color:'#9ca3af', fontSize:11.5, marginTop:2 }}>
-                                                                {methodRows.map(m => `${PAYMENT_METHOD_EMOJI[m]} ${FEE_METHOD_LABEL[m]}: ${deltas[m]}₺`).join('   ')}
+                                                                {methodRows.map(m => `${PAYMENT_METHOD_EMOJI[m]} ${feeMethodLabel(m, t)}: ${deltas[m]}₺`).join('   ')}
                                                             </Text>
                                                         )}
                                                     </View>
@@ -12263,8 +12299,8 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const isDoublesFmt = m.matchType === 'DOUBLE';
     const sizeTxt = isTeamSport ? `👥 ${m.teamSize}v${m.teamSize}` : isDoublesFmt ? '👥 2v2' : '⚔️ 1v1';
     const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
-    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
-    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
+    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? t.sc_team_host : (founderSide[0] ? senderAlias(founderSide[0]) : t.sc_0053));
+    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? t.sc_team_opp : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
     const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
     const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
 
@@ -12327,9 +12363,9 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
                         <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponentLabel}</Text>
                     </View>
                     <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                        {m.flexibleSchedule ? '📅 Esnek' : m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }) : ''}
+                        {m.flexibleSchedule ? t.sc_0162 : m.matchDate ? new Date(m.matchDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' }) : ''}
                         {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
-                        {m.duration != null ? ` · ⏱ ${m.duration} dk` : ''}
+                        {m.duration != null ? t.sc_0304(m.duration) : ''}
                     </Text>
                 </TouchableOpacity>
             )}
@@ -12361,7 +12397,7 @@ class ArchiveDetailErrorBoundary extends Component {
         if (this.state.error) {
             return (
                 <View style={{ paddingVertical:20 }}>
-                    <Text style={{ color:'#ef4444', fontSize:13, fontWeight:'700', marginBottom:8 }}>⚠️ Bu maçın detayı gösterilirken bir hata oluştu.</Text>
+                    <Text style={{ color:'#ef4444', fontSize:13, fontWeight:'700', marginBottom:8 }}>{this.props.t.sc_0305}</Text>
                     <Text style={{ color: colors.textMuted, fontSize:11 }} selectable>{String(this.state.error?.message || this.state.error)}</Text>
                 </View>
             );
@@ -12378,7 +12414,8 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     // bir sheet'e, çok içerikte (voleybol, 12'ye kadar oyuncu) ise dejenere/sıfıra yakın bir
     // yüksekliğe ve TAMAMEN boş görünüme yol açabiliyordu. Artık ekran yüksekliğinin %88'i
     // KESİN bir sayı olarak veriliyor — flex:1 artık belirsizlik olmadan doğru çözümleniyor.
-    const { height: screenHeight } = useWindowDimensions();
+        const t = useT();
+const { height: screenHeight } = useWindowDimensions();
     // Kullanıcı raporu: en altta duran İtiraz Et/Oyuncuları Değerlendir butonları telefonun
     // alt dokunmatik gezinme çubuğuyla (Android gesture/nav bar) çakışıp tıklanamıyordu — bkz.
     // ekran-güvenli-alan kuralı, her yeni bottom-sheet insets.bottom kullanmalı.
@@ -12393,11 +12430,11 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                 <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, height: Math.round(screenHeight * 0.88), maxHeight: Math.round(screenHeight * 0.88) }}>
                     <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>Maç Detayı</Text>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>{t.sc_0306}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                         </View>
                         {match && (
-                            <ArchiveDetailErrorBoundary matchId={match.id}>
+                            <ArchiveDetailErrorBoundary matchId={match.id} t={t}>
                                 <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onRatePlayer={onRatePlayer} onRefereeReview={onRefereeReview} />
                             </ArchiveDetailErrorBoundary>
                         )}
@@ -12408,16 +12445,16 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
     );
 }
 
-function formatArchiveDuration(stats, listingMinutes) {
+function formatArchiveDuration(stats, listingMinutes, t) {
     if (stats?.durationMs != null && stats.durationMs > 0) {
         const minutes = Math.round(stats.durationMs / 60000);
-        if (minutes < 60) return `${minutes}m`;
-        return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+        if (minutes < 60) return t.sc_0307(minutes);
+        return t.sc_0308(Math.floor(minutes / 60), minutes % 60);
     }
     if (listingMinutes != null && listingMinutes > 0) {
         const minutes = Math.round(listingMinutes);
-        if (minutes < 60) return `${minutes}m`;
-        return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+        if (minutes < 60) return t.sc_0307(minutes);
+        return t.sc_0308(Math.floor(minutes / 60), minutes % 60);
     }
     return null;
 }
@@ -12457,7 +12494,7 @@ function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel,
     const total = stats.total;
     const wonMe = stats.wonBySide?.[myKey], wonThem = stats.wonBySide?.[theirKey];
     const winRateMe = total > 0 && wonMe != null ? +(wonMe / total * 100).toFixed(0) : null;
-    const liveDuration = formatArchiveDuration(stats, listingDurationMin);
+    const liveDuration = formatArchiveDuration(stats, listingDurationMin, t);
     const sourceTxt = workoutSourceLabel(stats.workout?.source, t);
 
     return (
@@ -12566,16 +12603,16 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
     const sets = Array.isArray(m.score?.sets) ? m.score.sets : null;
     const winner = m.score?.winner;
     const iAmFounderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
-    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? 'Kurucu Takım' : (founderSide[0] ? senderAlias(founderSide[0]) : 'Kurucu'));
-    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? 'Rakip Takım' : (opponentSide[0] ? senderAlias(opponentSide[0]) : 'Rakip'));
+    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? t.sc_team_host : (founderSide[0] ? senderAlias(founderSide[0]) : t.sc_0053));
+    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? t.sc_team_opp : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
     // Kullanıcı isteği: takım maçlarında "Kazandın/Kaybettin" yerine kazanan takımın ismi
     // yazsın ("X Takımı Kazandı") — bireysel (tek oyunculu) maçlarda kişiselleştirilmiş metin korunuyor.
     const isTeamMatch = founderSide.length > 1 || opponentSide.length > 1;
     const winningLabel = winner === 'sender' ? founderLabel : winner === 'opponent' ? opponentLabel : null;
-    const myResultText = winner === 'draw' ? '🤝 Berabere'
+    const myResultText = winner === 'draw' ? t.sc_drew
         : !winningLabel ? null
-        : isTeamMatch ? `🏆 ${winningLabel} Kazandı`
-        : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '✅ Kazandın' : '❌ Kaybettin';
+        : isTeamMatch ? t.sc_team_won(winningLabel)
+        : winner === (iAmFounderSide ? 'sender' : 'opponent') ? t.sc_you_won : t.sc_you_lost;
     const myResultColor = winner === 'draw' ? '#fbbf24' : winner === (iAmFounderSide ? 'sender' : 'opponent') ? '#4ade80' : '#f87171';
     const stats = m.score?.stats || null;
     const myWon = winner === (iAmFounderSide ? 'sender' : 'opponent');
@@ -12601,7 +12638,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
     const theirSetWins = viewerSets.filter(s2 => s2.them > s2.me).length;
     const myGames = viewerSets.reduce((n, s2) => n + s2.me, 0);
     const theirGames = viewerSets.reduce((n, s2) => n + s2.them, 0);
-    const liveDuration = formatArchiveDuration(stats, m.duration);
+    const liveDuration = formatArchiveDuration(stats, m.duration, t);
     const youLabel = t.archiveYouLabel;
     const themLabel = iAmFounderSide ? opponentLabel : founderLabel;
     const formatBits = [
@@ -12625,7 +12662,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                             → güncel puan sırasıyla görünsün. */}
                         <View style={{ flexDirection:'row', alignItems:'center', gap:6, marginTop:2 }}>
                             {rBefore != null && rBefore > 0 && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'700' }}>{Number(rBefore).toFixed(2)} ★</Text>}
-                            {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}p</Text>}
+                            {pts != null && pts !== 0 && <Text style={{ color: pts > 0 ? '#4ade80' : '#f87171', fontSize:11, fontWeight:'700' }}>{pts > 0 ? '+' : ''}{pts}{t.sc_0309}</Text>}
                             {rAfter != null && <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>→ <Text style={{ color:'#4ade80' }}>{Number(rAfter).toFixed(2)} ★</Text></Text>}
                             {/* Kullanıcı isteği: takım kazandığı halde puanı düşen/az artan oyuncular
                                 "adaletsiz" görünüyordu — puan değişiminin yanına dokununca algoritmayı
@@ -12652,7 +12689,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                 {m.subCategory === 'volleyball' && m.matchMode === 'COMPETITIVE' && p.id && p.id !== myId && isFounderSidePlayer === iAmFounderSide && (
                     <TouchableOpacity onPress={() => onRatePlayer(p.id, m.subCategory)}
                         style={{ backgroundColor:'#7c3aed20', borderRadius:6, paddingVertical:4, paddingHorizontal:8, borderWidth:1, borderColor:'#7c3aed50', marginTop:6, alignSelf:'flex-start' }}>
-                        <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }} numberOfLines={1}>Değerlendir</Text>
+                        <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }} numberOfLines={1}>{t.sc_0310}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -12710,7 +12747,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
 
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginBottom:14 }}>
                 <Text style={{ color: colors.textMuted, fontSize:12 }}>
-                    {m.flexibleSchedule ? `📅 ${t.flexibleSchedule || 'Esnek Program'}` : m.matchDate ? `📅 ${new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}` : ''}
+                    {m.flexibleSchedule ? `📅 ${t.flexibleSchedule || t.sc_0311}` : m.matchDate ? `📅 ${new Date(m.matchDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short', year:'numeric' })}` : ''}
                     {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
                 </Text>
                 {liveDuration ? <Text style={{ color: colors.textMuted, fontSize:12 }}>⏱ {liveDuration}</Text> : null}
@@ -12741,19 +12778,19 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                     && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
                     <TouchableOpacity onPress={() => { onAppeal(m); onClose(); }}
                         style={{ backgroundColor:'#f9731620', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#f9731650' }}>
-                        <Text style={{ color:'#f97316', fontSize:12, fontWeight:'700' }}>⚠️ İtiraz Et</Text>
+                        <Text style={{ color:'#f97316', fontSize:12, fontWeight:'700' }}>{t.sc_0312}</Text>
                     </TouchableOpacity>
                 )}
                 {m.scoreAppeal && (
-                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>⏳ İtiraz İnceleniyor</Text>
+                    <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>{t.sc_0313}</Text>
                 )}
                 {m.refereeId && m.myRefereeReview && (
-                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{'⭐'.repeat(m.myRefereeReview.rating)} Hakemi değerlendirdin</Text>
+                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{'⭐'.repeat(m.myRefereeReview.rating)} {t.sc_0314}</Text>
                 )}
                 {m.refereeId && !m.myRefereeReview && m.canReviewReferee && (
                     <TouchableOpacity onPress={() => onRefereeReview(m)}
                         style={{ backgroundColor:'#fbbf2420', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#fbbf2450' }}>
-                        <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>Hakemi Değerlendir</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700' }}>{t.sc_0315}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -12949,7 +12986,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                         style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, color:'#fff', fontSize:10, paddingHorizontal:5, paddingVertical:2, minHeight:0 }}
                         value={text}
                         onChangeText={setText}
-                        placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : 'İsim yaz...')}
+                        placeholder={placeholder || (t.teamSlotPh ? t.teamSlotPh(1) : t.sc_0316)}
                         placeholderTextColor={colors.textMuted}
                     />
                     {searching && <ActivityIndicator size="small" color={cfg.color} style={{ position:'absolute', right:5, top:3 }} />}
@@ -13061,10 +13098,10 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                                 const manualName = text.trim();
                                 setText(''); setResults([]);
                                 Alert.alert(
-                                    'Bu Oyuncu Kalsın',
-                                    `"${manualName}" uygulamayı kullanmıyor olarak takıma eklensin mi? Kendisine davet/bildirim gitmez. Cinsiyet seçin:`,
+                                    t.sc_0317,
+                                    t.sc_add_manual(manualName),
                                     [
-                                        { text: 'Vazgeç', style: 'cancel' },
+                                        { text: t.sc_0004, style: 'cancel' },
                                         { text: t.genderMale, onPress: () => onAddManual(manualName, 'MALE') },
                                         { text: t.genderFemale, onPress: () => onAddManual(manualName, 'FEMALE') },
                                     ]
@@ -13072,7 +13109,7 @@ function TeamSlotInviteField({ sub, category, onInvite, onPick, onAddManual, onO
                             }}
                             style={{ paddingVertical:6, paddingHorizontal:6, flexDirection:'row', alignItems:'center', gap:4 }}>
                             <Text style={{ fontSize:13 }}>👤</Text>
-                            <Text style={{ color: cfg.color, fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={2}>"{text.trim()}" — uygulamada yok, bu oyuncu kalsın</Text>
+                            <Text style={{ color: cfg.color, fontSize:10, flex:1, fontWeight:'700' }} numberOfLines={2}>"{text.trim()}{t.sc_0318}</Text>
                         </TouchableOpacity>
                     )}
                 </ScrollView>
@@ -13282,7 +13319,7 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
             <Text style={{ color: colors.textMuted, fontSize:11 }}>✕</Text>
         </TouchableOpacity>
     ) : !editItem ? (
-        <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={t.inviteOpponentTitle || t.opponentTeamShortLabel || 'Rakip'}
+        <TeamSlotInviteField sub={sub} category={category} cfg={cfg} t={t} placeholder={t.inviteOpponentTitle || t.opponentTeamShortLabel || t.sc_0075}
             genderReq={f.genderReq} ratingFitsCheck={ratingFitsSlot}
             onPick={(u) => set('singleOppInvites', [u])} onOpenPicker={onLongPressEmptySlot} />
     ) : null;
@@ -13312,11 +13349,11 @@ function SingleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, t, 
                         </View>
                         <View style={{ flexDirection:'row', gap:6 }}>
                             <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
-                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || 'Kurucu'}</Text>
+                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.founderTeamShortLabel || t.sc_0053}</Text>
                                 {selfCell}
                             </View>
                             <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.opponentTeamShortLabel || 'Rakip'}</Text>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', marginBottom:4 }} numberOfLines={1}>{t.opponentTeamShortLabel || t.sc_0075}</Text>
                                 {oppSlot}
                             </View>
                         </View>
@@ -13365,7 +13402,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
         .filter(Boolean).map(p => p.id);
     const pickWithDupeCheck = (field, u) => {
         if (u.id === myUser?.id || pickedIds().includes(u.id)) {
-            Alert.alert('', 'Bu oyuncu zaten kadroda seçili — aynı kişi birden fazla forma yazılamaz.');
+            Alert.alert('', t.sc_0319);
             return;
         }
         set(field, u);
@@ -13406,7 +13443,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                 onPick={(u) => pickWithDupeCheck(genericField, u)} onOpenPicker={onLongPressEmptySlot} />
         ) : null;
     };
-    const genderTagLocal = (req) => req === 'MALE' ? ` (${t.genderMale ? t.genderMale.replace(/^\S+\s+/, '') : 'Erkek'})` : req === 'FEMALE' ? ` (${t.genderFemale ? t.genderFemale.replace(/^\S+\s+/, '') : 'Kadın'})` : '';
+    const genderTagLocal = (req) => req === 'MALE' ? ` (${t.genderMale ? t.genderMale.replace(/^\S+\s+/, '') : t.sc_0343})` : req === 'FEMALE' ? ` (${t.genderFemale ? t.genderFemale.replace(/^\S+\s+/, '') : t.sc_0344})` : '';
     // Dolu forma → isim + ✕; boş forma (düzenleme DIŞINDayken) → arama/davet alanı — bu SLOTA
     // ÖZEL, tek bir sabit genderReq ile doğrulanır (genel havuzdan farklı olarak).
     const renderBackSlot = (field, placeholder, genderReq) => f[field] ? (
@@ -13450,7 +13487,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                     )}
                                 </View>
                             </View>
-                            {[['partner', 'poolInvite1', t.teamSlotPh ? t.teamSlotPh(2) : '2. Oyuncu'], ['opp1Invite', 'poolInvite2', t.teamSlotPh ? t.teamSlotPh(3) : '3. Oyuncu'], ['opp2Invite', 'poolInvite3', t.teamSlotPh ? t.teamSlotPh(4) : '4. Oyuncu']].map(([specificField, genericField, ph]) => (
+                            {[['partner', 'poolInvite1', t.teamSlotPh ? t.teamSlotPh(2) : t.sc_0320], ['opp1Invite', 'poolInvite2', t.teamSlotPh ? t.teamSlotPh(3) : t.sc_0321], ['opp2Invite', 'poolInvite3', t.teamSlotPh ? t.teamSlotPh(4) : t.sc_0322]].map(([specificField, genericField, ph]) => (
                                 <View key={specificField} style={{ width:'48%' }}>
                                     {renderFrontSlot(specificField, genericField, ph)}
                                 </View>
@@ -13475,7 +13512,7 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                         <View style={{ flexDirection:'row', gap:6 }}>
                             <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#a855f720' }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.founderTeamName || 'Takım 1'}</Text>
+                                    <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.founderTeamName || t.sc_0168}</Text>
                                     <TouchableOpacity onPress={() => onEditTeamName({ side:'founder', value: f.founderTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                         <Text style={{ fontSize:9 }}>✎</Text>
                                     </TouchableOpacity>
@@ -13483,19 +13520,19 @@ function DoubleRosterCard({ f, set, myUser, myOwnRating, cfg, sub, category, s, 
                                 <View style={{ borderRadius:5, paddingHorizontal:3, paddingVertical:2, backgroundColor:'#1e293b', marginBottom:4 }}>
                                     <Text style={{ color:'#94a3b8', fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{myUser?.fullName || myUser?.username} 🔒</Text>
                                 </View>
-                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{(t.partnerGenderLabel || 'Takım Arkadaşı')}{genderTagLocal(f.partnerGenderReq)}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{(t.partnerGenderLabel || t.sc_0078)}{genderTagLocal(f.partnerGenderReq)}</Text>
                                 {renderBackSlot('partner', t.choosePartnerBtn, f.partnerGenderReq)}
                             </View>
                             <View style={{ flex:1, backgroundColor:'#0f172a', borderRadius:6, padding:4, borderWidth:1, borderColor:'#f8717120' }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
-                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.opponentTeamName || 'Takım 2'}</Text>
+                                    <Text style={{ color:'#f87171', fontSize:9, fontWeight:'800', flex:1 }} numberOfLines={1}>{f.opponentTeamName || t.sc_0169}</Text>
                                     <TouchableOpacity onPress={() => onEditTeamName({ side:'opponent', value: f.opponentTeamName })} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
                                         <Text style={{ fontSize:9 }}>✎</Text>
                                     </TouchableOpacity>
                                 </View>
-                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{(t.opp1GenderLabel || 'Rakip 1')}{genderTagLocal(f.opp1GenderReq)}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginBottom:2 }} numberOfLines={1}>{(t.opp1GenderLabel || t.sc_0079)}{genderTagLocal(f.opp1GenderReq)}</Text>
                                 {renderBackSlot('opp1Invite', t.inviteSendBtn, f.opp1GenderReq)}
-                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginTop:5, marginBottom:2 }} numberOfLines={1}>{(t.opp2GenderLabel || 'Rakip 2')}{genderTagLocal(f.opp2GenderReq)}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:9, fontWeight:'700', marginTop:5, marginBottom:2 }} numberOfLines={1}>{(t.opp2GenderLabel || t.sc_0080)}{genderTagLocal(f.opp2GenderReq)}</Text>
                                 {renderBackSlot('opp2Invite', t.inviteSendBtn, f.opp2GenderReq)}
                             </View>
                         </View>
@@ -13658,12 +13695,12 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                 const oppositeRoster = (oppositeSide === 'my' ? founderPlayers : oppPlayers).filter(x => x?.id || x?.manualName);
                 for (const target of oppositeRoster) {
                     const targetName = target.id ? senderAlias(target) : target.manualName;
-                    actions.push({ label: `🔁 ${targetName} ile Değiş`, onPress: () => onSwap(p, target) });
+                    actions.push({ label: t.sc_0023(targetName), onPress: () => onSwap(p, target) });
                 }
             }
-            actions.push({ label: 'Atanmamışa Taşı', onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
+            actions.push({ label: t.sc_0024, onPress: () => onAssign(p.id, null, p.id ? undefined : p.manualName) });
         }
-        if (p.id && onRemovePlayer) actions.push({ label: 'Çıkar', destructive: true, onPress: () => onRemovePlayer(p.id) });
+        if (p.id && onRemovePlayer) actions.push({ label: t.sc_0018, destructive: true, onPress: () => onRemovePlayer(p.id) });
         return { visible: true, title: name, actions };
     })();
     const cellWidth = isVolleyball ? '32%' : '23.5%';
@@ -13716,7 +13753,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                     )}
                     <View style={{ flex:1 }} />
                     {teamAvgRating != null && (
-                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>Ort {teamAvgRating.toFixed(2)}★</Text>
+                        <Text style={{ color:'#facc15', fontSize:9, fontWeight:'800' }} numberOfLines={1}>{t.sc_0067} {teamAvgRating.toFixed(2)}★</Text>
                     )}
                 </View>
                 {Array.from({ length: slotsCount }).map((_, i) => {
@@ -13767,7 +13804,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                             isme dokunup direkt atanmamışa atmak yerine, sağda bir menü açılır. */}
                                         {isOwner && !locked && (
                                             <TouchableOpacity onPress={() => promptSlotAction(p, targetSide)} hitSlop={{ top:4, bottom:4, left:4, right:4 }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>Değiştir/Çıkar</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:8, fontWeight:'700', textDecorationLine:'underline' }} numberOfLines={1}>{t.sc_0323}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -13842,7 +13879,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                         <View key={`sub-empty-${i}`} style={{ width: cellWidth }}>
                                             <View style={[cellStyle, { opacity:0.55, borderStyle:'dashed' }]}>
                                                 <Text style={{ fontSize:11 }}>?</Text>
-                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1 }} numberOfLines={1}>Bekleniyor</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, flex:1 }} numberOfLines={1}>{t.sc_0054}</Text>
                                             </View>
                                         </View>
                                     ))}
@@ -13879,13 +13916,13 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
                                         {(!founderFull || !oppFull) && (
                                             <TouchableOpacity onPress={() => promptSlotAction(p, null)}
                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#a855f720', borderWidth:1, borderColor:'#a855f750' }}>
-                                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Takıma Ata</Text>
+                                                <Text style={{ color:'#a855f7', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.sc_0324}</Text>
                                             </TouchableOpacity>
                                         )}
                                         {p.id && onRemovePlayer && (
                                             <TouchableOpacity onPress={() => onRemovePlayer(p.id)}
                                                 style={{ paddingHorizontal:6, paddingVertical:4, borderRadius:5, backgroundColor:'#dc262612', borderWidth:1, borderColor:'#dc262630' }}>
-                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>Çıkar</Text>
+                                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }} numberOfLines={1}>{t.sc_0018}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -14156,7 +14193,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         const isDoublesFmt = f.matchType === 'DOUBLE';
         const slots = f.matchType === 'DOUBLE'
             ? [
-                [f.partner, t.founderTeamLabel || 'Takım Arkadaşı'],
+                [f.partner, t.founderTeamLabel],
                 [f.opp1Invite, t.opp1Label || 'Rakip 1'],
                 [f.opp2Invite, t.opp2Label || 'Rakip 2'],
                 [f.poolInvite1, '2. Oyuncu'], [f.poolInvite2, '3. Oyuncu'], [f.poolInvite3, '4. Oyuncu'],
@@ -14232,7 +14269,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         : f.genderCountMode === 'MIN'
             ? `${f.minGenderReq === 'MALE' ? '👨' : '👩'}${f.minGenderCount}+`
             : f.genderCountMode === 'MIN_PER_TEAM'
-                ? `${f.minGenderReq === 'MALE' ? '👨' : '👩'}${f.minGenderCount}+/takım`
+                ? `${f.minGenderReq === 'MALE' ? '👨' : '👩'}${f.minGenderCount}${t.sc_per_team}`
                 : null;
     const setSubCount = (n) => {
         setF(p => ({
@@ -14641,16 +14678,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     const cancelCourt = async () => {
         if (!f.reservationId) { deselectCourt(); return; }
         Alert.alert(
-            'Rezervasyonu İptal Et',
-            'Bu kort rezervasyonunu tamamen iptal etmek istediğinizden emin misiniz? Bu işlem geri alınamaz.',
+            t.sc_0325,
+            t.sc_0326,
             [
-                { text: 'Vazgeç', style: 'cancel' },
-                { text: 'İptal Et', style: 'destructive', onPress: async () => {
+                { text: t.sc_0004, style: 'cancel' },
+                { text: t.sc_0327, style: 'destructive', onPress: async () => {
                     try {
                         await api.delete(`/venues/reservations/${f.reservationId}`);
                         deselectCourt();
                     } catch (e) {
-                        Alert.alert('İptal Edilemiyor', e?.response?.data?.message || 'Rezervasyon iptal edilemedi');
+                        Alert.alert(t.sc_0328, e?.response?.data?.message || t.sc_0329);
                     }
                 }},
             ]
@@ -14756,7 +14793,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         if (st === 400 || st === 404) reservationGone = true;
                         else {
                             setSubmitting(false);
-                            Alert.alert('Hata', e?.response?.data?.message || 'Rezervasyon değiştirilemedi.');
+                            Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0330);
                             return;
                         }
                     }
@@ -14770,14 +14807,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         venueReservationId = resResp.data?.reservation?.id || null;
                     } catch (e) {
                         setSubmitting(false);
-                        Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
+                        Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0331);
                         return;
                     }
                     if (orig.reservationId && !reservationGone) {
                         try {
                             await api.delete(`/venues/reservations/${orig.reservationId}`);
                         } catch (e) {
-                            Alert.alert('Uyarı', `Yeni kort rezerve edildi ama eski rezervasyon iptal edilemedi: ${e?.response?.data?.message || 'bilinmeyen hata'}. İşletmeyle iletişime geçin.`);
+                            Alert.alert(t.sc_0332, t.sc_0333(e?.response?.data?.message || t.sc_x_62696c696e));
                         }
                     }
                 }
@@ -14836,7 +14873,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             }).then(res => {
                 // Backend katılımcı olduğu için formatı sessizce yoksaydıysa haber ver.
                 if (res.data?.matchTypeLocked) {
-                    Alert.alert('Format Değiştirilemedi', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemedi — önce katılımcıları çıkarabilirsin. Diğer değişiklikler kaydedildi.');
+                    Alert.alert(t.sc_0334, t.sc_0335);
                 }
             });
             onCreated();
@@ -14914,8 +14951,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             }
         }
         if ((isTennis || isPadel) && !editItem) {
-            if (!f.matchMode) { Alert.alert('', 'Lütfen mod seçin (Antrenman/Rekabetçi).'); return; }
-            if (!f.matchType) { Alert.alert('', 'Lütfen format seçin (Tekli/Çiftler).'); return; }
+            if (!f.matchMode) { Alert.alert('', t.sc_0336); return; }
+            if (!f.matchType) { Alert.alert('', t.sc_0337); return; }
         }
         if (!f.flexibleSchedule) {
             if (!f.matchDate)  { Alert.alert('', t.missingDate); return; }
@@ -14970,7 +15007,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueReservationId = resResp.data?.reservation?.id || undefined;
             } catch (e) {
                 setSubmitting(false);
-                Alert.alert('Hata', e?.response?.data?.message || 'Kort rezerve edilemedi. Seçtiğiniz saat dolmuş olabilir, lütfen başka bir saat seçin.');
+                Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0331);
                 return;
             }
         }
@@ -15143,7 +15180,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
-                            <Text style={s.modalTitle}>{isMatchedEdit ? `✏️ ${(isVolleyball && VOLLEYBALL_VENUE_SHORT[f.surface]) || 'Kort'}/Saat Değiştir` : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
+                            <Text style={s.modalTitle}>{isMatchedEdit ? t.sc_0338((isVolleyball && volleyVenueShort(f.surface, t)) || t.sc_0197) : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <KeyboardAwareForm adjustWindow={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always"
@@ -15231,7 +15268,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     <TouchableOpacity key={type.id} onPress={() => set('surface', type.id)}
                                                         style={[s.chipBtn, f.surface === type.id && s.chipBtnActive]}>
                                                         <Text style={[s.chipBtnText, f.surface === type.id && s.chipBtnTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                            {type.label}
+                                                            {t[type.labelKey]}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 ))}
@@ -15336,7 +15373,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             // kartı/diğer alanlar olduğu gibi kalır (kullanıcı isteği).
                                                             if (fmt.id === f.matchType) { setShowGenderReqModal(true); return; }
                                                             if (editHasParticipants) {
-                                                                Alert.alert('Format Değiştirilemez', 'Katılımcı/partner olduğu için format (tekli/çiftler) değiştirilemez — önce katılımcıları çıkarabilirsin.');
+                                                                Alert.alert(t.sc_0339, t.sc_0340);
                                                                 return;
                                                             }
                                                             if (fmt.id === 'DOUBLE' && UTR_MOBILE_SUBS.has(sub) && !myInterestForSub?.doublesAssessmentCompleted) {
@@ -15400,10 +15437,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     return;
                                                 }
                                                 Alert.alert(
-                                                    '🔒 Davet/Paylaşımı Kapat',
-                                                    'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
+                                                    t.sc_0341,
+                                                    t.sc_0342,
                                                     [
-                                                        { text: 'Vazgeç', style: 'cancel' },
+                                                        { text: t.sc_0004, style: 'cancel' },
                                                         { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
                                                     ]
                                                 );
@@ -15427,8 +15464,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         return (
                                             <RatingRangeModal
                                                 visible={showRatingRange}
-                                                title={uniformGenderLabel === 'MALE' ? `${t.ratingLimitLabel} (${t.genderMale ? noEmoji(t.genderMale) : 'Erkek'})`
-                                                    : uniformGenderLabel === 'FEMALE' ? `${t.ratingLimitLabel} (${t.genderFemale ? noEmoji(t.genderFemale) : 'Kadın'})`
+                                                title={uniformGenderLabel === 'MALE' ? `${t.ratingLimitLabel} (${t.genderMale ? noEmoji(t.genderMale) : t.sc_0343})`
+                                                    : uniformGenderLabel === 'FEMALE' ? `${t.ratingLimitLabel} (${t.genderFemale ? noEmoji(t.genderFemale) : t.sc_0344})`
                                                     : undefined}
                                                 minValue={f.minRating}
                                                 maxValue={f.maxRating}
@@ -15500,7 +15537,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <View style={[s.triRow, { flexWrap:'wrap', gap:1, marginBottom:10, alignItems:'flex-start' }]}>
                                                 <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center' }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
                                                     <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
-                                                        {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.volleyballTypeLabel} ${t.courtSurfaceSelectPlaceholder}`}
+                                                        {f.surface ? (localizedSurfaceLabel(courtSurfaces.find(sf => sf.id === f.surface), t)) : `${t.volleyballTypeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                     </Text>
                                                 </TouchableOpacity>
                                                 <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'volleyballMod' ? 51 : 1, elevation: activePopup === 'volleyballMod' ? 51 : 1 }, f.matchMode && s.triBtnFilled]}>
@@ -15527,7 +15564,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', position:'relative', zIndex: activePopup === 'teamSize' ? 51 : 1, elevation: activePopup === 'teamSize' ? 51 : 1 }]}>
                                                     <TouchableOpacity onPress={() => toggleActivePopup('teamSize')}>
                                                         <Text style={[s.triValue, { fontSize:11 }, !f.teamSize && s.triPlaceholder]} numberOfLines={1}>
-                                                            {f.teamSize ? `${f.teamSize}v${f.teamSize}` : `${t.teamSizeLabel} ${t.courtSurfaceSelectPlaceholder}`}
+                                                            {f.teamSize ? t.sc_0345(f.teamSize, f.teamSize) : `${t.teamSizeLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <MiniDropdown
@@ -15610,10 +15647,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             return;
                                                         }
                                                         Alert.alert(
-                                                            '🔒 Davet/Paylaşımı Kapat',
-                                                            'Bunu kapatırsan, ilanına kabul edilen katılımcılar başka oyuncu davet edemez, hakem davet edemez ve ilanı paylaşamaz — bunlara izin vermemiş olursun. Sadece sen yapabilirsin.',
+                                                            t.sc_0341,
+                                                            t.sc_0342,
                                                             [
-                                                                { text: 'Vazgeç', style: 'cancel' },
+                                                                { text: t.sc_0004, style: 'cancel' },
                                                                 { text: 'Kapat', style: 'destructive', onPress: () => set('participantsCanInvite', false) },
                                                             ]
                                                         );
@@ -15811,7 +15848,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         <TouchableOpacity
                                             onPress={() => setShowCancelPenaltyModal(false)}
                                             style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:10 }}>
-                                            <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
+                                            <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -15829,7 +15866,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         const picked = new Date(f.matchDate);
                                         picked.setHours(h, m, 0, 0);
                                         if (picked.getTime() <= Date.now()) {
-                                            Alert.alert('', 'Geçmiş bir saat seçemezsiniz.');
+                                            Alert.alert('', t.sc_0346);
                                             return;
                                         }
                                     }
@@ -15908,7 +15945,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         picked.setHours(h, m, 0, 0);
                                         clearsPastTime = picked.getTime() <= Date.now();
                                     }
-                                    if (clearsPastTime) Alert.alert('', 'Seçtiğiniz saat artık geçmişte kaldığı için saat sıfırlandı, lütfen yeni bir saat seçin.');
+                                    if (clearsPastTime) Alert.alert('', t.sc_0347);
                                     setF(p => ({ ...p, matchDate: date, matchTime: clearsPastTime ? '' : p.matchTime, showDatePicker: false }));
                                 }}
                                 onClose={() => set('showDatePicker', false)}
@@ -15996,12 +16033,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     {!f.courtMutual && !f.selectedCourt && myUnlistedRes.length > 0 && (
                                         <View style={{ marginBottom: 10 }}>
                                             <Text style={{ color: '#22c55e', fontSize: 11, fontWeight: '700', marginBottom: 6, letterSpacing: 0.3 }}>
-                                                📋 MEVCut REZERVASYONLARINDAN SEÇ
+                                                {t.sc_0348}
                                             </Text>
                                             {myUnlistedRes.map(r => {
-                                                const dayNames = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+                                                const dayNames = [t.sc_0301, t.sc_0295, t.sc_0296, t.sc_0297, t.sc_0298, t.sc_0299, t.sc_0300];
                                                 const d = new Date(r.date + 'T12:00:00');
-                                                const dayLabel = `${dayNames[d.getDay()]} ${d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' })}`;
+                                                const dayLabel = `${dayNames[d.getDay()]} ${d.toLocaleDateString(appLocale(t.lang), { day: '2-digit', month: 'short' })}`;
                                                 return (
                                                     <TouchableOpacity key={r.id}
                                                         activeOpacity={0.8}
@@ -16054,7 +16091,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             </Text>
                                                             {r.court?.surface && (
                                                                 <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 1 }}>
-                                                                    Zemin: {r.court.surface}
+                                                                    {t.sc_0349} {r.court.surface}
                                                                 </Text>
                                                             )}
                                                         </View>
@@ -16118,8 +16155,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         [f.selectedCourt.venueName, f.selectedCourt.name].filter(Boolean).join(' '),
                                                         null,
                                                         [
-                                                            { text: '↩ Vazgeç', style: 'cancel' },
-                                                            ...(f.venueId ? [{ text: '🔄 Değiştir', onPress: () => changeCourt() }] : []),
+                                                            { text: t.sc_0350, style: 'cancel' },
+                                                            ...(f.venueId ? [{ text: t.sc_0351, onPress: () => changeCourt() }] : []),
                                                             { text: '🗑 Sil', style: 'destructive', onPress: () => (f.reservationId ? cancelCourt() : deselectCourt()) },
                                                         ]
                                                     );
@@ -16136,7 +16173,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 value={f.courtSearchText}
                                                 onChangeText={searchCourts}
                                                 placeholder={isVolleyball
-                                                    ? t.volleyballCourtSearchPlaceholder(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel)
+                                                    ? t.volleyballCourtSearchPlaceholder(f.surface ? volleyballVenueNoun(f.surface, t) : t.volleyballHallLabel)
                                                     : (fac.searchPh || t.courtSearchPlaceholder)}
                                                 placeholderTextColor={colors.textMuted}
                                                 textAlignVertical="center"
@@ -16155,12 +16192,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             sadece gerekirse düzeltmek için duruyor. */}
                                         {(f.selectedCourt || f.showManualCourt) && (isVolleyball ? null : isPadel ? (
                                             <View style={[s.triBtn, { flex:0, height:36, justifyContent:'center', paddingHorizontal:6 }]}>
-                                                <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>Suni Çim</Text>
+                                                <Text style={[s.triValue, { fontSize:11 }]} numberOfLines={1}>{t.sc_0352}</Text>
                                             </View>
                                         ) : (
                                             <TouchableOpacity style={[s.triBtn, { flex:0, height:36, justifyContent:'center', paddingHorizontal:6 }, f.surface && s.triBtnFilled]} onPress={() => setShowSurfacePicker(true)}>
                                                 <Text style={[s.triValue, { fontSize:11 }, !f.surface && s.triPlaceholder]} numberOfLines={1}>
-                                                    {f.surface ? (courtSurfaces.find(sf => sf.id === f.surface)?.label || getSurface(t, f.surface)) : `${t.surfaceLabel} ${t.courtSurfaceSelectPlaceholder}`}
+                                                    {f.surface ? (localizedSurfaceLabel(courtSurfaces.find(sf => sf.id === f.surface), t)) : `${t.surfaceLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
@@ -16176,7 +16213,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     <OptionPickerModal
                                         visible={showSurfacePicker}
                                         title={isVolleyball ? t.volleyballTypeLabel : t.surfaceLabel}
-                                        options={courtSurfaces.map(sf => ({ value: sf.id, label: sf.label || getSurface(t, sf.id) }))}
+                                        options={courtSurfaces.map(sf => ({ value: sf.id, label: localizedSurfaceLabel(sf, t) }))}
                                         value={f.surface}
                                         onSelect={(v) => set('surface', v)}
                                         onClose={() => setShowSurfacePicker(false)}
@@ -16212,10 +16249,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         </View>
                                                         <View style={{ flexDirection:'row', gap:5 }}>
                                                             <View style={{ backgroundColor:'#9333ea20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#9333ea40' }}>
-                                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>🏢 PRO Tesis</Text>
+                                                                <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>{t.sc_0353}</Text>
                                                             </View>
                                                             <View style={{ backgroundColor:'#22c55e20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#22c55e40' }}>
-                                                                <Text style={{ color:'#22c55e', fontSize:10, fontWeight:'700' }}>📅 Rezerve Et</Text>
+                                                                <Text style={{ color:'#22c55e', fontSize:10, fontWeight:'700' }}>{t.sc_0354}</Text>
                                                             </View>
                                                         </View>
                                                     </TouchableOpacity>
@@ -16259,7 +16296,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <Text style={s.manualCourtNote}>{t.courtSubmitNote}</Text>
                                             <TextInput style={s.fieldInput} value={f.manualCourtName}
                                                 onChangeText={v => set('manualCourtName', v)}
-                                                placeholder={isVolleyball ? t.manualVenueNameLabel(f.surface ? VOLLEYBALL_VENUE_NOUN[f.surface][lang] : t.volleyballHallLabel) : (fac.manualLabel || t.manualCourtLabel)}
+                                                placeholder={isVolleyball ? t.manualVenueNameLabel(f.surface ? volleyballVenueNoun(f.surface, t) : t.volleyballHallLabel) : (fac.manualLabel || t.manualCourtLabel)}
                                                 placeholderTextColor={colors.textMuted} />
                                             <View style={{ flexDirection:'row', gap:4 }}>
                                                 <View style={{ flex:1 }}>
@@ -16316,7 +16353,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                     <TouchableOpacity style={[s.triBtn, { flex:0, paddingHorizontal:6, paddingVertical:3 }, f.teamSize && s.triBtnFilled]}
                                         onPress={() => setShowTeamSizeModal(true)}>
                                         <Text style={[s.triValue, !f.teamSize && s.triPlaceholder]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.teamSizeManualPlaceholder}
+                                            {f.teamSize ? t.sc_0345(f.teamSize, f.teamSize) : t.teamSizeManualPlaceholder}
                                         </Text>
                                     </TouchableOpacity>
                                     <TeamSizeModal
@@ -16630,24 +16667,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'center', paddingHorizontal:30 }}>
                                     <View style={{ backgroundColor: colors.surface, borderRadius:16, padding:16 }}>
                                         <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', marginBottom:10 }}>
-                                            {teamNameEdit?.side === 'founder' ? 'Kurucu Takım İsmi' : 'Rakip Takım İsmi'}
+                                            {teamNameEdit?.side === 'founder' ? t.sc_0115 : t.sc_0116}
                                         </Text>
                                         <TextInput
                                             value={teamNameEdit?.value || ''}
                                             onChangeText={(v) => setTeamNameEdit(p => ({ ...p, value: v }))}
-                                            placeholder="Ör: Şimşekler"
+                                            placeholder={t.sc_0117}
                                             placeholderTextColor={colors.textMuted}
                                             maxLength={24}
                                             style={{ backgroundColor:'#1e293b', borderRadius:10, borderWidth:1, borderColor:colors.border, color:'#fff', fontSize:14, paddingHorizontal:12, paddingVertical:9, marginBottom:12 }}
                                         />
                                         <View style={{ flexDirection:'row', gap:8 }}>
                                             <TouchableOpacity onPress={() => setTeamNameEdit(null)} style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor:'#ffffff10' }}>
-                                                <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Vazgeç</Text>
+                                                <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0004}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 onPress={() => { set(teamNameEdit.side === 'founder' ? 'founderTeamName' : 'opponentTeamName', (teamNameEdit.value || '').trim()); setTeamNameEdit(null); }}
                                                 style={{ flex:1, alignItems:'center', paddingVertical:11, borderRadius:10, backgroundColor: colors.purple }}>
-                                                <Text style={{ color:'#fff', fontWeight:'800' }}>Kaydet</Text>
+                                                <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0118}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -16843,9 +16880,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </View>
                                 <ScrollView showsVerticalScrollIndicator={false}>
                                     {(f.matchType === 'DOUBLE' ? [
-                                        { field:'partnerGenderReq', label: t.partnerGenderLabel || 'Takım Arkadaşı Cinsiyeti' },
-                                        { field:'opp1GenderReq', label: t.opp1GenderLabel || 'Rakip 1 Cinsiyeti' },
-                                        { field:'opp2GenderReq', label: t.opp2GenderLabel || 'Rakip 2 Cinsiyeti' },
+                                        { field:'partnerGenderReq', label: t.partnerGenderLabel || t.sc_0355 },
+                                        { field:'opp1GenderReq', label: t.opp1GenderLabel || t.sc_0356 },
+                                        { field:'opp2GenderReq', label: t.opp2GenderLabel || t.sc_0357 },
                                     ] : [
                                         { field:'genderReq', label: t.genderReqLabel },
                                     ]).map(row => {
@@ -16864,12 +16901,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             <View style={{ flexDirection:'row', gap:6 }}>
                                                 {[
                                                     { id:'MIX', label: noEmoji(t.genderMix || '🤝 Mix') },
-                                                    { id:'MALE', label: noEmoji(t.genderMale || '👨 Erkek') },
-                                                    { id:'FEMALE', label: noEmoji(t.genderFemale || '👩 Kadın') },
+                                                    { id:'MALE', label: noEmoji(t.genderMale || t.sc_0232) },
+                                                    { id:'FEMALE', label: noEmoji(t.genderFemale || t.sc_0233) },
                                                 ].map(g => (
                                                     <TouchableOpacity key={g.id} onPress={() => {
                                                         if (g.id !== 'MIX' && slotUser?.gender && slotUser.gender !== 'OTHER' && slotUser.gender !== g.id) {
-                                                            Alert.alert('', `@${slotUser.username} kişisinden dolayı bu cinsiyet kısıtlamasını koyamazsınız — kendisi ${slotUser.gender === 'MALE' ? 'erkek' : 'kadın'}. Ya kısıtlamayı değiştirin ya da bu kişiyi kadrodan çıkarıp davet edemezsiniz.`);
+                                                            Alert.alert('', t.sc_gender_block(slotUser.username, slotUser.gender === 'MALE' ? t.sc_who_male : t.sc_0358));
                                                             return;
                                                         }
                                                         set(row.field, g.id);
@@ -16889,7 +16926,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 </ScrollView>
                                 <TouchableOpacity onPress={() => { courtFeeInputRef.current?.blur(); setShowGenderReqModal(false); }}
                                     style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:11, alignItems:'center' }}>
-                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || 'Onayla'}</Text>
+                                    <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -17309,7 +17346,7 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
     return (
         <>
             <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                <Text style={{ color: colors.textMuted, fontSize: 10, width: 62 }}>Set</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 10, width: 62 }}>{t.sc_0216}</Text>
                 <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1, textAlign: 'center' }} numberOfLines={1}>{p1Name}</Text>
                 <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1, textAlign: 'center' }} numberOfLines={1}>{p2Name}</Text>
             </View>
@@ -17319,7 +17356,7 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
                     <View key={si} style={{ marginBottom: 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                             <Text style={{ color: set.matchTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, width: 62 }} numberOfLines={1}>
-                                {set.matchTiebreak ? t.racketMatchTbLabel : (si === 2 ? '🔥 3. Set' : `${si + 1}. Set`)}
+                                {set.matchTiebreak ? t.racketMatchTbLabel : (si === 2 ? t.sc_0359 : t.sc_0360(si + 1))}
                             </Text>
                             <TextInput
                                 style={[box, { marginRight: 6 }]}
@@ -17477,12 +17514,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         if (item.type !== '2' && item.type !== '4') { onJoin(item); return; }
         Alert.alert(
-            t.tournPartnerTitle || 'Çiftler Rekabetçi',
-            t.tournPartnerMsg || 'Bireysel mi başvuracaksın yoksa bir partner mi seçeceksin?',
+            t.tournPartnerTitle || t.sc_0361,
+            t.tournPartnerMsg || t.sc_0362,
             [
-                { text: t.tournPartnerSolo || 'Bireysel Başvur', onPress: () => onJoin(item) },
-                { text: t.tournPartnerChoose || 'Partner Seç', onPress: () => setShowPartnerSearch(true) },
-                { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                { text: t.tournPartnerSolo || t.sc_0363, onPress: () => onJoin(item) },
+                { text: t.tournPartnerChoose || t.sc_0364, onPress: () => setShowPartnerSearch(true) },
+                { text: t.cancelBtn || t.sc_0004, style: 'cancel' },
             ],
         );
     };
@@ -17580,10 +17617,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             : item._count?.participants || 0;
     const pendingRequestCount = requests.filter(r => r.status === 'PENDING').length;
     const requestsBtnLabel = pendingRequestCount > 0
-        ? `Başvurular (${pendingRequestCount} bekleyen)`
+        ? t.sc_apps_wait(pendingRequestCount)
         : requests.length > 0
-            ? `Başvurular (${requests.length})`
-            : 'Başvurular';
+            ? t.sc_apps_n(requests.length)
+            : t.sc_apps;
 
     // Demo auto-join
     const [demoRunning, setDemoRunning] = useState(false);
@@ -17637,7 +17674,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [savingThirdPlaceDate, setSavingThirdPlaceDate] = useState(false);
 
     const submitThirdPlaceDate = async (matchId) => {
-        if (!thirdPlaceDate) { Alert.alert('', 'Tarih seçin.'); return; }
+        if (!thirdPlaceDate) { Alert.alert('', t.sc_0365); return; }
         setSavingThirdPlaceDate(true);
         try {
             const y = thirdPlaceDate.getFullYear(), m = String(thirdPlaceDate.getMonth()+1).padStart(2,'0'), d = String(thirdPlaceDate.getDate()).padStart(2,'0');
@@ -17652,7 +17689,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const submitPlayoffRoundDeadline = async () => {
-        if (!playoffDeadlineDate) { Alert.alert('', 'Tarih seçin.'); return; }
+        if (!playoffDeadlineDate) { Alert.alert('', t.sc_0365); return; }
         setSavingPlayoffDeadline(true);
         try {
             const y = playoffDeadlineDate.getFullYear(), m = String(playoffDeadlineDate.getMonth()+1).padStart(2,'0'), d = String(playoffDeadlineDate.getDate()).padStart(2,'0');
@@ -17673,7 +17710,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const submitDeadlineExtend = async (daysRaw, targetOverride = null) => {
         const days = parseInt(daysRaw, 10);
         if (!Number.isFinite(days) || days < 1 || days > 60) {
-            Alert.alert('', t.tournExtendDaysInvalid || '1–60 arası gün girin');
+            Alert.alert('', t.tournExtendDaysInvalid || t.sc_0366);
             return;
         }
         const target = targetOverride || extendTarget;
@@ -17693,7 +17730,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             if (Array.isArray(data)) setTournMatches(data);
             else await fetchMatches();
             setExtendTarget(null);
-            Alert.alert('✅', (t.tournExtendDone || '+{n} gün uzatıldı').replace('{n}', String(days)));
+            Alert.alert('✅', (t.tournExtendDone || t.sc_0367).replace('{n}', String(days)));
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setExtendingDeadline(false); }
@@ -17710,7 +17747,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const { data } = await api.post(`/tournaments/${item.id}/draw-unscored`, body);
             if (Array.isArray(data?.matches)) setTournMatches(data.matches);
             else await fetchMatches();
-            Alert.alert('✅', (t.tournExpiredDrawDone || '{n} maç berabere kaydedildi').replace('{n}', String(data?.drawn ?? 0)));
+            Alert.alert('✅', (t.tournExpiredDrawDone || t.sc_0368).replace('{n}', String(data?.drawn ?? 0)));
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setDrawingUnscored(false); }
@@ -18040,9 +18077,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const removeParticipant = async (userId) => {
-        Alert.alert('Oyuncuyu Çıkar', 'Bu oyuncuyu turnuvadan çıkarmak istediğinizden emin misiniz?', [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Çıkar', style: 'destructive', onPress: async () => {
+        Alert.alert(t.sc_0369, t.sc_0370, [
+            { text: t.sc_0004, style: 'cancel' },
+            { text: t.sc_0018, style: 'destructive', onPress: async () => {
                 try {
                     await api.delete(`/tournaments/${item.id}/participants/${userId}`);
                     setRequests(prev => prev.filter(r => r.userId !== userId));
@@ -18088,12 +18125,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             <View>
                 <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(p)}</Text>
                 {p?.manualName
-                    ? <Text style={{ color:'#3b82f6', fontSize:9, fontWeight:'700' }}>✏️ Manuel</Text>
+                    ? <Text style={{ color:'#3b82f6', fontSize:9, fontWeight:'700' }}>{t.sc_0371}</Text>
                     : <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{p?.user?.username}{ratingOf(p) != null ? `  ${starEmoji(Number(ratingOf(p)))} ${Number(ratingOf(p)).toFixed(2)}` : ''}</Text>
                 }
                 {isCreatorView && (
                     <TouchableOpacity onPress={() => p?.manualName ? removeManualParticipant(p.id) : removeParticipant(p.userId)} style={{ marginTop:2 }}>
-                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>Çıkar</Text>
+                        <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.sc_0018}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -18109,10 +18146,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 const target = byUserId.get(p1.partnerId);
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>⏳ {nameOf(target) || '...'} (Bekliyor)</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>⏳ {nameOf(target) || '...'} {t.sc_0032}</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity onPress={() => setMyTournamentPartner(null)} disabled={partnerActionLoading} style={{ marginTop:2 }}>
-                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>✕ Geri Çek</Text>
+                                <Text style={{ color:'#f87171', fontSize:9, fontWeight:'700' }}>{t.sc_0033}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -18120,10 +18157,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             } else if (invitedBy) {
                 slot2 = (
                     <View>
-                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(invitedBy)} davet etti</Text>
+                        <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{nameOf(invitedBy)} {t.sc_0034}</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity onPress={() => setMyTournamentPartner(invitedBy.userId)} disabled={partnerActionLoading} style={{ marginTop:2, backgroundColor:'#16a34a30', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50' }}>
-                                <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>✓ Kabul Et</Text>
+                                <Text style={{ color:'#4ade80', fontSize:9, fontWeight:'700' }}>{t.sc_0035}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -18131,12 +18168,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             } else {
                 slot2 = (
                     <View>
-                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Partner aranıyor</Text>
+                        <Text style={{ color: colors.textMuted, fontSize:9 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.sc_0036}</Text>
                         {isMine && !regEnded && (
                             <TouchableOpacity
                                 onPress={() => { setInviteCandidates(solos.filter(s => s.userId !== myId)); setShowInvitePicker(true); }}
                                 style={{ marginTop:2, backgroundColor: cfg.color+'20', borderRadius:5, paddingHorizontal:3, paddingVertical:0, alignSelf:'flex-start', borderWidth:1, borderColor: cfg.color+'40' }}>
-                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>+ Davet Et</Text>
+                                <Text style={{ color: cfg.color, fontSize:9, fontWeight:'700' }}>{t.sc_0037}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -18181,9 +18218,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const removeManualParticipant = async (participantId) => {
-        Alert.alert('Manuel Oyuncuyu Çıkar', 'Bu oyuncuyu listeden kaldırmak istediğinizden emin misiniz?', [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Kaldır', style: 'destructive', onPress: async () => {
+        Alert.alert(t.sc_0372, t.sc_0373, [
+            { text: t.sc_0004, style: 'cancel' },
+            { text: t.sc_0374, style: 'destructive', onPress: async () => {
                 try {
                     await api.delete(`/tournaments/${item.id}/participants/manual/${participantId}`);
                     setRequests(prev => prev.filter(r => r.id !== participantId));
@@ -18272,9 +18309,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const handleStartTournament = () => {
-        Alert.alert('Turnuvayı Başlat', 'Eşleşmeler otomatik oluşturulacak ve turnuva başlayacak. Onaylıyor musunuz?', [
-            { text: 'İptal', style: 'cancel' },
-            { text: 'Başlat', style: 'destructive', onPress: async () => {
+        Alert.alert(t.sc_0375, t.sc_0376, [
+            { text: t.sc_0065, style: 'cancel' },
+            { text: t.sc_0377, style: 'destructive', onPress: async () => {
                 setStarting(true);
                 try {
                     await api.post(`/tournaments/${item.id}/start`);
@@ -18300,11 +18337,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     // her seçimden önce onay isteniyor (poll kapanınca oy sırasına göre otomatik başvurulur).
     const handleVoteType = (type) => {
         Alert.alert(
-            'Oy Ver',
-            `${TOURN_TYPE_LABELS(t)[type]} türüne oy veriyorsunuz. Bu tür kazanırsa, oy sıranıza göre bu turnuvaya OTOMATİK BAŞVURMUŞ olacaksınız (organizatör onayı gerekir). Oylama bitene kadar oyunuzu değiştirebilirsiniz.`,
+            t.sc_0378,
+            t.sc_0379(TOURN_TYPE_LABELS(t)[type]),
             [
-                { text: 'İptal', style: 'cancel' },
-                { text: 'Oy Ver', onPress: () => castVoteType(type) },
+                { text: t.sc_0065, style: 'cancel' },
+                { text: t.sc_0378, onPress: () => castVoteType(type) },
             ]
         );
     };
@@ -18313,20 +18350,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         try {
             const { data } = await api.post(`/tournaments/${item.id}/fix-deadlines`);
             setTournMatches(Array.isArray(data.matches) ? data.matches : []);
-            Alert.alert('✅', `${data.fixed} maçın süresi turnuva başlangıcına göre düzeltildi.`);
+            Alert.alert('✅', t.sc_0380(data.fixed));
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         }
     };
 
     const handleRegenRound = () => {
-        Alert.alert('Turu Yeniden Oluştur', 'Mevcut PENDING tur silinip 1. turdaki oyuncularla yeniden eşleştirilecek. Onaylıyor musunuz?', [
-            { text: 'İptal', style: 'cancel' },
-            { text: 'Yeniden Oluştur', style: 'destructive', onPress: async () => {
+        Alert.alert(t.sc_0381, t.sc_0382, [
+            { text: t.sc_0065, style: 'cancel' },
+            { text: t.sc_0383, style: 'destructive', onPress: async () => {
                 try {
                     const { data } = await api.post(`/tournaments/${item.id}/regen-round`);
                     setTournMatches(Array.isArray(data) ? data : []);
-                    Alert.alert('✅', 'Tur yeniden oluşturuldu!');
+                    Alert.alert('✅', t.sc_0384);
                 } catch (e) {
                     Alert.alert('', e?.response?.data?.message || t.actionFailed);
                 }
@@ -18335,14 +18372,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const handleRematch = () => {
-        Alert.alert('Tekrar Eşleştir', 'Tamamlanmamış maçlar silinip ELO\'ya göre yeniden eşleştirilecek. Onaylıyor musunuz?', [
-            { text: 'İptal', style: 'cancel' },
-            { text: 'Eşleştir', style: 'destructive', onPress: async () => {
+        Alert.alert(t.sc_0385, t.sc_0386, [
+            { text: t.sc_0065, style: 'cancel' },
+            { text: t.sc_0387, style: 'destructive', onPress: async () => {
                 try {
                     const { data } = await api.post(`/tournaments/${item.id}/rematch`);
                     setTournMatches(Array.isArray(data) ? data : []);
                     if (!showMatchesModal) { fetchMatches(); setShowMatchesModal(true); }
-                    Alert.alert('✅', 'Eşleşmeler yenilendi!');
+                    Alert.alert('✅', t.sc_0388);
                 } catch (e) {
                     Alert.alert('', e?.response?.data?.message || t.actionFailed);
                 }
@@ -18361,8 +18398,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 && (sideIds.includes(m.p1Id) || sideIds.includes(m.p2Id)));
             if (earlierPending) {
                 Alert.alert(
-                    t.tournEarlyPlayTitle || 'Erken oynama',
-                    t.tournEarlyPlayNeedAgree || 'Önceki tur bitmeden sonraki tur maçını oynamak için rakiple yer ve zaman konusunda anlaşmanız gerekir. Maç kartından teklif gönderip Anlaş’a basın.',
+                    t.tournEarlyPlayTitle || t.sc_0389,
+                    t.tournEarlyPlayNeedAgree || t.sc_0390,
                 );
                 return;
             }
@@ -18438,7 +18475,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const saveEdit = async () => {
         const minP = parseInt(editMin) || item.minPlayers;
         const maxP = parseInt(editMax) || item.maxPlayers;
-        if (minP > maxP) { Alert.alert('', 'Min oyuncu, max oyuncudan büyük olamaz.'); return; }
+        if (minP > maxP) { Alert.alert('', t.sc_0391); return; }
         if (editRegEndDate) {
             const regDt = new Date(editRegEndDate);
             const [rh, rm] = editRegEndTime ? editRegEndTime.split(':').map(Number) : [23, 59];
@@ -18547,16 +18584,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         if (myStatus === 'ACCEPTED' && isEventWithin24h()) {
             setShowCancelModal(true);
         } else {
-            Alert.alert('Katılımı İptal Et', 'Katılımı iptal etmek istediğinizden emin misiniz?', [
-                { text: 'Vazgeç', style: 'cancel' },
-                { text: 'İptal Et', style: 'destructive', onPress: () => onCancelJoin(item.id) },
+            Alert.alert(t.sc_0392, t.sc_0393, [
+                { text: t.sc_0004, style: 'cancel' },
+                { text: t.sc_0327, style: 'destructive', onPress: () => onCancelJoin(item.id) },
             ]);
         }
     };
 
     const submitCancelWithReason = () => {
         if (!cancelReasonText.trim()) {
-            Alert.alert('', 'Lütfen bir mazeret yazın.');
+            Alert.alert('', t.sc_0394);
             return;
         }
         setShowCancelModal(false);
@@ -18581,7 +18618,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         Linking.openURL(`https://wa.me/${waDigits}`).catch(() => {})),
                 });
             }
-            buttons.push({ text: t.cancelBtn || 'Vazgeç', style: 'cancel' });
+            buttons.push({ text: t.cancelBtn, style: 'cancel' });
             Alert.alert(phone, '', buttons);
         };
         Linking.canOpenURL(`whatsapp://send?phone=${waDigits}`)
@@ -18702,13 +18739,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                         <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
                             <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                                {item.location || item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
+                                {(item.location || item.city) === 'Dünya' ? t.sc_0395 : (item.location || item.city || (item.scope === 'ULUSLARARASI' ? t.sc_0395 : item.scope === 'ULUSAL' ? t.sc_0396 : t.sc_0397))}
                             </Text>
                         </View>
                         {item.status !== 'OPEN' ? (
                             <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
                                 <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
-                                    {item.status === 'IN_PROGRESS' ? '🏆 Devam Ediyor' : item.status === 'COMPLETED' ? '✅ Tamamlandı' : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
+                                    {item.status === 'IN_PROGRESS' ? t.sc_0398 : item.status === 'COMPLETED' ? t.sc_0399 : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
                                 </Text>
                             </View>
                         ) : null}
@@ -18739,7 +18776,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 {item.endDate ? (
                     <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>
-                            Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
+                            {t.sc_0400} {new Date(item.endDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
                         </Text>
                     </View>
                 ) : null}
@@ -18763,7 +18800,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : null}
                 {item.setsPerMatch ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
                     </View>
                 ) : null}
                 {item.advantageScoring !== undefined ? (
@@ -18782,7 +18819,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
                             {item.subCategory === 'airsoft'
-                                ? (t.tournCourtPlayersArrange || 'Takımlar ortaklaşa mekan seçecek')
+                                ? (t.tournCourtPlayersArrange || t.sc_0402)
                                 : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
                         </Text>
                     </View>
@@ -18790,13 +18827,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 {item.matchesBeforePlayoff ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
                         <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                            {(['5','7'].includes(String(item.type)) ? 'Tur' : 'Öncesi maç')}: {item.matchesBeforePlayoff}
+                            {(['5','7'].includes(String(item.type)) ? t.sc_0403 : t.sc_0404)}: {item.matchesBeforePlayoff}
                         </Text>
                     </View>
                 ) : null}
                 {item.playoffQualifiers ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Sonrası / Play-off: {item.playoffQualifiers}</Text>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0405} {item.playoffQualifiers}</Text>
                     </View>
                 ) : null}
                 <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
@@ -18806,20 +18843,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const asCount = max ? Math.min(participantCount, max) : participantCount;
                             const yedek = max ? Math.max(0, participantCount - max) : 0;
                             const base = max ? `${asCount}/${max}` : `${participantCount}`;
-                            const txt = yedek > 0 ? `${base} (+${yedek} yedek)` : base;
-                            return `Kadro: ${txt}${item.minPlayers > 2 ? ` · min ${item.minPlayers}` : ''}`;
+                            const txt = yedek > 0 ? t.sc_0406(base, yedek) : base;
+                            return t.sc_0407(txt, item.minPlayers > 2 ? ` · min ${item.minPlayers}` : '');
                         })()}
                     </Text>
                 </View>
                 {item.dayTrip ? (
                     <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
-                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>☀️ Günübirlik</Text>
+                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>{t.sc_0408}</Text>
                     </View>
                 ) : null}
                 {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' ? (
                     <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50' }}>
                         <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
-                            {item.matchFrequency === 'WEEKLY_1' ? '📅 Haftada 1  ·  🃏 1 joker' : '📅 Haftada 2  ·  🃏 2 joker'}
+                            {item.matchFrequency === 'WEEKLY_1' ? t.sc_0409 : t.sc_0410}
                         </Text>
                     </View>
                 ) : null}
@@ -18832,13 +18869,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
                             {(() => {
                                 const fmt = (d, tm) => {
-                                    const base = new Date(d).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }).toLocaleUpperCase('tr-TR');
+                                    const base = new Date(d).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' }).toLocaleUpperCase(appLocale(t.lang));
                                     return tm ? `${base} ${tm}` : base;
                                 };
                                 const start = item.eventDate ? fmt(item.eventDate, item.eventTime) : null;
                                 const end = item.eventEndDate ? fmt(item.eventEndDate, item.eventEndTime) : null;
                                 const range = [start, end].filter(Boolean).join('- ');
-                                return `TAHMİNİ TURNUVA BAŞLANGIÇ VE BİTİŞ TARİHLERİ: ${range}`;
+                                return t.sc_0411(range);
                             })()}
                         </Text>
                     </View>
@@ -18847,39 +18884,39 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <View style={{ backgroundColor: item.isPaid ? '#42200633' : '#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:6, borderWidth:1, borderColor: item.isPaid ? '#fbbf2440' : '#334155', gap:2 }}>
                         {item.isPaid ? (
                             <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
-                                Katılım Ücreti: {item.playerFee != null && item.playerFee !== '' ? `${item.playerFee}₺` : '—'}/oyuncu
+                                {t.sc_0412} {item.playerFee != null && item.playerFee !== '' ? `${item.playerFee}₺` : '—'}/oyuncu
                             </Text>
                         ) : null}
                         <Text style={{ color: item.isPaid ? '#fde68a' : colors.textSecondary, fontSize:10, fontWeight:'700' }}>
-                            Kort Ücretleri: {item.feeType === 'INCLUDED'
-                                ? 'Katılım ücretine dahil'
+                            {t.sc_0413} {item.feeType === 'INCLUDED'
+                                ? t.sc_0414
                                 : item.feeType === 'SPONSORED'
-                                ? 'Sponsorlar tarafından karşılanır'
-                                : 'Oyuncular tarafından ortaklaşa'}
+                                ? t.sc_0415
+                                : t.sc_0416}
                         </Text>
                         {item.isPaid && item.paymentMethod ? (
                             <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
-                                Ödeme: {(() => {
+                                {t.sc_0417} {(() => {
                                     const m = String(item.paymentMethod || '').toUpperCase();
-                                    if (m === 'EFT_CASH' || m === 'BOTH' || m === 'EFT+CASH') return 'EFT-Nakit';
+                                    if (m === 'EFT_CASH' || m === 'BOTH' || m === 'EFT+CASH') return t.sc_0418;
                                     if (m === 'EFT') return 'EFT';
-                                    if (m === 'CASH') return 'Nakit';
+                                    if (m === 'CASH') return t.sc_0419;
                                     return m;
                                 })()}
                             </Text>
                         ) : null}
                         {item.isPaid && (String(item.paymentMethod || '').toUpperCase().includes('EFT')) && (item.ibanHolder || item.ibanNumber) ? (
                             <View style={{ marginTop:4, gap:6 }}>
-                                <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'800' }}>EFT Bilgileri</Text>
+                                <Text style={{ color:'#fde68a', fontSize:10, fontWeight:'800' }}>{t.sc_0420}</Text>
                                 {item.ibanHolder ? (
                                     <TouchableOpacity
                                         onPress={() => {
                                             Clipboard.setString(String(item.ibanHolder));
-                                            Alert.alert('', 'İsim kopyalandı');
+                                            Alert.alert('', t.sc_0421);
                                         }}
                                         style={{ backgroundColor:'#42200655', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#fbbf2440' }}
                                     >
-                                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:2 }}>İsim Soyisim · dokununca kopyala</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:2 }}>{t.sc_0422}</Text>
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', textDecorationLine:'underline' }}>{item.ibanHolder}</Text>
                                     </TouchableOpacity>
                                 ) : null}
@@ -18887,11 +18924,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <TouchableOpacity
                                         onPress={() => {
                                             Clipboard.setString(String(item.ibanNumber).replace(/\s+/g, ''));
-                                            Alert.alert('', 'IBAN kopyalandı');
+                                            Alert.alert('', t.sc_0423);
                                         }}
                                         style={{ backgroundColor:'#42200655', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#fbbf2440' }}
                                     >
-                                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:2 }}>IBAN · dokununca kopyala</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'700', marginBottom:2 }}>{t.sc_0424}</Text>
                                         <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', letterSpacing:0.3, textDecorationLine:'underline' }}>{item.ibanNumber}</Text>
                                     </TouchableOpacity>
                                 ) : null}
@@ -18915,10 +18952,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
             {Array.isArray(item.extraServices) && item.extraServices.length > 0 ? (
                 <View style={{ marginTop:8, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#334155', gap:3 }}>
-                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'800', marginBottom:2 }}>EKSTRA HİZMETLER</Text>
+                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'800', marginBottom:2 }}>{t.sc_0164}</Text>
                     {item.extraServices.map(sv => (
                         <Text key={sv.id} style={{ color:'#e5e7eb', fontSize:11 }}>
-                            🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>Dahil</Text> : `+${sv.price}₺`}
+                            🎉 {sv.name} — {sv.included ? <Text style={{ color:'#4ade80' }}>{t.sc_0165}</Text> : `+${sv.price}₺`}
                         </Text>
                     ))}
                 </View>
@@ -18939,7 +18976,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <TouchableOpacity
                     style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                     onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
-                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>📋 Maçlar & Puan Tablosu</Text>
+                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0425}</Text>
                     <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
                 </TouchableOpacity>
                 )}
@@ -18962,7 +18999,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                 <View style={[s.modalBox, { maxHeight:'90%' }]}>
                     <View style={s.modalHeader}>
-                        <Text style={s.modalTitle}>📋 Maçlar & Puan Tablosu</Text>
+                        <Text style={s.modalTitle}>{t.sc_0425}</Text>
                         <TouchableOpacity onPress={() => { setShowMatchesModal(false); setHighlightMatchId(null); }}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                     </View>
                     {/* Rules summary bar */}
@@ -18970,8 +19007,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <View style={{ backgroundColor:'#1e3a8a18', borderRadius:8, padding:5, marginBottom:10, borderWidth:1, borderColor:'#1e3a8a40' }}>
                             <Text style={{ color:'#93c5fd', fontSize:11, fontWeight:'800' }}>
                                 {item.matchFrequency === 'WEEKLY_1'
-                                    ? '📅 Haftada 1 Maç  •  🃏 1 joker hakkı (+10 gün)'
-                                    : '📅 Haftada 2 Maç  •  🃏 2 joker hakkı (+14 gün)'}
+                                    ? t.sc_0426
+                                    : t.sc_0427}
                             </Text>
                         </View>
                     )}
@@ -18984,7 +19021,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
                                     style={{ paddingHorizontal:11, paddingVertical:3, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
                                     <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                        {tab === 'matches' ? 'Maçlar' : tab === 'standings' ? 'Puan Tablosu' : "Play-Off'lar"}
+                                        {tab === 'matches' ? t.sc_0428 : tab === 'standings' ? t.sc_0429 : t.sc_0430}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -18995,18 +19032,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <ActivityIndicator size="small" color="#4ade80" style={{ marginVertical:8 }} />
                 ) : matchesError ? (
                     <View style={{ alignItems:'center', paddingVertical:7 }}>
-                        <Text style={{ color:'#f87171', fontSize:12, marginBottom:8 }}>Maçlar yüklenemedi (bağlantı sorunu olabilir)</Text>
+                        <Text style={{ color:'#f87171', fontSize:12, marginBottom:8 }}>{t.sc_0431}</Text>
                         <TouchableOpacity onPress={fetchMatches} style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
-                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>↻ Tekrar Dene</Text>
+                            <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0432}</Text>
                         </TouchableOpacity>
                     </View>
                 ) : matchTab === 'standings' ? (
                     standings.length === 0
-                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Henüz maç sonucu yok</Text>
+                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>{t.sc_0433}</Text>
                         : <View>
                             <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
-                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
-                                {['O','G','B','M','Av','P'].map(h => (
+                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>{t.sc_0434}</Text>
+                                {[t.sc_st_played, t.sc_st_won, t.sc_st_draw, t.sc_st_lost, t.sc_st_avg, t.sc_st_pts].map(h => (
                                     <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:24, textAlign:'center' }}>{h}</Text>
                                 ))}
                             </View>
@@ -19029,16 +19066,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     // sekmesine geçmeye gerek yok.
                     const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
                     if (playoffMs.length === 0) {
-                        return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Henüz play-off turu başlamadı</Text>;
+                        return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>{t.sc_0435}</Text>;
                     }
                     const playoffMaxRound = Math.max(...playoffMs.map(m => m.round));
                     const minRound = Math.min(...playoffMs.map(m => m.round));
                     const getPlayoffRoundLabel = (round) => {
                         const fromEnd = playoffMaxRound - round;
-                        if (fromEnd === 0) return 'Final';
-                        if (fromEnd === 1) return 'Yarı Final';
-                        if (fromEnd === 2) return 'Çeyrek Final';
-                        return `Playoff - Tur ${round}`;
+                        if (fromEnd === 0) return t.sc_0436;
+                        if (fromEnd === 1) return t.sc_0437;
+                        if (fromEnd === 2) return t.sc_0438;
+                        return t.sc_0439(round);
                     };
                     // Kullanıcı isteği: burası "kim play-off'a kaldı" listesi DEĞİL, maçlar
                     // bittikçe dolan bir NİHAİ SIRALAMA — başta tüm pozisyonlar boş, bir tur
@@ -19138,19 +19175,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && (
                                             <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                 style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
-                                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Skor Gir</Text>
+                                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0440}</Text>
                                             </TouchableOpacity>
                                         )}
                                         {isDone && !bothConfirmed && myUnconfirmedSide && (
                                             <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
                                                 style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Onayla</Text>
+                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>{t.sc_0441}</Text>
                                             </TouchableOpacity>
                                         )}
                                         {isDone && !bothConfirmed && (isCreator || myIsAdmin) && (
                                             <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                 style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>✏️ Düzelt</Text>
+                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0442}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -19161,10 +19198,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                             <TouchableOpacity onPress={submitScore} disabled={submittingScore}
                                                 style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
+                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : t.sc_0118}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:5 }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.sc_0190}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -19190,7 +19227,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     };
                     return (
                         <View>
-                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:6 }}>🏆 Play-Off Sıralaması</Text>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', marginBottom:6 }}>{t.sc_0443}</Text>
                             <View style={{ marginBottom:16 }}>
                                 {Array.from({ length: bracketSize }, (_, i) => i + 1).map(pos => {
                                     const p = placements[pos];
@@ -19216,16 +19253,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 thirdPlaceMatch her zaman burada gösterilir. */}
                             {thirdPlaceMatch && (
                                 <View style={{ marginBottom:16 }}>
-                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800', marginBottom:6 }}>🥉 3.'lük Maçı</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800', marginBottom:6 }}>{t.sc_0444}</Text>
                                     {thirdPlaceMatch.status === 'FORFEIT' ? (
-                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Taraflardan biri kabul etmedi ya da 2 gün içinde tarih belirlenmedi — 3./4. sıra yarı finaldeki averaja göre belirlendi.</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.sc_0445}</Text>
                                     ) : thirdPlaceMatch.status === 'COMPLETED' ? (
                                         renderPlayoffMatchCard(thirdPlaceMatch)
                                     ) : (thirdPlaceMatch.p1ThirdPlaceAccepted && thirdPlaceMatch.p2ThirdPlaceAccepted) ? (
                                         thirdPlaceMatch.deadline ? (
                                             <View>
                                                 <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', marginBottom:6 }}>
-                                                    📅 Maç Tarihi: {new Date(thirdPlaceMatch.deadline).toLocaleDateString('tr-TR')}{new Date(thirdPlaceMatch.deadline).getHours() || new Date(thirdPlaceMatch.deadline).getMinutes() ? ` ${new Date(thirdPlaceMatch.deadline).toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' })}` : ''}
+                                                    {t.sc_0446} {new Date(thirdPlaceMatch.deadline).toLocaleDateString(appLocale(t.lang))}{new Date(thirdPlaceMatch.deadline).getHours() || new Date(thirdPlaceMatch.deadline).getMinutes() ? ` ${new Date(thirdPlaceMatch.deadline).toLocaleTimeString(appLocale(t.lang), { hour:'2-digit', minute:'2-digit' })}` : ''}
                                                 </Text>
                                                 {renderPlayoffMatchCard(thirdPlaceMatch)}
                                             </View>
@@ -19233,25 +19270,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             <View style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>{thirdPlaceMatch.p1Name} vs {thirdPlaceMatch.p2Name}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:8 }}>
-                                                    İkiniz de kabul etti — {thirdPlaceMatch.readyAt ? new Date(new Date(thirdPlaceMatch.readyAt).getTime() + 2*86400000).toLocaleDateString('tr-TR') : ''} tarihine kadar bir maç tarihi belirleyin (en fazla {thirdPlaceMatch.readyAt ? new Date(new Date(thirdPlaceMatch.readyAt).getTime() + 7*86400000).toLocaleDateString('tr-TR') : ''} tarihine kadar) — aksi halde 3./4. sıra yarı finaldeki averaja göre belirlenir.
+                                                    {t.sc_0447} {thirdPlaceMatch.readyAt ? new Date(new Date(thirdPlaceMatch.readyAt).getTime() + 2*86400000).toLocaleDateString(appLocale(t.lang)) : ''} {t.sc_0448} {thirdPlaceMatch.readyAt ? new Date(new Date(thirdPlaceMatch.readyAt).getTime() + 7*86400000).toLocaleDateString(appLocale(t.lang)) : ''} {t.sc_0449}
                                                 </Text>
                                                 <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
                                                     <TouchableOpacity onPress={() => setShowThirdPlaceDatePicker(true)}
                                                         style={{ flex:1, backgroundColor:'#1e293b', borderRadius:6, paddingVertical:6, paddingHorizontal:8, borderWidth:1, borderColor: colors.border, alignItems:'center' }}>
                                                         <Text style={{ color: thirdPlaceDate ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                                                            {thirdPlaceDate ? thirdPlaceDate.toLocaleDateString('tr-TR') : 'Tarih Seç'}
+                                                            {thirdPlaceDate ? thirdPlaceDate.toLocaleDateString(appLocale(t.lang)) : t.sc_0450}
                                                         </Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity onPress={() => setShowThirdPlaceTimePicker(true)}
                                                         style={{ flex:1, backgroundColor:'#1e293b', borderRadius:6, paddingVertical:6, paddingHorizontal:8, borderWidth:1, borderColor: colors.border, alignItems:'center' }}>
                                                         <Text style={{ color: thirdPlaceTime ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'700' }}>
-                                                            {thirdPlaceTime || 'Saat (ops.)'}
+                                                            {thirdPlaceTime || t.sc_0451}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 </View>
                                                 <TouchableOpacity onPress={() => submitThirdPlaceDate(thirdPlaceMatch.id)} disabled={savingThirdPlaceDate}
                                                     style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor:'#16a34a60', opacity: savingThirdPlaceDate ? 0.6 : 1 }}>
-                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{savingThirdPlaceDate ? '...' : '✓ Tarihi Onayla'}</Text>
+                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{savingThirdPlaceDate ? '...' : t.sc_0452}</Text>
                                                 </TouchableOpacity>
                                                 <CalendarPickerModal
                                                     visible={showThirdPlaceDatePicker}
@@ -19271,7 +19308,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     ) : (
                                         <View style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, borderWidth:1, borderColor:'#f59e0b40' }}>
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>{thirdPlaceMatch.p1Name} vs {thirdPlaceMatch.p2Name}</Text>
-                                            <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:6 }}>İkisi de kabul ederse oynanır — aksi halde 3./4. sıra yarı finaldeki averaja göre belirlenir.</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:6 }}>{t.sc_0453}</Text>
                                             {[
                                                 { side:'p1', id: thirdPlaceMatch.p1Id, name: thirdPlaceMatch.p1Name, accepted: thirdPlaceMatch.p1ThirdPlaceAccepted },
                                                 { side:'p2', id: thirdPlaceMatch.p2Id, name: thirdPlaceMatch.p2Name, accepted: thirdPlaceMatch.p2ThirdPlaceAccepted },
@@ -19280,22 +19317,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1}>{side.name}</Text>
                                                     {side.id === myId ? (
                                                         side.accepted === true ? (
-                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>✓ Kabul Ettin</Text>
+                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>{t.sc_0454}</Text>
                                                         ) : side.accepted === false ? (
-                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>✕ Reddettin</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0455}</Text>
                                                         ) : (
                                                             <View style={{ flexDirection:'row', gap:4 }}>
                                                                 <TouchableOpacity onPress={() => respondThirdPlace(true)} style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>Kabul Et</Text>
+                                                                    <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>{t.sc_0456}</Text>
                                                                 </TouchableOpacity>
                                                                 <TouchableOpacity onPress={() => respondThirdPlace(false)} style={{ backgroundColor:'#ef444420', borderRadius:6, paddingHorizontal:7, paddingVertical:2, borderWidth:1, borderColor:'#ef444460' }}>
-                                                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Reddet</Text>
+                                                                    <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0457}</Text>
                                                                 </TouchableOpacity>
                                                             </View>
                                                         )
                                                     ) : (
                                                         <Text style={{ color: colors.textMuted, fontSize:10 }}>
-                                                            {side.accepted === true ? '✓ Kabul etti' : side.accepted === false ? '✕ Reddetti' : '⏳ Bekleniyor'}
+                                                            {side.accepted === true ? t.sc_0458 : side.accepted === false ? t.sc_0459 : t.sc_0460}
                                                         </Text>
                                                     )}
                                                 </View>
@@ -19387,26 +19424,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 if (!['GROUP', 'WINNERS', 'LOSERS', 'PLAYOFF', 'GRAND_FINAL'].includes(m.phase)) pushRound(m.phase, m.round);
                             }
                             if (roundKeys.length === 0) {
-                                return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Maç yok</Text>;
+                                return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>{t.sc_0461}</Text>;
                             }
                             const playoffKeyRounds = roundKeys.filter(k => k.phase === 'PLAYOFF').map(k => k.round);
                             const playoffMaxRound = playoffKeyRounds.length ? Math.max(...playoffKeyRounds) : 0;
                             const getRoundLabel = (round, phase) => {
-                                if (phase === 'GROUP') return `Grup - Tur ${round}`;
-                                if (phase === 'WINNERS') return `Kazananlar · Tur ${round}`;
-                                if (phase === 'LOSERS') return `Kaybedenler · Tur ${round}`;
-                                if (phase === 'GRAND_FINAL') return 'Büyük Final';
+                                if (phase === 'GROUP') return t.sc_0462(round);
+                                if (phase === 'WINNERS') return t.sc_0463(round);
+                                if (phase === 'LOSERS') return t.sc_0464(round);
+                                if (phase === 'GRAND_FINAL') return t.sc_0465;
                                 const fromEnd = playoffMaxRound - round;
-                                if (fromEnd === 0) return 'Final';
-                                if (fromEnd === 1) return 'Yarı Final';
-                                if (fromEnd === 2) return 'Çeyrek Final';
-                                return `Playoff - Tur ${round}`;
+                                if (fromEnd === 0) return t.sc_0436;
+                                if (fromEnd === 1) return t.sc_0437;
+                                if (fromEnd === 2) return t.sc_0438;
+                                return t.sc_0439(round);
                             };
 
                             // Her tur için hafta aralığı: bitiş = o turun deadline'ı, başlangıç = önceki
                             // turun deadline'ı (1. tur için turnuva başlangıç tarihi).
-                            const fmtD = (d) => d.toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' });
-                            const fmtT = (d) => d.toLocaleTimeString('tr-TR', { hour:'2-digit', minute:'2-digit' });
+                            const fmtD = (d) => d.toLocaleDateString(appLocale(t.lang), { day:'2-digit', month:'2-digit' });
+                            const fmtT = (d) => d.toLocaleTimeString(appLocale(t.lang), { hour:'2-digit', minute:'2-digit' });
                             let prevDeadline = item.eventDate ? new Date(item.eventDate) : null;
                             const roundRanges = {};
                             // Turun normal bitiş tarihi = o turdaki maçların en sık geçen (mode) deadline'ı.
@@ -19482,40 +19519,40 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <TouchableOpacity onPress={() => setMatchTab('playoffs')}
                                             style={{ backgroundColor:'#16a34a20', borderRadius:8, borderWidth:1, borderColor:'#16a34a50', padding:8, marginBottom:8, flexDirection:'row', alignItems:'center', gap:6 }}>
                                             <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={2}>
-                                                🏆 Play-Off aşaması başladı — sonuçları tur tur takip etmek için Play-Off'lar sekmesine geç
+                                                {t.sc_0466}
                                             </Text>
-                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'900' }}>Git ›</Text>
+                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'900' }}>{t.sc_0467}</Text>
                                         </TouchableOpacity>
                                     )}
                                     {expiredUnscored.length > 0 && (
                                         <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, borderWidth:1, borderColor:'#f59e0b55', padding:8, marginBottom:8, gap:6 }}>
                                             <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'800' }}>
-                                                {t.tournExpiredTitle || 'Süre doldu — aksiyon gerekli'}
+                                                {t.tournExpiredTitle || t.sc_0468}
                                             </Text>
                                             <Text style={{ color:'#fde68a', fontSize:10, lineHeight:14 }}>
-                                                {(t.tournExpiredBanner || '{n} maçın süresi doldu, skor yok — beraberlik gir, süre uzat veya bildiğin skoru gir.')
+                                                {(t.tournExpiredBanner || t.sc_0469)
                                                     .replace('{n}', String(expiredUnscored.length))}
                                             </Text>
                                             <Text style={{ color: colors.textMuted, fontSize:9 }}>
-                                                {t.tournExpiredScoreHint || 'Skor için maça dokun'}
+                                                {t.tournExpiredScoreHint || t.sc_0470}
                                             </Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4 }}>
                                                 {expiredGroupAll.length > 0 && (
                                                     <TouchableOpacity
                                                         disabled={drawingUnscored}
                                                         onPress={() => Alert.alert(
-                                                            t.tournExpiredDrawAll || 'Tümüne beraberlik',
-                                                            (t.tournExpiredDrawConfirm || '{n} skor girilmemiş maça 0-0 beraberlik yazılsın mı? Puan değişmez.')
+                                                            t.tournExpiredDrawAll || t.sc_0471,
+                                                            (t.tournExpiredDrawConfirm || t.sc_0472)
                                                                 .replace('{n}', String(expiredGroupAll.length)),
                                                             [
-                                                                { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                                { text: t.cancel || t.sc_0004, style: 'cancel' },
                                                                 { text: t.tournExpiredDrawAll || 'Beraberlik', onPress: () => submitDrawUnscored({ matchIds: expiredGroupAll.map(m => m.id) }) },
                                                             ],
                                                         )}
                                                         style={{ backgroundColor:'#f59e0b25', borderRadius:8, borderWidth:1, borderColor:'#f59e0b60', paddingHorizontal:8, paddingVertical:6, opacity: drawingUnscored ? 0.5 : 1 }}
                                                     >
                                                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
-                                                            {drawingUnscored ? '…' : (t.tournExpiredDrawAll || 'Tümüne beraberlik')}
+                                                            {drawingUnscored ? '…' : (t.tournExpiredDrawAll || t.sc_0471)}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -19526,10 +19563,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             const n = expiredInActiveRound.filter(m => m.phase === 'GROUP').length;
                                                             Alert.alert(
                                                                 t.tournExpiredDrawRound || 'Bu tura beraberlik',
-                                                                (t.tournExpiredDrawConfirm || '{n} skor girilmemiş maça 0-0 beraberlik yazılsın mı? Puan değişmez.')
+                                                                (t.tournExpiredDrawConfirm || t.sc_0472)
                                                                     .replace('{n}', String(n)),
                                                                 [
-                                                                    { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                                    { text: t.cancel || t.sc_0004, style: 'cancel' },
                                                                     { text: t.tournExpiredDrawRound || 'Beraberlik', onPress: () => submitDrawUnscored({ phase: 'GROUP', round: activeRound }) },
                                                                 ],
                                                             );
@@ -19537,18 +19574,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         style={{ backgroundColor:'#334155', borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:6, opacity: drawingUnscored ? 0.5 : 1 }}
                                                     >
                                                         <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'800' }}>
-                                                            {t.tournExpiredDrawRound || 'Bu tura beraberlik'}
+                                                            {t.tournExpiredDrawRound || t.sc_0473}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {!item.dayTrip && expiredInActiveRound.length > 0 && (
                                                     <TouchableOpacity
                                                         onPress={() => Alert.alert(
-                                                            t.tournExtendRoundTitle || 'Tur süresi uzat',
-                                                            (t.tournExtendRoundConfirm7 || '{label} ve sonraki turlar +7 gün uzatılacak. Devam?')
+                                                            t.tournExtendRoundTitle || t.sc_0474,
+                                                            (t.tournExtendRoundConfirm7 || t.sc_0475)
                                                                 .replace('{label}', getRoundLabel(activeRound, activePhase)),
                                                             [
-                                                                { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                                { text: t.cancel || t.sc_0004, style: 'cancel' },
                                                                 { text: '+7', onPress: () => {
                                                                     submitDeadlineExtend(7, { kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
                                                                 }},
@@ -19557,7 +19594,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         style={{ backgroundColor:'#0ea5e920', borderRadius:8, borderWidth:1, borderColor:'#0ea5e950', paddingHorizontal:8, paddingVertical:6 }}
                                                     >
                                                         <Text style={{ color:'#38bdf8', fontSize:10, fontWeight:'800' }}>
-                                                            {t.tournExpiredExtend || '+7 gün uzat'}
+                                                            {t.tournExpiredExtend || t.sc_0476}
                                                         </Text>
                                                     </TouchableOpacity>
                                                 )}
@@ -19585,10 +19622,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:8 }}>
                                             <TouchableOpacity
                                                 onPress={() => Alert.alert(
-                                                    t.tournExtendRoundTitle || 'Tur süresi uzat',
-                                                    (t.tournExtendRoundConfirm7 || '{label} ve sonraki turlar +7 gün uzatılacak. Devam?').replace('{label}', getRoundLabel(activeRound, activePhase)),
+                                                    t.tournExtendRoundTitle || t.sc_0474,
+                                                    (t.tournExtendRoundConfirm7 || t.sc_0475).replace('{label}', getRoundLabel(activeRound, activePhase)),
                                                     [
-                                                        { text: t.cancel || 'Vazgeç', style: 'cancel' },
+                                                        { text: t.cancel || t.sc_0004, style: 'cancel' },
                                                         { text: '+7', onPress: () => {
                                                             submitDeadlineExtend(7, { kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
                                                         }},
@@ -19596,7 +19633,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 )}
                                                 style={{ backgroundColor:'#0ea5e920', borderRadius:8, borderWidth:1, borderColor:'#0ea5e950', paddingHorizontal:8, paddingVertical:6 }}
                                             >
-                                                <Text style={{ color:'#38bdf8', fontSize:10, fontWeight:'800' }}>{t.tournExtendPlus7 || '+7 gün süre uzat'}</Text>
+                                                <Text style={{ color:'#38bdf8', fontSize:10, fontWeight:'800' }}>{t.tournExtendPlus7 || t.sc_0477}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 onPress={() => {
@@ -19605,7 +19642,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 }}
                                                 style={{ backgroundColor:'#334155', borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:6 }}
                                             >
-                                                <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'800' }}>{t.tournExtendManualBtn || 'Gün uzat…'}</Text>
+                                                <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'800' }}>{t.tournExtendManualBtn || t.sc_0478}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
@@ -19613,9 +19650,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <TouchableOpacity onPress={() => setPlayoffDeadlineRound(activeRound)}
                                             style={{ backgroundColor:'#7c3aed20', borderRadius:8, borderWidth:1, borderColor:'#7c3aed50', padding:8, marginBottom:8, flexDirection:'row', alignItems:'center', gap:6 }}>
                                             <Text style={{ color:'#c4b5fd', fontSize:11, fontWeight:'700', flex:1 }} numberOfLines={2}>
-                                                📅 {getRoundLabel(activeRound, activePhase)} için tarih atanmadı — 3 gün içinde atamazsan sistem otomatik 7 gün verir
+                                                📅 {getRoundLabel(activeRound, activePhase)} {t.sc_0479}
                                             </Text>
-                                            <Text style={{ color:'#c4b5fd', fontSize:11, fontWeight:'900' }}>Tarih Ata ›</Text>
+                                            <Text style={{ color:'#c4b5fd', fontSize:11, fontWeight:'900' }}>{t.sc_0480}</Text>
                                         </TouchableOpacity>
                                     )}
                                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
@@ -19639,7 +19676,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         <View style={{ flex:1, padding: 6 }}>
                                                             {match._carriedOverFromRound != null && (
                                                                 <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'800', marginBottom:2 }}>
-                                                                    🃏 Joker'den sarkan — Tur {match._carriedOverFromRound} maçı
+                                                                    {t.sc_0481} {match._carriedOverFromRound} {t.sc_0482}
                                                                 </Text>
                                                             )}
                                                             {(() => {
@@ -19654,8 +19691,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     };
                                                                     const rB = match.score?.p1RatingBefore, rA = match.score?.p1RatingAfter;
                                                                     const avgLine = (isDone && rB != null && rA != null)
-                                                                        ? `Takım Ort: ${rB.toFixed(2)}→${rA.toFixed(2)}`
-                                                                        : (team?.avgRating != null ? `Takım Ort: ${Number(team.avgRating).toFixed(2)}` : '');
+                                                                        ? t.sc_0483(rB.toFixed(2), rA.toFixed(2))
+                                                                        : (team?.avgRating != null ? t.sc_0484(Number(team.avgRating).toFixed(2)) : '');
                                                                     return (
                                                                         <View>
                                                                             {team ? (
@@ -19700,8 +19737,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     };
                                                                     const rB = match.score?.p2RatingBefore, rA = match.score?.p2RatingAfter;
                                                                     const avgLine = (isDone && rB != null && rA != null)
-                                                                        ? `Takım Ort: ${rB.toFixed(2)}→${rA.toFixed(2)}`
-                                                                        : (team?.avgRating != null ? `Takım Ort: ${Number(team.avgRating).toFixed(2)}` : '');
+                                                                        ? t.sc_0483(rB.toFixed(2), rA.toFixed(2))
+                                                                        : (team?.avgRating != null ? t.sc_0484(Number(team.avgRating).toFixed(2)) : '');
                                                                     return (
                                                                         <View>
                                                                             {team ? (
@@ -19737,17 +19774,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             const matchDeadlineTime = new Date(match.deadline).getTime();
                                                             if (!roundDefaultTime || matchDeadlineTime === roundDefaultTime) return null;
                                                             const md = new Date(match.deadline);
-                                                            const extLabel = match.phase === 'PLAYOFF' ? "🩹 Maç Yarıda Kaldı" : '🃏 Joker';
+                                                            const extLabel = match.phase === 'PLAYOFF' ? t.sc_0485 : t.sc_0486;
                                                             return (
                                                                 <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'700', marginTop:2 }}>
-                                                                    {extLabel} — Yeni bitiş: {fmtD(md)} {fmtT(md)}
+                                                                    {extLabel} {t.sc_0487} {fmtD(md)} {fmtT(md)}
                                                                 </Text>
                                                             );
                                                         })()}
                                                         <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:3, marginTop:3 }}>
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:9 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
                                                             {isReady && match.deadline && new Date(match.deadline).getTime() < Date.now() && (
-                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || 'Süre doldu'}</Text>
+                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || t.sc_0488}</Text>
                                                             )}
                                                             {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
                                                                 const needsEarlyAgree = (item.type === '3' || item.type === '4')
@@ -19760,14 +19797,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 if (needsEarlyAgree) {
                                                                     return (
                                                                         <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700', flex:1 }} numberOfLines={2}>
-                                                                            {t.tournEarlyPlayHint || 'Erken skor için rakiple yer/zaman anlaşın'}
+                                                                            {t.tournEarlyPlayHint || t.sc_0489}
                                                                         </Text>
                                                                     );
                                                                 }
                                                                 return (
                                                                 <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                     style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: infoColor+'50' }}>
-                                                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>Skor Gir</Text>
+                                                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>{t.sc_0440}</Text>
                                                                 </TouchableOpacity>
                                                                 );
                                                             })()}
@@ -19783,7 +19820,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     }}
                                                                     style={{ backgroundColor:'#0ea5e920', borderRadius:6, paddingHorizontal:4, paddingVertical:2, borderWidth:1, borderColor:'#0ea5e950' }}
                                                                 >
-                                                                    <Text style={{ color:'#38bdf8', fontSize:9, fontWeight:'700' }}>{t.tournExtendMatchBtn || 'Gün uzat'}</Text>
+                                                                    <Text style={{ color:'#38bdf8', fontSize:9, fontWeight:'700' }}>{t.tournExtendMatchBtn || t.sc_0490}</Text>
                                                                 </TouchableOpacity>
                                                             )}
                                                             {/* Joker butonu — Bireysel Rekabetçi (oyuncu), Çiftler Rekabetçi (takım) ve Bireysel Antrenman (oyuncu) */}
@@ -19800,26 +19837,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 // hak/limit, sadece etiket/metin bağlama göre değişir.
                                                                 const isPlayoffMatch = match.phase === 'PLAYOFF';
                                                                 const jokerLabel = isPlayoffMatch
-                                                                    ? (otherJokerRequested ? '🩹 Karşılıklı Ek Süre' : '🩹 Maç Yarıda Kaldı')
-                                                                    : (otherJokerRequested ? '🃏 Karşılıklı Joker' : '🃏 Joker');
+                                                                    ? (otherJokerRequested ? t.sc_0491 : t.sc_0485)
+                                                                    : (otherJokerRequested ? t.sc_0492 : t.sc_0486);
                                                                 const confirmMsg = isPlayoffMatch
                                                                     ? (otherJokerRequested
-                                                                        ? 'Rakibiniz "maç yarıda kaldı" diyerek süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da ek süre hakkı tükenmez. Emin misiniz?'
-                                                                        : 'Maçın yarıda kaldığını belirtip ek süre talep etmek istediğinizden emin misiniz? Süre 7 gün uzatılacak ve ek süre hakkınız tükenecek.')
+                                                                        ? t.sc_0493
+                                                                        : t.sc_0494)
                                                                     : (otherJokerRequested
-                                                                        ? 'Rakibiniz joker kullanarak süreyi zaten 7 gün uzattı. Onaylarsanız karşılıklı sayılır — süre tekrar uzamaz ama iki tarafın da joker hakkı tükenmez. Emin misiniz?'
-                                                                        : 'Joker hakkınızı bu maç için kullanmak istediğinizden emin misiniz? Süre 7 gün uzatılacak ve joker hakkınız tükenecek.');
+                                                                        ? t.sc_0495
+                                                                        : t.sc_0496);
                                                                 return (
                                                                     <TouchableOpacity
                                                                         onPress={() => Alert.alert(jokerLabel, confirmMsg, [
-                                                                            { text: 'Vazgeç', style: 'cancel' },
+                                                                            { text: t.sc_0004, style: 'cancel' },
                                                                             { text: 'Evet, Kullan', style: 'destructive', onPress: async () => {
                                                                                 try {
                                                                                     const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
                                                                                     await fetchMatches();
-                                                                                    Alert.alert(isPlayoffMatch ? '🩹 Ek Süre' : '🃏 Joker', data.message);
+                                                                                    Alert.alert(isPlayoffMatch ? t.sc_0497 : '🃏 Joker', data.message);
                                                                                 } catch (e) {
-                                                                                    Alert.alert('Hata', e?.response?.data?.message || 'İşlem yapılamadı.');
+                                                                                    Alert.alert('Hata', e?.response?.data?.message || t.sc_0498);
                                                                                 }
                                                                             }},
                                                                         ])}
@@ -19841,25 +19878,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
                                                                                 style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor:'#16a34a60', alignItems:'center' }}>
                                                                                 <Text style={{ color:'#4ade80', fontSize:12 }}>✓</Text>
-                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>Onayla</Text>
+                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>{t.sc_0157}</Text>
                                                                             </TouchableOpacity>
                                                                         )}
                                                                         {!bothConfirmed && (isCreator || myIsAdmin) && !isEntering && (
                                                                             <TouchableOpacity onPress={() => openScoreEntry(match)}
                                                                                 style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
                                                                                 <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
-                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>Düzelt</Text>
+                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>{t.sc_0499}</Text>
                                                                             </TouchableOpacity>
                                                                         )}
                                                                         {bothConfirmed ? (
                                                                             match.scoreEnteredBy ? (
-                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>✓ Onaylandı</Text>
+                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>{t.sc_0500}</Text>
                                                                             ) : (
-                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>⌛ Süre Doldu (0-0)</Text>
+                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>{t.sc_0501}</Text>
                                                                             )
                                                                         ) : (
                                                                             <Text style={{ color: colors.textMuted, fontSize:8 }}>
-                                                                                {match.p1Confirmed && !match.p2Confirmed ? 'Rakip onayı bekleniyor' : !match.p1Confirmed && match.p2Confirmed ? 'Rakip onayı bekleniyor' : 'Onay bekleniyor'}
+                                                                                {match.p1Confirmed && !match.p2Confirmed ? t.sc_0502 : !match.p1Confirmed && match.p2Confirmed ? t.sc_0502 : t.sc_0503}
                                                                             </Text>
                                                                         )}
                                                                     </>
@@ -19872,10 +19909,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                                                 <TouchableOpacity onPress={submitScore} disabled={submittingScore}
                                                                     style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : 'Kaydet'}</Text>
+                                                                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : t.sc_0118}</Text>
                                                                 </TouchableOpacity>
                                                                 <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:2 }}>
-                                                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>✕ İptal</Text>
+                                                                    <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.sc_0190}</Text>
                                                                 </TouchableOpacity>
                                                             </View>
                                                         </View>
@@ -19954,18 +19991,18 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                         <View style={s.modalBox}>
                             <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>📅 Play-off Turu İçin Tarih Ata</Text>
+                                <Text style={s.modalTitle}>{t.sc_0504}</Text>
                                 <TouchableOpacity onPress={() => setPlayoffDeadlineRound(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                             </View>
                             <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:14, lineHeight:18 }}>
-                                Bu turdaki maçların oynanması için son tarih ve saati seçin. 3 gün içinde atamazsanız sistem otomatik olarak 7 günlük bir süre verir.
+                                {t.sc_0505}
                             </Text>
                             <View style={{ flexDirection:'row', gap:6, marginBottom:16 }}>
                                 <TouchableOpacity onPress={() => setShowPlayoffDatePicker(true)}
                                     style={[s.triBtn, playoffDeadlineDate && s.triBtnFilled, { flex:1 }]}>
                                     <Text style={s.triLabel}>{t.dateLabel}</Text>
                                     <Text style={[s.triValue, !playoffDeadlineDate && s.triPlaceholder]}>
-                                        {playoffDeadlineDate ? playoffDeadlineDate.toLocaleDateString('tr-TR') : '—'}
+                                        {playoffDeadlineDate ? playoffDeadlineDate.toLocaleDateString(appLocale(t.lang)) : '—'}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={() => setShowPlayoffTimePicker(true)}
@@ -19977,7 +20014,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <TouchableOpacity
                                 style={[s.submitBtn, savingPlayoffDeadline && { opacity:0.6 }]}
                                 onPress={submitPlayoffRoundDeadline} disabled={savingPlayoffDeadline}>
-                                <Text style={s.submitBtnText}>{savingPlayoffDeadline ? t.submittingBtn : '✓ Onayla'}</Text>
+                                <Text style={s.submitBtnText}>{savingPlayoffDeadline ? t.submittingBtn : t.sc_0441}</Text>
                             </TouchableOpacity>
                         </View>
                     </KeyboardAvoidingView>
@@ -20007,7 +20044,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             paddingBottom: Math.max(28, insets.bottom + 22),
                         }]}>
                             <View style={[s.modalHeader, { marginBottom: 14 }]}>
-                                <Text style={[s.modalTitle, { flex:1, paddingRight: 10 }]}>{t.tournExtendTitle || 'Süre uzat'}</Text>
+                                <Text style={[s.modalTitle, { flex:1, paddingRight: 10 }]}>{t.tournExtendTitle || t.sc_0506}</Text>
                                 <TouchableOpacity
                                     onPress={() => !extendingDeadline && setExtendTarget(null)}
                                     hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
@@ -20018,8 +20055,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </View>
                             <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10, lineHeight:18 }}>
                                 {extendTarget?.kind === 'round'
-                                    ? (t.tournExtendRoundHint || '{label} ve sonraki turların bitiş tarihine gün eklenir (hava vb.).').replace('{label}', extendTarget?.label || '')
-                                    : (t.tournExtendMatchHint || 'Sadece bu maçın bitiş tarihine gün eklenir: {label}').replace('{label}', extendTarget?.label || '')}
+                                    ? (t.tournExtendRoundHint || t.sc_0507).replace('{label}', extendTarget?.label || '')
+                                    : (t.tournExtendMatchHint || t.sc_0508).replace('{label}', extendTarget?.label || '')}
                             </Text>
                             <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
                                 {[4, 7].map(d => (
@@ -20029,11 +20066,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         onPress={() => submitDeadlineExtend(d)}
                                         style={{ flex:1, backgroundColor:'#0ea5e920', borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:12, alignItems:'center' }}
                                     >
-                                        <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'900' }}>+{d} {t.tournExtendDaysUnit || 'gün'}</Text>
+                                        <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'900' }}>+{d} {t.tournExtendDaysUnit || t.sc_0509}</Text>
                                     </TouchableOpacity>
                                 ))}
                             </View>
-                            <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>{t.tournExtendManualLabel || 'Manuel gün'}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:11, marginBottom:6 }}>{t.tournExtendManualLabel || t.sc_0510}</Text>
                             <TextInput
                                 style={[s.fieldInput, { marginBottom:12 }]}
                                 value={extendDaysInput}
@@ -20048,7 +20085,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 onPress={() => submitDeadlineExtend(extendDaysInput)}
                                 disabled={extendingDeadline}
                             >
-                                <Text style={s.submitBtnText}>{extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendConfirm || 'Uzat')}</Text>
+                                <Text style={s.submitBtnText}>{extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendConfirm || t.sc_0511)}</Text>
                             </TouchableOpacity>
                         </View>
                     </KeyboardAvoidingView>
@@ -20061,38 +20098,38 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <KeyboardAvoidingView behavior="padding" style={{ width:'100%' }}>
                         <View style={[s.modalBox, { maxHeight:'92%' }]}>
                             <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>Turnuvayı Düzenle</Text>
+                                <Text style={s.modalTitle}>{t.sc_0512}</Text>
                                 <TouchableOpacity onPress={() => setShowEditModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                             </View>
                             <ScrollView showsVerticalScrollIndicator={false}>
                                 {/* Name */}
-                                <Text style={s.fieldLabel}>Turnuva Adı</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0513}</Text>
                                 <TextInput style={s.fieldInput} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textMuted} />
 
                                 {/* Description */}
-                                <Text style={s.fieldLabel}>Açıklama</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0514}</Text>
                                 <TextInput style={[s.fieldInput, { height:70, textAlignVertical:'top' }]} value={editDescription} onChangeText={setEditDescription} multiline placeholderTextColor={colors.textMuted} />
 
                                 {/* Contact phone */}
-                                <Text style={s.fieldLabel}>İletişim Telefonu</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0515}</Text>
                                 <TextInput style={s.fieldInput} value={editContactPhone} onChangeText={setEditContactPhone} keyboardType="phone-pad" placeholderTextColor={colors.textMuted} />
 
                                 {/* Scope */}
-                                <Text style={s.fieldLabel}>Kapsam</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0516}</Text>
                                 <View style={s.chipRow}>
                                     {['YEREL','ULUSAL','ULUSLARARASI'].map(sc => (
                                         <TouchableOpacity key={sc} onPress={() => setEditScope(sc)} style={[s.chipBtn, { flex:1 }, editScope===sc && s.chipBtnActive]}>
-                                            <Text style={[s.chipBtnText, editScope===sc && s.chipBtnTextActive]}>{sc==='YEREL'?'📍 Yerel':sc==='ULUSAL'?'🇹🇷 Ulusal':'🌍 Uluslararası'}</Text>
+                                            <Text style={[s.chipBtnText, editScope===sc && s.chipBtnTextActive]}>{sc==='YEREL'?t.sc_0517:sc==='ULUSAL'?t.sc_0518:t.sc_0519}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
 
                                 {/* Gender */}
-                                <Text style={s.fieldLabel}>Cinsiyet</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0520}</Text>
                                 <View style={s.chipRow}>
                                     {['MIX','ERKEK','KADIN'].map(g => (
                                         <TouchableOpacity key={g} onPress={() => setEditGenderType(g)} style={[s.chipBtn, { flex:1 }, editGenderType===g && s.chipBtnActive]}>
-                                            <Text style={[s.chipBtnText, editGenderType===g && s.chipBtnTextActive]}>{g==='MIX'?'🤝 Mix':g==='ERKEK'?'👨 Erkek':'👩 Kadın'}</Text>
+                                            <Text style={[s.chipBtnText, editGenderType===g && s.chipBtnTextActive]}>{g==='MIX'?'🤝 Mix':g==='ERKEK'?t.sc_0232:t.sc_0233}</Text>
                                         </TouchableOpacity>
                                     ))}
                                 </View>
@@ -20100,15 +20137,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {/* Min / Max players + Rating limits — 4 in a row */}
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:14, marginTop:4 }}>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>Min Oyuncu</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.sc_0521}</Text>
                                         <TextInput style={[s.fieldInput, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={editMin} onChangeText={setEditMin} keyboardType="numeric" maxLength={3} />
                                     </View>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>Max Oyuncu</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.sc_0522}</Text>
                                         <TextInput style={[s.fieldInput, { paddingVertical:3, textAlign:'center', fontSize:12 }]} value={editMax} onChangeText={setEditMax} keyboardType="numeric" maxLength={3} />
                                     </View>
                                     <TouchableOpacity onPress={() => setEditRf('min')} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Alt Derece</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.sc_0523}</Text>
                                         <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: editMinRating ? infoColor : colors.border }}>
                                             <Text style={{ color: editMinRating ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
                                                 {editMinRating ? `${editMinRating}★` : '—'}
@@ -20116,7 +20153,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => setEditRf('max')} style={{ flex:1 }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>⭐ Üst Derece</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:9, marginBottom:3 }}>{t.sc_0524}</Text>
                                         <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, borderColor: editMaxRating ? infoColor : colors.border }}>
                                             <Text style={{ color: editMaxRating ? infoColor : colors.textSecondary, fontSize:12, fontWeight:'800' }}>
                                                 {editMaxRating ? `${editMaxRating}★` : '—'}
@@ -20126,26 +20163,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
 
                                 {/* Location */}
-                                <Text style={s.fieldLabel}>Konum / Kort</Text>
-                                <TextInput style={s.fieldInput} value={editLocation} onChangeText={setEditLocation} placeholder="Kort adı veya adres" placeholderTextColor={colors.textMuted} />
+                                <Text style={s.fieldLabel}>{t.sc_0525}</Text>
+                                <TextInput style={s.fieldInput} value={editLocation} onChangeText={setEditLocation} placeholder={t.sc_0526} placeholderTextColor={colors.textMuted} />
 
                                 {/* Surface */}
-                                <Text style={s.fieldLabel}>Zemin</Text>
-                                <TextInput style={s.fieldInput} value={editSurface} onChangeText={setEditSurface} placeholder="Kil, Sert, Çim..." placeholderTextColor={colors.textMuted} />
+                                <Text style={s.fieldLabel}>{t.sc_0527}</Text>
+                                <TextInput style={s.fieldInput} value={editSurface} onChangeText={setEditSurface} placeholder={t.sc_0528} placeholderTextColor={colors.textMuted} />
 
                                 {/* Indoor toggle */}
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>Kapalı Alan</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>{t.sc_0529}</Text>
                                     <Switch value={editIsIndoor} onValueChange={setEditIsIndoor} trackColor={{ true: infoColor }} />
                                 </View>
 
                                 {/* Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
                                 {(ACTIVE_ENGINE_TYPES.includes(String(item.type))) && (<>
-                                    <Text style={s.fieldLabel}>Set Sayısı</Text>
+                                    <Text style={s.fieldLabel}>{t.sc_0530}</Text>
                                     <View style={s.chipRow}>
                                         {['1','3','5'].map(n => (
                                             <TouchableOpacity key={n} onPress={() => setEditSetsPerMatch(n)} style={[s.chipBtn, { flex:1 }, editSetsPerMatch===n && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, editSetsPerMatch===n && s.chipBtnTextActive]}>{`Set Sayısı: ${n}`}</Text>
+                                                <Text style={[s.chipBtnText, editSetsPerMatch===n && s.chipBtnTextActive]}>{t.sc_0531(n)}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
@@ -20159,65 +20196,65 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             ))}
                                         </View>
                                     ) : null}
-                                    <Text style={{ color: colors.textMuted, fontSize:13, marginBottom:6 }}>Sayı Sistemi</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:13, marginBottom:6 }}>{t.sc_0532}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                        {[{v:true,l:'⚡ Avantajlı'},{v:false,l:'🎯 Karar Puanı'},{v:null,l:'🔓 Serbest'}].map(({v,l}) => (
+                                        {[{v:true,l:t.sc_0533},{v:false,l:t.sc_0534},{v:null,l:t.sc_0535}].map(({v,l}) => (
                                             <TouchableOpacity key={String(v)} onPress={() => setEditAdvantageScoring(v)}
                                                 style={{ flex:1, borderRadius:8, paddingVertical:3, alignItems:'center', borderWidth:1, backgroundColor: editAdvantageScoring === v ? infoColor+'30' : colors.surface2, borderColor: editAdvantageScoring === v ? infoColor : colors.border }}>
                                                 <Text style={{ color: editAdvantageScoring === v ? infoColor : colors.textMuted, fontSize:10, fontWeight:editAdvantageScoring===v?'800':'500' }}>{l}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    <Text style={s.fieldLabel}>Play-Off Öncesi Maç Sayısı</Text>
+                                    <Text style={s.fieldLabel}>{t.sc_0536}</Text>
                                     <View style={{ flexDirection:'row', gap:3, alignItems:'center', marginBottom:14 }}>
                                         <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editMatches} onChangeText={v => setEditMatches(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="3" placeholderTextColor={colors.textMuted} />
-                                        <Text style={{ color: colors.textMuted, fontSize:12 }}>Play-Off Oyuncu:</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.sc_0537}</Text>
                                         <TextInput style={[s.fieldInput, { flex:1, textAlign:'center' }]} value={editQualifiers} onChangeText={v => setEditQualifiers(v.replace(/[^0-9]/g,''))} keyboardType="numeric" maxLength={2} placeholder="4" placeholderTextColor={colors.textMuted} />
                                     </View>
                                 </>)}
 
                                 {/* Registration deadline */}
-                                <Text style={s.fieldLabel}>📋 Son Başvuru Tarihi</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0538}</Text>
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                     <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editRegEndDate ? infoColor+'60' : colors.border, flex:1 }}>
-                                        <Text style={{ color: editRegEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndDate ? `${String(editRegEndDate.getDate()).padStart(2,'0')}/${String(editRegEndDate.getMonth()+1).padStart(2,'0')}/${editRegEndDate.getFullYear()}` : 'Tarih'}</Text>
+                                        <Text style={{ color: editRegEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndDate ? `${String(editRegEndDate.getDate()).padStart(2,'0')}/${String(editRegEndDate.getMonth()+1).padStart(2,'0')}/${editRegEndDate.getFullYear()}` : t.sc_0539}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('regEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editRegEndTime ? infoColor+'60' : colors.border }}>
-                                        <Text style={{ color: editRegEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndTime || 'Saat'}</Text>
+                                        <Text style={{ color: editRegEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editRegEndTime || t.sc_0540}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 {/* Event start date */}
-                                <Text style={s.fieldLabel}>🗓️ Etkinlik Başlangıcı</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0541}</Text>
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                     <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventDate ? infoColor+'60' : colors.border, flex:1 }}>
-                                        <Text style={{ color: editEventDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventDate ? `${String(editEventDate.getDate()).padStart(2,'0')}/${String(editEventDate.getMonth()+1).padStart(2,'0')}/${editEventDate.getFullYear()}` : 'Tarih'}</Text>
+                                        <Text style={{ color: editEventDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventDate ? `${String(editEventDate.getDate()).padStart(2,'0')}/${String(editEventDate.getMonth()+1).padStart(2,'0')}/${editEventDate.getFullYear()}` : t.sc_0539}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evStart'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventTime ? infoColor+'60' : colors.border }}>
-                                        <Text style={{ color: editEventTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventTime || 'Saat'}</Text>
+                                        <Text style={{ color: editEventTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventTime || t.sc_0540}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 {/* Event end date */}
-                                <Text style={s.fieldLabel}>🏁 Tahmini Bitiş</Text>
+                                <Text style={s.fieldLabel}>{t.sc_0542}</Text>
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                     <TouchableOpacity onPress={() => { setEditTf(null); setEditDp('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventEndDate ? infoColor+'60' : colors.border, flex:1 }}>
-                                        <Text style={{ color: editEventEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndDate ? `${String(editEventEndDate.getDate()).padStart(2,'0')}/${String(editEventEndDate.getMonth()+1).padStart(2,'0')}/${editEventEndDate.getFullYear()}` : 'Tarih'}</Text>
+                                        <Text style={{ color: editEventEndDate ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndDate ? `${String(editEventEndDate.getDate()).padStart(2,'0')}/${String(editEventEndDate.getMonth()+1).padStart(2,'0')}/${editEventEndDate.getFullYear()}` : t.sc_0539}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={() => { setEditDp(null); setEditTf('evEnd'); }} style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, borderWidth:1, borderColor: editEventEndTime ? infoColor+'60' : colors.border }}>
-                                        <Text style={{ color: editEventEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndTime || 'Saat'}</Text>
+                                        <Text style={{ color: editEventEndTime ? '#fff' : colors.textMuted, fontSize:12 }}>{editEventEndTime || t.sc_0540}</Text>
                                     </TouchableOpacity>
                                 </View>
 
                                 {/* Paid toggle */}
                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>💰 Ücretli Turnuva</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:13 }}>{t.sc_0543}</Text>
                                     <Switch value={editIsPaid} onValueChange={(v) => { setEditIsPaid(v); if (v && editFeeType === 'SPONSORED') setEditFeeType('SHARED'); if (!v && editFeeType === 'INCLUDED') setEditFeeType('SHARED'); }} trackColor={{ true: '#fbbf24' }} />
                                 </View>
                                 <View style={s.chipRow}>
                                     {(editIsPaid
-                                        ? [{id:'INCLUDED',label:'Kort dahil'},{id:'SHARED',label:'Ortaklaşa'}]
-                                        : [{id:'SHARED',label:'Ortaklaşa'},{id:'SPONSORED',label:'Sponsorlu'}]
+                                        ? [{id:'INCLUDED',label:t.sc_0544},{id:'SHARED',label:t.sc_0545}]
+                                        : [{id:'SHARED',label:t.sc_0545},{id:'SPONSORED',label:t.sc_0546}]
                                     ).map(ft => (
                                         <TouchableOpacity key={ft.id} onPress={() => setEditFeeType(ft.id)} style={[s.chipBtn, { flex:1 }, editFeeType===ft.id && s.chipBtnActive]}>
                                             <Text style={[s.chipBtnText, editFeeType===ft.id && s.chipBtnTextActive]}>{ft.label}</Text>
@@ -20226,27 +20263,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
                                 {editIsPaid && (<>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                        <TextInput style={[s.fieldInput, { flex:1 }]} value={editPlayerFee} onChangeText={setEditPlayerFee} keyboardType="numeric" placeholder="Oyuncu başı ücret (₺)" placeholderTextColor={colors.textMuted} />
+                                        <TextInput style={[s.fieldInput, { flex:1 }]} value={editPlayerFee} onChangeText={setEditPlayerFee} keyboardType="numeric" placeholder={t.sc_0547} placeholderTextColor={colors.textMuted} />
                                     </View>
                                     <View style={s.chipRow}>
-                                        {[{id:'CASH',label:'💵 Nakit'},{id:'EFT',label:'🏦 EFT'}].map(pm => (
+                                        {[{id:'CASH',label:t.sc_0548},{id:'EFT',label:t.sc_0549}].map(pm => (
                                             <TouchableOpacity key={pm.id} onPress={() => setEditPaymentMethod(pm.id)} style={[s.chipBtn, { flex:1 }, editPaymentMethod===pm.id && s.chipBtnActive]}>
                                                 <Text style={[s.chipBtnText, editPaymentMethod===pm.id && s.chipBtnTextActive]}>{pm.label}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
                                     {editPaymentMethod === 'EFT' && (<>
-                                        <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editIbanHolder} onChangeText={setEditIbanHolder} placeholder="Hesap Sahibi" placeholderTextColor={colors.textMuted} />
+                                        <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editIbanHolder} onChangeText={setEditIbanHolder} placeholder={t.sc_0550} placeholderTextColor={colors.textMuted} />
                                         <TextInput style={s.fieldInput} value={editIbanNumber} onChangeText={setEditIbanNumber} placeholder="IBAN" placeholderTextColor={colors.textMuted} />
                                     </>)}
                                 </>)}
 
                                 {/* Prizes */}
-                                <Text style={s.fieldLabel}>🏆 Ödüller</Text>
-                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize1} onChangeText={setEditPrize1} placeholder="🥇 1. Ödül" placeholderTextColor={colors.textMuted} />
-                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize2} onChangeText={setEditPrize2} placeholder="🥈 2. Ödül" placeholderTextColor={colors.textMuted} />
-                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize3} onChangeText={setEditPrize3} placeholder="🥉 3. Ödül" placeholderTextColor={colors.textMuted} />
-                                <TextInput style={s.fieldInput} value={editSurpriseGifts} onChangeText={setEditSurpriseGifts} placeholder="🎁 Sürpriz Hediyeler" placeholderTextColor={colors.textMuted} />
+                                <Text style={s.fieldLabel}>{t.sc_0551}</Text>
+                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize1} onChangeText={setEditPrize1} placeholder={t.sc_0552} placeholderTextColor={colors.textMuted} />
+                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize2} onChangeText={setEditPrize2} placeholder={t.sc_0553} placeholderTextColor={colors.textMuted} />
+                                <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize3} onChangeText={setEditPrize3} placeholder={t.sc_0554} placeholderTextColor={colors.textMuted} />
+                                <TextInput style={s.fieldInput} value={editSurpriseGifts} onChangeText={setEditSurpriseGifts} placeholder={t.sc_0555} placeholderTextColor={colors.textMuted} />
 
                                 {['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball'].includes(item.subCategory) && (
                                     <ExtraServicesEditor services={editExtraServices} onChange={setEditExtraServices} />
@@ -20255,7 +20292,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TouchableOpacity
                                     style={[s.submitBtn, { backgroundColor: infoColor, marginTop:20 }, saving && { opacity:0.6 }]}
                                     onPress={saveEdit} disabled={saving}>
-                                    <Text style={s.submitBtnText}>{saving ? 'Kaydediliyor...' : '💾 Kaydet'}</Text>
+                                    <Text style={s.submitBtnText}>{saving ? t.sc_0556 : t.sc_0557}</Text>
                                 </TouchableOpacity>
                                 <View style={{ height:16 }} />
                             </ScrollView>
@@ -20307,7 +20344,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 />
                 <TimePickerModal
                     visible={!!editTf}
-                    title="Saat Seçin"
+                    title={t.sc_0558}
                     value={editTf === 'evStart' ? editEventTime : editTf === 'evEnd' ? editEventEndTime : editRegEndTime}
                     minTime={(() => {
                         const d = editTf === 'evStart'
@@ -20348,17 +20385,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 />
                 <RatingPickerModal
                     visible={!!editRf}
-                    title={editRf === 'min' ? '⭐ Alt Derece Limiti' : '⭐ Üst Derece Limiti'}
+                    title={editRf === 'min' ? t.sc_0559 : t.sc_0560}
                     value={editRf === 'min' ? editMinRating : editMaxRating}
                     onSelect={(v) => {
                         if (editRf === 'min') {
                             if (v !== '' && editMaxRating !== '' && parseFloat(v) > parseFloat(editMaxRating)) {
-                                Alert.alert('', 'Alt limit üst limitten büyük olamaz.'); return;
+                                Alert.alert('', t.sc_0226); return;
                             }
                             setEditMinRating(v);
                         } else {
                             if (v !== '' && editMinRating !== '' && parseFloat(v) < parseFloat(editMinRating)) {
-                                Alert.alert('', 'Üst limit alt limitten küçük olamaz.'); return;
+                                Alert.alert('', t.sc_0229); return;
                             }
                             setEditMaxRating(v);
                         }
@@ -20374,22 +20411,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <KeyboardAvoidingView behavior="padding">
                         <View style={[s.modalBox, { maxHeight:'75%' }]}>
                             <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>⚠️ Geç İptal Talebi</Text>
+                                <Text style={s.modalTitle}>{t.sc_0561}</Text>
                                 <TouchableOpacity onPress={() => setShowCancelModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                             </View>
                             <View style={{ backgroundColor:'#dc262615', borderRadius:10, padding:9, marginBottom:14, borderWidth:1, borderColor:'#dc262640' }}>
-                                <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800', marginBottom:6 }}>⚠️ 24 Saat Geç İptal Kuralı</Text>
+                                <Text style={{ color:'#f87171', fontSize:12, fontWeight:'800', marginBottom:6 }}>{t.sc_0562}</Text>
                                 <Text style={{ color:'#fca5a5', fontSize:11, lineHeight:18 }}>
-                                    Turnuva başlangıcına 24 saatten az kaldığı için iptal talebiniz turnuva düzenleyicisine iletilecek ve onayına sunulacaktır.
-                                    {'\n\n'}Turnuva katılımlarında üçten fazla 24 saat kala iptal ettiğiniz takdirde dördüncü ve sonraki turnuva katılımlarında 24 saatten az kala iptallerinizde -0.50 ELO puanınız düşücek ve beş turnuva katılım yasağınız olucaktır.
+                                    {t.sc_0563}
+                                    {'\n\n'}{t.sc_0564}
                                 </Text>
                             </View>
-                            <Text style={[s.fieldLabel, { marginBottom:8 }]}>Mazeret (zorunlu)</Text>
+                            <Text style={[s.fieldLabel, { marginBottom:8 }]}>{t.sc_0565}</Text>
                             <TextInput
                                 style={[s.fieldInput, { height:90, textAlignVertical:'top', marginBottom:16 }]}
                                 value={cancelReasonText}
                                 onChangeText={setCancelReasonText}
-                                placeholder="İptal nedeninizi açıklayın..."
+                                placeholder={t.sc_0566}
                                 placeholderTextColor={colors.textMuted}
                                 multiline
                                 maxLength={300}
@@ -20397,7 +20434,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <TouchableOpacity
                                 style={{ backgroundColor:'#dc262630', borderRadius:10, paddingVertical:10, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}
                                 onPress={submitCancelWithReason}>
-                                <Text style={{ color:'#f87171', fontSize:14, fontWeight:'800' }}>İptal Talebini Gönder</Text>
+                                <Text style={{ color:'#f87171', fontSize:14, fontWeight:'800' }}>{t.sc_0567}</Text>
                             </TouchableOpacity>
                             <View style={{ height:8 }} />
                         </View>
@@ -20410,13 +20447,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <View style={{ flex:1, backgroundColor: colors.surface, paddingTop: Platform.OS === 'ios' ? 50 : 24 }}>
                     <View style={[s.modalBox, { flex:1, borderRadius:0, maxHeight:undefined }]}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{isCreator ? 'Başvurular' : 'Katılımcılar'}</Text>
+                            <Text style={s.modalTitle}>{isCreator ? t.sc_0568 : t.sc_0569}</Text>
                             <TouchableOpacity onPress={() => setShowListModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:0, flex:1 }}>
                         {isCreator ? (() => {
                             if (loadingRequests) return <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:16 }} />;
-                            if (requests.length === 0) return <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>Henüz başvuru yok</Text>;
+                            if (requests.length === 0) return <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>{t.sc_0570}</Text>;
                             const acceptedEntries = requests.filter(r => r.status === 'ACCEPTED');
                             const mainListCount = item.maxPlayers || acceptedEntries.length;
 
@@ -20429,7 +20466,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 return (
                                     <View>
                                         <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>✅ AS LİSTE</Text>
+                                            <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>{t.sc_0571}</Text>
                                         </View>
                                         {mainList.length === 0
                                             ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>—</Text>
@@ -20441,28 +20478,28 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
-                                                    {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
+                                                    {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>{t.sc_0572}</Text>}
                                                 </View>
                                                 {r.cancelRequested && (
                                                     <View style={{ flexDirection:'row', gap:3 }}>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${playerDisplayName(r.user)} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                                        <TouchableOpacity onPress={() => Alert.alert(t.sc_0573, t.sc_tourn_out(playerDisplayName(r.user)), [{ text:t.sc_0004, style:'cancel' }, { text:t.sc_0157, style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0157}</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${playerDisplayName(r.user)} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                                        <TouchableOpacity onPress={() => Alert.alert(t.sc_0574, t.sc_tourn_stay(playerDisplayName(r.user)), [{ text:t.sc_0004, style:'cancel' }, { text:t.sc_0457, style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0457}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {!r.cancelRequested && (
                                                     <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0018}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
                                         ))}
                                         {waitList.length > 0 && <>
                                             <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{t.sc_0575}</Text>
                                             </View>
                                             {waitList.map((r, i) => (
                                                 <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', backgroundColor: r.cancelRequested ? '#f59e0b08' : 'transparent', borderRadius:6 }}>
@@ -20472,21 +20509,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{playerDisplayName(r.user)}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
-                                                        {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti</Text>}
+                                                        {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>{t.sc_0572}</Text>}
                                                     </View>
                                                     {r.cancelRequested && (
                                                         <View style={{ flexDirection:'row', gap:3 }}>
-                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${playerDisplayName(r.user)} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                                            <TouchableOpacity onPress={() => Alert.alert(t.sc_0573, t.sc_tourn_out(playerDisplayName(r.user)), [{ text:t.sc_0004, style:'cancel' }, { text:t.sc_0157, style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0157}</Text>
                                                             </TouchableOpacity>
-                                                            <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${playerDisplayName(r.user)} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
-                                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                                            <TouchableOpacity onPress={() => Alert.alert(t.sc_0574, t.sc_tourn_stay(playerDisplayName(r.user)), [{ text:t.sc_0004, style:'cancel' }, { text:t.sc_0457, style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0457}</Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                     )}
                                                     {!r.cancelRequested && (
                                                         <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0018}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
@@ -20494,7 +20531,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </>}
                                         {pendingList.length > 0 && <>
                                             <View style={{ backgroundColor:'#a855f720', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#a855f740' }}>
-                                                <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>📩 İstekte Kalanlar ({pendingList.length})</Text>
+                                                <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>{t.sc_0576}{pendingList.length})</Text>
                                             </View>
                                             {pendingList.map((r, i) => (
                                                 <View key={r.userId || r.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < pendingList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
@@ -20502,20 +20539,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || playerDisplayName(r.user)}</Text>
                                                         {r.manualName
-                                                            ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
+                                                            ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>{t.sc_0371}</Text>
                                                             : <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                         }
                                                     </View>
                                                     <View style={{ alignItems:'flex-end', gap:3 }}>
                                                         <View style={{ backgroundColor:'#a855f720', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
-                                                            <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
+                                                            <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>{t.sc_0577}</Text>
                                                         </View>
                                                         <View style={{ flexDirection:'row', gap:3 }}>
                                                             <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0039}</Text>
                                                             </TouchableOpacity>
                                                             <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: playerDisplayName(r.user) }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
-                                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0040}</Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                     </View>
@@ -20524,7 +20561,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </>}
                                         {rejectedList.length > 0 && <>
                                             <View style={{ backgroundColor:'#dc262620', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#dc262640' }}>
-                                                <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>❌ Reddedilenler ({rejectedList.length})</Text>
+                                                <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>{t.sc_0578}{rejectedList.length})</Text>
                                             </View>
                                             {rejectedList.map((r, i) => (
                                                 <View key={r.userId || r.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < rejectedList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40', opacity: 0.75 }}>
@@ -20534,7 +20571,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}</Text>
                                                     </View>
                                                     <View style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
-                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>❌ Red</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0579}</Text>
                                                     </View>
                                                 </View>
                                             ))}
@@ -20553,7 +20590,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
                                     <TextInput
                                         style={{ flex:1, backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#3b82f640', color:'#fff', fontSize:13, paddingHorizontal:9, paddingVertical:5 }}
-                                        placeholder="İsim gir (manuel ekle)"
+                                        placeholder={t.sc_0580}
                                         placeholderTextColor="#475569"
                                         value={manualName}
                                         onChangeText={setManualName}
@@ -20561,7 +20598,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         onSubmitEditing={addManualParticipant}
                                     />
                                     <TouchableOpacity onPress={addManualParticipant} disabled={addingManual || !manualName.trim()} style={{ backgroundColor: manualName.trim() ? '#3b82f6' : '#1e293b', borderRadius:10, paddingHorizontal:11, justifyContent:'center', borderWidth:1, borderColor:'#3b82f640' }}>
-                                        <Text style={{ color: manualName.trim() ? '#fff' : '#475569', fontSize:12, fontWeight:'800' }}>{addingManual ? '...' : '+ Ekle'}</Text>
+                                        <Text style={{ color: manualName.trim() ? '#fff' : '#475569', fontSize:12, fontWeight:'800' }}>{addingManual ? '...' : t.sc_0581}</Text>
                                     </TouchableOpacity>
                                 </View>
                                 {listRows.map((r, i) => {
@@ -20571,8 +20608,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         mainIdx++;
                                         const isMain = mainIdx <= mainListCount;
                                         posLabel = isMain
-                                            ? { text: `AS ${mainIdx}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }
-                                            : { text: `YDK ${mainIdx - mainListCount}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' };
+                                            ? { text: t.sc_0582(mainIdx), bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }
+                                            : { text: t.sc_0583(mainIdx - mainListCount), bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' };
                                     }
                                     const prevIsAccepted = i > 0 && listRows[i-1].status === 'ACCEPTED';
                                     const showDivider = i > 0 && r.status === 'PENDING' && prevIsAccepted;
@@ -20581,7 +20618,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         {showDivider && (
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginVertical:8 }}>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
-                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>⏳ Bekleyen Başvurular</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>{t.sc_0584}</Text>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
                                             </View>
                                         )}
@@ -20596,42 +20633,42 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             <View style={{ flex:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{r.manualName || playerDisplayName(r.user)}</Text>
                                                 {r.manualName
-                                                    ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>✏️ Manuel</Text>
+                                                    ? <Text style={{ color:'#3b82f6', fontSize:10, fontWeight:'700' }}>{t.sc_0371}</Text>
                                                     : <Text style={{ color: colors.textMuted, fontSize:11 }}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                 }
-                                                {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>⚠️ İptal talep etti (24s kuralı)</Text>}
+                                                {r.cancelRequested && <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700', marginTop:2 }}>{t.sc_0585}</Text>}
                                             </View>
                                             <View style={{ alignItems:'flex-end', gap:3 }}>
                                                 {!r.cancelRequested && (
                                                     <View style={{ backgroundColor: r.status === 'ACCEPTED' ? '#16a34a30' : r.status === 'REJECTED' ? '#dc262630' : '#a855f720', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
                                                         <Text style={{ color: r.status === 'ACCEPTED' ? '#4ade80' : r.status === 'REJECTED' ? '#f87171' : '#c084fc', fontSize:10, fontWeight:'700' }}>
-                                                            {r.status === 'ACCEPTED' ? '✅ Kabul' : r.status === 'REJECTED' ? '❌ Red' : r.userId === myId ? '⏳ Yönetici onayı bekleniyor' : '⏳ Bekliyor'}
+                                                            {r.status === 'ACCEPTED' ? t.sc_0586 : r.status === 'REJECTED' ? t.sc_0579 : r.userId === myId ? t.sc_0587 : t.sc_0577}
                                                         </Text>
                                                     </View>
                                                 )}
                                                 {r.cancelRequested && (
                                                     <View style={{ flexDirection:'row', gap:3 }}>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Onayla', `${playerDisplayName(r.user)} turnuvadan çıkarılacak. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Onayla', style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Onayla</Text>
+                                                        <TouchableOpacity onPress={() => Alert.alert(t.sc_0573, t.sc_tourn_out(playerDisplayName(r.user)), [{ text:t.sc_0004, style:'cancel' }, { text:t.sc_0157, style:'destructive', onPress: () => approveCancelRequest(r.userId, true) }])} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0157}</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={() => Alert.alert('İptal Talebini Reddet', `${playerDisplayName(r.user)} turnuvada kalmaya devam edecek. Emin misiniz?`, [{ text:'Vazgeç', style:'cancel' }, { text:'Reddet', style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Reddet</Text>
+                                                        <TouchableOpacity onPress={() => Alert.alert(t.sc_0574, t.sc_tourn_stay(playerDisplayName(r.user)), [{ text:t.sc_0004, style:'cancel' }, { text:t.sc_0457, style:'destructive', onPress: () => approveCancelRequest(r.userId, false) }])} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0457}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {r.status === 'PENDING' && !r.cancelRequested && (
                                                     <View style={{ flexDirection:'row', gap:3 }}>
                                                         <TouchableOpacity onPress={() => updateRequest(r.userId, 'ACCEPTED')} style={{ backgroundColor:'#16a34a30', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0039}</Text>
                                                         </TouchableOpacity>
                                                         <TouchableOpacity onPress={() => { setRejectReason(''); setRejectTarget({ userId: r.userId, name: playerDisplayName(r.user) }); }} style={{ backgroundColor:'#dc262630', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#dc262650' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0040}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {r.status === 'ACCEPTED' && !r.cancelRequested && (
                                                     <TouchableOpacity onPress={() => r.manualName ? removeManualParticipant(r.id) : removeParticipant(r.userId)} style={{ backgroundColor:'#dc262615', borderRadius:6, paddingHorizontal:3, paddingVertical:0, borderWidth:1, borderColor:'#dc262640' }}>
-                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>Çıkar</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:10, fontWeight:'700' }}>{t.sc_0018}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -20648,21 +20685,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <View style={{ marginTop:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:8 }}>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
-                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>✅ Kabul Edilenler — Çiftler</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }}>{t.sc_0588}</Text>
                                                 <View style={{ flex:1, height:1, backgroundColor: colors.border }} />
                                             </View>
                                             {isRegEnded() && (
-                                                <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
+                                                <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>{t.sc_0589}</Text>
                                             )}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                                {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:`AS ${i+1}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
+                                                {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:t.sc_0590(i+1), bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
                                             </View>
                                             {waitSlots.length > 0 && <>
                                                 <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>{t.sc_0575}</Text>
                                                 </View>
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                                    {waitSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:`YDK ${i+1}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' }))}
+                                                    {waitSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, true, { text:t.sc_0591(i+1), bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' }))}
                                                 </View>
                                             </>}
                                         </View>
@@ -20683,13 +20720,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:3 }}>
                                                 <Text style={{ fontSize:20 }}>⏳</Text>
                                                 <View style={{ flex:1 }}>
-                                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>Başvurunuz alındı</Text>
-                                                    <Text style={{ color:'#c084fc', fontSize:11, marginTop:2, opacity:0.85 }}>Turnuva yöneticisinin onayı bekleniyor. Onaylandığında bildirim alacaksınız.</Text>
+                                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>{t.sc_0592}</Text>
+                                                    <Text style={{ color:'#c084fc', fontSize:11, marginTop:2, opacity:0.85 }}>{t.sc_0593}</Text>
                                                 </View>
                                             </View>
                                         )}
                                         <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginBottom:8, borderWidth:1, borderColor:'#16a34a40' }}>
-                                            <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>✅ AS LİSTE</Text>
+                                            <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800' }}>{t.sc_0571}</Text>
                                         </View>
                                         {mainList.length === 0
                                             ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>—</Text>
@@ -20706,7 +20743,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         ))}
                                         {waitList.length > 0 && <>
                                             <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:14, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800' }}>{t.sc_0575}</Text>
                                             </View>
                                             {waitList.map((r, i) => (
                                                 <View key={r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:5, borderBottomWidth: i < waitList.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
@@ -20731,8 +20768,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <View style={{ backgroundColor:'#a855f715', borderRadius:10, padding:9, marginBottom:12, borderWidth:1, borderColor:'#a855f740', flexDirection:'row', alignItems:'center', gap:3 }}>
                                         <Text style={{ fontSize:20 }}>⏳</Text>
                                         <View style={{ flex:1 }}>
-                                            <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>Başvurunuz alındı</Text>
-                                            <Text style={{ color:'#c084fc', fontSize:11, marginTop:2, opacity:0.85 }}>Turnuva yöneticisinin onayı bekleniyor. Onaylandığında bildirim alacaksınız.</Text>
+                                            <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800' }}>{t.sc_0592}</Text>
+                                            <Text style={{ color:'#c084fc', fontSize:11, marginTop:2, opacity:0.85 }}>{t.sc_0593}</Text>
                                         </View>
                                     </View>
                                 )}
@@ -20745,37 +20782,37 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <View>
                                             {pending.length > 0 && (
                                                 <View style={{ marginBottom:14 }}>
-                                                    <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:6 }}>⏳ Bekleyen Başvurular ({pending.length})</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:6 }}>{t.sc_0594}{pending.length})</Text>
                                                     {pending.map((r, i) => (
                                                         <View key={r.id || r.userId} style={{ flexDirection:'row', alignItems:'center', paddingVertical:3, borderBottomWidth: i < pending.length - 1 ? 1 : 0, borderBottomColor: colors.border+'40' }}>
                                                             <View style={{ flex:1 }}>
                                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{playerDisplayName(r.user)}</Text>
                                                                 <Text style={{ color: colors.textMuted, fontSize:10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{r.user?.username}{r.user?.interests?.[0]?.skillRating != null ? `  ${starEmoji(Number(r.user.interests[0].skillRating))} ${Number(r.user.interests[0].skillRating).toFixed(2)}` : ''}</Text>
                                                             </View>
-                                                            <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>⏳ Bekliyor</Text>
+                                                            <Text style={{ color:'#c084fc', fontSize:10, fontWeight:'700' }}>{t.sc_0577}</Text>
                                                         </View>
                                                     ))}
                                                 </View>
                                             )}
                                             {isRegEnded() && (
-                                                <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>⏳ Son başvuru saati geçti — eşleşmeler otomatik oluşturulacak</Text>
+                                                <Text style={{ color:'#fbbf24', fontSize:11, textAlign:'center', marginBottom:8 }}>{t.sc_0589}</Text>
                                             )}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                                {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:`AS ${i+1}`, bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
+                                                {mainSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:t.sc_0590(i+1), bg:'#16a34a20', color:'#4ade80', border:'#16a34a40' }))}
                                             </View>
                                             {waitSlots.length > 0 && <>
                                                 <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:3, paddingHorizontal:7, marginTop:10, marginBottom:8, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>⏳ YEDEK LİSTE</Text>
+                                                    <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'800' }}>{t.sc_0575}</Text>
                                                 </View>
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
-                                                    {waitSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:`YDK ${i+1}`, bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' }))}
+                                                    {waitSlots.map((slot, i) => renderDuoCard(slot.a, slot.b, solos, byUserId, false, { text:t.sc_0591(i+1), bg:'#f59e0b20', color:'#fbbf24', border:'#f59e0b40' }))}
                                                 </View>
                                             </>}
                                         </View>
                                     );
                                 })() : participants.map((r, i) => {
                                     const isMain = i < maxP;
-                                    const label = isMain ? `AS ${i+1}` : `YDK ${i+1-maxP}`;
+                                    const label = isMain ? t.sc_0590(i+1) : t.sc_0595(i+1-maxP);
                                     const labelColor = isMain ? '#4ade80' : '#fbbf24';
                                     const labelBg = isMain ? '#16a34a20' : '#f59e0b20';
                                     const labelBorder = isMain ? '#16a34a40' : '#f59e0b40';
@@ -20802,12 +20839,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
                                 <KeyboardAvoidingView behavior="padding" style={{ width:'100%' }}>
                                     <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor:'#dc262650' }}>
-                                        <Text style={{ color:'#f87171', fontSize:15, fontWeight:'800', marginBottom:4 }}>❌ Başvuruyu Reddet</Text>
-                                        <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:14 }}>{rejectTarget?.name} adlı oyuncunun başvurusu reddedilecek.</Text>
-                                        <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:6 }}>Red nedeni (opsiyonel):</Text>
+                                        <Text style={{ color:'#f87171', fontSize:15, fontWeight:'800', marginBottom:4 }}>{t.sc_0596}</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:14 }}>{rejectTarget?.name} {t.sc_0597}</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:12, marginBottom:6 }}>{t.sc_0598}</Text>
                                         <TextInput
                                             style={{ backgroundColor:'#0f172a', borderRadius:10, borderWidth:1, borderColor:'#dc262650', color:'#fff', fontSize:13, padding:9, minHeight:60, textAlignVertical:'top' }}
-                                            placeholder="Neden reddediyorsunuz? (isteğe bağlı)"
+                                            placeholder={t.sc_0599}
                                             placeholderTextColor="#475569"
                                             value={rejectReason}
                                             onChangeText={setRejectReason}
@@ -20816,10 +20853,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         />
                                         <View style={{ flexDirection:'row', gap:3, marginTop:16 }}>
                                             <TouchableOpacity onPress={() => setRejectTarget(null)} style={{ flex:1, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
-                                                <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
+                                                <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>{t.sc_0004}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={async () => { const t2 = rejectTarget; setRejectTarget(null); await updateRequest(t2.userId, 'REJECTED', rejectReason.trim() || undefined); }} style={{ flex:1, backgroundColor:'#dc262640', borderRadius:10, paddingVertical:8, alignItems:'center', borderWidth:1, borderColor:'#dc262660' }}>
-                                                <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>Reddet</Text>
+                                                <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800' }}>{t.sc_0457}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
@@ -20831,10 +20868,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <Modal visible={showInvitePicker} animationType="fade" transparent onRequestClose={() => setShowInvitePicker(false)}>
                             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'center', alignItems:'center', padding:21 }}>
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:17, borderWidth:1, borderColor: cfg.color+'40', width:'100%', maxHeight:'70%' }}>
-                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>👥 Partner Davet Et</Text>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', marginBottom:12 }}>{t.sc_0119}</Text>
                                     <ScrollView>
                                         {inviteCandidates.length === 0 ? (
-                                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>Davet edilebilecek bireysel başvuran yok</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:13, textAlign:'center', paddingVertical:3 }}>{t.sc_0120}</Text>
                                         ) : inviteCandidates.map(c => (
                                             <TouchableOpacity key={c.userId} onPress={() => setMyTournamentPartner(c.userId)} disabled={partnerActionLoading} style={{ flexDirection:'row', alignItems:'center', gap:3, paddingVertical:7, borderBottomWidth:1, borderBottomColor: colors.border+'40' }}>
                                                 <Avatar name={c.user?.username} avatar={c.user?.avatar} size={moderateScale(34)} color={cfg.color} />
@@ -20846,7 +20883,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         ))}
                                     </ScrollView>
                                     <TouchableOpacity onPress={() => setShowInvitePicker(false)} style={{ marginTop:14, backgroundColor:'#334155', borderRadius:10, paddingVertical:8, alignItems:'center' }}>
-                                        <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>Vazgeç</Text>
+                                        <Text style={{ color:'#94a3b8', fontSize:13, fontWeight:'700' }}>{t.sc_0004}</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -20874,7 +20911,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             ) : (
                                 <ScrollView style={{ flex:1 }} keyboardShouldPersistTaps="always" keyboardDismissMode="none" contentContainerStyle={{ paddingBottom:7 }}>
                                     {chatMessages.length === 0
-                                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz mesaj yok</Text>
+                                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{t.sc_0600}</Text>
                                         : chatMessages.map(m => {
                                             const mine = (m.sender?.id || m.senderId) === myId;
                                             return (
@@ -20952,7 +20989,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
             {item.description && item.status !== 'IN_PROGRESS' && item.status !== 'COMPLETED' ? (
                 <View style={{ marginTop:10, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor:'#334155' }}>
-                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'800', marginBottom:4 }}>AÇIKLAMA</Text>
+                    <Text style={{ color:'#94a3b8', fontSize:9, fontWeight:'800', marginBottom:4 }}>{t.sc_0601}</Text>
                     <Text style={{ color:'#cbd5e1', fontSize:12, lineHeight:18 }}>{item.description}</Text>
                 </View>
             ) : null}
@@ -20963,9 +21000,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         onPress={() => setShowInfo(v => !v)}
                         style={{ marginTop:10, flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: infoColor + '12', borderRadius:10, paddingHorizontal:10, paddingVertical:8, borderWidth:1, borderColor: infoColor + '35' }}>
                         <Text style={{ color: infoColor, fontSize:12, fontWeight:'800' }}>
-                            {showInfo ? '▲' : '▼'}  Turnuva Bilgileri
+                            {showInfo ? '▲' : '▼'}  {t.sc_0602}
                         </Text>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'600', opacity:0.8 }}>{showInfo ? 'Gizle' : 'Göster'}</Text>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'600', opacity:0.8 }}>{showInfo ? t.sc_0603 : t.sc_0604}</Text>
                     </TouchableOpacity>
                     {showInfo && (
                         <View style={{ marginTop:6, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor: infoColor + '30', gap:6 }}>
@@ -20975,7 +21012,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 </View>
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
                                     <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                                        {item.location || item.city || (item.scope === 'ULUSLARARASI' ? 'Dünya' : item.scope === 'ULUSAL' ? 'Ulusal' : 'Yerel')}
+                                        {(item.location || item.city) === 'Dünya' ? t.sc_0395 : (item.location || item.city || (item.scope === 'ULUSLARARASI' ? t.sc_0395 : item.scope === 'ULUSAL' ? t.sc_0396 : t.sc_0397))}
                                     </Text>
                                 </View>
                             </View>
@@ -21000,7 +21037,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {item.endDate ? (
                                     <View style={{ backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
                                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>
-                                            Son başvuru: {new Date(item.endDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
+                                            {t.sc_0400} {new Date(item.endDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
                                         </Text>
                                     </View>
                                 ) : null}
@@ -21022,7 +21059,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 ) : null}
                                 {item.setsPerMatch ? (
                                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Set: {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
                                     </View>
                                 ) : null}
                                 {item.advantageScoring !== undefined ? (
@@ -21041,7 +21078,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
                                         <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
                                             {item.subCategory === 'airsoft'
-                                                ? (t.tournCourtPlayersArrange || 'Takımlar ortaklaşa mekan seçecek')
+                                                ? (t.tournCourtPlayersArrange || t.sc_0402)
                                                 : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
                                         </Text>
                                     </View>
@@ -21049,13 +21086,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {item.matchesBeforePlayoff ? (
                                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
                                         <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                                            {(['5','7'].includes(String(item.type)) ? 'Tur' : 'Öncesi maç')}: {item.matchesBeforePlayoff}
+                                            {(['5','7'].includes(String(item.type)) ? t.sc_0403 : t.sc_0404)}: {item.matchesBeforePlayoff}
                                         </Text>
                                     </View>
                                 ) : null}
                                 {item.playoffQualifiers ? (
                                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>Sonrası / Play-off: {item.playoffQualifiers}</Text>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0405} {item.playoffQualifiers}</Text>
                                     </View>
                                 ) : null}
                                 <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
@@ -21065,8 +21102,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const asCount = max ? Math.min(participantCount, max) : participantCount;
                                             const yedek = max ? Math.max(0, participantCount - max) : 0;
                                             const base = max ? `${asCount}/${max}` : `${participantCount}`;
-                                            const txt = yedek > 0 ? `${base} (+${yedek} yedek)` : base;
-                                            return `Kadro: ${txt}${item.minPlayers > 2 ? ` · min ${item.minPlayers}` : ''}`;
+                                            const txt = yedek > 0 ? t.sc_0406(base, yedek) : base;
+                                            return t.sc_0407(txt, item.minPlayers > 2 ? ` · min ${item.minPlayers}` : '');
                                         })()}
                                     </Text>
                                 </View>
@@ -21075,12 +21112,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
                                     {(() => {
                                         const fmt = (d, tm) => {
-                                            const base = new Date(d).toLocaleDateString('tr-TR', { day:'numeric', month:'short' }).toLocaleUpperCase('tr-TR');
+                                            const base = new Date(d).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' }).toLocaleUpperCase(appLocale(t.lang));
                                             return tm ? `${base} ${tm}` : base;
                                         };
                                         const start = item.eventDate ? fmt(item.eventDate, item.eventTime) : null;
                                         const end = item.eventEndDate ? fmt(item.eventEndDate, item.eventEndTime) : null;
-                                        return `TAHMİNİ TURNUVA BAŞLANGIÇ VE BİTİŞ TARİHLERİ: ${[start, end].filter(Boolean).join('- ')}`;
+                                        return t.sc_0605([start, end].filter(Boolean).join('- '));
                                     })()}
                                 </Text>
                             ) : null}
@@ -21088,34 +21125,34 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <View style={{ gap:2 }}>
                                     {item.isPaid ? (
                                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
-                                            Katılım Ücreti: {item.playerFee != null && item.playerFee !== '' ? `${item.playerFee}₺` : '—'}/oyuncu
+                                            {t.sc_0412} {item.playerFee != null && item.playerFee !== '' ? `${item.playerFee}₺` : '—'}/oyuncu
                                         </Text>
                                     ) : null}
                                     <Text style={{ color: item.isPaid ? '#fde68a' : colors.textSecondary, fontSize:10, fontWeight:'700' }}>
-                                        Kort Ücretleri: {item.feeType === 'INCLUDED'
-                                            ? 'Katılım ücretine dahil'
+                                        {t.sc_0413} {item.feeType === 'INCLUDED'
+                                            ? t.sc_0414
                                             : item.feeType === 'SPONSORED'
-                                            ? 'Sponsorlar tarafından karşılanır'
-                                            : 'Oyuncular tarafından ortaklaşa'}
+                                            ? t.sc_0415
+                                            : t.sc_0416}
                                     </Text>
                                     {item.isPaid && item.paymentMethod ? (
                                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
-                                            Ödeme: {(() => {
+                                            {t.sc_0417} {(() => {
                                                 const m = String(item.paymentMethod || '').toUpperCase();
-                                                if (m === 'EFT_CASH' || m === 'BOTH' || m === 'EFT+CASH') return 'EFT-Nakit';
+                                                if (m === 'EFT_CASH' || m === 'BOTH' || m === 'EFT+CASH') return t.sc_0418;
                                                 if (m === 'EFT') return 'EFT';
-                                                if (m === 'CASH') return 'Nakit';
+                                                if (m === 'CASH') return t.sc_0419;
                                                 return m;
                                             })()}
                                         </Text>
                                     ) : null}
                                     {item.isPaid && String(item.paymentMethod || '').toUpperCase().includes('EFT') && item.ibanHolder ? (
-                                        <TouchableOpacity onPress={() => { Clipboard.setString(String(item.ibanHolder)); Alert.alert('', 'İsim kopyalandı'); }}>
-                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', textDecorationLine:'underline' }}>EFT Bilgileri: {item.ibanHolder}</Text>
+                                        <TouchableOpacity onPress={() => { Clipboard.setString(String(item.ibanHolder)); Alert.alert('', t.sc_0421); }}>
+                                            <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', textDecorationLine:'underline' }}>{t.sc_0606} {item.ibanHolder}</Text>
                                         </TouchableOpacity>
                                     ) : null}
                                     {item.isPaid && String(item.paymentMethod || '').toUpperCase().includes('EFT') && item.ibanNumber ? (
-                                        <TouchableOpacity onPress={() => { Clipboard.setString(String(item.ibanNumber).replace(/\s+/g, '')); Alert.alert('', 'IBAN kopyalandı'); }}>
+                                        <TouchableOpacity onPress={() => { Clipboard.setString(String(item.ibanNumber).replace(/\s+/g, '')); Alert.alert('', t.sc_0423); }}>
                                             <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', textDecorationLine:'underline' }}>{item.ibanNumber}</Text>
                                         </TouchableOpacity>
                                     ) : null}
@@ -21143,7 +21180,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
                                     onPress={() => { isCreator || item.type === '2' || item.type === '4' ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
                                     <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>
-                                        {isCreator ? requestsBtnLabel : `Katılımcılar${participantCount > 0 ? ` (${participantCount})` : ''}`}
+                                        {isCreator ? requestsBtnLabel : t.sc_0607(participantCount > 0 ? ` (${participantCount})` : '')}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -21159,7 +21196,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <Text style={{ color: infoColor, fontSize:12, fontWeight:'800' }}>
                     {showRules ? '▲' : '▼'}  {t.tournRulesLabel}
                 </Text>
-                <Text style={{ color: infoColor, fontSize:10, fontWeight:'600', opacity:0.8 }}>{showRules ? 'Gizle' : 'Göster'}</Text>
+                <Text style={{ color: infoColor, fontSize:10, fontWeight:'600', opacity:0.8 }}>{showRules ? t.sc_0603 : t.sc_0604}</Text>
             </TouchableOpacity>
             {showRules && (
                 <View style={{ backgroundColor:'#0f172a', borderRadius:12, padding:12, marginTop:6, borderWidth:1, borderColor: infoColor + '30' }}>
@@ -21188,7 +21225,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         })}
                         {item.pollEndDate ? (
                             <Text style={{ color:'#a78bfa', fontSize:10, alignSelf:'center' }}>
-                                {t.tournPollEndLabel}: {new Date(item.pollEndDate).toLocaleDateString('tr-TR', { day:'2-digit', month:'2-digit' })}{item.pollEndTime ? ` ${item.pollEndTime}` : ''}
+                                {t.tournPollEndLabel}: {new Date(item.pollEndDate).toLocaleDateString(appLocale(t.lang), { day:'2-digit', month:'2-digit' })}{item.pollEndTime ? ` ${item.pollEndTime}` : ''}
                             </Text>
                         ) : null}
                     </View>
@@ -21199,7 +21236,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         style={{ backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '40' }}
                         onPress={() => shareTournament(item, t)}
                     >
-                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareBtn || '📤 Paylaş'}</Text>
+                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareBtn || t.sc_0086}</Text>
                     </TouchableOpacity>
                     {isDefiTourn(item) && (<>
                         <DefiLadderModal visible={showDefi} onClose={() => setShowDefi(false)} tournament={item} myId={myId} onChanged={onUpdated} />
@@ -21215,14 +21252,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         )}
                         {myStatus === 'ACCEPTED' && (
                             <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a50', justifyContent:'center' }}>
-                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>✓ Katıldın</Text>
+                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0608}</Text>
                             </View>
                         )}
                         <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
                             <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>{t.tournEditBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item.id)}>
-                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>🗑️ Turnuvayı Sil</Text>
+                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0609}</Text>
                         </TouchableOpacity>
                         {item.status === 'OPEN' && participantCount >= (item.minPlayers || 2) && (
                             <TouchableOpacity
@@ -21230,7 +21267,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 onPress={handleStartTournament}
                                 disabled={starting}>
                                 <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>
-                                    {starting ? '...' : '🏆 Başlat'}
+                                    {starting ? '...' : t.sc_0610}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -21238,7 +21275,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <TouchableOpacity
                                 style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b50' }}
                                 onPress={handleRematch}>
-                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>🔀 Tekrar Eşleştir</Text>
+                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.sc_0611}</Text>
                             </TouchableOpacity>
                         )}
                         {item.status === 'IN_PROGRESS' && item.type === '1' && (
@@ -21246,12 +21283,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TouchableOpacity
                                     style={{ backgroundColor:'#0e749030', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#0e749060' }}
                                     onPress={handleFixDeadlines}>
-                                    <Text style={{ color:'#67e8f9', fontSize:11, fontWeight:'700' }}>⏱️ Süre Düzelt</Text>
+                                    <Text style={{ color:'#67e8f9', fontSize:11, fontWeight:'700' }}>{t.sc_0612}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={{ backgroundColor:'#7c3aed20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#7c3aed50' }}
                                     onPress={handleRegenRound}>
-                                    <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>🔁 Turu Düzelt</Text>
+                                    <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>{t.sc_0613}</Text>
                                 </TouchableOpacity>
                             </>
                         )}
@@ -21293,7 +21330,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </View>
                             {!isEventStarted() && (
                                 <TouchableOpacity style={{ backgroundColor:'#dc262615', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262640' }} onPress={handleCancelAttempt}>
-                                    <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>İptal</Text>
+                                    <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0065}</Text>
                                 </TouchableOpacity>
                             )}
                             <TouchableOpacity
@@ -21306,14 +21343,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </>)}
                         {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
                             <View style={{ backgroundColor:'#f59e0b15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', justifyContent:'center' }}>
-                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>⏳ İptal onay bekliyor</Text>
+                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.sc_0614}</Text>
                             </View>
                         )}
                         <TouchableOpacity
                             style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
                             onPress={() => { (item.type === '2' || item.type === '4') ? fetchRequests() : fetchParticipants(); setShowListModal(true); }}>
                             <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>
-                                👥 Katılımcılar{participantCount > 0 ? ` (${participantCount})` : ''}
+                                {t.sc_0615}{participantCount > 0 ? ` (${participantCount})` : ''}
                             </Text>
                         </TouchableOpacity>
                     </>)}
@@ -21327,7 +21364,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     style={[s.joinBtn, { marginTop:10, backgroundColor: demoRunning ? '#dc262620' : '#7c3aed20', borderColor: demoRunning ? '#dc262650' : '#7c3aed50' }]}
                     onPress={demoRunning ? stopDemo : startDemo}>
                     <Text style={[s.joinBtnText, { color: demoRunning ? '#f87171' : '#a78bfa' }]}>
-                        {demoRunning ? `⏸ Durdur (${demoIdx}/40)` : `🤖 Demo (${demoIdx}/40)`}
+                        {demoRunning ? t.sc_0616(demoIdx) : t.sc_0617(demoIdx)}
                     </Text>
                 </TouchableOpacity>
             )}
@@ -21339,7 +21376,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <KeyboardAvoidingView behavior="padding">
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, paddingHorizontal:17, paddingTop:17, paddingBottom:37, maxHeight:'80%' }}>
                         <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || 'Partner Seç'}</Text>
+                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'800', flex:1 }}>{t.tournPartnerChoose || t.sc_0364}</Text>
                             <TouchableOpacity onPress={() => { setShowPartnerSearch(false); setPartnerQuery(''); setPartnerResults([]); }}>
                                 <Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text>
                             </TouchableOpacity>
@@ -21417,7 +21454,7 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
             <View style={tp.overlay}>
                 <View style={tp.box}>
                     <View style={tp.header}>
-                        <Text style={tp.title}>🏆 Turnuva Oluşturma</Text>
+                        <Text style={tp.title}>{t.sc_0618}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={tp.close}>✕</Text></TouchableOpacity>
                     </View>
 
@@ -21426,30 +21463,30 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
                     ) : status === 'APPROVED' ? (
                         <View style={tp.statusBox}>
                             <Text style={tp.statusEmoji}>✅</Text>
-                            <Text style={tp.statusTitle}>Turnuva Oluşturma İzniniz Var</Text>
+                            <Text style={tp.statusTitle}>{t.sc_0619}</Text>
                             <Text style={tp.statusDesc}>
                                 {reason === 'coach'
-                                    ? 'Onaylı antrenör olduğunuz için bu hak otomatik tanındı — admin onayı beklemeden turnuva oluşturabilirsiniz.'
+                                    ? t.sc_0620
                                     : reason === 'subscription'
-                                        ? 'İşletme aboneliğiniz aktif olduğu için turnuva oluşturabilirsiniz.'
-                                        : 'Admin talebinizi onayladı, artık turnuva oluşturabilirsiniz.'}
+                                        ? t.sc_0621
+                                        : t.sc_0622}
                             </Text>
                         </View>
                     ) : (
                         <>
                             <Text style={tp.desc}>
-                                Turnuva oluşturmak için admin onayı gereklidir.
+                                {t.sc_0623}
                             </Text>
 
                             {status === 'NONE' && (
                                 <>
                                     <Text style={tp.sub}>
-                                        Admin'e başvurarak turnuva oluşturma izni talep edebilirsiniz.
+                                        {t.sc_0624}
                                     </Text>
                                     <TouchableOpacity style={tp.btn} onPress={sendRequest} disabled={sending}>
                                         {sending
                                             ? <ActivityIndicator color="#fff" />
-                                            : <Text style={tp.btnText}>📩 Admin'e Başvur</Text>
+                                            : <Text style={tp.btnText}>{t.sc_0625}</Text>
                                         }
                                     </TouchableOpacity>
                                 </>
@@ -21458,8 +21495,8 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
                             {status === 'PENDING' && (
                                 <View style={tp.statusBox}>
                                     <Text style={tp.statusEmoji}>⏳</Text>
-                                    <Text style={tp.statusTitle}>Başvurunuz İnceleniyor</Text>
-                                    <Text style={tp.statusDesc}>Admin talebinizi değerlendirdiğinde bildirim alacaksınız.</Text>
+                                    <Text style={tp.statusTitle}>{t.sc_0626}</Text>
+                                    <Text style={tp.statusDesc}>{t.sc_0627}</Text>
                                 </View>
                             )}
 
@@ -21467,13 +21504,13 @@ function TournamentPermissionModal({ visible, onClose, onStatusChange }) {
                                 <>
                                     <View style={[tp.statusBox, { borderColor: '#ef444440' }]}>
                                         <Text style={tp.statusEmoji}>❌</Text>
-                                        <Text style={[tp.statusTitle, { color: '#ef4444' }]}>Başvuru Reddedildi</Text>
-                                        <Text style={tp.statusDesc}>Talebiniz admin tarafından reddedildi. Yeniden başvurabilirsiniz.</Text>
+                                        <Text style={[tp.statusTitle, { color: '#ef4444' }]}>{t.sc_0628}</Text>
+                                        <Text style={tp.statusDesc}>{t.sc_0629}</Text>
                                     </View>
                                     <TouchableOpacity style={tp.btn} onPress={sendRequest} disabled={sending}>
                                         {sending
                                             ? <ActivityIndicator color="#fff" />
-                                            : <Text style={tp.btnText}>📩 Yeniden Başvur</Text>
+                                            : <Text style={tp.btnText}>{t.sc_0630}</Text>
                                         }
                                     </TouchableOpacity>
                                 </>
@@ -21629,8 +21666,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
     const submit = async () => {
         if (!f.name.trim()) { Alert.alert('', t.tournMissingName); return; }
-        if (!f.scope) { Alert.alert('', 'Kapsamı seçin.'); return; }
-        if (!isAirsoft && !f.genderType) { Alert.alert('', 'Katılımcı cinsiyetini seçin.'); return; }
+        if (!f.scope) { Alert.alert('', t.sc_0631); return; }
+        if (!isAirsoft && !f.genderType) { Alert.alert('', t.sc_0632); return; }
         if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
@@ -21674,19 +21711,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
             if (pollDt.getTime() >= regDt.getTime()) { Alert.alert('', t.tournPollAfterReg); return; }
         }
 
-        if (!isAirsoft && !f.pollEnabled && ACTIVE_ENGINE_TYPES.includes(String(f.type)) && f.advantageScoring === undefined) { Alert.alert('', 'Puanlama sistemini (avantajlı/karar puanı/serbest) seçin.'); return; }
-        if (!f.pollEnabled && !f.setsPerMatch) { Alert.alert('', isAirsoft ? 'Sayı sistemini seçin.' : 'Set sayısını seçin.'); return; }
+        if (!isAirsoft && !f.pollEnabled && ACTIVE_ENGINE_TYPES.includes(String(f.type)) && f.advantageScoring === undefined) { Alert.alert('', t.sc_0633); return; }
+        if (!f.pollEnabled && !f.setsPerMatch) { Alert.alert('', isAirsoft ? t.sc_0634 : t.sc_0635); return; }
         if (f.isPaid && (!f.prize1.trim() || !f.prize2.trim() || !f.prize3.trim())) { Alert.alert('', t.tournMissingPrizes); return; }
-        if (f.isPaid && !f.paymentMethod) { Alert.alert('', 'Ödeme yöntemini seçin.'); return; }
-        if (f.isPaid && f.paymentMethod === 'EFT' && (!f.ibanNumber.trim() || !f.ibanHolder.trim())) { Alert.alert('', 'IBAN numarası ve hesap sahibi adını girin.'); return; }
-        if (f.minPlayers && f.maxPlayers && parseInt(f.minPlayers) > parseInt(f.maxPlayers)) { Alert.alert('', 'Min oyuncu, max oyuncudan büyük olamaz.'); return; }
-        if (isAirsoft && !f.teamSize) { Alert.alert('', 'Takım büyüklüğünü girin.'); return; }
+        if (f.isPaid && !f.paymentMethod) { Alert.alert('', t.sc_0636); return; }
+        if (f.isPaid && f.paymentMethod === 'EFT' && (!f.ibanNumber.trim() || !f.ibanHolder.trim())) { Alert.alert('', t.sc_0637); return; }
+        if (f.minPlayers && f.maxPlayers && parseInt(f.minPlayers) > parseInt(f.maxPlayers)) { Alert.alert('', t.sc_0391); return; }
+        if (isAirsoft && !f.teamSize) { Alert.alert('', t.sc_0638); return; }
 
         const province = f.scopeCity.trim();
         const district = f.scopeDistrict.trim();
         const cityVal = f.scope === 'YEREL'
             ? (district ? `${province} / ${district}` : province)
-            : f.scope === 'ULUSAL' ? f.scopeCountry.trim() : 'Dünya';
+            : f.scope === 'ULUSAL' ? f.scopeCountry.trim() : t.sc_0395;
 
         // Auto-submit city for approval (silent — don't block tournament creation)
         if (f.scope === 'YEREL' && province) {
@@ -22030,12 +22067,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_singles_elo_playoff}</Text>
                                     {[
-                                        'Oyuncular bireysel katılır. Play-off öncesi her tur bittikten sonra güncel ELO\'ya göre en yakın, daha önce eşleşmemiş rakiplerle yeni tur oluşturulur.',
-                                        'Play-off\'larda da ELO puanı en yakın oyuncular eşleşir.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
-                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                        t.sc_0639,
+                                        t.sc_0640,
+                                        t.sc_0641,
+                                        t.sc_0642,
+                                        t.sc_0643,
+                                        t.sc_0644,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22048,16 +22085,16 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Çiftler Rekabetçi kuralları */}
                             {!f.pollEnabled && f.type === '2' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Rekabetçi Kuralları</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>{t.sc_0645}</Text>
                                     {[
-                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken ELO puanı birbirine en yakın olanlarla eşleştirilerek takım yapılır. Tek kalan en düşük ELO puanlı oyuncu turnuvaya katılım sağlayamaz.',
-                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
-                                        'Her takımın 1 kez joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
-                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
-                                        'Takımların ELO puan ortalaması alınır ve play-off\'lara kadar kaç maç seçildiyse, her takım diğer her takımla en fazla bir kez eşleşecek şekilde, ortalama puanı en yakın olandan başlanarak her turda rakip eşleşmesi sağlanır.',
-                                        'Play-off öncesi lig tablosunda puanı eşit olan takımlar varsa averaj (oynanan oyun oranı) dikkate alınır.',
-                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
+                                        t.sc_0646,
+                                        t.sc_0647,
+                                        t.sc_0648,
+                                        t.sc_0649,
+                                        t.sc_0650,
+                                        t.sc_0651,
+                                        t.sc_0652,
+                                        t.sc_0653,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22070,15 +22107,15 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Bireysel Antrenman kuralları */}
                             {!f.pollEnabled && f.type === '3' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Bireysel Antrenman Kuralları</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>{t.sc_0654}</Text>
                                     {[
-                                        'Oyuncular bireysel katılır.',
-                                        'Kura çekildiğinde her tur rastgele oyuncular eşleşilir ve play-off\'lara kadar kimin kiminle maç yapacağı bellidir.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; sadece iki taraf da karşılıklı yaptığı için joker hakları tükenmez.',
-                                        'Aynı puanlı oyuncular play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan oyuncular varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan oyuncular henüz oynamadıkları, puanı en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                        'Oyuncular isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
+                                        t.sc_0655,
+                                        t.sc_0656,
+                                        t.sc_0641,
+                                        t.sc_0642,
+                                        t.sc_0643,
+                                        t.sc_0644,
+                                        t.sc_0657,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22091,17 +22128,17 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             {/* Çiftler Antrenman kuralları */}
                             {!f.pollEnabled && f.type === '4' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
-                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 Çiftler Antrenman Kuralları</Text>
+                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>{t.sc_0658}</Text>
                                     {[
-                                        'Oyuncular turnuvaya çift olarak (takım halinde) katılabilir ya da bireysel başvurabilir — bireysel başvuranlar turnuva başlarken rastgele eşleştirilerek takım yapılır. Eşi bulunamayan oyuncu turnuvaya katılım sağlayamaz.',
-                                        'Karışık (mix) turnuvalarda bireysel katılımcılardan sistem aynı takımda iki kadın oluşturacak şekilde eşleşme yapmaz.',
-                                        'Her takımın 1 joker hakkı vardır. Haftada bir maç zorunluluğu olup joker hakkı kullanılırsa takıma +7 gün ek süre tanınır. Joker kullanan takım bu sürede maçı bitirmek için gerekli tavizi vermekle yükümlüdür; bitiremezse joker kullanan takım hükmen yenilir.',
-                                        'Jokeri kullanan takımın rakibi de aynı maç için karşılıklı joker yaparsa joker hakkı tükenmez, sadece 7 günlük süre bir kez eklenmiş olur (hava şartları, kort temin edilememesi vb. durumlar için).',
-                                        'Kura çekildiğinde her tur rastgele takımlar eşleşilir ve play-off\'lara kadar hangi takımın hangi takımla maç yapacağı bellidir.',
-                                        'Aynı puanlı takımlar play-off\'a geldiğinde averajı (galibiyet oyunu / toplam oyun) yüksek olan önce alınır.',
-                                        'Play-off kontenjanı sınırında puan, averaj, set oranı ve oyun oranının tamamı eşit olan takımlar varsa, kura çekilmeden önce bir tur daha eklenir; eşitliğe karışan takımlar henüz oynamadıkları, ortalama ELO\'su en yakın rakiplerle eşleştirilir. Eşitlik bozulana kadar bu tekrarlanır; kura yalnızca uygun eşleşme kalmadığında son çare olarak kullanılır.',
-                                        'Bir takım kazandığında/kaybettiğinde iki oyuncu da bireysel olarak ELO puanı kazanır/kaybeder — miktar, diğer rekabetçi maçlarla aynı puan tablosu kullanılarak iki takımın ortalama ELO farkına göre belirlenir.',
-                                        'Takımlar isterlerse iki taraf içinde müsaitlik durumu söz konusu ise yapacakları maçlar için iletişime geçerek daha erken maçlarını tamamlamak isterlerse tamamlayabilirler.',
+                                        t.sc_0659,
+                                        t.sc_0647,
+                                        t.sc_0660,
+                                        t.sc_0649,
+                                        t.sc_0661,
+                                        t.sc_0662,
+                                        t.sc_0653,
+                                        t.sc_0652,
+                                        t.sc_0663,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22116,13 +22153,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_swiss}</Text>
                                     {[
-                                        'Oyuncular bireysel katılır. İlk tur ELO\'ya yakınlığa göre, sonraki turlar güncel puana (ve averaja) göre eşleştirilir — benzer sıralamadakiler karşılaşır.',
-                                        'Aynı iki oyuncu mümkün olduğunca birden fazla kez eşleşmez. Tek sayı oyuncu varsa en düşük sıralı (henüz bye almamış tercih) bye alır; bye +3 puan / +1 galibiyet sayılır.',
-                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa yaklaşık log₂(oyuncu sayısı) tur oynanır. Play-off yoktur — sıralama final tablosuna göre belirlenir.',
-                                        'Sıralama: puan → averaj (kazanılan oyun / toplam oyun) → set oranı → oyun oranı → sabit kura.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
-                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Anlaşma için maç kartındaki yorum bölümü kullanılır; skor karşılıklı onaylanır.',
+                                        t.sc_0664,
+                                        t.sc_0665,
+                                        t.sc_0666,
+                                        t.sc_0667,
+                                        t.sc_0641,
+                                        t.sc_0668,
+                                        t.sc_0669,
                                     ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22137,13 +22174,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_double_elim}</Text>
                                     {[
-                                        'Oyuncular bireysel katılır. En az 4 oyuncu gerekir. Kura ELO sıralamasına göre çekilir; eksik kontenjan bye ile tamamlanır.',
-                                        'Kazananlar kurası (üst bracket) ve kaybedenler kurası (alt bracket) vardır. Bir yenilgide alt kuraya düşersin; iki yenilgide elenirsin.',
-                                        'Üst kura şampiyonu ile alt kura şampiyonu Büyük Final\'de karşılaşır. Alt kura şampiyonu kazanırsa bir reset (ikinci) büyük final maçı oynanır.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan oyuncu hükmen yenilir.',
-                                        'İki oyuncu da aynı maç için joker kullanır ya da karşılıklı joker yaparsa +7 +7 değil sadece +7 olarak uzar; karşılıklı olduğu için joker hakları tükenmez.',
-                                        'Maçlar rekabetçidir; galibiyet/mağlubiyet ELO puanını etkiler. Skor karşılıklı onaylanır.',
-                                        'Play-off öncesi lig turu yoktur — tüm turnuva eleme formatındadır.',
+                                        t.sc_0670,
+                                        t.sc_0671,
+                                        t.sc_0672,
+                                        t.sc_0641,
+                                        t.sc_0668,
+                                        t.sc_0673,
+                                        t.sc_0674,
                                     ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22163,13 +22200,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_americano}</Text>
                                     {[
-                                        'Oyuncular bireysel katılır (sabit partner yok). En az 4 oyuncu gerekir. Her tur geçici 2v2 çiftler oluşturulur; partner her tur değişir.',
-                                        'Mümkün olduğunca aynı kişiyle tekrar partner olunmaz ve aynı rakiplerle tekrar karşılaşılmaz. Oyuncu sayısı 4\'ün katı değilse oturanlar turlar arasında dönüşümlü seçilir.',
-                                        'Sıralama bireyseldir: her oyuncu, o turda takımının kazandığı oyun (game) sayısını puan olarak biriktirir. Play-off yoktur — en yüksek puanlılar önde biter.',
-                                        'Tur sayısı organizatörün seçtiği değerdir; boş bırakılırsa oyuncu sayısına göre (üst sınır 7) otomatik belirlenir.',
-                                        'Her oyuncunun 1 joker hakkı vardır. Haftada 1 maç zorunludur. Joker kullanılan maça +7 gün ek süre tanınır; süre dolmasına rağmen maç bitmezse joker kullanan taraf hükmen yenilir.',
-                                        'Karşılıklı joker yapılırsa süre bir kez +7 uzar; joker hakları tükenmez.',
-                                        'Tenis/padel\'de çiftler puanı (Ç ELO) kullanılır. Skor karşılıklı onaylanır.',
+                                        t.sc_0675,
+                                        t.sc_0676,
+                                        t.sc_0677,
+                                        t.sc_0678,
+                                        t.sc_0679,
+                                        t.sc_0680,
+                                        t.sc_0681,
                                     ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -22233,7 +22270,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
                                         {isAirsoft
                                             ? (lang==='tr' ? '🤝 Takımlar ortaklaşa mekan seçecek' : lang === 'ru' ? '🤝 Команды совместно согласуют место' : lang === 'de' ? '🤝 Teams einigen sich gemeinsam' : '🤝 Teams agree jointly')
-                                            : (t.tournCourtNoSpecific || 'Belirli kort yok')}
+                                            : (t.tournCourtNoSpecific || t.sc_0682)}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
@@ -22483,7 +22520,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </Text>
                                         <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.teamSize ? cfg.color : colors.border }}>
                                             <Text style={{ color: f.teamSize ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                                {f.teamSize ? `${f.teamSize}v${f.teamSize}` : t.tournSelectPlaceholder}
+                                                {f.teamSize ? t.sc_0345(f.teamSize, f.teamSize) : t.tournSelectPlaceholder}
                                             </Text>
                                         </View>
                                     </TouchableOpacity>
@@ -22511,7 +22548,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         <Text style={{ color: (f.ratingGenderSplit ? (f.minRatingMale || f.maxRatingMale || f.minRatingFemale || f.maxRatingFemale) : (f.minRating || f.maxRating)) ? cfg.color : colors.textSecondary, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
                                             {f.ratingGenderSplit
                                                 ? `👨${f.minRatingMale || '0'}-${f.maxRatingMale || '5'} 👩${f.minRatingFemale || '0'}-${f.maxRatingFemale || '5'}`
-                                                : ((!f.minRating && !f.maxRating) ? 'Serbest' : `${f.minRating || '0'}-${f.maxRating || '5'}`)}
+                                                : ((!f.minRating && !f.maxRating) ? t.sc_0683 : `${f.minRating || '0'}-${f.maxRating || '5'}`)}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
@@ -22682,25 +22719,25 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
                             {/* Payment options — only when paid */}
                             {f.isPaid && (<>
-                                <Text style={s.fieldLabelRed}>Turnuva Katılım Ücreti (₺)</Text>
+                                <Text style={s.fieldLabelRed}>{t.sc_0684}</Text>
                                 <TextInput
                                     style={[s.fieldInput, ti, { marginBottom:10 }]}
                                     value={f.playerFee}
                                     onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
                                     keyboardType="numeric" maxLength={8}
-                                    placeholder="örn. 150"
+                                    placeholder={t.sc_0685}
                                     placeholderTextColor={colors.textMuted} />
 
-                                <Text style={[s.fieldLabelRed, { marginTop:4 }]}>Ödeme Yöntemi</Text>
+                                <Text style={[s.fieldLabelRed, { marginTop:4 }]}>{t.sc_0283}</Text>
                                 {/* Online payment — disabled */}
                                 <View style={{ opacity:0.4, marginBottom:6 }}>
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:7, borderWidth:1, borderColor: colors.border }}>
                                         <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
                                             <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border }} />
-                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>🌐 Online Ödeme</Text>
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0686}</Text>
                                         </View>
                                         <View style={{ backgroundColor:'#334155', borderRadius:6, paddingHorizontal:3, paddingVertical:0 }}>
-                                            <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>Yakında</Text>
+                                            <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>{t.sc_0687}</Text>
                                         </View>
                                     </View>
                                 </View>
@@ -22711,7 +22748,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='EFT' ? '#60a5fa' : colors.border, backgroundColor: f.paymentMethod==='EFT' ? '#60a5fa' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                                         {f.paymentMethod==='EFT' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#1e40af' }} />}
                                     </View>
-                                    <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>🏦 EFT ile Ödeme</Text>
+                                    <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0688}</Text>
                                 </TouchableOpacity>
                                 {/* Cash — only when a specific court is chosen */}
                                 {!f.courtDecidedByPlayers && (
@@ -22721,13 +22758,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='CASH' ? '#4ade80' : colors.border, backgroundColor: f.paymentMethod==='CASH' ? '#4ade80' : 'transparent', alignItems:'center', justifyContent:'center' }}>
                                         {f.paymentMethod==='CASH' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#14532d' }} />}
                                     </View>
-                                    <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>💵 Kortta Nakit Ödeme</Text>
+                                    <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0689}</Text>
                                 </TouchableOpacity>
                                 )}
 
                                 {/* EFT fields */}
                                 {f.paymentMethod === 'EFT' && (<>
-                                    <Text style={s.fieldLabelRed}>IBAN Numarası</Text>
+                                    <Text style={s.fieldLabelRed}>{t.sc_0690}</Text>
                                     <TextInput
                                         style={[s.fieldInput, ti]}
                                         value={f.ibanNumber}
@@ -22735,12 +22772,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         placeholder="TR00 0000 0000 0000 0000 0000 00"
                                         placeholderTextColor={colors.textMuted}
                                         autoCapitalize="characters" maxLength={32} />
-                                    <Text style={s.fieldLabelRed}>Hesap Sahibi (Ad Soyad)</Text>
+                                    <Text style={s.fieldLabelRed}>{t.sc_0691}</Text>
                                     <TextInput
                                         style={[s.fieldInput, ti]}
                                         value={f.ibanHolder}
                                         onChangeText={v => set('ibanHolder', v)}
-                                        placeholder="Ad Soyad"
+                                        placeholder={t.sc_0692}
                                         placeholderTextColor={colors.textMuted}
                                         autoCapitalize="words" />
                                 </>)}
@@ -22821,7 +22858,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
             />
             <TimePickerModal
                 visible={ratingField === 'timeStart' || ratingField === 'timeEnd'}
-                title={ratingField === 'timeStart' ? '⏰ En Erken Maç Saati' : '⏰ En Geç Maç Saati'}
+                title={ratingField === 'timeStart' ? t.sc_0693 : t.sc_0694}
                 value={ratingField === 'timeStart' ? f.matchTimeStart : f.matchTimeEnd}
                 onSelect={(v) => { set(ratingField === 'timeStart' ? 'matchTimeStart' : 'matchTimeEnd', v); setRatingField(null); }}
                 onClose={() => setRatingField(null)}
@@ -22833,7 +22870,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 // ─── Puan Bilgilendirme Modali ────────────────────────────────────────────────
 
 const RATING_DOM = [
-    { range:'0.03 ve altı',  lowWin:'0.03',  lowLose:'0.02',   highWin:'0.02',   highLose:'0.03'  },
+    { rangeKey:'sc_range_low', range:'0.03 ve altı',  lowWin:'0.03',  lowLose:'0.02',   highWin:'0.02',   highLose:'0.03'  },
     { range:'0.03 – 0.05',   lowWin:'0.04',  lowLose:'0.0175', highWin:'0.0175', highLose:'0.04'  },
     { range:'0.05 – 0.10',   lowWin:'0.05',  lowLose:'0.03',   highWin:'0.03',   highLose:'0.05'  },
     { range:'0.10 – 0.25',   lowWin:'0.10',  lowLose:'0.05',   highWin:'0.05',   highLose:'0.10'  },
@@ -22844,7 +22881,7 @@ const RATING_DOM = [
     { range:'2.00+',         lowWin:'2.00',  lowLose:'0.005',  highWin:'0.005',  highLose:'2.00'  },
 ];
 const RATING_REC = [
-    { range:'0.03 ve altı',  lowWin:'0.03',  lowLose:'0.0175', highWin:'0.0175', highLose:'0.03'  },
+    { rangeKey:'sc_range_low', range:'0.03 ve altı',  lowWin:'0.03',  lowLose:'0.0175', highWin:'0.0175', highLose:'0.03'  },
     { range:'0.03 – 0.05',   lowWin:'0.02',  lowLose:'0.0125', highWin:'0.0125', highLose:'0.02'  },
     { range:'0.05 – 0.10',   lowWin:'0.035', lowLose:'0.015',  highWin:'0.015',  highLose:'0.035' },
     { range:'0.10 – 0.25',   lowWin:'0.06',  lowLose:'0.03',   highWin:'0.03',   highLose:'0.06'  },
@@ -22856,7 +22893,8 @@ const RATING_REC = [
 ];
 
 function RatingInfoModal({ visible, onClose, cfg, sub }) {
-    const isVolleyball = sub === 'volleyball';
+        const t = useT();
+const isVolleyball = sub === 'volleyball';
     // Tenis/Padel artık sabit tablolu eski Elo sistemini değil, UTR benzeri (son 30 maçın
     // ağırlıklı ortalaması) sistemi kullanıyor — bkz. backend/src/utils/utrRating.js.
     // Badminton/masa tenisi de aynı UTR listesine alındı (kullanıcı isteği).
@@ -22866,8 +22904,8 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
     // Tenis skoru (6-0 vb.) voleybolde anlamsız — voleybolde dominantlık SET FARKINA göre
     // belirlenir (bkz. backend applyCompetitivePoints): fark ≥2 set dominant, fark 1 set rekabetçi.
     const label = isVolleyball
-        ? (section === 'dominant' ? '🏆 DOMİNANT  (ör. 3-0, 4-1, 5-0 — set farkı 2+)' : '⚔️ REKABETÇİ  (ör. 2-1, 3-2 — set farkı 1)')
-        : (section === 'dominant' ? '🏆 DOMİNANT  (6-0, 6-1, 6-2)' : '⚔️ REKABETÇİ  (6-3, 6-4, 7-5)');
+        ? (section === 'dominant' ? t.sc_dom_vb : t.sc_rec_vb)
+        : (section === 'dominant' ? t.sc_dom_set : t.sc_rec_set);
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -22875,7 +22913,7 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'92%', paddingBottom:24 }}>
                     {/* Başlık */}
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor: colors.border }}>
-                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{isVolleyball ? '🏐 Voleybol Kuralları & Puan Sistemi' : isUtrSport ? '📊 Derece Puanı Nasıl İşliyor?' : '📊 Rekabetçi Maç Puan Sistemi'}</Text>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{isVolleyball ? t.sc_0695 : isUtrSport ? t.sc_0696 : t.sc_0697}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:18, fontWeight:'700' }}>✕</Text></TouchableOpacity>
                     </View>
 
@@ -22883,9 +22921,9 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                     {section !== 'kalibrasyon' && section !== 'kurallar' && !isUtrSport && (
                         <View style={{ paddingHorizontal:14, paddingTop:10, paddingBottom:8 }}>
                             <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:18 }}>
-                                Puanlar oyuncular arasındaki <Text style={{ color:'#fbbf24', fontWeight:'800' }}>FARK</Text>'a ve maç tipine göre değişir.{'\n'}
-                                <Text style={{ color:'#4ade80', fontWeight:'700' }}>Yeşil</Text> = kazanılan puan  ·  <Text style={{ color:'#f87171', fontWeight:'700' }}>Kırmızı</Text> = kaybedilen puan
-                                {isVolleyball ? ' (takım maçlarında iki takımın ortalama derece puanına göre hesaplanır.)' : ''}
+                                {t.sc_0698} <Text style={{ color:'#fbbf24', fontWeight:'800' }}>{t.sc_gap_word}</Text>{t.sc_0699}{'\n'}
+                                <Text style={{ color:'#4ade80', fontWeight:'700' }}>{t.sc_0700}</Text> {t.sc_0701}  <Text style={{ color:'#f87171', fontWeight:'700' }}>{t.sc_0702}</Text> {t.sc_0703}
+                                {isVolleyball ? t.sc_0704 : ''}
                             </Text>
                         </View>
                     )}
@@ -22893,9 +22931,9 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                     {/* Segment: (Voleybolde ek "Kurallar") Tenis/Padel'de Sistem/Puan, digerlerinde Dominant/Rekabetçi — hepsinde Kalibrasyon */}
                     <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10, marginTop: (section === 'kalibrasyon' || section === 'kurallar') ? 10 : 0, flexWrap:'wrap' }}>
                         {[
-                            ...(isVolleyball ? [['kurallar','📋 Kurallar']] : []),
-                            ...(isUtrSport ? [['sistem','📈 Sistem'], ['kazanKaybet','⚖️ Puan']] : [['dominant','🏆 Dominant'], ['rekabetci','⚔️ Rekabetçi']]),
-                            ['kalibrasyon','🎯 Kalibrasyon'],
+                            ...(isVolleyball ? [['kurallar',t.sc_0705]] : []),
+                            ...(isUtrSport ? [['sistem',t.sc_0706], ['kazanKaybet',t.sc_0707]] : [['dominant',t.sc_0708], ['rekabetci',t.sc_0709]]),
+                            ['kalibrasyon',t.sc_0710],
                         ].map(([key, lbl]) => (
                             <TouchableOpacity key={key} onPress={() => setSection(key)}
                                 style={{ flex:1, minWidth:'23%', paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: section===key ? cfg.color : colors.surface2, borderWidth:1, borderColor: section===key ? cfg.color : colors.border }}>
@@ -22909,46 +22947,46 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                             <View style={{ backgroundColor:'#ef444412', borderRadius:12, borderWidth:1, borderColor:'#ef444440', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🚫</Text>
-                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Gelmeme (No-Show) Cezası</Text>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0711}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Maça <Text style={{ color:'#fff', fontWeight:'800' }}>mazeretsiz gelmeyen</Text> bir oyuncu diğer katılımcılar tarafından bildirilebilir. Bildirim admin tarafından onaylanırsa:
+                                    {t.sc_0712} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0713}</Text> {t.sc_0714}
                                 </Text>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21, marginTop:6 }}>
-                                    • Derece puanından <Text style={{ color:'#f87171', fontWeight:'800' }}>0.20 puan</Text> kesilir.{'\n'}
-                                    • Mazeret sunulmadığı için <Text style={{ color:'#f87171', fontWeight:'800' }}>3 maç boyunca yeni bir maça katılım engeli</Text> uygulanabilir.
+                                    {t.sc_0715} <Text style={{ color:'#f87171', fontWeight:'800' }}>{t.sc_0716}</Text> {t.sc_0717}{'\n'}
+                                    {t.sc_0718} <Text style={{ color:'#f87171', fontWeight:'800' }}>{t.sc_0719}</Text> {t.sc_0720}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#fbbf2412', borderRadius:12, borderWidth:1, borderColor:'#fbbf2440', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🧩</Text>
-                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Takım Ortalaması</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0721}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Rekabetçi maçlarda puan değişimi <Text style={{ color:'#fff', fontWeight:'800' }}>iki takımın ortalama derece puanı</Text> karşılaştırılarak hesaplanır (kadro kartında her oyuncunun yanında ve takım başlığının yanında görebilirsin). Aşağıdaki Dominant/Rekabetçi sekmelerindeki tablo, bu iki ortalama arasındaki <Text style={{ color:'#fff', fontWeight:'800' }}>farka</Text> göre okunur.
+                                    {t.sc_0722} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0723}</Text> {t.sc_0724} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0725}</Text> {t.sc_0726}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🎯</Text>
-                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Takım Bazlı Kalibrasyon Koruması</Text>
+                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0727}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Kazanan takımın ortalama derece puanı, kaybeden takımınkinden <Text style={{ color:'#fff', fontWeight:'800' }}>1.0 puan veya daha fazla düşükse</Text> (ör. kazanan takım ortalaması 0.20, kaybeden 1.30), bu sonuç şüpheli kabul edilir — muhtemelen anket yanlış cevaplanmış ya da kadroya seviyesi uygun olmayan bir oyuncu eklenmiştir.{'\n\n'}
-                                    Bu durumda <Text style={{ color:'#f87171', fontWeight:'800' }}>kazanan takımın hiçbiri puan kazanmaz</Text> (voleybolde bu, tenis/padel'den farklı olarak sadece yeni ankete girenlerle sınırlı değil, TÜM kazanan takıma uygulanır) ve herkes derecelendirme anketine tekrar yönlendirilir.
+                                    {t.sc_0728} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0729}</Text> {t.sc_0730}{'\n\n'}
+                                    {t.sc_0731} <Text style={{ color:'#f87171', fontWeight:'800' }}>{t.sc_0732}</Text> {t.sc_0733}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#4ade8012', borderRadius:12, borderWidth:1, borderColor:'#4ade8040', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🏐</Text>
-                                    <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Antrenman vs Rekabetçi</Text>
+                                    <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0734}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    <Text style={{ color:'#fff', fontWeight:'800' }}>Antrenman</Text> modundaki maçlarda derece puanı değişmez, uygulamada kayıtlı olmayan oyuncular da kadroya eklenebilir.{'\n'}
-                                    <Text style={{ color:'#fff', fontWeight:'800' }}>Rekabetçi</Text> modda ise sadece uygulamaya kayıtlı (derece puanı olan) oyuncular kadroya eklenebilir, maç sonunda puan kazanılır/kaybedilir.
+                                    <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0735}</Text> {t.sc_0736}{'\n'}
+                                    <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0737}</Text> {t.sc_0738}
                                 </Text>
                             </View>
 
@@ -22958,13 +22996,13 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                         <ScrollView showsVerticalScrollIndicator={false} style={{ paddingHorizontal:14 }}>
                             {/* Kalibrasyon açıklama kartı */}
                             <View style={{ backgroundColor:'#fbbf2412', borderRadius:14, borderWidth:1, borderColor:'#fbbf2440', padding:14, marginBottom:12 }}>
-                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'900', marginBottom:8 }}>🎯 Derece Kalibrasyon Koruması</Text>
+                                <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'900', marginBottom:8 }}>{t.sc_0739}</Text>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
                                     {isVolleyball ? (
-                                        <>Voleybolde bu koruma <Text style={{ color:'#fbbf24', fontWeight:'800' }}>takım bazında</Text>, her maçta değerlendirilir (tenis/padel'deki gibi sadece anketten sonraki ilk 3 maçla sınırlı değildir):</>
+                                        <>{t.sc_0740} <Text style={{ color:'#fbbf24', fontWeight:'800' }}>{t.sc_0741}</Text>{t.sc_0742}</>
                                     ) : (
-                                        <>Bir oyuncu <Text style={{ color:'#fff', fontWeight:'800' }}>derecelendirme anketini</Text> tamamladıktan sonra rekabetçi modda oynadığı{' '}
-                                        <Text style={{ color:'#fbbf24', fontWeight:'800' }}>ilk 3 maçta</Text> şu koşul değerlendirilir:</>
+                                        <>{t.sc_0743} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0744}</Text> {t.sc_0745}{' '}
+                                        <Text style={{ color:'#fbbf24', fontWeight:'800' }}>{t.sc_0746}</Text> {t.sc_0747}</>
                                     )}
                                 </Text>
                             </View>
@@ -22973,13 +23011,13 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:10 }}>
                                     <Text style={{ fontSize:18 }}>⚠️</Text>
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>
-                                        Tetikleyici Koşul
+                                        {t.sc_0748}
                                     </Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
                                     {isVolleyball
-                                        ? <>Kazanan takımın ortalaması, kaybeden takımınkinden <Text style={{ color:'#fbbf24', fontWeight:'800' }}>1 puan veya daha fazla düşükse</Text> (ör. 0.20'ye karşı 1.30) sistem bu sonucu şüpheli kabul eder — anket yanlış cevaplanmış ya da kadroya seviyesi uygun olmayan bir oyuncu eklenmiş olabilir.</>
-                                        : <>Oyuncu bireysel ve/veya takım olarak <Text style={{ color:'#fbbf24', fontWeight:'800' }}>ortalama derece puanından 1 puan veya daha fazla fark</Text> ile kazanıyorsa sistem bu maçın derecesinin yanlış hesaplandığını tespit eder.</>
+                                        ? <>{t.sc_0749} <Text style={{ color:'#fbbf24', fontWeight:'800' }}>{t.sc_0750}</Text> {t.sc_0751}</>
+                                        : <>{t.sc_0752} <Text style={{ color:'#fbbf24', fontWeight:'800' }}>{t.sc_0753}</Text> {t.sc_0754}</>
                                     }
                                 </Text>
                             </View>
@@ -22988,11 +23026,11 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🚫</Text>
                                     <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>
-                                        Puan Sayılmaz
+                                        {t.sc_0755}
                                     </Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Bu durumda maç sonucundan <Text style={{ color:'#f87171', fontWeight:'800' }}>kazanılan/kaybedilen hiçbir puan uygulanmaz.</Text> Oyuncu ve rakip için derece puanları değişmez.
+                                    {t.sc_0756} <Text style={{ color:'#f87171', fontWeight:'800' }}>{t.sc_0757}</Text> {t.sc_0758}
                                 </Text>
                             </View>
 
@@ -23000,18 +23038,18 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🔄</Text>
                                     <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>
-                                        Ankete Yönlendirme
+                                        {t.sc_0759}
                                     </Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    {isVolleyball ? 'Kazanan takımın tamamı' : 'Oyuncu'} doğru derece puanlaması yapılabilmesi için <Text style={{ color:'#4ade80', fontWeight:'800' }}>otomatik olarak derecelendirme anketine yönlendirilir</Text> ve anketi yeniden tamamlaması istenir.
+                                    {isVolleyball ? t.sc_0760 : t.sc_0434} {t.sc_0761} <Text style={{ color:'#4ade80', fontWeight:'800' }}>{t.sc_0762}</Text> {t.sc_0763}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:16 }}>
-                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginBottom:6 }}>💡 Neden böyle?</Text>
+                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginBottom:6 }}>{t.sc_0764}</Text>
                                 <Text style={{ color: colors.textMuted, fontSize:12, lineHeight:19 }}>
-                                    Anket cevapları oyuncunun gerçek seviyesini her zaman tam yansıtmayabilir. Bu koruma sistemi, yanlış derece ile başlayan oyuncuların rakiplerini etkilemesini önler ve tüm oyuncular için adil bir rekabet ortamı sağlar.
+                                    {t.sc_0765}
                                 </Text>
                             </View>
                         </ScrollView>
@@ -23020,42 +23058,42 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                             <View style={{ backgroundColor:'#38bdf812', borderRadius:12, borderWidth:1, borderColor:'#38bdf840', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🧮</Text>
-                                    <Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Sabit Tablo Yok, Sürekli Güncellenen Ortalama</Text>
+                                    <Text style={{ color:'#38bdf8', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0766}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Derece puanın, eski sistemdeki gibi sabit bir puan tablosuna göre değil, <Text style={{ color:'#fff', fontWeight:'800' }}>son 12 ay içindeki en fazla 30 maçının ağırlıklı ortalamasına</Text> göre sürekli yeniden hesaplanır. Yani puanın tek bir maçla değil, güncel performansınla şekillenir.
+                                    {t.sc_0767} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0768}</Text> {t.sc_0769}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🎾</Text>
-                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Maç Performans Puanı</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0770}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Her maç, rakibine göre sergilediğin performansı yansıtan bir puana çevrilir. Rakibini <Text style={{ color:'#4ade80', fontWeight:'800' }}>ne kadar farklı skorla</Text> (ör. 6-1, 6-0) yenersen, o maçtaki performans puanın o kadar yüksek çıkar. Yakın skorla kazanmak (7-6, 6-4) ya da kaybetmek, performansını rakibinin puanına daha yakın tutar.
+                                    {t.sc_0771} <Text style={{ color:'#4ade80', fontWeight:'800' }}>{t.sc_0772}</Text> {t.sc_0773}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#fbbf2412', borderRadius:12, borderWidth:1, borderColor:'#fbbf2440', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>⚖️</Text>
-                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Her Maç Aynı Ağırlıkta Değil</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0774}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>Yakın zamanda</Text> oynanan maçlar daha ağır basar — 12 aydan eski bir maçın etkisi tamamen sıfırlanır.{'\n'}
-                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>3 set gibi uzun</Text> süren maçlar, tek setlik bir maça göre daha belirleyicidir.{'\n'}
-                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>Az maç oynamış</Text> (güvenilirliği henüz düşük) bir rakibe karşı alınan sonucun etkisi azaltılır.
+                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0775}</Text> {t.sc_0776}{'\n'}
+                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0777}</Text> {t.sc_0778}{'\n'}
+                                    • <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0779}</Text> {t.sc_0780}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:16 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🎾🆚🥎</Text>
-                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Tekli / Çiftler Ayrı Puanlanır</Text>
+                                    <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0781}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Tekli ve çiftler maçlarının derece puanı tamamen ayrı hesaplanır ve gösterilir — tekilerde iyi olman çiftler puanını, çiftlerde iyi olman da tekiler puanını doğrudan etkilemez.
+                                    {t.sc_0782}
                                 </Text>
                             </View>
                         </ScrollView>
@@ -23064,47 +23102,47 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                             <View style={{ backgroundColor:'#fbbf2412', borderRadius:12, borderWidth:1, borderColor:'#fbbf2440', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>⚖️</Text>
-                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Sabit "+X / -Y" Tablosu Yok</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0783}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Kazandığında ne kadar puan alacağın ya da kaybettiğinde ne kadar kaybedeceğin sabit değildir — aşağıdaki faktörlere göre değişir.
+                                    {t.sc_0784}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#4ade8012', borderRadius:12, borderWidth:1, borderColor:'#4ade8040', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>📈</Text>
-                                    <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Güçlü Rakibi Yenersen</Text>
+                                    <Text style={{ color:'#4ade80', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0785}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Senden <Text style={{ color:'#fff', fontWeight:'800' }}>yüksek derece puanlı</Text> bir rakibi yenmek beklenenin üzerinde bir sonuç olduğu için puanını belirgin şekilde yükseltir. Ne kadar farklı skorla kazanırsan (ör. 6-1, 6-2), etkisi o kadar büyük olur.
+                                    {t.sc_0786} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0787}</Text> {t.sc_0788}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#ef444412', borderRadius:12, borderWidth:1, borderColor:'#ef444440', padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>📉</Text>
-                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Zayıf Rakibe Kaybedersen</Text>
+                                    <Text style={{ color:'#f87171', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0789}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Senden <Text style={{ color:'#fff', fontWeight:'800' }}>düşük derece puanlı</Text> bir rakibe kaybetmek de beklenenin dışında bir sonuç olduğu için puanını belirgin şekilde düşürür.
+                                    {t.sc_0786} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0790}</Text> {t.sc_0791}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor: colors.surface2, borderRadius:12, borderWidth:1, borderColor: colors.border, padding:12, marginBottom:12 }}>
                                 <View style={{ flexDirection:'row', alignItems:'flex-start', gap:3, marginBottom:8 }}>
                                     <Text style={{ fontSize:18 }}>🤏</Text>
-                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>Beklenen Sonuçların Etkisi Az</Text>
+                                    <Text style={{ color:'#fff', fontSize:13, fontWeight:'800', flex:1, lineHeight:20 }}>{t.sc_0792}</Text>
                                 </View>
                                 <Text style={{ color: colors.textSecondary, fontSize:13, lineHeight:21 }}>
-                                    Yaklaşık aynı seviyedeki bir rakibe karşı, tahmin edilebilir/yakın bir sonuç (kazan ya da kaybet) puanını çok az değiştirir. <Text style={{ color:'#fff', fontWeight:'800' }}>Sürpriz sonuçlar</Text> puanını çok daha fazla değiştirir.
+                                    {t.sc_0793} <Text style={{ color:'#fff', fontWeight:'800' }}>{t.sc_0794}</Text> {t.sc_0795}
                                 </Text>
                             </View>
 
                             <View style={{ backgroundColor:'#a855f712', borderRadius:12, borderWidth:1, borderColor:'#a855f740', padding:12, marginBottom:16 }}>
-                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginBottom:6 }}>💡 Tek maç her şeyi değiştirmez</Text>
+                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800', marginBottom:6 }}>{t.sc_0796}</Text>
                                 <Text style={{ color: colors.textMuted, fontSize:12, lineHeight:19 }}>
-                                    Puanın son 30 maçının ortalamasına dayandığı için tek bir maç sonucu derece puanını aniden çok fazla değiştirmez — puanın zamanla, oynadığın maçların genel gidişatını yansıtır.
+                                    {t.sc_0797}
                                 </Text>
                             </View>
                         </ScrollView>
@@ -23113,16 +23151,16 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
                             <Text style={{ color: colors.textMuted, fontSize:10, textAlign:'center', marginBottom:8 }}>{label}</Text>
                             {/* Tablo başlığı */}
                             <View style={{ flexDirection:'row', backgroundColor: colors.surface2, borderRadius:8, padding:6, marginBottom:4 }}>
-                                <Text style={{ flex:1.4, color: colors.textMuted, fontSize:9, fontWeight:'800' }}>FARK</Text>
-                                <Text style={{ flex:1, color:'#4ade80', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬆ Düşük{'\n'}Kazanır</Text>
-                                <Text style={{ flex:1, color:'#f87171', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬇ Düşük{'\n'}Kaybeder</Text>
-                                <Text style={{ flex:1, color:'#4ade80', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬆ Yüksek{'\n'}Kazanır</Text>
-                                <Text style={{ flex:1, color:'#f87171', fontSize:9, fontWeight:'800', textAlign:'center' }}>⬇ Yüksek{'\n'}Kaybeder</Text>
+                                <Text style={{ flex:1.4, color: colors.textMuted, fontSize:9, fontWeight:'800' }}>{t.sc_gap_word}</Text>
+                                <Text style={{ flex:1, color:'#4ade80', fontSize:9, fontWeight:'800', textAlign:'center' }}>{t.sc_0798}{'\n'}{t.sc_0799}</Text>
+                                <Text style={{ flex:1, color:'#f87171', fontSize:9, fontWeight:'800', textAlign:'center' }}>{t.sc_0800}{'\n'}{t.sc_0801}</Text>
+                                <Text style={{ flex:1, color:'#4ade80', fontSize:9, fontWeight:'800', textAlign:'center' }}>{t.sc_0802}{'\n'}{t.sc_0799}</Text>
+                                <Text style={{ flex:1, color:'#f87171', fontSize:9, fontWeight:'800', textAlign:'center' }}>{t.sc_0803}{'\n'}{t.sc_0801}</Text>
                             </View>
 
                             {rows.map((r, i) => (
                                 <View key={i} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, paddingHorizontal:6, borderRadius:8, marginBottom:2, backgroundColor: i%2===0 ? '#ffffff06' : 'transparent', borderWidth:1, borderColor: colors.border+'44' }}>
-                                    <Text style={{ flex:1.4, color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>{r.range}</Text>
+                                    <Text style={{ flex:1.4, color: colors.textSecondary, fontSize:10, fontWeight:'700' }}>{r.rangeKey ? t[r.rangeKey] : r.range}</Text>
                                     <Text style={{ flex:1, color:'#4ade80', fontSize:11, fontWeight:'800', textAlign:'center' }}>+{r.lowWin}</Text>
                                     <Text style={{ flex:1, color:'#f87171', fontSize:11, fontWeight:'800', textAlign:'center' }}>-{r.lowLose}</Text>
                                     <Text style={{ flex:1, color:'#4ade80', fontSize:11, fontWeight:'800', textAlign:'center' }}>+{r.highWin}</Text>
@@ -23142,7 +23180,8 @@ function RatingInfoModal({ visible, onClose, cfg, sub }) {
 // ─── Günün Tenisçisi / Günün Padelcıları (Digimon kart) ────────────────────────
 
 function SpotlightTierRow({ label, entry }) {
-    return (
+        const t = useT();
+return (
         <View style={spot.tierRow}>
             <Text style={spot.tierLabel}>{label}</Text>
             {entry ? (
@@ -23151,24 +23190,24 @@ function SpotlightTierRow({ label, entry }) {
                     <Text style={spot.tierDetail} numberOfLines={2}>
                         {entry.type === 'tournament'
                             ? `🏆 ${entry.tournamentName} — ${entry.placement}.`
-                            : `⚔️ ${entry.wins} galibiyet`}
-                        {entry.date ? ` · ${new Date(entry.date).toLocaleDateString('tr-TR', { day:'numeric', month:'long' })}` : ''}
+                            : t.sc_0804(entry.wins)}
+                        {entry.date ? ` · ${new Date(entry.date).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'long' })}` : ''}
                     </Text>
                 </>
             ) : (
-                <Text style={spot.tierEmpty}>Henüz veri yok</Text>
+                <Text style={spot.tierEmpty}>{t.sc_0805}</Text>
             )}
         </View>
     );
 }
 
-const SPOTLIGHT_CONFIG = {
-    tennis:    { title: 'Günün Tenisçisi', emoji: '🎾', comingSoon: 'Çok yakında — güncel ATP/WTA verileri burada görünecek 🎾' },
-    padel:     { title: 'Günün Padelcıları', emoji: '🏓', comingSoon: 'Çok yakında — güncel profesyonel padel verileri burada görünecek 🏓' },
-    pickleball: { title: 'Günün Pickleballcıları', emoji: '🏓', comingSoon: 'Çok yakında — güncel profesyonel pickleball verileri burada görünecek 🏓' },
-    badminton: { title: 'Günün Badmintoncuları', emoji: '🏸', comingSoon: 'Çok yakında — güncel profesyonel badminton verileri burada görünecek 🏸' },
-    table_tennis: { title: 'Günün Masa Tenisçileri', emoji: '🏓', comingSoon: 'Çok yakında — güncel profesyonel masa tenisi verileri burada görünecek 🏓' },
-    volleyball: { title: 'Günün Voleybolcuları', emoji: '🏐', comingSoon: 'Çok yakında — güncel profesyonel voleybol verileri burada görünecek 🏐' },
+const SPOTLIGHT_KEYS = {
+    tennis:       { title: 'sc_spot_tennis', soon: 'sc_spot_soon_tennis', emoji: '🎾' },
+    padel:        { title: 'sc_spot_padel', soon: 'sc_spot_soon_padel', emoji: '🏓' },
+    pickleball:   { title: 'sc_spot_pickle', soon: 'sc_spot_soon_pickle', emoji: '🏓' },
+    badminton:    { title: 'sc_spot_badminton', soon: 'sc_spot_soon_badminton', emoji: '🏸' },
+    table_tennis: { title: 'sc_spot_tt', soon: 'sc_spot_soon_tt', emoji: '🏓' },
+    volleyball:   { title: 'sc_spot_volley', soon: 'sc_spot_soon_volley', emoji: '🏐' },
 };
 
 // Kullanıcı isteği: digimon kart butonu artık tüm spor dallarında çalışıyor — yukarıdaki
@@ -23176,20 +23215,25 @@ const SPOTLIGHT_CONFIG = {
 // sabit "Tenisçi/Padelci" gibi dala özgü bir unvan uydurmak yerine dal-nötr "Günün Yıldızı"
 // başlığı + o dalın kendi emoji'si (cfg.emoji) kullanılır — algoritma/veri (backend
 // spotlight.controller.js) zaten subCategory parametresine göre generic çalışıyor.
-function getSpotlightMeta(sub, cfg) {
-    return SPOTLIGHT_CONFIG[sub] || {
-        title: 'Günün Yıldızı',
-        emoji: cfg?.emoji || '🏅',
-        comingSoon: 'Çok yakında — güncel profesyonel veriler burada görünecek',
-    };
+function getSpotlightMeta(sub, cfg, t) {
+    const row = SPOTLIGHT_KEYS[sub];
+    if (!row) {
+        return {
+            title: t.sc_spot_star,
+            emoji: cfg?.emoji || '🏅',
+            comingSoon: t.sc_spot_soon_generic,
+        };
+    }
+    return { title: t[row.title], emoji: row.emoji, comingSoon: t[row.soon] };
 }
 
 function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
-    const insets = useSafeAreaInsets();
+        const t = useT();
+const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
-    const meta = getSpotlightMeta(sub, cfg);
+    const meta = getSpotlightMeta(sub, cfg, t);
 
     useEffect(() => {
         if (!visible) return;
@@ -23223,20 +23267,20 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
                             </>
                         ) : (
                             <>
-                                <Text style={[spot.cardTitle, { color: cfg.color }]}>Activity'de Dün</Text>
-                                <SpotlightTierRow label="🌍 Uluslararası" entry={data?.app?.international} />
-                                <SpotlightTierRow label="🇹🇷 Ulusal" entry={data?.app?.national} />
-                                <SpotlightTierRow label="📍 Yerel" entry={data?.app?.local} />
+                                <Text style={[spot.cardTitle, { color: cfg.color }]}>{t.sc_0808}</Text>
+                                <SpotlightTierRow label={t.sc_0519} entry={data?.app?.international} />
+                                <SpotlightTierRow label={t.sc_0518} entry={data?.app?.national} />
+                                <SpotlightTierRow label={t.sc_0517} entry={data?.app?.local} />
                             </>
                         )}
                     </ScrollView>
                 </View>
                 <View style={spot.actions}>
                     <TouchableOpacity style={spot.actionBtn} onPress={() => setFlipped(v => !v)}>
-                        <Text style={spot.actionBtnText}>🔄 Çevir</Text>
+                        <Text style={spot.actionBtnText}>{t.sc_0050}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={[spot.actionBtn, spot.closeBtn]} onPress={onClose}>
-                        <Text style={spot.actionBtnText}>✕ Kapat</Text>
+                        <Text style={spot.actionBtnText}>{t.sc_0809}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -23248,7 +23292,8 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
 // sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 sekme, kendi sırası ayrıca
 // vurgulanır. Header'daki ℹ️ ile 🃏 (varsa) arasına konan yeni bir butonla açılır.
 function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
-    const [scope, setScope] = useState('international'); // local | national | international
+        const t = useT();
+const [scope, setScope] = useState('international'); // local | national | international
     // UTR dalları — tekli/çiftler AYRI puanlanıyor, sıralamada disiplin toggle'ı gösterilir.
     // Voleybol hâlâ tek puan; toggle yok.
     const isUtrSport = UTR_MOBILE_SUBS.has(sub);
@@ -23265,14 +23310,14 @@ function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
             .finally(() => setLoading(false));
     }, [visible, sub, scope, ratingType]);
 
-    const SCOPES = [['local', '📍 Yerel'], ['national', '🇹🇷 Ulusal'], ['international', '🌍 Uluslararası']];
+    const SCOPES = [['local', t.sc_0517], ['national', t.sc_0518], ['international', t.sc_0519]];
 
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, maxHeight:'85%', paddingBottom:24 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', padding:16, borderBottomWidth:1, borderColor: colors.border }}>
-                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>🏆 Derece Sıralaması</Text>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{t.sc_0810}</Text>
                         <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:18, fontWeight:'700' }}>✕</Text></TouchableOpacity>
                     </View>
                     <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginTop:10, marginBottom:10 }}>
@@ -23285,7 +23330,7 @@ function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
                     </View>
                     {isUtrSport && (
                         <View style={{ flexDirection:'row', gap:3, marginHorizontal:14, marginBottom:10 }}>
-                            {[['singles', '🎾 Tekli'], ['doubles', '👥 Çiftler']].map(([key, lbl]) => (
+                            {[['singles', t.sc_0811], ['doubles', t.sc_0812]].map(([key, lbl]) => (
                                 <TouchableOpacity key={key} onPress={() => setRatingType(key)}
                                     style={{ flex:1, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor: ratingType===key ? cfg.color+'30' : colors.surface2, borderWidth:1, borderColor: ratingType===key ? cfg.color : colors.border }}>
                                     <Text style={{ color: ratingType===key ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{lbl}</Text>
@@ -23295,16 +23340,16 @@ function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
                     )}
                     {data?.myRank ? (
                         <View style={{ marginHorizontal:14, marginBottom:10, backgroundColor: cfg.color+'20', borderRadius:12, borderWidth:1, borderColor: cfg.color+'60', padding:10, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>Senin Sıran</Text>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{t.sc_0813}</Text>
                             <Text style={{ color: cfg.color, fontSize:15, fontWeight:'900' }}>#{data.myRank} · {data.mySkillRating != null ? data.mySkillRating.toFixed(2) : '—'} ★</Text>
                         </View>
                     ) : (!loading && data) ? (
-                        <Text style={{ color: colors.textMuted, textAlign:'center', marginBottom:10, fontSize:12 }}>Bu dalda henüz bir dereceniz yok.</Text>
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginBottom:10, fontSize:12 }}>{t.sc_0814}</Text>
                     ) : null}
                     {loading ? (
                         <ActivityIndicator color={cfg.color} style={{ marginTop:30 }} />
                     ) : !data || data.list.length === 0 ? (
-                        <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Bu kapsamda henüz derece kaydı yok.</Text>
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.sc_0815}</Text>
                     ) : (
                         <ScrollView style={{ paddingHorizontal:14 }} showsVerticalScrollIndicator={false}>
                             {data.list.map(row => (
@@ -23315,7 +23360,7 @@ function LeaderboardModal({ visible, onClose, cfg, sub, onUserPress }) {
                                     </Text>
                                     <Avatar name={row.username} avatar={row.avatar} size={32} color={cfg.color} />
                                     <Text style={{ color:'#fff', fontSize:13, fontWeight: row.isMe ? '900' : '700', flex:1 }} numberOfLines={1}>
-                                        {row.fullName || row.username}{row.isMe ? ' (Sen)' : ''}
+                                        {row.fullName || row.username}{row.isMe ? t.sc_0083 : ''}
                                     </Text>
                                     <Text style={{ color: cfg.color, fontSize:14, fontWeight:'900' }}>{row.skillRating != null ? row.skillRating.toFixed(2) : '—'} ★</Text>
                                 </TouchableOpacity>
@@ -23488,7 +23533,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
                         onPress={() => setShareTarget(story)}
                         style={{ backgroundColor: '#00000075', borderRadius: 16, paddingHorizontal: 10, paddingVertical: 6 }}
                     >
-                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{t.shareToFriendBtn || '↗ Gönder'}</Text>
+                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 12 }}>{t.shareToFriendBtn || t.sc_0816}</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -23559,7 +23604,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     const { data: added } = await api.post('/interests/add', { category, subCategory: sub });
                     interest = added;
                 } catch (e) {
-                    Alert.alert(t.error || 'Hata', e?.response?.data?.message || t.somethingWrong || 'İşlem başarısız');
+                    Alert.alert(t.error || t.sc_0014, e?.response?.data?.message || t.somethingWrong || t.sc_0817);
                     return;
                 }
             }
@@ -23857,17 +23902,17 @@ export default function SubCategoryScreen({ route, navigation }) {
         try {
             await api.delete(`/posts/comments/${commentId}`);
             setMediaComments(prev => prev.filter(c => c.id !== commentId && c.parentId !== commentId));
-        } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Yorum silinemedi'); }
+        } catch (e) { Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0042); }
     };
     const deleteMediaComment = (comment) => {
         const seenByOthers = Array.isArray(comment.viewedBy) ? comment.viewedBy.filter(uid => uid !== myId).length : 0;
         if (seenByOthers > 0) {
             Alert.alert(
-                'Bu yorum görüldü',
-                `Bu yorumu ${seenByOthers} kişi gördü. Yine de silmek istiyor musunuz?`,
+                t.sc_0043,
+                t.sc_0044(seenByOthers),
                 [
-                    { text: 'Vazgeç', style: 'cancel' },
-                    { text: 'Yine de Sil', style: 'destructive', onPress: () => doDeleteMediaComment(comment.id) },
+                    { text: t.sc_0004, style: 'cancel' },
+                    { text: t.sc_0045, style: 'destructive', onPress: () => doDeleteMediaComment(comment.id) },
                 ]
             );
             return;
@@ -24370,7 +24415,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitListingReview = async () => {
-        if (!reviewStars) { Alert.alert('', 'Lütfen yıldız seçin.'); return; }
+        if (!reviewStars) { Alert.alert('', t.sc_0818); return; }
         setReviewSubmitting(true);
         try {
             await api.post(`/${reviewModal.type === 'referee' ? 'referees' : 'coaches'}/${reviewModal.listingId}/reviews`, {
@@ -24437,7 +24482,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 const alreadyReferenced = (history?.messages || []).some(m => m.coachListingId === listing.id || m.coachListing?.id === listing.id);
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
-                        content: `🎓 Antrenörlük ilanınız hakkında yazıyorum.`,
+                        content: t.sc_coach_hi,
                         coachListingId: listing.id,
                     });
                 }
@@ -24460,7 +24505,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 const alreadyReferenced = (history?.messages || []).some(m => m.clubListingId === listing.id || m.clubListing?.id === listing.id);
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
-                        content: t.clubContactMsg || '🏟️ Kulübünüz hakkında yazıyorum.',
+                        content: t.clubContactMsg,
                         clubListingId: listing.id,
                     });
                 }
@@ -24487,7 +24532,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             ));
             setShowClubApply(null);
             setClubApplyMsg('');
-            Alert.alert('', t.clubApplySent || 'Üyelik başvurunuz gönderildi');
+            Alert.alert('', t.clubApplySent || t.sc_0819);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmittingClubApply(false); }
@@ -24665,7 +24710,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const res = await api.patch(`/rivals/${commentMatch.id}/swap-positions`, { slot1: s1, slot2: s2 });
             setCommentMatch(prev => prev ? { ...prev, participants: res.data.participants, senderTeam: res.data.senderTeam } : prev);
             setMatchedUpcoming(prev => prev.map(m => m.id === res.data.id ? { ...m, participants: res.data.participants, senderTeam: res.data.senderTeam } : m));
-        } catch(e) { Alert.alert('', e?.response?.data?.message || 'Yer değiştirme başarısız'); }
+        } catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0141); }
     }, [commentMatch, commentSwapSlot, myId]);
 
     const openComments = useCallback(async (match) => {
@@ -24679,7 +24724,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const res = await api.get(`/rivals/${match.id}/comments`);
             setComments(res.data || []);
         } catch(e) {
-            Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorumlar yüklenemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || e?.message || t.sc_0015);
         }
         finally { setLoadingComments(false); }
     }, []);
@@ -24700,7 +24745,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             // Update local count on the card
             setCommentMatch(prev => prev ? { ...prev, _count: { ...prev._count, matchComments: (prev._count?.matchComments ?? 0) + 1 } } : prev);
         } catch(e) {
-            Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum gönderilemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || e?.message || t.sc_0041);
         }
         finally { setSendingComment(false); }
     }, [commentText, commentMatch, sendingComment, commentReplyingTo]);
@@ -24710,7 +24755,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             await api.delete(`/rivals/comments/${commentId}`);
             setComments(p => p.filter(c => c.id !== commentId && c.parentId !== commentId));
         } catch(e) {
-            Alert.alert('Hata', e?.response?.data?.message || e?.message || 'Yorum silinemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || e?.message || t.sc_0042);
         }
     }, []);
 
@@ -24733,20 +24778,20 @@ export default function SubCategoryScreen({ route, navigation }) {
             await api.post(`/rivals/${appealMatch.id}/appeal-score`, { reason });
             setArchiveRivals(prev => prev.map(m => m.id === appealMatch.id ? { ...m, scoreAppeal: true, scoreAppealReason: reason } : m));
             setAppealMatch(null);
-            Alert.alert('✅ İtiraz İletildi', 'Admin konuya en kısa sürede el atacak.');
+            Alert.alert(t.sc_0820, t.sc_0821);
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'İtiraz gönderilemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0822);
         } finally {
             setSubmittingAppeal(false);
         }
     }, [appealMatch, appealReasonText]);
 
     const REFEREE_QUESTIONS = [
-        { key: 'ruleKnowledge', label: 'Kurallara Hakimiyet' },
-        { key: 'decisionConsistency', label: 'Karar Tutarlılığı' },
-        { key: 'fairness', label: 'Tarafsızlık' },
-        { key: 'communication', label: 'İletişim ve Otorite' },
-        { key: 'gameManagement', label: 'Maç Temposunu Yönetme' },
+        { key: 'ruleKnowledge', label: t.sc_0823 },
+        { key: 'decisionConsistency', label: t.sc_0824 },
+        { key: 'fairness', label: t.sc_0825 },
+        { key: 'communication', label: t.sc_0826 },
+        { key: 'gameManagement', label: t.sc_0827 },
     ];
 
     const openRefereeReview = useCallback((match) => {
@@ -24776,7 +24821,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             setArchiveRivals(applyReview);
             setRefereeReviewMatch(null);
         } catch (e) {
-            Alert.alert('Hata', e?.response?.data?.message || 'Değerlendirme gönderilemedi');
+            Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0828);
         } finally {
             setSubmittingRefereeReview(false);
         }
@@ -24816,8 +24861,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 if (!storyMap[s.userId]) storyMap[s.userId] = { user: s.user, stories: [] };
                 storyMap[s.userId].stories.push(s);
             });
+            setMediaStories(Object.values(storyMap));
             const storyGroups = Object.values(storyMap);
-            setMediaStories(storyGroups);
             rememberBranch(category, sub, {
                 rivals: openRivals,
                 playerWanted: pwRes.data.filter(p => !isRefereeAd(p)),
@@ -25033,7 +25078,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const pickCoachSingleImage = async (setter) => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
         if (!result.canceled) setter(result.assets[0].uri);
     };
@@ -25061,8 +25106,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const COACH_APPROVAL_SPORTS = ['volleyball', 'tennis', 'padel', 'pickleball'];
 
     const DAY_OPTIONS = [
-        { key:'Pzt', label:'Pzt' }, { key:'Sal', label:'Sal' }, { key:'Çar', label:'Çar' },
-        { key:'Per', label:'Per' }, { key:'Cum', label:'Cum' }, { key:'Cmt', label:'Cmt' }, { key:'Paz', label:'Paz' },
+        { key:'Pzt', label:t.sc_0295 }, { key:'Sal', label:t.sc_0296 }, { key:'Çar', label:t.sc_0297 },
+        { key:'Per', label:t.sc_0298 }, { key:'Cum', label:t.sc_0299 }, { key:'Cmt', label:t.sc_0300 }, { key:'Paz', label:t.sc_0301 },
     ];
 
     // Kullanıcı isteği: "İlan Oluştur"a basınca daha önce CV yüklemiş bir antrenörün
@@ -25072,8 +25117,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const openCreateCoachModal = () => {
         const existing = coachListings.find(c => c.userId === myId && c.cvUrl);
         if (COACH_APPROVAL_SPORTS.includes(sub)) {
-            if (!existing) return Alert.alert('', 'Bu dalda antrenörlük için önce kimlik/belge bilgilerinizi CV Yükle ekranından göndermeniz gerekiyor.');
-            if (!existing.approved) return Alert.alert('', 'Antrenörlük onayınız bulunmamaktadır. CVler\'den antrenörlük için başvurabilirsiniz.');
+            if (!existing) return Alert.alert('', t.sc_0829);
+            if (!existing.approved) return Alert.alert('', t.sc_0830);
         }
         if (existing) {
             setExistingCoachCv(existing);
@@ -25091,15 +25136,15 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitCoach = async () => {
-        if (coachForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
+        if (coachForm.cities.length === 0) return Alert.alert('', t.sc_0831);
         // Kullanıcı isteği: kimlik/belge/CV artık bu formda toplanmıyor, sadece mevcut
         // (varsa) CV kaydından okunuyor — CV fotoğrafı artık opsiyonel, bunun yerine
         // profesyonel seviye seçilmişse CV Yükle ekranı zaten belge/deneyim istiyor.
         // Bu dallarda hiç kimlik/belge kaydı (existingCoachCv) yoksa önce oraya gitmesi gerekiyor.
-        if (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv) return Alert.alert('', 'Bu dalda antrenörlük için önce kimlik/belge bilgilerinizi CV Yükle ekranından göndermeniz gerekiyor.');
+        if (COACH_APPROVAL_SPORTS.includes(sub) && !existingCoachCv) return Alert.alert('', t.sc_0829);
         // Kullanıcı isteği: CV yüklenmiş ama admin onayı henüz gelmemişse ilan oluşturmaya
         // çalışırken bunu açıkça belirten bir uyarı versin.
-        if (COACH_APPROVAL_SPORTS.includes(sub) && existingCoachCv && !existingCoachCv.approved) return Alert.alert('', 'Antrenörlük onayınız bulunmamaktadır. CVler\'den antrenörlük için başvurabilirsiniz.');
+        if (COACH_APPROVAL_SPORTS.includes(sub) && existingCoachCv && !existingCoachCv.approved) return Alert.alert('', t.sc_0830);
         setSubmittingCoach(true);
         try {
             const certificateUrls = existingCoachCv?.certificateUrls?.length
@@ -25133,10 +25178,10 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Kullanıcı isteği: antrenör kendi açtığı ilanı kaldırabilsin.
     const deleteCoachListing = (id) => {
-        Alert.alert('İlanı Kaldır', 'Bu ilanı kaldırmak istediğinize emin misiniz?', [
-            { text: 'Vazgeç', style: 'cancel' },
+        Alert.alert(t.sc_0832, t.sc_0833, [
+            { text: t.sc_0004, style: 'cancel' },
             {
-                text: 'Kaldır', style: 'destructive', onPress: async () => {
+                text: t.sc_0374, style: 'destructive', onPress: async () => {
                     try {
                         await api.delete(`/coaches/${id}`);
                         setCoachListings(prev => prev.filter(c => c.id !== id));
@@ -25176,7 +25221,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const pickClubPhoto = async () => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) return Alert.alert('', t.permissionDenied || 'Galeri izni gerekli');
+        if (!perm.granted) return Alert.alert('', t.permissionDenied || t.sc_0010);
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85 });
         if (result.canceled || !result.assets?.[0]?.uri) return;
         setUploadingClubPhoto(true);
@@ -25189,23 +25234,23 @@ export default function SubCategoryScreen({ route, navigation }) {
             if (!url) throw new Error('upload failed');
             setClubForm(f => ({ ...f, photoUrl: url }));
         } catch {
-            Alert.alert('', t.actionFailed || 'Yükleme başarısız');
+            Alert.alert('', t.actionFailed || t.sc_0834);
         } finally { setUploadingClubPhoto(false); }
     };
 
     const submitClub = async () => {
-        if (!clubForm.name.trim()) return Alert.alert('', t.clubNameRequired || 'Kulüp adı zorunlu');
+        if (!clubForm.name.trim()) return Alert.alert('', t.clubNameRequired || t.sc_0835);
         if (clubForm.cities.length === 0 && !clubForm.facilityCity.trim()) {
-            return Alert.alert('', t.clubCitiesRequired || 'En az bir şehir seçmelisiniz');
+            return Alert.alert('', t.clubCitiesRequired || t.sc_0831);
         }
         if (!clubForm.courtId && !clubForm.facilityManual) {
-            return Alert.alert('', t.clubFacilityRequired || 'Tesis adı gerekli');
+            return Alert.alert('', t.clubFacilityRequired || t.sc_0836);
         }
         if (clubForm.facilityManual && !clubForm.facilityName.trim()) {
-            return Alert.alert('', t.clubFacilityRequired || 'Tesis adı gerekli');
+            return Alert.alert('', t.clubFacilityRequired || t.sc_0836);
         }
         if (clubForm.facilityManual && !clubForm.facilityCity.trim()) {
-            return Alert.alert('', t.clubFacilityCityRequired || 'Tesis için il seçmelisiniz');
+            return Alert.alert('', t.clubFacilityCityRequired || t.sc_0837);
         }
         setSubmittingClub(true);
         try {
@@ -25234,17 +25279,17 @@ export default function SubCategoryScreen({ route, navigation }) {
             setClubListings(prev => [data, ...prev]);
             setShowCreateClub(false);
             resetClubForm();
-            Alert.alert('', t.clubPendingMsg || 'Kulüp talebiniz admin onayına gönderildi.');
+            Alert.alert('', t.clubPendingMsg || t.sc_0838);
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmittingClub(false); }
     };
 
     const deleteClubListing = (id) => {
-        Alert.alert(t.clubRemoveTitle || 'Kulübü Kaldır', t.clubRemoveConfirm || 'Bu kulüp ilanını kaldırmak istediğinize emin misiniz?', [
-            { text: t.cancel || 'Vazgeç', style: 'cancel' },
+        Alert.alert(t.clubRemoveTitle || t.sc_0839, t.clubRemoveConfirm || t.sc_0840, [
+            { text: t.cancel || t.sc_0004, style: 'cancel' },
             {
-                text: t.remove || 'Kaldır', style: 'destructive', onPress: async () => {
+                text: t.remove || t.sc_0374, style: 'destructive', onPress: async () => {
                     try {
                         await api.delete(`/clubs/${id}`);
                         setClubListings(prev => prev.filter(c => c.id !== id));
@@ -25352,10 +25397,10 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitReferee = async () => {
-        if (refereeForm.cities.length === 0) return Alert.alert('', 'En az bir şehir seçmelisiniz');
+        if (refereeForm.cities.length === 0) return Alert.alert('', t.sc_0831);
         // Kullanıcı isteği: kimlik/belge/CV artık bu formda toplanmıyor, sadece mevcut
         // (varsa) CV kaydından okunuyor (bkz. submitCoach ile aynı desen).
-        if (REFEREE_APPROVAL_SPORTS.includes(sub) && !existingRefereeCv) return Alert.alert('', 'Bu dalda hakemlik için önce kimlik/belge bilgilerinizi CV Yükle ekranından göndermeniz gerekiyor.');
+        if (REFEREE_APPROVAL_SPORTS.includes(sub) && !existingRefereeCv) return Alert.alert('', t.sc_0841);
         setSubmittingReferee(true);
         try {
             const certificateUrls = existingRefereeCv?.certificateUrls?.length
@@ -25411,9 +25456,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const pickCvProfileCertImages = async () => {
-        if (cvProfileCertImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        if (cvProfileCertImages.length >= 5) return Alert.alert('', t.sc_0842);
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
             selectionLimit: 5 - cvProfileCertImages.length,
@@ -25424,9 +25469,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const pickCvProfileAchievementImages = async () => {
-        if (cvProfileAchievementImages.length >= 5) return Alert.alert('', 'En fazla 5 görsel ekleyebilirsiniz');
+        if (cvProfileAchievementImages.length >= 5) return Alert.alert('', t.sc_0842);
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'], allowsMultipleSelection: true, quality: 0.85,
             selectionLimit: 5 - cvProfileAchievementImages.length,
@@ -25486,28 +25531,28 @@ export default function SubCategoryScreen({ route, navigation }) {
         const isAmateur = cvProfileForm.credentialLevel === 'AMATEUR';
         if (isReferee) {
             if (approvalSports.includes(sub) && !isAmateur && !standaloneCvImage && !targetListing?.cvUrl) {
-                return Alert.alert('', 'Bu dalda hakemlik için CV yüklemeniz zorunludur.');
+                return Alert.alert('', t.sc_0843);
             }
             // Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol edilmesi
             // gereken temel bilgiler — TTF hakem sicil no (i-KORT ID), kademe, güncel vize
             // belgesi, bağlı olduğu il temsilciliği, uzmanlık alanı (Kule/Çizgi Hakemi).
             if (isTennisReferee && !isAmateur) {
-                if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', 'TTF Hakem Sicil Numaranızı (i-KORT ID) girmeniz zorunludur.');
-                if (!cvProfileForm.refereeKademe) return Alert.alert('', 'Hakemlik kademenizi seçmeniz zorunludur.');
-                if (!cvProfileVizeImage && !targetListing?.vizeBelgesiUrl) return Alert.alert('', 'Güncel vize belgenizi (i-KORT profil ekran görüntüsü) yüklemeniz zorunludur.');
-                if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.');
-                if (cvProfileForm.specialization.length === 0) return Alert.alert('', 'Uzmanlık alanınızı (Kule/Çizgi Hakemi) seçmeniz zorunludur.');
+                if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', t.sc_0844);
+                if (!cvProfileForm.refereeKademe) return Alert.alert('', t.sc_0845);
+                if (!cvProfileVizeImage && !targetListing?.vizeBelgesiUrl) return Alert.alert('', t.sc_0846);
+                if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', t.sc_0847);
+                if (cvProfileForm.specialization.length === 0) return Alert.alert('', t.sc_0848);
             }
             if (isVolleyballReferee && !isAmateur) {
-                if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', 'Hakemlik Sicil Numaranızı (Lisans No) girmeniz zorunludur.');
-                if (!cvProfileForm.refereeKademe) return Alert.alert('', 'Mevcut klasmanınızı/unvanınızı seçmeniz zorunludur.');
-                if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', 'Bağlı olduğunuz il temsilciliğini seçmeniz zorunludur.');
-                if (!cvProfileVizeImage && !targetListing?.vizeBelgesiUrl) return Alert.alert('', 'Hakemlik lisans/vize belgenizi yüklemeniz zorunludur.');
+                if (!cvProfileForm.ikortNo.trim()) return Alert.alert('', t.sc_0849);
+                if (!cvProfileForm.refereeKademe) return Alert.alert('', t.sc_0850);
+                if (!cvProfileForm.ilTemsilciligi) return Alert.alert('', t.sc_0847);
+                if (!cvProfileVizeImage && !targetListing?.vizeBelgesiUrl) return Alert.alert('', t.sc_0851);
             }
         } else if (COACH_PROFESSIONAL_LEVELS.includes(cvProfileForm.credentialLevel)) {
-            if (!cvProfileForm.certName.trim()) return Alert.alert('', 'Bu seviyede belge adını girmeniz zorunludur.');
-            if (!hasCertPhoto) return Alert.alert('', 'Bu seviyede belge fotoğrafı yüklemeniz zorunludur.');
-            if (!cvProfileForm.experience || parseInt(cvProfileForm.experience) <= 0) return Alert.alert('', 'Bu seviyede deneyim yılını girmeniz zorunludur.');
+            if (!cvProfileForm.certName.trim()) return Alert.alert('', t.sc_0852);
+            if (!hasCertPhoto) return Alert.alert('', t.sc_0853);
+            if (!cvProfileForm.experience || parseInt(cvProfileForm.experience) <= 0) return Alert.alert('', t.sc_0854);
         }
         // Kullanıcı isteği: doğum tarihi gün/ay/yıl olarak giriliyor — üçü de doluysa geçerli
         // bir tarihe birleştirilir, hiçbiri girilmediyse atlanır; kısmi doldurulmuşsa uyarılır.
@@ -25515,21 +25560,21 @@ export default function SubCategoryScreen({ route, navigation }) {
         const { personalBirthDay: bDay, personalBirthMonth: bMonth, personalBirthYear: bYear } = cvProfileForm;
         const birthFieldsFilled = [bDay, bMonth, bYear].filter(v => v && v.trim()).length;
         if (birthFieldsFilled > 0 && birthFieldsFilled < 3) {
-            return Alert.alert('', 'Doğum tarihini girecekseniz gün/ay/yıl üçünü de doldurun.');
+            return Alert.alert('', t.sc_0855);
         }
         let personalBirthDate;
         if (birthFieldsFilled === 3) {
             const d = parseInt(bDay, 10), m = parseInt(bMonth, 10), y = parseInt(bYear, 10);
             if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
-                return Alert.alert('', 'Geçerli bir doğum tarihi girin.');
+                return Alert.alert('', t.sc_0856);
             }
             personalBirthDate = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
         }
         // Kullanıcı isteği: "Amatör" seçilirse SADECE kişisel bilgiler zorunlu.
         if (isAmateur) {
-            if (!cvProfileForm.personalFullName.trim()) return Alert.alert('', 'Ad soyad girmeniz zorunludur.');
-            if (!cvProfileForm.personalGender) return Alert.alert('', 'Cinsiyet seçmeniz zorunludur.');
-            if (birthFieldsFilled < 3) return Alert.alert('', 'Doğum tarihinizi (gün/ay/yıl) girmeniz zorunludur.');
+            if (!cvProfileForm.personalFullName.trim()) return Alert.alert('', t.sc_0857);
+            if (!cvProfileForm.personalGender) return Alert.alert('', t.sc_0858);
+            if (birthFieldsFilled < 3) return Alert.alert('', t.sc_0859);
         }
         setSubmittingCvProfile(true);
         try {
@@ -25626,8 +25671,8 @@ export default function SubCategoryScreen({ route, navigation }) {
             // geçmeden ne CV'ler sekmesinde başkalarına görünür ne de gerçek bir ilan/başvuru
             // sayılır, mesaj bunu netleştirmeli.
             Alert.alert('', approvalSports.includes(sub)
-                ? 'CV bilgileriniz admin onayına gönderildi. Onaylandıktan sonra CV\'ler sekmesinde görünecek.'
-                : 'CV bilgileriniz kaydedildi.');
+                ? t.sc_0860
+                : t.sc_0861);
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingCvProfile(false); }
     };
@@ -25663,9 +25708,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [openEquipmentId]);
 
     const pickEquipmentMedia = async () => {
-        if (equipmentMedia.length >= 5) return Alert.alert('', 'En fazla 5 medya ekleyebilirsiniz');
+        if (equipmentMedia.length >= 5) return Alert.alert('', t.sc_0862);
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) { Alert.alert('', 'Galeri izni gerekli'); return; }
+        if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images', 'videos'],
             allowsMultipleSelection: true,
@@ -25680,11 +25725,11 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const submitEquipment = async () => {
-        if (!equipmentForm.title.trim()) return Alert.alert('', 'Ürün adı zorunludur');
-        if (!parseInt(equipmentForm.price) || parseInt(equipmentForm.price) <= 0) return Alert.alert('', 'Fiyat zorunludur');
-        if (!equipmentForm.location.trim()) return Alert.alert('', 'Konum zorunludur');
-        if (equipmentForm.description.trim().length < 5) return Alert.alert('', 'Açıklama en az 5 karakter olmalıdır');
-        if (equipmentMedia.length === 0) return Alert.alert('', 'En az 1 fotoğraf eklemelisiniz');
+        if (!equipmentForm.title.trim()) return Alert.alert('', t.sc_0863);
+        if (!parseInt(equipmentForm.price) || parseInt(equipmentForm.price) <= 0) return Alert.alert('', t.sc_0864);
+        if (!equipmentForm.location.trim()) return Alert.alert('', t.sc_0865);
+        if (equipmentForm.description.trim().length < 5) return Alert.alert('', t.sc_0866);
+        if (equipmentMedia.length === 0) return Alert.alert('', t.sc_0867);
         setSubmittingEquipment(true);
         try {
             let uploadedUrls = [];
@@ -25817,6 +25862,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaShareType, setMediaShareType] = useState('POST'); // POST | STORY | REEL
     const [showMediaTypeSheet, setShowMediaTypeSheet] = useState(false);
     const [shareMusic, setShareMusic] = useState(null);
+    const [musicBlockH, setMusicBlockH] = useState(0);
     const [musicSheetOpen, setMusicSheetOpen] = useState(false);
     const [musicTrimOpen, setMusicTrimOpen] = useState(false);
     const [musicQuery, setMusicQuery] = useState('');
@@ -25842,6 +25888,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const musicDurationRef = useRef(30);
     const [previewPlaying, setPreviewPlaying] = useState(false);
     const musicSoundRef = useRef(null);
+    const shareFormRef = useRef(null);
     const [shareLocation, setShareLocation] = useState('');
     const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -26015,6 +26062,8 @@ export default function SubCategoryScreen({ route, navigation }) {
         applyMusicWindow(0, Math.min(fit, musicClipMaxRef.current, dur));
         setMusicTrimOpen(false);
         setMusicSheetOpen(false);
+        // Parça seçilince gönderi ayarın altında kalsın; eski kaydırma videoyu yukarıda bırakmasın.
+        setTimeout(() => shareFormRef.current?.scrollTo?.({ y: 0, animated: true }), 60);
     };
 
     const previewTrim = async () => {
@@ -26039,7 +26088,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 }
             });
             setTimeout(() => stopMusicPreview(), (end - start) * 1000 + 300);
-        } catch { Alert.alert('', 'Önizleme oynatılamadı'); }
+        } catch { Alert.alert('', t.sc_0868); }
     };
 
     const pickPhoneAudio = async () => {
@@ -26056,7 +26105,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 localUri: asset.uri,
             };
             await openTrimFor(music);
-        } catch { Alert.alert('', 'Ses dosyası seçilemedi'); }
+        } catch { Alert.alert('', t.sc_0869); }
     };
 
     const searchDeezer = (q) => {
@@ -26112,12 +26161,12 @@ export default function SubCategoryScreen({ route, navigation }) {
         setGettingLocation(true);
         try {
             const perm = await Location.requestForegroundPermissionsAsync();
-            if (!perm.granted) { Alert.alert('', 'Konum izni gerekli'); return; }
+            if (!perm.granted) { Alert.alert('', t.sc_0870); return; }
             const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const [geo] = await Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
             const parts = [geo.district || geo.subregion, geo.city || geo.region, geo.country].filter(Boolean);
             setShareLocation(parts.join(', '));
-        } catch { Alert.alert('', 'Konum alınamadı'); }
+        } catch { Alert.alert('', t.sc_0871); }
         finally { setGettingLocation(false); }
     };
 
@@ -26125,7 +26174,7 @@ export default function SubCategoryScreen({ route, navigation }) {
         setMediaShareType(type);
         setShowMediaTypeSheet(false);
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
+        if (!perm.granted) return Alert.alert('', t.sc_0010);
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: type === 'REEL' ? ['videos'] : ['images', 'videos'], quality: 0.85 });
         if (!result.canceled) {
             const asset = result.assets[0];
@@ -26133,7 +26182,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 const dur = asset.duration || 0;
                 const durSec = dur > 1000 ? dur / 1000 : dur; // expo returns seconds, but handle ms too
                 if (durSec > 90) {
-                    Alert.alert('⚠️ Video Çok Uzun', 'Hikaye videoları en fazla 1.5 dakika (90 saniye) olabilir.');
+                    Alert.alert(t.sc_0872, t.sc_0873);
                     return;
                 }
             }
@@ -26235,8 +26284,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 if (!alreadyReferenced) {
                     await api.post(`/messages/send/${otherId}`, {
                         content: isOwnerContactingBidder
-                            ? `📦 "${listing.title}" ilanına verdiğiniz teklif hakkında yazıyorum.`
-                            : `📦 "${listing.title}" ilanı hakkında mesajlaşmak istiyorum.`,
+                            ? t.sc_eq_bid(listing.title)
+                            : t.sc_eq_ask(listing.title),
                         equipmentListingId: listing.id,
                     });
                 }
@@ -26264,7 +26313,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     }, [selectedEquipment?.id]);
 
     const sendEquipmentOffer = async () => {
-        if (!parseInt(offerForm.price) || parseInt(offerForm.price) <= 0) return Alert.alert('', 'Geçerli bir teklif fiyatı girin');
+        if (!parseInt(offerForm.price) || parseInt(offerForm.price) <= 0) return Alert.alert('', t.sc_0874);
         setSubmittingOffer(true);
         try {
             const { data } = await api.post(`/equipment/${selectedEquipment.id}/offers`, { price: parseInt(offerForm.price), message: offerForm.message.trim() || undefined });
@@ -26369,11 +26418,11 @@ export default function SubCategoryScreen({ route, navigation }) {
         try {
             setReportingListingId(id);
             await api.post(`/${type}/${id}/report`, { reason, explanation });
-            Alert.alert('', 'Bildiriminiz alındı. Teşekkürler.');
+            Alert.alert('', t.sc_0875);
             setReportModal({ visible: false, type: null, id: null, reason: null, explanation: '' });
             if (type === 'equipment') setSelectedEquipment(null);
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Bir hata oluştu');
+            Alert.alert('', e?.response?.data?.message || t.sc_0876);
         } finally { setReportingListingId(null); }
     };
 
@@ -26393,9 +26442,9 @@ export default function SubCategoryScreen({ route, navigation }) {
             const { data } = await api.delete(`/tournaments/${id}/join`, reason ? { data: { reason } } : undefined);
             if (data?.cancelRequested) {
                 const penaltyMsg = data.penaltyApplied
-                    ? '\n\n🚨 Ceza uygulandı: −0.50 ELO puanı ve 5 turnuva katılım yasağı aldınız.'
+                    ? t.sc_penalty
                     : '';
-                Alert.alert('⚠️ İptal Talebi Gönderildi', 'Talebiniz turnuva düzenleyicisine iletildi. Onaylaması bekleniyor.' + penaltyMsg);
+                Alert.alert(t.sc_0877, t.sc_0878 + penaltyMsg);
             }
             loadTournaments();
         } catch (e) {
@@ -26522,7 +26571,7 @@ export default function SubCategoryScreen({ route, navigation }) {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') { Alert.alert(t.locationPermTitle, t.locationPermMsg); return; }
             const servicesOn = await Location.hasServicesEnabledAsync();
-            if (!servicesOn) { Alert.alert(t.error, t.locationServicesOffMsg || 'Konum servisleri kapalı. Lütfen telefon ayarlarından konumu açın.'); return; }
+            if (!servicesOn) { Alert.alert(t.error, t.locationServicesOffMsg || t.sc_0879); return; }
             let loc;
             try {
                 loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -26898,7 +26947,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: touchSize(40), backgroundColor:colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
                 >
                     <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        {filterCity ? filterCity : '📍 İl'}
+                        {filterCity ? filterCity : t.sc_0880}
                     </Text>
                     {filterCity
                         ? <TouchableOpacity onPress={(e) => { e.stopPropagation?.(); setFilterCity(''); }} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
@@ -26978,19 +27027,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <View style={s.modalOverlay}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>⚠️ Skora İtiraz Et</Text>
+                            <Text style={s.modalTitle}>{t.sc_0881}</Text>
                             <TouchableOpacity onPress={() => setAppealMatch(null)}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>
-                            Otomatik onaylanan skora neden itiraz ettiğinizi detaylı yazın — admin bu açıklamayı okuyup konuya el atacak.
+                            {t.sc_0882}
                         </Text>
                         <TextInput
                             style={[s.fieldInput, { height:110, textAlignVertical:'top' }]}
                             value={appealReasonText}
                             onChangeText={setAppealReasonText}
-                            placeholder="Örn: Skor yanlış girildi, maç hiç oynanmadı, rakip skoru onaylamadan otomatik onaylandı..."
+                            placeholder={t.sc_0883}
                             placeholderTextColor={colors.textMuted}
                             multiline
                         />
@@ -26999,7 +27048,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             disabled={!appealReasonText.trim() || submittingAppeal}
                             style={{ marginTop:12, backgroundColor: appealReasonText.trim() ? '#f97316' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingAppeal ? 0.6 : 1 }}>
                             <Text style={{ color: appealReasonText.trim() ? '#fff' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
-                                {submittingAppeal ? '…' : 'İtiraz Et'}
+                                {submittingAppeal ? '…' : t.sc_0884}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -27011,7 +27060,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                         <View style={s.modalBox}>
                             <View style={s.modalHeader}>
-                                <Text style={s.modalTitle}>Hakemi Değerlendir</Text>
+                                <Text style={s.modalTitle}>{t.sc_0315}</Text>
                                 <TouchableOpacity onPress={() => setRefereeReviewMatch(null)}>
                                     <Text style={s.modalClose}>✕</Text>
                                 </TouchableOpacity>
@@ -27035,7 +27084,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ))}
                                     </View>
                                 )}
-                                {isVolleyballRefereeReview && <Text style={[s.fieldLabel, { textAlign:'center' }]}>Genel Puan</Text>}
+                                {isVolleyballRefereeReview && <Text style={[s.fieldLabel, { textAlign:'center' }]}>{t.sc_0885}</Text>}
                                 <View style={{ flexDirection:'row', justifyContent:'center', gap:6, marginBottom:14, marginTop: isVolleyballRefereeReview ? 6 : 0 }}>
                                     {[1,2,3,4,5].map(n => (
                                         <TouchableOpacity key={n} onPress={() => setRefereeReviewRating(n)}>
@@ -27047,7 +27096,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     style={[s.fieldInput, { height:90, textAlignVertical:'top' }]}
                                     value={refereeReviewComment}
                                     onChangeText={setRefereeReviewComment}
-                                    placeholder="Hakemlik hakkında yorumun (isteğe bağlı)"
+                                    placeholder={t.sc_0886}
                                     placeholderTextColor={colors.textMuted}
                                     multiline
                                 />
@@ -27056,7 +27105,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     disabled={!refereeReviewRating || !refereeReviewAnswersComplete || submittingRefereeReview}
                                     style={{ marginTop:2, backgroundColor: (refereeReviewRating && refereeReviewAnswersComplete) ? '#fbbf24' : colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', opacity: submittingRefereeReview ? 0.6 : 1 }}>
                                     <Text style={{ color: (refereeReviewRating && refereeReviewAnswersComplete) ? '#111827' : colors.textMuted, fontWeight:'800', fontSize:14 }}>
-                                        {submittingRefereeReview ? '…' : 'Gönder'}
+                                        {submittingRefereeReview ? '…' : t.sc_0202}
                                     </Text>
                                 </TouchableOpacity>
                             </ScrollView>
@@ -27069,19 +27118,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                 <View style={s.modalOverlay}>
                     <View style={s.modalBox}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>Kime Sattın?</Text>
+                            <Text style={s.modalTitle}>{t.sc_0887}</Text>
                             <TouchableOpacity onPress={() => setSoldPickerListing(null)}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:10 }}>
-                            Uygulamada kim olduğunu biliyorsan seçebilirsin (maçta karşılaşıp anlaşmış da olabilirsiniz) — seçtiğin kişi 24 saat içinde onaylamazsa otomatik onaylanır.
+                            {t.sc_0888}
                         </Text>
                         <TextInput
                             style={[s.fieldInput, { marginBottom:8 }]}
                             value={soldSearchQuery}
                             onChangeText={setSoldSearchQuery}
-                            placeholder="Kullanıcı adı veya isimle ara"
+                            placeholder={t.sc_0889}
                             placeholderTextColor={colors.textMuted}
                         />
                         <ScrollView style={{ maxHeight:280 }} showsVerticalScrollIndicator={false}>
@@ -27089,7 +27138,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 soldSearching ? (
                                     <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
                                 ) : soldSearchResults.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:10 }}>Kullanıcı bulunamadı.</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:10 }}>{t.sc_0890}</Text>
                                 ) : (
                                     soldSearchResults.map(u => (
                                         <TouchableOpacity key={u.id} onPress={() => markEquipmentSold(soldPickerListing.id, u.id)}
@@ -27102,7 +27151,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             ) : (
                                 <>
                                     {soldPickerContacts.length > 0 && (
-                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:4 }}>Bu ilanda konuştukların</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:4 }}>{t.sc_0891}</Text>
                                     )}
                                     {loadingSoldContacts ? (
                                         <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
@@ -27122,7 +27171,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             disabled={equipmentActionLoading}
                             onPress={() => markEquipmentSold(soldPickerListing.id, null)}
                             style={{ marginTop:12, backgroundColor: colors.surface2, borderRadius:10, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor: colors.border }}>
-                            <Text style={{ color: colors.textSecondary, fontWeight:'800', fontSize:14 }}>Uygulama Dışından Biri</Text>
+                            <Text style={{ color: colors.textSecondary, fontWeight:'800', fontSize:14 }}>{t.sc_0892}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -27143,14 +27192,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ backgroundColor:colors.surface, borderTopLeftRadius:18, borderTopRightRadius:18, maxHeight:'75%' }}>
                             <View style={{ flexDirection:'row', alignItems:'center', padding:13, borderBottomWidth:1, borderBottomColor:colors.border }}>
                                 <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>
-                                    🔔 {sportDisplayName} — Bildirim İlleri
+                                    🔔 {sportDisplayName} {t.sc_0893}
                                 </Text>
                                 <TouchableOpacity onPress={() => setCityPickerTab(null)}>
                                     <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
                                 </TouchableOpacity>
                             </View>
                             <Text style={{ color:colors.textMuted, fontSize:12, paddingHorizontal:3, paddingTop:3, paddingBottom:3 }}>
-                                Seçtiğin illerden yeni {sportDisplayName} bildirimi alırsın
+                                {t.sc_0894} {sportDisplayName} {t.sc_0895}
                             </Text>
                             <ScrollView contentContainerStyle={{ paddingVertical:5 }}>
                                 {TR_PROVINCES.map(province => {
@@ -27531,7 +27580,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                 )}
                                 <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={requireActivityThenCreate}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub) ? (t.createEventBtn || '📅 Etkinlik Oluştur') : t.createAdBtn}</Text>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub) ? (t.createEventBtn || t.sc_0896) : t.createAdBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
 
@@ -27920,7 +27969,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <Text style={s.fieldLabel}>{t.priceRangeLabel}</Text>
                                             <View style={{ flexDirection:'row', gap:3, marginBottom:20 }}>
                                                 <TextInput
-                                                    placeholder="Min ₺"
+                                                    placeholder={t.sc_0897}
                                                     placeholderTextColor={colors.textMuted}
                                                     value={equipmentMinPrice}
                                                     onChangeText={v => setEquipmentMinPrice(v.replace(/[^0-9]/g,''))}
@@ -27928,7 +27977,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     style={[s.fieldInput, { flex:1 }]}
                                                 />
                                                 <TextInput
-                                                    placeholder="Max ₺"
+                                                    placeholder={t.sc_0898}
                                                     placeholderTextColor={colors.textMuted}
                                                     value={equipmentMaxPrice}
                                                     onChangeText={v => setEquipmentMaxPrice(v.replace(/[^0-9]/g,''))}
@@ -27959,7 +28008,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             {loadingEquipment ? (
                                 <ActivityIndicator size="small" color={cfg.color} style={{ marginVertical:10 }} />
                             ) : filteredEquipment.length === 0 ? (
-                                <EmptyState emoji="📦" text={equipmentViewStatus === 'SOLD' ? t.equipNoSold : (equipmentListings.length === 0 ? "Henüz ekipman ilanı yok" : "Filtreyle eşleşen ilan bulunamadı")} />
+                                <EmptyState emoji="📦" text={equipmentViewStatus === 'SOLD' ? t.equipNoSold : (equipmentListings.length === 0 ? t.sc_0899 : t.sc_0900)} />
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {filteredEquipment.map(eq => (
@@ -27973,7 +28022,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </View>
                                             )}
                                             <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0 }}>
-                                                <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? 'Sıfır' : '2.El'}</Text>
+                                                <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? t.sc_0901 : t.sc_0902}</Text>
                                             </View>
                                             {eq.status === 'RESERVED' && (
                                                 <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#f59e0b', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
@@ -27987,7 +28036,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             )}
                                             <View style={{ padding:5 }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{eq.title}</Text>
-                                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
+                                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : t.sc_0903}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
                                                 {eq.offerCount > 0 && eq.userId === myId && (
                                                     <Text style={{ color:'#a78bfa', fontSize:10, marginTop:1, fontWeight:'700' }}>💰 {eq.offerCount} {t.equipOffersTitle}</Text>
@@ -28002,22 +28051,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>Ekipman İlanı Ver</Text>
+                                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.sc_0904}</Text>
                                             <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                                 {['NEW','USED'].map(c => (
                                                     <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
                                                         style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
-                                                        <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? '🆕 Sıfır' : '♻️ İkinci El'}</Text>
+                                                        <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? t.sc_0905 : t.sc_0906}</Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
-                                            <TextInput placeholder="Ürün adı *" placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Fiyat (₺) *" placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Açıklama * (en az 5 karakter)" placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                            <TextInput placeholder={t.sc_0907} placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={t.sc_0908} placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={t.sc_0909} placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
                                             <CityAutocomplete
                                                 value={equipmentForm.location || ''}
                                                 onChangeText={v => setEquipmentForm(f=>({...f,location:v}))}
-                                                placeholder="Konum / Şehir *"
+                                                placeholder={t.sc_0910}
                                                 style={{ marginBottom: 10 }}
                                             />
 
@@ -28029,7 +28078,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {m.type === 'video'
                                                                 ? <View style={{ width:90, height:90, borderRadius:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:colors.border, justifyContent:'center', alignItems:'center' }}>
                                                                     <Text style={{ fontSize:28 }}>🎬</Text>
-                                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginTop:2 }}>Video</Text>
+                                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginTop:2 }}>{t.sc_0911}</Text>
                                                                   </View>
                                                                 : <Image source={{ uri:m.uri }} style={{ width:90, height:90, borderRadius:8 }} resizeMode="cover" />
                                                             }
@@ -28047,18 +28096,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:7, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                     <Text style={{ fontSize:16 }}>📷</Text>
                                                     <Text style={{ color:colors.textSecondary, fontSize:13, fontWeight:'700' }}>
-                                                        Fotoğraf / Video Ekle * {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
+                                                        {t.sc_0912} {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
                                                     </Text>
                                                 </TouchableOpacity>
                                             )}
 
                                             <View style={{ flexDirection:'row', gap:3 }}>
                                                 <TouchableOpacity onPress={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0065}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment || uploadingEquipmentMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                                     <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                        {uploadingEquipmentMedia ? 'Yükleniyor...' : submittingEquipment ? '...' : 'İlanı Yayınla'}
+                                                        {uploadingEquipmentMedia ? t.sc_0100 : submittingEquipment ? '...' : t.sc_0913}
                                                     </Text>
                                                 </TouchableOpacity>
                                             </View>
@@ -28079,7 +28128,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         return isVideo
                                                             ? <View key={idx} style={{ width:220, height:160, borderRadius:10, marginRight:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:colors.border, justifyContent:'center', alignItems:'center' }}>
                                                                 <Text style={{ fontSize:40 }}>🎬</Text>
-                                                                <Text style={{ color:colors.textMuted, fontSize:12, marginTop:4 }}>Video</Text>
+                                                                <Text style={{ color:colors.textMuted, fontSize:12, marginTop:4 }}>{t.sc_0911}</Text>
                                                               </View>
                                                             : <Image key={idx} source={{ uri:img }} style={{ width:220, height:160, borderRadius:10, marginRight:8 }} resizeMode="cover" />;
                                                     })}
@@ -28087,11 +28136,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             )}
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                                 <View style={{ backgroundColor: selectedEquipment?.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
-                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{selectedEquipment?.condition==='NEW' ? 'Sıfır' : 'İkinci El'}</Text>
+                                                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{selectedEquipment?.condition==='NEW' ? t.sc_0901 : t.sc_0914}</Text>
                                                 </View>
                                                 <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>{selectedEquipment?.title}</Text>
                                             </View>
-                                            <Text style={{ color: cfg.color, fontSize:20, fontWeight:'900', marginBottom:8 }}>{selectedEquipment?.price > 0 ? selectedEquipment.price + ' ₺' : 'Fiyat sor'}</Text>
+                                            <Text style={{ color: cfg.color, fontSize:20, fontWeight:'900', marginBottom:8 }}>{selectedEquipment?.price > 0 ? selectedEquipment.price + ' ₺' : t.sc_0903}</Text>
                                             {selectedEquipment?.description ? <Text style={{ color:colors.textSecondary, fontSize:13, marginBottom:8 }}>{selectedEquipment.description}</Text> : null}
                                             {selectedEquipment?.location ? <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:4 }}>📍 {selectedEquipment.location}</Text> : null}
                                             <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:8 }}>👤 {selectedEquipment?.user?.fullName || selectedEquipment?.user?.username}</Text>
@@ -28104,7 +28153,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {selectedEquipment?.status === 'RESERVED' && selectedEquipment?.reservedUntil && (
                                                 <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingVertical:6, alignItems:'center', marginBottom:10 }}>
                                                     <Text style={{ color:'#f59e0b', fontWeight:'800' }}>
-                                                        {(selectedEquipment.reservedForUserId === myId ? t.equipReservedForYouBadge : t.equipReservedBadge)(new Date(selectedEquipment.reservedUntil).toLocaleDateString('tr-TR'))}
+                                                        {(selectedEquipment.reservedForUserId === myId ? t.equipReservedForYouBadge : t.equipReservedBadge)(new Date(selectedEquipment.reservedUntil).toLocaleDateString(appLocale(t.lang)))}
                                                     </Text>
                                                 </View>
                                             )}
@@ -28211,33 +28260,33 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <View style={{ backgroundColor: colors.surface2, borderRadius:10, paddingVertical:7, paddingHorizontal:10, alignItems:'center', marginBottom:6 }}>
                                                             <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'700' }}>
                                                                 {selectedEquipment.soldToUser
-                                                                    ? `Uygulama içinden satıldı: ${selectedEquipment.soldToUser.fullName || selectedEquipment.soldToUser.username}${selectedEquipment.soldToConfirmed ? ' ✅ onaylandı' : ' ⏳ onay bekleniyor'}`
-                                                                    : 'Uygulama dışından satıldı'}
+                                                                    ? t.sc_0915(selectedEquipment.soldToUser.fullName || selectedEquipment.soldToUser.username, selectedEquipment.soldToConfirmed ? t.sc_x_20e29c8520 : t.sc_x_20e28fb320)
+                                                                    : t.sc_0916}
                                                             </Text>
                                                         </View>
                                                     )}
                                                     {selectedEquipment?.status === 'SOLD' && selectedEquipment.soldToUserId === myId && !selectedEquipment.soldToConfirmed && (
                                                         <View style={{ backgroundColor:'#fbbf2415', borderRadius:10, padding:10, borderWidth:1, borderColor:'#fbbf2440', marginBottom:6 }}>
                                                             <Text style={{ color:'#fbbf24', fontSize:12, fontWeight:'700', marginBottom:8 }}>
-                                                                {selectedEquipment.user?.fullName || selectedEquipment.user?.username}, bu ürünü sana sattığını belirtti. Onaylıyor musun?
+                                                                {selectedEquipment.user?.fullName || selectedEquipment.user?.username}{t.sc_0917}
                                                             </Text>
                                                             <View style={{ flexDirection:'row', gap:6 }}>
                                                                 <TouchableOpacity disabled={equipmentActionLoading} onPress={() => confirmEquipmentSale(selectedEquipment.id, 'confirm')}
                                                                     style={{ flex:1, backgroundColor:'#16a34a20', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#16a34a50' }}>
-                                                                    <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:12 }}>Onayla</Text>
+                                                                    <Text style={{ color:'#4ade80', fontWeight:'800', fontSize:12 }}>{t.sc_0157}</Text>
                                                                 </TouchableOpacity>
                                                                 <TouchableOpacity disabled={equipmentActionLoading} onPress={() => confirmEquipmentSale(selectedEquipment.id, 'reject')}
                                                                     style={{ flex:1, backgroundColor:'#ef444420', borderRadius:8, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
-                                                                    <Text style={{ color:'#ef4444', fontWeight:'800', fontSize:12 }}>Ben Değilim</Text>
+                                                                    <Text style={{ color:'#ef4444', fontWeight:'800', fontSize:12 }}>{t.sc_0918}</Text>
                                                                 </TouchableOpacity>
                                                             </View>
                                                         </View>
                                                     )}
-                                                    <TouchableOpacity onPress={() => Alert.alert('İlanı Sil', 'Bu ilanı silmek istiyor musunuz?', [
-                                                        { text:'İptal', style:'cancel' },
-                                                        { text:'Sil', style:'destructive', onPress:() => deleteEquipment(selectedEquipment.id) }
+                                                    <TouchableOpacity onPress={() => Alert.alert(t.sc_0919, t.sc_0920, [
+                                                        { text:t.sc_0065, style:'cancel' },
+                                                        { text:t.sc_delete, style:'destructive', onPress:() => deleteEquipment(selectedEquipment.id) }
                                                     ])} style={{ backgroundColor:'#ef444420', borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#ef444450' }}>
-                                                        <Text style={{ color:'#ef4444', fontWeight:'800' }}>🗑️ İlanı Sil</Text>
+                                                        <Text style={{ color:'#ef4444', fontWeight:'800' }}>{t.sc_0921}</Text>
                                                     </TouchableOpacity>
                                                 </>
                                             ) : (
@@ -28315,13 +28364,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         onPress={() => reportListing('equipment', selectedEquipment.id)}
                                                         disabled={reportingListingId === selectedEquipment?.id}
                                                         style={{ backgroundColor:'#f59e0b20', borderRadius:10, paddingVertical:7, alignItems:'center', borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                        <Text style={{ color:'#f59e0b', fontWeight:'800' }}>🚩 Bildır</Text>
+                                                        <Text style={{ color:'#f59e0b', fontWeight:'800' }}>{t.sc_0922}</Text>
                                                     </TouchableOpacity>
                                                 </>
                                             )}
                                         </ScrollView>
                                         <TouchableOpacity onPress={() => { setSelectedEquipment(null); setShowOfferForm(false); }} style={{ marginTop:12, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>Kapat</Text>
+                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0923}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -28433,7 +28482,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             if (coachSubTab === 'courses') setCoachForm(f => ({ ...f, individual:false, group:true }));
                                             openCreateCoachModal();
                                         }}>
-                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || '🎓 Kurs Oluştur') : t.createCoachBtn}</Text>
+                                        <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{category === 'ARTS' || coachSubTab === 'courses' ? (t.createCourseBtn || t.sc_0924) : t.createCoachBtn}</Text>
                                     </TouchableOpacity>
                                 </CityAlertRow>
                             )}
@@ -28455,13 +28504,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{cl.name}</Text>
                                                         {cl.status === 'PENDING' ? (
-                                                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800', marginTop:1 }}>{t.clubStatusPending || '⏳ Admin onayı bekleniyor'}</Text>
+                                                            <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800', marginTop:1 }}>{t.clubStatusPending || t.sc_0925}</Text>
                                                         ) : cl.status === 'REJECTED' ? (
-                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'800', marginTop:1 }}>{t.clubStatusRejected || '❌ Reddedildi'}</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:10, fontWeight:'800', marginTop:1 }}>{t.clubStatusRejected || t.sc_0926}</Text>
                                                         ) : null}
                                                         {cl.venueId ? (
                                                             <Text style={{ color:cfg.color, fontSize:10, fontWeight:'700', marginTop:1 }}>
-                                                                {t.clubBusinessBadge || 'İşletme kulübü'}
+                                                                {t.clubBusinessBadge || t.sc_0927}
                                                                 {cl.venue?.name ? ` · ${cl.venue.name}` : ''}
                                                             </Text>
                                                         ) : null}
@@ -28489,10 +28538,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {cl.myMembershipStatus ? (
                                                     <Text style={{ color: cl.myMembershipStatus === 'ACCEPTED' ? '#4ade80' : cl.myMembershipStatus === 'REJECTED' ? '#f87171' : '#fbbf24', fontSize:11, fontWeight:'700', marginTop:6 }}>
                                                         {cl.myMembershipStatus === 'ACCEPTED'
-                                                            ? (t.clubApplyAccepted || '✅ Üyelik kabul edildi')
+                                                            ? (t.clubApplyAccepted || t.sc_0928)
                                                             : cl.myMembershipStatus === 'REJECTED'
-                                                                ? (t.clubApplyRejected || '❌ Başvuru reddedildi')
-                                                                : (t.clubApplyPending || '⏳ Başvurunuz bekleniyor')}
+                                                                ? (t.clubApplyRejected || t.sc_0929)
+                                                                : (t.clubApplyPending || t.sc_0930)}
                                                     </Text>
                                                 ) : null}
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8 }}>
@@ -28500,28 +28549,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TouchableOpacity
                                                             onPress={() => openChatWithClub(cl)}
                                                             style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:cfg.color + '25', borderWidth:1, borderColor:cfg.color + '60' }}>
-                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{t.clubContactBtn || 'İletişime Geç'}</Text>
+                                                            <Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{t.clubContactBtn || t.sc_0931}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     {cl.userId !== myId && (!cl.myMembershipStatus || cl.myMembershipStatus === 'REJECTED') && (
                                                         <TouchableOpacity
                                                             onPress={() => { setShowClubApply(cl); setClubApplyMsg(''); }}
                                                             style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#16a34a25', borderWidth:1, borderColor:'#16a34a60' }}>
-                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.clubApplyBtn || 'Üye Başvurusu'}</Text>
+                                                            <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.clubApplyBtn || t.sc_0932}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     {cl.userId !== myId && (
                                                         <TouchableOpacity
                                                             onPress={() => reportListing('clubs', cl.id)}
                                                             style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#ef444420', borderWidth:1, borderColor:'#ef444450' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.report || 'Bildir'}</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.report || t.sc_0933}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     {cl.userId === myId && (
                                                         <TouchableOpacity
                                                             onPress={() => deleteClubListing(cl.id)}
                                                             style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#ef444420', borderWidth:1, borderColor:'#ef444450' }}>
-                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.remove || 'Kaldır'}</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.remove || t.sc_0374}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
@@ -28556,7 +28605,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 görebilsin diye (bkz. getListings, onaylanmamış ilanlar
                                                                 başkalarına zaten hiç gösterilmiyor). */}
                                                             {REFEREE_APPROVAL_SPORTS.includes(r.subCategory) && !r.approved && (
-                                                                <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⏳ Admin Onayı Bekleniyor</Text>
+                                                                <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.sc_0934}</Text>
                                                             )}
                                                         </View>
                                                         <TouchableOpacity onPress={() => setProfileUserId(r.userId)}>
@@ -28566,8 +28615,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         </TouchableOpacity>
                                                     </View>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:4 }}>
-                                                        {r.pricePerMatch > 0 && <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{r.pricePerMatch}₺ / maç</Text></View>}
-                                                        {r.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.experience} yıl deneyim</Text>}
+                                                        {r.pricePerMatch > 0 && <View style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{r.pricePerMatch}{t.sc_0935}</Text></View>}
+                                                        {r.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{r.experience} {t.sc_0936}</Text>}
                                                     </View>
                                                     {(r.timeFrom || r.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {r.timeFrom} - {r.timeTo}</Text>}
                                                     {(r.city || (Array.isArray(r.cities) && r.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(r.cities) && r.cities.length > 0 ? r.cities.join(', ') : r.city}{r.location ? ` / ${r.location}` : ''}</Text>}
@@ -28578,18 +28627,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             onPress={() => reportListing('referees', r.id)}
                                                             disabled={reportingListingId === r.id}
                                                             style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                            <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
+                                                            <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>{t.sc_0937}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
                                                         {(r.certificateUrls?.length > 0 || r.certificateUrl) && (
                                                             <TouchableOpacity onPress={() => Linking.openURL(r.certificateUrls?.[0] || r.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge{r.certificateUrls?.length > 1 ? ` (${r.certificateUrls.length})` : ''}</Text>
+                                                                <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>{t.sc_0938}{r.certificateUrls?.length > 1 ? ` (${r.certificateUrls.length})` : ''}</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {(r.achievementUrls || []).length > 0 && (
                                                             <TouchableOpacity onPress={() => Linking.openURL(r.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({r.achievementUrls.length})</Text>
+                                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0939}{r.achievementUrls.length})</Text>
                                                             </TouchableOpacity>
                                                         )}
                                                         {r.cvUrl && (
@@ -28598,7 +28647,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </TouchableOpacity>
                                                         )}
                                                         <TouchableOpacity onPress={() => openReviewModal('referee', r.id, r.user?.fullName || r.user?.username, r.userId === myId)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
-                                                            <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>★ Yorumlar</Text>
+                                                            <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>{t.sc_0940}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 </View>
@@ -28627,10 +28676,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <Text style={{ fontSize:22, marginRight:8 }}>📄</Text>
                                                 <View style={{ flex:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{item.user?.fullName || item.user?.username}</Text>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11 }}>{item.credentialLevel}{item.experience > 0 ? ` · ${item.experience} yıl deneyim` : ''}</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11 }}>{item.credentialLevel}{item.experience > 0 ? t.sc_0941(item.experience) : ''}</Text>
                                                 </View>
                                                 <TouchableOpacity onPress={() => Linking.openURL(item.cvUrl)} style={{ backgroundColor: cvColor+'20', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor: cvColor+'50' }}>
-                                                    <Text style={{ color: cvColor, fontSize:11, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                    <Text style={{ color: cvColor, fontSize:11, fontWeight:'700' }}>{t.sc_0942}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         );
@@ -28641,9 +28690,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         // Kullanıcı isteği: CV Yükle sonrası (onay bekliyor/onaylı fark etmeksizin)
                                                         // sayaç "Hakemler"/"Antrenörler" ana sekmesinde değil, burada (CVler
                                                         // içindeki Antrenörler/Hakemler alt-sekmesinde) görünsün.
-                                                        { key:'coaches',  label:'Antrenörler', count: coachesWithCv.length },
-                                                        { key:'referees', label:'Hakemler', count: refereesWithCv.length },
-                                                        { key:'upload',   label:'CV Yükle' },
+                                                        { key:'coaches',  label:t.sc_0943, count: coachesWithCv.length },
+                                                        { key:'referees', label:t.sc_0944, count: refereesWithCv.length },
+                                                        { key:'upload',   label:t.sc_0945 },
                                                     ].map(it => (
                                                         <TouchableOpacity key={it.key} onPress={() => setCvInnerTab(it.key)}
                                                             style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: cvInnerTab===it.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvInnerTab===it.key ? cfg.color : colors.border }}>
@@ -28664,12 +28713,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TouchableOpacity onPress={() => { setCvUploadContext('coach'); setShowCvUploadModal(true); }}
                                                             style={{ paddingVertical:10, paddingHorizontal:12, borderRadius:10, backgroundColor: cfg.color+'15', borderWidth:1, borderColor: cfg.color+'50', flexDirection:'row', alignItems:'center', gap:6 }}>
                                                             <Text style={{ fontSize:16 }}>🎓</Text>
-                                                            <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>Antrenör CV Yükle</Text>
+                                                            <Text style={{ color: cfg.color, fontSize:13, fontWeight:'800' }}>{t.sc_0946}</Text>
                                                         </TouchableOpacity>
                                                         <TouchableOpacity onPress={() => { setCvUploadContext('referee'); setShowCvUploadModal(true); }}
                                                             style={{ paddingVertical:10, paddingHorizontal:12, borderRadius:10, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b50', flexDirection:'row', alignItems:'center', gap:6 }}>
                                                             <Text style={{ fontSize:16 }}>🟨</Text>
-                                                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'800' }}>Hakem CV'si Yükle</Text>
+                                                            <Text style={{ color:'#f59e0b', fontSize:13, fontWeight:'800' }}>{t.sc_0947}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
@@ -28693,7 +28742,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         ilanının durumunu görebilsin diye (bkz. getListings, onaylanmamış
                                                         ilanlar zaten başkalarına hiç gösterilmiyor). */}
                                                     {COACH_APPROVAL_SPORTS.includes(c.subCategory) && !c.approved && (
-                                                        <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>⏳ Admin Onayı Bekleniyor</Text>
+                                                        <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.sc_0934}</Text>
                                                     )}
                                                 </View>
                                                 <TouchableOpacity onPress={() => setProfileUserId(c.userId)}>
@@ -28701,22 +28750,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             </View>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:4 }}>
-                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>Bireysel {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
-                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺` : ''}</Text></View>}
-                                                {c.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.experience} yıl deneyim</Text>}
+                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:cfg.color, fontSize:11, fontWeight:'700' }}>{t.sc_0948} {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
+                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}><Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0949} {c.priceGroup > 0 ? `${c.priceGroup}₺` : ''}</Text></View>}
+                                                {c.experience > 0 && <Text style={{ color:colors.textMuted, fontSize:11 }}>{c.experience} {t.sc_0936}</Text>}
                                             </View>
                                             {Array.isArray(c.days) && c.days.length > 0 && typeof c.days[0] === 'object'
                                                 ? <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.days.map(d => `${d.day} ${d.timeFrom}-${d.timeTo}`).join(', ')}</Text>
                                                 : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:11 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:11 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
-                                            {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:11 }}>🎒 Fiyata dahil: {c.includedEquipment}</Text>}
+                                            {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:11 }}>{t.sc_0950} {c.includedEquipment}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {Array.isArray(c.achievements) && c.achievements.length > 0 && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements.join(' · ')}</Text>}
                                             {c.userId !== myId && (
                                                 <TouchableOpacity
                                                     onPress={() => setCoachDetailListing(c)}
                                                     style={{ marginTop:6, paddingVertical:7, borderRadius:8, backgroundColor: cfg.color, alignItems:'center' }}>
-                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>💬 İletişime Geç</Text>
+                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>{t.sc_0951}</Text>
                                                 </TouchableOpacity>
                                             )}
                                             {c.userId !== myId ? (
@@ -28724,31 +28773,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     onPress={() => reportListing('coaches', c.id)}
                                                     disabled={reportingListingId === c.id}
                                                     style={{ alignSelf:'flex-end', marginTop:6, paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#f59e0b15', borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>🚩 Bildir</Text>
+                                                    <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>{t.sc_0937}</Text>
                                                 </TouchableOpacity>
                                             ) : (
                                                 <View style={{ flexDirection:'row', justifyContent:'flex-end', gap:6, marginTop:6 }}>
                                                     <TouchableOpacity
                                                         onPress={() => deleteCoachListing(c.id)}
                                                         style={{ paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor:'#ef444415', borderWidth:1, borderColor:'#ef444440' }}>
-                                                        <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'700' }}>🗑 Kaldır</Text>
+                                                        <Text style={{ color:'#ef4444', fontSize:10, fontWeight:'700' }}>{t.sc_0952}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity
                                                         onPress={() => openLessonRequests(c.id)}
                                                         style={{ paddingHorizontal:7, paddingVertical:1, borderRadius:6, backgroundColor: cfg.color+'15', borderWidth:1, borderColor: cfg.color+'40' }}>
-                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Ders İstekleri</Text>
+                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.sc_0953}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
                                                 {(c.certificateUrls?.length > 0 || c.certificateUrl) && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrls?.[0] || c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>📜 Belge{c.certificateUrls?.length > 1 ? ` (${c.certificateUrls.length})` : ''}</Text>
+                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>{t.sc_0938}{c.certificateUrls?.length > 1 ? ` (${c.certificateUrls.length})` : ''}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {(c.achievementUrls || []).length > 0 && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0939}{c.achievementUrls.length})</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {c.cvUrl && (
@@ -28757,7 +28806,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>
                                                 )}
                                                 <TouchableOpacity onPress={() => openReviewModal('coach', c.id, c.user?.fullName || c.user?.username, c.userId === myId)} style={{ backgroundColor:'#facc1520', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#facc1550' }}>
-                                                    <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>★ Yorumlar</Text>
+                                                    <Text style={{ color:'#facc15', fontSize:10, fontWeight:'700' }}>{t.sc_0940}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </View>
@@ -28782,7 +28831,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{c.personalFullName || c.user?.fullName || c.user?.username}</Text>
                                                     {(c.personalGender || c.personalBirthDate) && (
                                                         <Text style={{ color:colors.textMuted, fontSize:12 }}>
-                                                            {[c.personalGender === 'MALE' ? 'Erkek' : c.personalGender === 'FEMALE' ? 'Kadın' : c.personalGender === 'OTHER' ? 'Diğer' : null, formatBirthDate(c.personalBirthDate)].filter(Boolean).join(' · ')}
+                                                            {[c.personalGender === 'MALE' ? t.sc_0343 : c.personalGender === 'FEMALE' ? t.sc_0344 : c.personalGender === 'OTHER' ? t.sc_0954 : null, formatBirthDate(c.personalBirthDate)].filter(Boolean).join(' · ')}
                                                         </Text>
                                                     )}
                                                     <Text style={{ color:colors.textMuted, fontSize:12 }}>{c.credentialLevel}{c.certName ? ` · ${c.certName}` : ''}</Text>
@@ -28790,19 +28839,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </View>
                                             {c.reviewCount > 0 && (
                                                 <TouchableOpacity onPress={() => { setCoachDetailListing(null); openReviewModal('coach', c.id, c.user?.fullName || c.user?.username, c.userId === myId); }}>
-                                                    <Text style={{ color:'#facc15', fontSize:13, fontWeight:'700', marginBottom:10 }}>★ {c.avgRating?.toFixed(1)} ({c.reviewCount} değerlendirme) — Yorumları gör</Text>
+                                                    <Text style={{ color:'#facc15', fontSize:13, fontWeight:'700', marginBottom:10 }}>★ {c.avgRating?.toFixed(1)} ({c.reviewCount} {t.sc_0955}</Text>
                                                 </TouchableOpacity>
                                             )}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:10 }}>
-                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:cfg.color, fontSize:12, fontWeight:'700' }}>Bireysel {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
-                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>Grup {c.priceGroup > 0 ? `${c.priceGroup}₺ (max ${c.maxGroupSize})` : ''}</Text></View>}
-                                                {c.experience > 0 && <View style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>{c.experience} yıl deneyim</Text></View>}
+                                                {c.individual && <View style={{ backgroundColor:cfg.color+'20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:cfg.color, fontSize:12, fontWeight:'700' }}>{t.sc_0948} {c.priceIndividual > 0 ? `${c.priceIndividual}₺` : ''}</Text></View>}
+                                                {c.group && <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0949} {c.priceGroup > 0 ? t.sc_0956(c.priceGroup, c.maxGroupSize) : ''}</Text></View>}
+                                                {c.experience > 0 && <View style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:8, paddingVertical:4 }}><Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>{c.experience} {t.sc_0936}</Text></View>}
                                             </View>
                                             {Array.isArray(c.days) && c.days.length > 0 && typeof c.days[0] === 'object'
                                                 ? <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📆 {c.days.map(d => `${d.day} ${d.timeFrom}-${d.timeTo}`).join(', ')}</Text>
                                                 : (c.timeFrom || c.timeTo) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>⏰ {c.timeFrom} - {c.timeTo}</Text>}
                                             {(c.city || (Array.isArray(c.cities) && c.cities.length > 0)) && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>📍 {Array.isArray(c.cities) && c.cities.length > 0 ? c.cities.join(', ') : c.city}{c.location ? ` / ${c.location}` : ''}</Text>}
-                                            {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>🎒 Fiyata dahil: {c.includedEquipment}</Text>}
+                                            {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:13, marginBottom:4 }}>{t.sc_0950} {c.includedEquipment}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:13, marginTop:8, lineHeight:19 }}>{c.description}</Text>}
                                             {/* Kullanıcı isteği: daha önce nerede/ne zaman antrenörlük yaptığı,
                                                 başarıların ÜSTÜNDE gösterilsin. */}
@@ -28811,12 +28860,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:12 }}>
                                                 {(c.certificateUrls?.length > 0 || c.certificateUrl) && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(c.certificateUrls?.[0] || c.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>📜 Belge{c.certificateUrls?.length > 1 ? ` (${c.certificateUrls.length})` : ''}</Text>
+                                                        <Text style={{ color:'#60a5fa', fontSize:11, fontWeight:'700' }}>{t.sc_0938}{c.certificateUrls?.length > 1 ? ` (${c.certificateUrls.length})` : ''}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {(c.achievementUrls || []).length > 0 && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(c.achievementUrls[0])} style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>🏆 Başarılar ({c.achievementUrls.length})</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.sc_0939}{c.achievementUrls.length})</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {c.cvUrl && (
@@ -28827,10 +28876,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             </View>
 
                                             <TouchableOpacity onPress={() => openChatWithCoach(c)} style={{ marginTop:20, backgroundColor: cfg.color, borderRadius:12, paddingVertical:13, alignItems:'center' }}>
-                                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>💬 Mesaj Gönder</Text>
+                                                <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{t.sc_0957}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => setCoachDetailListing(null)} style={{ alignItems:'center', marginTop:12 }}>
-                                                <Text style={{ color:colors.textMuted }}>Kapat</Text>
+                                                <Text style={{ color:colors.textMuted }}>{t.sc_0923}</Text>
                                             </TouchableOpacity>
                                         </>
                                     ); })()}
@@ -28845,7 +28894,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
                                     <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>
-                                        {category === 'ARTS' ? '🎓 Kurs Oluştur' : '🎓 Ders İlanı Oluştur'}
+                                        {category === 'ARTS' ? t.sc_0924 : t.sc_0958}
                                     </Text>
                                     {/* Kullanıcı isteği: kimlik/belge/CV bilgileri artık bu formda
                                         DOLDURULMUYOR — o bilgi ayrı "CV Yükle" akışının işi. Form HER
@@ -28855,21 +28904,21 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {existingCoachCv && (
                                         <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, padding:12, marginBottom:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'800' }}>📄 KİMLİK / BELGE BİLGİLERİNİZ</Text>
+                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'800' }}>{t.sc_0959}</Text>
                                                 {COACH_APPROVAL_SPORTS.includes(sub) && (
                                                     existingCoachCv.approved
-                                                        ? <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✓ Onaylı</Text>
-                                                        : <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>⏳ Onay Bekliyor</Text>
+                                                        ? <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>{t.sc_0960}</Text>
+                                                        : <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>{t.sc_0245}</Text>
                                                 )}
                                             </View>
                                             {(existingCoachCv.personalFullName || existingCoachCv.personalGender || existingCoachCv.personalBirthDate) && (
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>
-                                                    {[existingCoachCv.personalFullName, existingCoachCv.personalGender === 'MALE' ? 'Erkek' : existingCoachCv.personalGender === 'FEMALE' ? 'Kadın' : existingCoachCv.personalGender === 'OTHER' ? 'Diğer' : null, formatBirthDate(existingCoachCv.personalBirthDate)].filter(Boolean).join(' · ')}
+                                                    {[existingCoachCv.personalFullName, existingCoachCv.personalGender === 'MALE' ? t.sc_0343 : existingCoachCv.personalGender === 'FEMALE' ? t.sc_0344 : existingCoachCv.personalGender === 'OTHER' ? t.sc_0954 : null, formatBirthDate(existingCoachCv.personalBirthDate)].filter(Boolean).join(' · ')}
                                                 </Text>
                                             )}
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>
                                                 {{ CERTIFIED: t.credCertified, LICENSED: t.credLicensed, CLUB_COACH: t.credClubCoach, INDEPENDENT: t.credIndependent, AMATEUR: t.credAmateur }[existingCoachCv.credentialLevel] || existingCoachCv.credentialLevel}
-                                                {existingCoachCv.experience > 0 ? ` · ${existingCoachCv.experience} yıl deneyim` : ''}
+                                                {existingCoachCv.experience > 0 ? t.sc_0961(existingCoachCv.experience) : ''}
                                             </Text>
                                             {existingCoachCv.certName ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>{existingCoachCv.certName}</Text> : null}
                                             {formatPriorExperience(existingCoachCv.priorExperience) ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>📋 {formatPriorExperience(existingCoachCv.priorExperience)}</Text> : null}
@@ -28877,22 +28926,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                                 {existingCoachCv.cvUrl && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingCoachCv.cvUrl)} style={{ backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                        <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.sc_0942}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {(existingCoachCv.certificateUrls?.length > 0 || existingCoachCv.certificateUrl) && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingCoachCv.certificateUrls?.[0] || existingCoachCv.certificateUrl)} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>Belgeyi Aç</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0962}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
                                             <TouchableOpacity onPress={() => { setShowCreateCoach(false); setCvUploadContext('coach'); setShowCvUploadModal(true); }} style={{ marginTop:8 }}>
-                                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Değiştirmek için CV Yükle sekmesine git ›</Text>
+                                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.sc_0963}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
 
-                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Ders Tipleri & Ücret</Text>
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_0964}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                         <TouchableOpacity onPress={() => setCoachForm(f => ({...f, individual: !f.individual}))}
                                             style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: coachForm.individual ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.individual ? cfg.color : colors.border }}>
@@ -28904,20 +28953,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                     </View>
                                     {coachForm.individual && (
-                                        <TextInput placeholder="Bireysel ders ücreti (₺/saat)" placeholderTextColor={colors.textMuted} value={coachForm.priceIndividual} onChangeText={v => setCoachForm(f=>({...f,priceIndividual:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder={t.sc_0965} placeholderTextColor={colors.textMuted} value={coachForm.priceIndividual} onChangeText={v => setCoachForm(f=>({...f,priceIndividual:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                     )}
                                     {coachForm.group && (
                                         <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
-                                            <TextInput placeholder="Grup ücreti (₺/kişi)" placeholderTextColor={colors.textMuted} value={coachForm.priceGroup} onChangeText={v => setCoachForm(f=>({...f,priceGroup:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
-                                            <TextInput placeholder="Maks. grup" placeholderTextColor={colors.textMuted} value={coachForm.maxGroupSize} onChangeText={v => setCoachForm(f=>({...f,maxGroupSize:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ width:100, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={t.sc_0966} placeholderTextColor={colors.textMuted} value={coachForm.priceGroup} onChangeText={v => setCoachForm(f=>({...f,priceGroup:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={t.sc_0967} placeholderTextColor={colors.textMuted} value={coachForm.maxGroupSize} onChangeText={v => setCoachForm(f=>({...f,maxGroupSize:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ width:100, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
                                         </View>
                                     )}
 
-                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginTop:6, marginBottom:6 }}>Yer / Zaman</Text>
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginTop:6, marginBottom:6 }}>{t.sc_0968}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                         {[
-                                            { val: false, label: t.courtSpecifyBtn || 'Kort / Tesis Belirt' },
-                                            { val: true,  label: t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır' },
+                                            { val: false, label: t.courtSpecifyBtn || t.sc_0969 },
+                                            { val: true,  label: t.courtMutualBtn || t.sc_0046 },
                                         ].map(({ val, label }) => (
                                             <TouchableOpacity key={String(val)}
                                                 onPress={() => setCoachForm(f => ({ ...f, locationMutual: val }))}
@@ -28932,17 +28981,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </View>
                                     {/* Kullanıcı isteği: konum artık zorunlu değil (opsiyonel bilgi), onun
                                         yerine aşağıdaki şehir(ler) alanı zorunlu. */}
-                                    {!coachForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı, opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
-                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Şehir(ler) *</Text>
+                                    {!coachForm.locationMutual && <TextInput placeholder={t.sc_0970} placeholderTextColor={colors.textMuted} value={coachForm.location} onChangeText={v => setCoachForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
+                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_0971}</Text>
                                     <MultiCityAutocomplete
                                         values={coachForm.cities}
                                         onChange={v => setCoachForm(f=>({...f,cities:v}))}
-                                        placeholder="Şehir ekle..."
+                                        placeholder={t.sc_0972}
                                         style={{ marginBottom: 8 }}
                                     />
                                     {/* Kullanıcı isteği: hangi gün müsaitse o gün seçilsin, her seçilen günün
                                         KENDİ saat aralığı olsun — tek bir global saat aralığı yerine. */}
-                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Müsait Günler</Text>
+                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_0973}</Text>
                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                         {DAY_OPTIONS.map(d => {
                                             const active = coachForm.days.some(x => x.day === d.key);
@@ -28961,7 +29010,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         })}
                                     </View>
                                     {coachForm.days.length === 0 ? (
-                                        <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:14 }}>Gün seçmezseniz her gün 09:00-21:00 müsait sayılırsınız.</Text>
+                                        <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:14 }}>{t.sc_0974}</Text>
                                     ) : (
                                         <View style={{ marginBottom:14 }}>
                                             {coachForm.days.map(d => (
@@ -28982,16 +29031,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     )}
 
                                     {/* Kullanıcı isteği: fiyata dahil olan ekipmanlar (örn. raket, top) belirtilebilsin. */}
-                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Fiyata Dahil Ekipmanlar</Text>
-                                    <TextInput placeholder="Örn. Raket, Top (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.includedEquipment} onChangeText={v => setCoachForm(f=>({...f,includedEquipment:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_0975}</Text>
+                                    <TextInput placeholder={t.sc_0976} placeholderTextColor={colors.textMuted} value={coachForm.includedEquipment} onChangeText={v => setCoachForm(f=>({...f,includedEquipment:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
                                     {/* Kullanıcı isteği: "en çok yaşanan anlaşmazlık konusu" — ders fiyatına kort
                                         kirasının dahil olup olmadığı açıkça belirtilsin. */}
-                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kort Ücreti</Text>
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_0977}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                         {[
-                                            { key:true,  label:'Ders Fiyatına Dahil' },
-                                            { key:false, label:'Ayrıca Ödenir' },
+                                            { key:true,  label:t.sc_0978 },
+                                            { key:false, label:t.sc_0979 },
                                         ].map(o => (
                                             <TouchableOpacity key={String(o.key)} onPress={() => setCoachForm(f => ({...f, courtFeeIncluded: f.courtFeeIncluded===o.key ? null : o.key}))}
                                                 style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: coachForm.courtFeeIncluded===o.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: coachForm.courtFeeIncluded===o.key ? cfg.color : colors.border }}>
@@ -29000,15 +29049,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ))}
                                     </View>
 
-                                    <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                    <TextInput placeholder={t.sc_0980} placeholderTextColor={colors.textMuted} value={coachForm.description} onChangeText={v => setCoachForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
 
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity onPress={() => { setShowCreateCoach(false); resetCoachForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0065}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={submitCoach} disabled={submittingCoach} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {submittingCoach ? '...' : 'İlanı Yayınla'}
+                                                {submittingCoach ? '...' : t.sc_0913}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
@@ -29037,7 +29086,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
                             />
 
-                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubEmblemLabel || 'Bayrak / Amblem'}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubEmblemLabel || t.sc_0981}</Text>
                             <TouchableOpacity
                                 onPress={pickClubPhoto}
                                 disabled={uploadingClubPhoto}
@@ -29051,7 +29100,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </View>
                                 )}
                                 <Text style={{ color: cfg.color, fontSize:12, fontWeight:'800', flex:1 }}>
-                                    {uploadingClubPhoto ? '...' : (clubForm.photoUrl ? (t.clubEmblemChange || 'Amblemi değiştir') : (t.clubEmblemAdd || 'Amblem / bayrak ekle'))}
+                                    {uploadingClubPhoto ? '...' : (clubForm.photoUrl ? (t.clubEmblemChange || t.sc_0982) : (t.clubEmblemAdd || t.sc_0983))}
                                 </Text>
                                 {clubForm.photoUrl ? (
                                     <TouchableOpacity onPress={() => setClubForm(f => ({ ...f, photoUrl: '' }))} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
@@ -29060,7 +29109,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ) : null}
                             </TouchableOpacity>
 
-                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubFacilityLabel || 'Tesis'} *</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubFacilityLabel || t.sc_0277} *</Text>
                             <View style={{ marginBottom: clubForm.facilityManual ? 4 : 8, zIndex: 50 }}>
                                 <VenueNameAutocomplete
                                     value={clubForm.facilityName}
@@ -29091,13 +29140,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         }));
                                     }}
                                     sport={sub}
-                                    placeholder={t.clubFacilityPh || 'Tesis adı yazın...'}
+                                    placeholder={t.clubFacilityPh || t.sc_0984}
                                     inputStyle={{ backgroundColor:colors.surface2, borderColor:colors.border, color:'#fff', paddingVertical:5 }}
                                 />
                             </View>
                             {clubForm.facilityManual && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:8, marginBottom:8, borderWidth:1, borderColor:'#334155', gap:6 }}>
-                                    <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.clubFacilityNewHint || 'Kayıtlı değil — il / ilçe / açık adres admin onayına gider'}</Text>
+                                    <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.clubFacilityNewHint || t.sc_0985}</Text>
                                     <CityAutocomplete
                                         value={clubForm.facilityCity}
                                         onChangeText={v => setClubForm(f => ({ ...f, facilityCity: v }))}
@@ -29107,18 +29156,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             facilityDistrict: c.district || f.facilityDistrict,
                                             cities: (c.province && !f.cities.includes(c.province)) ? [...f.cities, c.province] : f.cities,
                                         }))}
-                                        placeholder={t.clubFacilityCityPh || 'İl ara...'}
+                                        placeholder={t.clubFacilityCityPh || t.sc_0986}
                                         inputStyle={{ backgroundColor:colors.surface2, borderColor:colors.border, color:'#fff', paddingVertical:5 }}
                                     />
                                     <TextInput
-                                        placeholder={t.clubFacilityDistrictPh || 'İlçe'}
+                                        placeholder={t.clubFacilityDistrictPh || t.sc_0987}
                                         placeholderTextColor={colors.textMuted}
                                         value={clubForm.facilityDistrict}
                                         onChangeText={v => setClubForm(f => ({ ...f, facilityDistrict: v }))}
                                         style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }}
                                     />
                                     <TextInput
-                                        placeholder={t.clubFacilityAddressPh || 'Açık adres'}
+                                        placeholder={t.clubFacilityAddressPh || t.sc_0988}
                                         placeholderTextColor={colors.textMuted}
                                         value={clubForm.facilityAddress}
                                         onChangeText={v => setClubForm(f => ({ ...f, facilityAddress: v }))}
@@ -29169,11 +29218,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, color:'#fff', marginBottom:10, borderWidth:1, borderColor:colors.border, minHeight:120, flexGrow:1, textAlignVertical:'top' }}
                             />
                             <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:10, lineHeight:16 }}>
-                                {t.clubAdminApprovalHint || 'Kulüp talebi admin onayına gider. Onaylandıktan sonra listede görünür.'}
+                                {t.clubAdminApprovalHint || t.sc_0989}
                             </Text>
                             <View style={{ flexDirection:'row', gap:3, marginTop:'auto' }}>
                                 <TouchableOpacity onPress={() => { setShowCreateClub(false); resetClubForm(); }} style={{ flex:1, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || 'İptal'}</Text>
+                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || t.sc_0065}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity onPress={submitClub} disabled={submittingClub} style={{ flex:2, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                     <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
@@ -29186,12 +29235,12 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── Kulüp Üyelik Başvurusu ── */}
                     <KeyboardSafeModal visible={!!showClubApply} onClose={() => { setShowClubApply(null); setClubApplyMsg(''); }}>
-                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:8 }}>{t.clubApplyTitle || 'Üye Başvurusu'}</Text>
+                        <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:8 }}>{t.clubApplyTitle || t.sc_0932}</Text>
                         {showClubApply ? (
                             <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:12 }}>{showClubApply.name}</Text>
                         ) : null}
                         <TextInput
-                            placeholder={t.clubApplyMsgPh || 'Kısaca kendinizi tanıtın (opsiyonel)'}
+                            placeholder={t.clubApplyMsgPh || t.sc_0990}
                             placeholderTextColor={colors.textMuted}
                             value={clubApplyMsg}
                             onChangeText={setClubApplyMsg}
@@ -29200,11 +29249,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                         />
                         <View style={{ flexDirection:'row', gap:3 }}>
                             <TouchableOpacity onPress={() => { setShowClubApply(null); setClubApplyMsg(''); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || 'İptal'}</Text>
+                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || t.sc_0065}</Text>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={submitClubMembership} disabled={submittingClubApply} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                 <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                    {submittingClubApply ? '...' : (t.clubApplySendBtn || 'Başvuruyu Gönder')}
+                                    {submittingClubApply ? '...' : (t.clubApplySendBtn || t.sc_0991)}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -29270,17 +29319,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             onPress={() => openCvForm(l, type)}
                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical:9, paddingHorizontal:10, backgroundColor:colors.surface2, borderRadius:8, borderWidth:1, borderColor:colors.border, marginBottom:6 }}>
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{getSubCategoryLabel(l.subCategory, t.lang)}{l.cvUrl ? '  ✓' : ''}</Text>
-                                            <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? 'Düzenle' : 'CV Yükle'}</Text>
+                                            <Text style={{ color: l.cvUrl ? '#4ade80' : cfg.color, fontSize:11, fontWeight:'700' }}>{l.cvUrl ? t.sc_0992 : t.sc_0945}</Text>
                                         </TouchableOpacity>
                                     );
                                     const isRefereeContext = cvUploadContext === 'referee';
                                     return (
                                         <ScrollView showsVerticalScrollIndicator={false}>
-                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isRefereeContext ? 'Hakemlik CV Yükle' : 'Antrenörlük CV Yükle'}</Text>
+                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isRefereeContext ? t.sc_0993 : t.sc_0994}</Text>
                                             {isRefereeContext ? (
                                                 myRefereeListingsOwn.length === 0 ? (
                                                     <TouchableOpacity onPress={() => openCvForm(null, 'referee')} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor:'#f59e0b15', borderRadius:8, borderWidth:1, borderColor:'#f59e0b50', marginBottom:14 }}>
-                                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>+ Hakemlik CV'si Yükle</Text>
+                                                        <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700' }}>{t.sc_0995}</Text>
                                                     </TouchableOpacity>
                                                 ) : (
                                                     <View style={{ marginBottom:14 }}>{myRefereeListingsOwn.map(l => pickRow(l, 'referee'))}</View>
@@ -29288,14 +29337,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             ) : (
                                                 myCoachListings.length === 0 ? (
                                                     <TouchableOpacity onPress={() => openCvForm(null, 'coach')} style={{ paddingVertical:9, paddingHorizontal:10, backgroundColor: cfg.color+'15', borderRadius:8, borderWidth:1, borderColor: cfg.color+'50', marginBottom:14 }}>
-                                                        <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>+ Antrenör CV'si Yükle</Text>
+                                                        <Text style={{ color: cfg.color, fontSize:12, fontWeight:'700' }}>{t.sc_0996}</Text>
                                                     </TouchableOpacity>
                                                 ) : (
                                                     <View style={{ marginBottom:14 }}>{myCoachListings.map(l => pickRow(l, 'coach'))}</View>
                                                 )
                                             )}
                                             <TouchableOpacity onPress={() => setShowCvUploadModal(false)} style={{ paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>Kapat</Text>
+                                                <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0923}</Text>
                                             </TouchableOpacity>
                                         </ScrollView>
                                     );
@@ -29327,9 +29376,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 provinceOnly
                                             />
                                             <TouchableOpacity onPress={closeForm} style={{ marginBottom:10, alignSelf:'flex-start' }}>
-                                                <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>‹ Geri</Text>
+                                                <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>{t.sc_0997}</Text>
                                             </TouchableOpacity>
-                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isReferee ? 'Hakemlik' : 'Antrenörlük'} CV'si</Text>
+                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', marginBottom:12 }}>{isReferee ? t.sc_0998 : t.sc_0999} {t.sc_1000}</Text>
 
                                             {/* Kullanıcı isteği: antrenörlük ilanı kullanıcı adıyla değil bu kişisel
                                                 bilgilerle görünsün — form en üstten kişisel bilgilerle başlasın.
@@ -29337,13 +29386,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 normalde zorunlu değil, "Amatör" kademe seçilirse SADECE bunlar
                                                 zorunlu oluyor (bkz. submitCvProfile). */}
                                             <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kişisel Bilgiler{cvProfileForm.credentialLevel === 'AMATEUR' ? ' *' : ''}</Text>
-                                                    <TextInput placeholder="İsim Soyisim" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalFullName} onChangeText={v => setCvProfileForm(f=>({...f,personalFullName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1001}{cvProfileForm.credentialLevel === 'AMATEUR' ? ' *' : ''}</Text>
+                                                    <TextInput placeholder={t.sc_1002} placeholderTextColor={colors.textMuted} value={cvProfileForm.personalFullName} onChangeText={v => setCvProfileForm(f=>({...f,personalFullName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            { key:'MALE', label:'Erkek' },
-                                                            { key:'FEMALE', label:'Kadın' },
-                                                            { key:'OTHER', label:'Diğer' },
+                                                            { key:'MALE', label:t.sc_0343 },
+                                                            { key:'FEMALE', label:t.sc_0344 },
+                                                            { key:'OTHER', label:t.sc_0954 },
                                                         ].map(g => (
                                                             <TouchableOpacity key={g.key} onPress={() => setCvProfileForm(f => ({...f, personalGender:g.key}))}
                                                                 style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: cvProfileForm.personalGender===g.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.personalGender===g.key ? cfg.color : colors.border }}>
@@ -29352,15 +29401,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         ))}
                                                     </View>
                                                     {/* Kullanıcı isteği: doğum tarihi sadece yıl değil gün/ay/yıl olarak girilebilsin. */}
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Doğum Tarihi</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1003}</Text>
                                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                                        <TextInput placeholder="Gün" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthDay} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthDay:v.replace(/[^0-9]/,'').slice(0,2)}))} keyboardType="numeric" maxLength={2} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
-                                                        <TextInput placeholder="Ay" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthMonth} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthMonth:v.replace(/[^0-9]/,'').slice(0,2)}))} keyboardType="numeric" maxLength={2} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
-                                                        <TextInput placeholder="Yıl" placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthYear} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthYear:v.replace(/[^0-9]/,'').slice(0,4)}))} keyboardType="numeric" maxLength={4} style={{ flex:1.4, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
+                                                        <TextInput placeholder={t.sc_1004} placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthDay} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthDay:v.replace(/[^0-9]/,'').slice(0,2)}))} keyboardType="numeric" maxLength={2} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
+                                                        <TextInput placeholder={t.sc_1005} placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthMonth} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthMonth:v.replace(/[^0-9]/,'').slice(0,2)}))} keyboardType="numeric" maxLength={2} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
+                                                        <TextInput placeholder={t.sc_1006} placeholderTextColor={colors.textMuted} value={cvProfileForm.personalBirthYear} onChangeText={v => setCvProfileForm(f=>({...f,personalBirthYear:v.replace(/[^0-9]/,'').slice(0,4)}))} keyboardType="numeric" maxLength={4} style={{ flex:1.4, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, textAlign:'center' }} />
                                                     </View>
                                                 </>
 
-                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Kimlik / Belge</Text>
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1007}</Text>
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
                                                 {[
                                                     { key:'CERTIFIED',   label: t.credCertified },
@@ -29375,7 +29424,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
-                                            <TextInput placeholder={`Belge/Sertifika adı${isProfessionalLevel ? ' *' : ' (opsiyonel)'}`} placeholderTextColor={colors.textMuted} value={cvProfileForm.certName} onChangeText={v => setCvProfileForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={t.sc_1008(isProfessionalLevel ? t.sc_x_202a : t.sc_x_20286f7073)} placeholderTextColor={colors.textMuted} value={cvProfileForm.certName} onChangeText={v => setCvProfileForm(f=>({...f,certName:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                             {cvProfileCertImages.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
                                                     {cvProfileCertImages.map((uri, idx) => (
@@ -29394,13 +29443,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:10 }}>
                                                     <Text style={{ fontSize:14 }}>📜</Text>
                                                     <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                        {cvProfileCertImages.length > 0 ? `Belge Fotoğrafı Ekle (${cvProfileCertImages.length}/5)`
-                                                            : (targetListing?.certificateUrls?.length || targetListing?.certificateUrl) ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)'
-                                                            : `Belge Fotoğrafı Yükle${isProfessionalLevel ? ' *' : ' (opsiyonel)'}`}
+                                                        {cvProfileCertImages.length > 0 ? t.sc_1009(cvProfileCertImages.length)
+                                                            : (targetListing?.certificateUrls?.length || targetListing?.certificateUrl) ? t.sc_1010
+                                                            : t.sc_1011(isProfessionalLevel ? t.sc_x_202a : t.sc_x_20286f7073)}
                                                     </Text>
                                                 </TouchableOpacity>
                                             )}
-                                            <TextInput placeholder={`Deneyim (yıl)${isProfessionalLevel ? ' *' : ''}`} placeholderTextColor={colors.textMuted} value={cvProfileForm.experience} onChangeText={v => setCvProfileForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                            <TextInput placeholder={t.sc_1012(isProfessionalLevel ? t.sc_x_202a : '')} placeholderTextColor={colors.textMuted} value={cvProfileForm.experience} onChangeText={v => setCvProfileForm(f=>({...f,experience:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
                                             {/* Kullanıcı isteği: bir tenis hakemini onaylamadan önce mutlaka kontrol
                                                 edilmesi gereken temel bilgiler — TTF Hakem Sicil No (i-KORT ID), kademe
@@ -29410,16 +29459,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 hakemliğinde gösterilir. */}
                                             {isTennisReferee && (
                                                 <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Tenis Hakemliği Doğrulama</Text>
-                                                    <TextInput placeholder="TTF Hakem Sicil No / i-KORT ID *" placeholderTextColor={colors.textMuted} value={cvProfileForm.ikortNo} onChangeText={v => setCvProfileForm(f=>({...f,ikortNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1013}</Text>
+                                                    <TextInput placeholder={t.sc_1014} placeholderTextColor={colors.textMuted} value={cvProfileForm.ikortNo} onChangeText={v => setCvProfileForm(f=>({...f,ikortNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Hakemlik Kademesi *</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1015}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            { key:'ADAY', label:'Aday' },
-                                                            { key:'IL', label:'İl' },
-                                                            { key:'ULUSAL', label:'Ulusal' },
-                                                            { key:'ULUSLARARASI', label:'Uluslararası' },
+                                                            { key:'ADAY', label:t.sc_1016 },
+                                                            { key:'IL', label:t.sc_1017 },
+                                                            { key:'ULUSAL', label:t.sc_0396 },
+                                                            { key:'ULUSLARARASI', label:t.sc_1018 },
                                                         ].map(k => (
                                                             <TouchableOpacity key={k.key} onPress={() => setCvProfileForm(f => ({...f, refereeKademe:k.key}))}
                                                                 style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.refereeKademe===k.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.refereeKademe===k.key ? cfg.color : colors.border }}>
@@ -29441,24 +29490,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                                             <Text style={{ fontSize:14 }}>📇</Text>
                                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                                {targetListing?.vizeBelgesiUrl ? 'Mevcut Vize Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Güncel Vize Belgesi Yükle (i-KORT profil ekran görüntüsü) *'}
+                                                                {targetListing?.vizeBelgesiUrl ? t.sc_1019 : t.sc_1020}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Bağlı Olduğu İl Temsilciliği *</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1021}</Text>
                                                     <TouchableOpacity onPress={() => setShowRefereeIlModal(true)}
                                                         style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
                                                         <Text style={{ color: cvProfileForm.ilTemsilciligi ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                                            {cvProfileForm.ilTemsilciligi || 'İl seçin'}
+                                                            {cvProfileForm.ilTemsilciligi || t.sc_1022}
                                                         </Text>
                                                     </TouchableOpacity>
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Uzmanlık Alanı *</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1023}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            { key:'kule_hakemi', label:'Kule Hakemi (Chair Umpire)' },
-                                                            { key:'cizgi_hakemi', label:'Çizgi Hakemi (Line Umpire)' },
+                                                            { key:'kule_hakemi', label:t.sc_1024 },
+                                                            { key:'cizgi_hakemi', label:t.sc_1025 },
                                                         ].map(o => {
                                                             const active = cvProfileForm.specialization.includes(o.key);
                                                             return (
@@ -29471,7 +29520,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         })}
                                                     </View>
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>ITF Rozeti (opsiyonel, uluslararası maç yönetenler için)</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1026}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
                                                             { key:'WHITE', label:'White' },
@@ -29486,7 +29535,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         ))}
                                                     </View>
                                                     {!!cvProfileForm.itfBadgeLevel && (
-                                                        <TextInput placeholder="ITF Sertifika Numarası (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.itfCertNo} onChangeText={v => setCvProfileForm(f=>({...f,itfCertNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                        <TextInput placeholder={t.sc_1027} placeholderTextColor={colors.textMuted} value={cvProfileForm.itfCertNo} onChangeText={v => setCvProfileForm(f=>({...f,itfCertNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                                     )}
 
                                                     {cvProfileAdliSicilImage ? (
@@ -29502,7 +29551,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                                             <Text style={{ fontSize:14 }}>🪪</Text>
                                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                                {targetListing?.adliSicilUrl ? 'Mevcut Adli Sicil Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Adli Sicil Belgesi Yükle (opsiyonel)'}
+                                                                {targetListing?.adliSicilUrl ? t.sc_1028 : t.sc_1029}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -29520,7 +29569,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                             <Text style={{ fontSize:14 }}>📋</Text>
                                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                                {targetListing?.cezaBelgesiUrl ? 'Mevcut Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Ceza Almadığına Dair Belge Yükle (opsiyonel)'}
+                                                                {targetListing?.cezaBelgesiUrl ? t.sc_1010 : t.sc_1030}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -29535,19 +29584,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 listesi opsiyonel. Sadece voleybol hakemliğinde gösterilir. */}
                                             {isVolleyballReferee && (
                                                 <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Voleybol Hakemliği Doğrulama</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1031}</Text>
                                                     <Text style={{ color:'#fbbf24', fontSize:10, marginBottom:8 }}>
-                                                        ⚠️ Bu bilgiler admin onayına gönderilir, onaylanmadan maçlara hakem olarak atanamazsınız.
+                                                        {t.sc_1032}
                                                     </Text>
-                                                    <TextInput placeholder="Hakemlik Sicil Numarası (Lisans No) *" placeholderTextColor={colors.textMuted} value={cvProfileForm.ikortNo} onChangeText={v => setCvProfileForm(f=>({...f,ikortNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder={t.sc_1033} placeholderTextColor={colors.textMuted} value={cvProfileForm.ikortNo} onChangeText={v => setCvProfileForm(f=>({...f,ikortNo:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Mevcut Klasman / Unvan *</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1034}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            { key:'ADAY', label:'Aday Hakem' },
-                                                            { key:'IL', label:'İl Hakemi' },
-                                                            { key:'ULUSAL', label:'Ulusal Hakem' },
-                                                            { key:'ULUSLARARASI', label:'Uluslararası Hakem' },
+                                                            { key:'ADAY', label:t.sc_1035 },
+                                                            { key:'IL', label:t.sc_1036 },
+                                                            { key:'ULUSAL', label:t.sc_1037 },
+                                                            { key:'ULUSLARARASI', label:t.sc_1038 },
                                                         ].map(k => (
                                                             <TouchableOpacity key={k.key} onPress={() => setCvProfileForm(f => ({...f, refereeKademe:k.key}))}
                                                                 style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.refereeKademe===k.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.refereeKademe===k.key ? cfg.color : colors.border }}>
@@ -29556,19 +29605,19 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         ))}
                                                     </View>
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Bağlı Olduğu İl Temsilciliği *</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1021}</Text>
                                                     <TouchableOpacity onPress={() => setShowRefereeIlModal(true)}
                                                         style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:colors.border }}>
                                                         <Text style={{ color: cvProfileForm.ilTemsilciligi ? '#fff' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                                            {cvProfileForm.ilTemsilciligi || 'İl seçin'}
+                                                            {cvProfileForm.ilTemsilciligi || t.sc_1022}
                                                         </Text>
                                                     </TouchableOpacity>
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Vize Durumu (bu sezon)</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1039}</Text>
                                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            { key:true, label:'Vizem Güncel' },
-                                                            { key:false, label:'Güncel Değil' },
+                                                            { key:true, label:t.sc_1040 },
+                                                            { key:false, label:t.sc_1041 },
                                                         ].map(o => (
                                                             <TouchableOpacity key={String(o.key)} onPress={() => setCvProfileForm(f => ({...f, vizeAktif:o.key}))}
                                                                 style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: cvProfileForm.vizeAktif===o.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.vizeAktif===o.key ? cfg.color : colors.border }}>
@@ -29590,18 +29639,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                                             <Text style={{ fontSize:14 }}>📇</Text>
                                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                                {targetListing?.vizeBelgesiUrl ? 'Mevcut Lisans/Vize Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Hakemlik Lisans / Vize Belgesi Yükle *'}
+                                                                {targetListing?.vizeBelgesiUrl ? t.sc_1042 : t.sc_1043}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Uzman Olduğu Pozisyonlar (opsiyonel)</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1044}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            { key:'bashakem', label:'Başhakem (1. Hakem)' },
-                                                            { key:'yardimci_hakem', label:'Yardımcı Hakem (2. Hakem)' },
-                                                            { key:'yazi_hakemi', label:'Yazı Hakemi (Skorer)' },
-                                                            { key:'cizgi_hakemi', label:'Çizgi Hakemi' },
+                                                            { key:'bashakem', label:t.sc_1045 },
+                                                            { key:'yardimci_hakem', label:t.sc_1046 },
+                                                            { key:'yazi_hakemi', label:t.sc_1047 },
+                                                            { key:'cizgi_hakemi', label:t.sc_1048 },
                                                         ].map(o => {
                                                             const active = cvProfileForm.specialization.includes(o.key);
                                                             return (
@@ -29614,10 +29663,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         })}
                                                     </View>
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Yönettiği En Yüksek Lig Seviyesi (opsiyonel)</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1049}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            'Efeler Ligi / Sultanlar Ligi', '1. Lig', '2. Lig', 'Altyapı',
+                                                            t.sc_1050, t.sc_1051, t.sc_1052, t.sc_1053,
                                                         ].map(k => (
                                                             <TouchableOpacity key={k} onPress={() => setCvProfileForm(f => ({...f, highestLeagueLevel: f.highestLeagueLevel === k ? '' : k}))}
                                                                 style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.highestLeagueLevel===k ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.highestLeagueLevel===k ? cfg.color : colors.border }}>
@@ -29639,7 +29688,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                             <Text style={{ fontSize:14 }}>📋</Text>
                                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                                {targetListing?.recentMatchesUrl ? 'Mevcut Maç Listeniz Kullanılacak ✓ (eklemek için dokunun)' : 'En Son Yönettiği Maç Listesi Yükle (opsiyonel)'}
+                                                                {targetListing?.recentMatchesUrl ? t.sc_1054 : t.sc_1055}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
@@ -29651,13 +29700,13 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 görür, başkalarına hiç gösterilmez (bkz. backend redactSensitiveCoachFields). */}
                                             {!isReferee && (
                                                 <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Resmi Doğrulama</Text>
-                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Belgeyi Veren Kurum</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1056}</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_1057}</Text>
                                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                                         {[
                                                             { key:'TTF', label:'TTF' },
                                                             { key:'GSB', label:'GSB' },
-                                                            { key:'OTHER', label:'Diğer' },
+                                                            { key:'OTHER', label:t.sc_0954 },
                                                         ].map(o => (
                                                             <TouchableOpacity key={o.key} onPress={() => setCvProfileForm(f => ({...f, certIssuer:o.key}))}
                                                                 style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: cvProfileForm.certIssuer===o.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.certIssuer===o.key ? cfg.color : colors.border }}>
@@ -29667,7 +29716,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </View>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
                                                         {[
-                                                            '1. Kademe Yardımcı Antrenör', '2. Kademe Antrenör', '3. Kademe Kıdemli Antrenör',
+                                                            t.sc_1058, t.sc_1059, t.sc_1060,
                                                         ].map(k => (
                                                             <TouchableOpacity key={k} onPress={() => setCvProfileForm(f => ({...f, kademe: f.kademe === k ? '' : k}))}
                                                                 style={{ paddingHorizontal:7, paddingVertical:3, borderRadius:8, backgroundColor: cvProfileForm.kademe===k ? cfg.color : colors.surface2, borderWidth:1, borderColor: cvProfileForm.kademe===k ? cfg.color : colors.border }}>
@@ -29675,7 +29724,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             </TouchableOpacity>
                                                         ))}
                                                     </View>
-                                                    <TextInput placeholder="T.C. Kimlik No (opsiyonel, sadece admin görür)" placeholderTextColor={colors.textMuted} value={cvProfileForm.tcKimlikNo} onChangeText={v => setCvProfileForm(f=>({...f,tcKimlikNo:v.replace(/[^0-9]/,'').slice(0,11)}))} keyboardType="numeric" maxLength={11} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder={t.sc_1061} placeholderTextColor={colors.textMuted} value={cvProfileForm.tcKimlikNo} onChangeText={v => setCvProfileForm(f=>({...f,tcKimlikNo:v.replace(/[^0-9]/,'').slice(0,11)}))} keyboardType="numeric" maxLength={11} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                                     {cvProfileAdliSicilImage ? (
                                                         <View style={{ marginBottom:8, position:'relative', alignSelf:'flex-start' }}>
                                                             <Image source={{ uri: cvProfileAdliSicilImage }} style={{ width:80, height:80, borderRadius:8 }} resizeMode="cover" />
@@ -29689,20 +29738,20 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                                             <Text style={{ fontSize:14 }}>🪪</Text>
                                                             <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                                {targetListing?.adliSicilUrl ? 'Mevcut Adli Sicil Belgeniz Kullanılacak ✓ (eklemek için dokunun)' : 'Adli Sicil Belgesi Yükle (opsiyonel)'}
+                                                                {targetListing?.adliSicilUrl ? t.sc_1028 : t.sc_1029}
                                                             </Text>
                                                         </TouchableOpacity>
                                                     )}
-                                                    <TextInput placeholder="Eğitim Durumu (Spor Bilimleri Fak. / BESYO vb., opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.education} onChangeText={v => setCvProfileForm(f=>({...f,education:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder={t.sc_1062} placeholderTextColor={colors.textMuted} value={cvProfileForm.education} onChangeText={v => setCvProfileForm(f=>({...f,education:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Uzmanlık Alanları</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1063}</Text>
                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:14 }}>
                                                         {[
-                                                            { key:'cocuk_tenisi',    label:'Çocuk Tenisi (6-10 yaş)' },
-                                                            { key:'yetiskin_tenisi', label:'Yetişkin Tenisi' },
-                                                            { key:'performans',      label:'Performans Oyuncusu' },
-                                                            { key:'hobi',            label:'Hobi Tenisi' },
-                                                            { key:'kardiyo',         label:'Kardiyo Tenis' },
+                                                            { key:'cocuk_tenisi',    label:t.sc_1064 },
+                                                            { key:'yetiskin_tenisi', label:t.sc_1065 },
+                                                            { key:'performans',      label:t.sc_1066 },
+                                                            { key:'hobi',            label:t.sc_1067 },
+                                                            { key:'kardiyo',         label:t.sc_1068 },
                                                         ].map(o => {
                                                             const active = cvProfileForm.specializations.includes(o.key);
                                                             return (
@@ -29717,7 +29766,7 @@ export default function SubCategoryScreen({ route, navigation }) {
 
                                                     {/* Kullanıcı isteği: profil fotoğrafı (hesap avatarından bağımsız), tanıtım
                                                         videosu, sosyal medya linkleri — sosyal kanıt. */}
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Profil Fotoğrafı</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1069}</Text>
                                                     {(cvProfilePhotoImage || targetListing?.profilePhotoUrl) ? (
                                                         <Image source={{ uri: cvProfilePhotoImage || targetListing.profilePhotoUrl }} style={{ width:80, height:80, borderRadius:40, marginBottom:8 }} resizeMode="cover" />
                                                     ) : null}
@@ -29725,12 +29774,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
                                                         <Text style={{ fontSize:14 }}>🖼️</Text>
                                                         <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                            {(cvProfilePhotoImage || targetListing?.profilePhotoUrl) ? 'Fotoğrafı Değiştir' : 'Profil Fotoğrafı Yükle (opsiyonel)'}
+                                                            {(cvProfilePhotoImage || targetListing?.profilePhotoUrl) ? t.sc_1070 : t.sc_1071}
                                                         </Text>
                                                     </TouchableOpacity>
-                                                    <TextInput placeholder="Tanıtım videosu linki (YouTube/Instagram, opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.introVideoUrl} onChangeText={v => setCvProfileForm(f=>({...f,introVideoUrl:v}))} autoCapitalize="none" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                                    <TextInput placeholder="Instagram (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.socialInstagram} onChangeText={v => setCvProfileForm(f=>({...f,socialInstagram:v}))} autoCapitalize="none" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
-                                                    <TextInput placeholder="LinkedIn (opsiyonel)" placeholderTextColor={colors.textMuted} value={cvProfileForm.socialLinkedin} onChangeText={v => setCvProfileForm(f=>({...f,socialLinkedin:v}))} autoCapitalize="none" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder={t.sc_1072} placeholderTextColor={colors.textMuted} value={cvProfileForm.introVideoUrl} onChangeText={v => setCvProfileForm(f=>({...f,introVideoUrl:v}))} autoCapitalize="none" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder={t.sc_1073} placeholderTextColor={colors.textMuted} value={cvProfileForm.socialInstagram} onChangeText={v => setCvProfileForm(f=>({...f,socialInstagram:v}))} autoCapitalize="none" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
+                                                    <TextInput placeholder={t.sc_1074} placeholderTextColor={colors.textMuted} value={cvProfileForm.socialLinkedin} onChangeText={v => setCvProfileForm(f=>({...f,socialLinkedin:v}))} autoCapitalize="none" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
                                                 </>
                                             )}
 
@@ -29741,16 +29790,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 satır ekleyebilir. */}
                                             {!isReferee && (
                                                 <>
-                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Daha Önce Çalıştığı Yerler</Text>
+                                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1075}</Text>
                                                     {cvProfileForm.priorExperience.map((row, idx) => (
                                                         <View key={idx} style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'center' }}>
-                                                            <TextInput placeholder="Çalıştığı yer/firma" placeholderTextColor={colors.textMuted} value={row.workplace}
+                                                            <TextInput placeholder={t.sc_1076} placeholderTextColor={colors.textMuted} value={row.workplace}
                                                                 onChangeText={v => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.map((r,i) => i===idx ? {...r, workplace:v} : r) }))}
                                                                 style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:7, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:11 }} />
-                                                            <TextInput placeholder="Pozisyon" placeholderTextColor={colors.textMuted} value={row.position}
+                                                            <TextInput placeholder={t.sc_1077} placeholderTextColor={colors.textMuted} value={row.position}
                                                                 onChangeText={v => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.map((r,i) => i===idx ? {...r, position:v} : r) }))}
                                                                 style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:7, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:11 }} />
-                                                            <TextInput placeholder="Tarih aralığı" placeholderTextColor={colors.textMuted} value={row.period}
+                                                            <TextInput placeholder={t.sc_1078} placeholderTextColor={colors.textMuted} value={row.period}
                                                                 onChangeText={v => setCvProfileForm(f => ({ ...f, priorExperience: f.priorExperience.map((r,i) => i===idx ? {...r, period:v} : r) }))}
                                                                 style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:7, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:11 }} />
                                                             {cvProfileForm.priorExperience.length > 1 && (
@@ -29762,17 +29811,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     ))}
                                                     <TouchableOpacity onPress={() => setCvProfileForm(f => ({ ...f, priorExperience: [...f.priorExperience, { workplace:'', position:'', period:'' }] }))}
                                                         style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
-                                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>+ Ekle</Text>
+                                                        <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{t.sc_0581}</Text>
                                                     </TouchableOpacity>
                                                 </>
                                             )}
 
                                             {/* Kullanıcı isteği: başarılarda da "Ekle" olsun, birden fazla
                                                 başarı girilebilsin. */}
-                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Başarılar</Text>
+                                            <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_1079}</Text>
                                             {cvProfileForm.achievements.map((ach, idx) => (
                                                 <View key={idx} style={{ flexDirection:'row', gap:3, marginBottom:6, alignItems:'center' }}>
-                                                    <TextInput placeholder="Başarınız (örn. 2023 Bölge Şampiyonu)" placeholderTextColor={colors.textMuted} value={ach}
+                                                    <TextInput placeholder={t.sc_1080} placeholderTextColor={colors.textMuted} value={ach}
                                                         onChangeText={v => setCvProfileForm(f => ({ ...f, achievements: f.achievements.map((a,i) => i===idx ? v : a) }))}
                                                         style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border, fontSize:12 }} />
                                                     {cvProfileForm.achievements.length > 1 && (
@@ -29784,7 +29833,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             ))}
                                             <TouchableOpacity onPress={() => setCvProfileForm(f => ({ ...f, achievements: [...f.achievements, ''] }))}
                                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:8 }}>
-                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>+ Ekle</Text>
+                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>{t.sc_0581}</Text>
                                             </TouchableOpacity>
                                             {cvProfileAchievementImages.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:8 }}>
@@ -29805,8 +29854,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <Text style={{ fontSize:14 }}>🏆</Text>
                                                     <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
                                                         {targetListing?.achievementUrls?.length > 0 && cvProfileAchievementImages.length === 0
-                                                            ? `Başarı Fotoğrafı Ekle (mevcut ${targetListing.achievementUrls.length} tane var)`
-                                                            : `Başarı Fotoğrafı Ekle ${cvProfileAchievementImages.length > 0 ? `(${cvProfileAchievementImages.length}/5)` : ''}`}
+                                                            ? t.sc_1081(targetListing.achievementUrls.length)
+                                                            : t.sc_1082(cvProfileAchievementImages.length > 0 ? `(${cvProfileAchievementImages.length}/5)` : '')}
                                                     </Text>
                                                 </TouchableOpacity>
                                             )}
@@ -29819,18 +29868,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                 <Text style={{ fontSize:14 }}>📷</Text>
                                                 <Text style={{ color:colors.textSecondary, fontSize:12, fontWeight:'700' }}>
-                                                    {standaloneCvImage ? 'Fotoğrafı Değiştir'
-                                                        : targetListing?.cvUrl ? 'Mevcut CV\'niz Var ✓ (değiştirmek için dokunun)'
-                                                        : `CV Fotoğrafı Seç${!isReferee ? ' (opsiyonel)' : approvalSports.includes(sub) ? ' *' : ' (opsiyonel)'}`}
+                                                    {standaloneCvImage ? t.sc_1070
+                                                        : targetListing?.cvUrl ? t.sc_1083
+                                                        : t.sc_1084(!isReferee ? t.sc_x_20286f7073 : approvalSports.includes(sub) ? t.sc_x_202a : t.sc_x_20286f7073)}
                                                 </Text>
                                             </TouchableOpacity>
 
                                             <View style={{ flexDirection:'row', gap:3 }}>
                                                 <TouchableOpacity onPress={() => { setShowCvUploadModal(false); closeForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                                    <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0065}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={submitCvProfile} disabled={submittingCvProfile} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: '#16a34a' }}>
-                                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{submittingCvProfile ? 'Yükleniyor...' : 'CV\'yi Kaydet'}</Text>
+                                                    <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>{submittingCvProfile ? t.sc_0100 : t.sc_1085}</Text>
                                                 </TouchableOpacity>
                                             </View>
                                         </ScrollView>
@@ -29846,7 +29895,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, maxHeight:'85%' }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
                                     <View style={{ flex:1 }}>
-                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>Yorumlar</Text>
+                                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'900' }}>{t.sc_1086}</Text>
                                         {reviewModal.targetLabel ? <Text style={{ color:colors.textMuted, fontSize:11 }}>{reviewModal.targetLabel}</Text> : null}
                                     </View>
                                     {reviewAvg != null && (
@@ -29860,7 +29909,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {reviewLoading ? (
                                         <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
                                     ) : reviewList.length === 0 ? (
-                                        <Text style={{ color:colors.textMuted, fontSize:12, textAlign:'center', marginVertical:14 }}>Henüz yorum yok.</Text>
+                                        <Text style={{ color:colors.textMuted, fontSize:12, textAlign:'center', marginVertical:14 }}>{t.sc_0204}</Text>
                                     ) : reviewList.map(rv => (
                                         <View key={rv.id} style={{ marginBottom:10, paddingBottom:10, borderBottomWidth:1, borderBottomColor:colors.border }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
@@ -29874,22 +29923,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 </ScrollView>
                                 {reviewModal.isOwn ? (
                                     <View style={{ backgroundColor:colors.surface2, borderRadius:10, padding:10, alignItems:'center' }}>
-                                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', textAlign:'center' }}>Bu sizin ilanınız — kendinize yorum/puan veremezsiniz.</Text>
+                                        <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', textAlign:'center' }}>{t.sc_1087}</Text>
                                     </View>
                                 ) : !reviewCanReview ? (
                                     reviewModal.type === 'coach' ? (
                                         reviewMyLessonStatus === 'PENDING' ? (
                                             <View style={{ backgroundColor:'#f59e0b18', borderRadius:10, padding:10, alignItems:'center' }}>
-                                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700', textAlign:'center' }}>Ders isteğiniz gönderildi, antrenörün onayı bekleniyor.</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:12, fontWeight:'700', textAlign:'center' }}>{t.sc_1088}</Text>
                                             </View>
                                         ) : (
                                             <TouchableOpacity onPress={sendLessonRequest} disabled={lessonRequesting} style={{ backgroundColor: cfg.color, borderRadius:10, paddingVertical:10, alignItems:'center', opacity: lessonRequesting ? 0.6 : 1 }}>
-                                                <Text style={{ color:'#fff', fontWeight:'800' }}>{lessonRequesting ? 'Gönderiliyor...' : 'Ders İste'}</Text>
+                                                <Text style={{ color:'#fff', fontWeight:'800' }}>{lessonRequesting ? t.sc_0223 : t.sc_1089}</Text>
                                             </TouchableOpacity>
                                         )
                                     ) : (
                                         <View style={{ backgroundColor:'#dc262618', borderRadius:10, padding:10, alignItems:'center' }}>
-                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700', textAlign:'center' }}>Bu hakemin yönettiği bir maçta yer almadığınız için yorum/puan veremezsiniz.</Text>
+                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700', textAlign:'center' }}>{t.sc_1090}</Text>
                                         </View>
                                     )
                                 ) : (
@@ -29904,11 +29953,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <TextInput
                                             style={[s.fieldInput, { marginBottom:8, minHeight:60, textAlignVertical:'top' }]}
                                             value={reviewComment} onChangeText={setReviewComment}
-                                            placeholder="Yorumunuz (opsiyonel)" placeholderTextColor={colors.textMuted}
+                                            placeholder={t.sc_1091} placeholderTextColor={colors.textMuted}
                                             multiline
                                         />
                                         <TouchableOpacity onPress={submitListingReview} disabled={reviewSubmitting} style={{ backgroundColor:'#16a34a', borderRadius:10, paddingVertical:10, alignItems:'center', opacity: reviewSubmitting ? 0.6 : 1 }}>
-                                            <Text style={{ color:'#fff', fontWeight:'800' }}>{reviewSubmitting ? 'Gönderiliyor...' : 'Yorumu Gönder'}</Text>
+                                            <Text style={{ color:'#fff', fontWeight:'800' }}>{reviewSubmitting ? t.sc_0223 : t.sc_1092}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -29921,7 +29970,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, maxHeight:'75%' }}>
                                 <View style={{ flexDirection:'row', alignItems:'center', marginBottom:10 }}>
-                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', flex:1 }}>Ders İstekleri</Text>
+                                    <Text style={{ color:'#fff', fontSize:15, fontWeight:'900', flex:1 }}>{t.sc_0953}</Text>
                                     <TouchableOpacity onPress={() => setLessonRequestsModal({ visible:false, listingId:null })}>
                                         <Text style={{ color:colors.textMuted, fontSize:20 }}>✕</Text>
                                     </TouchableOpacity>
@@ -29930,7 +29979,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {loadingLessonRequests ? (
                                         <ActivityIndicator color={cfg.color} style={{ marginVertical:14 }} />
                                     ) : lessonRequestsList.length === 0 ? (
-                                        <Text style={{ color:colors.textMuted, fontSize:12, textAlign:'center', marginVertical:14 }}>Bekleyen istek yok.</Text>
+                                        <Text style={{ color:colors.textMuted, fontSize:12, textAlign:'center', marginVertical:14 }}>{t.sc_1093}</Text>
                                     ) : lessonRequestsList.map(lr => (
                                         <View key={lr.id} style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:8, borderBottomWidth:1, borderBottomColor:colors.border }}>
                                             <Avatar name={lr.student?.username} avatar={lr.student?.avatar} size={30} color={cfg.color} />
@@ -29939,10 +29988,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 {lr.message && <Text style={{ color:colors.textMuted, fontSize:11 }} numberOfLines={2}>{lr.message}</Text>}
                                             </View>
                                             <TouchableOpacity onPress={() => respondToLessonReq(lr.id, 'accept')} disabled={respondingLessonReqId === lr.id} style={{ backgroundColor:'#16a34a', borderRadius:8, paddingHorizontal:10, paddingVertical:6 }}>
-                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>Kabul</Text>
+                                                <Text style={{ color:'#fff', fontSize:11, fontWeight:'700' }}>{t.sc_0039}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => respondToLessonReq(lr.id, 'reject')} disabled={respondingLessonReqId === lr.id} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:colors.border }}>
-                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700' }}>Red</Text>
+                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.sc_0040}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     ))}
@@ -29956,7 +30005,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
                                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>🟨 Hakem İlanı Oluştur</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.sc_1094}</Text>
                                     {/* Kullanıcı isteği: kimlik/belge/CV bilgileri artık bu formda
                                         DOLDURULMUYOR — o bilgi ayrı "CV Yükle" akışının işi (bkz. coach
                                         formundaki aynı desen). Form HER ZAMAN gösterilir (CV yoksa
@@ -29965,62 +30014,62 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     {existingRefereeCv && (
                                         <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, padding:12, marginBottom:14 }}>
                                             <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
-                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'800' }}>📄 KİMLİK / BELGE BİLGİLERİNİZ</Text>
+                                                <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'800' }}>{t.sc_0959}</Text>
                                                 {REFEREE_APPROVAL_SPORTS.includes(sub) && (
                                                     existingRefereeCv.approved
-                                                        ? <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✓ Onaylı</Text>
-                                                        : <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>⏳ Onay Bekliyor</Text>
+                                                        ? <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>{t.sc_0960}</Text>
+                                                        : <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>{t.sc_0245}</Text>
                                                 )}
                                             </View>
                                             <Text style={{ color:'#fff', fontSize:12, fontWeight:'700', marginBottom:2 }}>
                                                 {{ CERTIFIED: t.credCertified, LICENSED: t.credLicensed, CLUB_REFEREE: t.credClubReferee, INDEPENDENT: t.credIndependent, AMATEUR: t.credAmateur }[existingRefereeCv.credentialLevel] || existingRefereeCv.credentialLevel}
-                                                {existingRefereeCv.experience > 0 ? ` · ${existingRefereeCv.experience} yıl deneyim` : ''}
+                                                {existingRefereeCv.experience > 0 ? t.sc_1095(existingRefereeCv.experience) : ''}
                                             </Text>
                                             {existingRefereeCv.certName ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:2 }}>{existingRefereeCv.certName}</Text> : null}
                                             {Array.isArray(existingRefereeCv.achievements) && existingRefereeCv.achievements.length > 0 ? <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>🏆 {existingRefereeCv.achievements.join(' · ')}</Text> : null}
                                             {sub === 'tennis' && (existingRefereeCv.ikortNo || existingRefereeCv.refereeKademe) ? (
                                                 <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>
-                                                    {existingRefereeCv.ikortNo ? `i-KORT: ${existingRefereeCv.ikortNo}` : ''}
-                                                    {existingRefereeCv.refereeKademe ? `${existingRefereeCv.ikortNo ? ' · ' : ''}${{ ADAY:'Aday', IL:'İl', ULUSAL:'Ulusal', ULUSLARARASI:'Uluslararası' }[existingRefereeCv.refereeKademe] || existingRefereeCv.refereeKademe} Kademe` : ''}
-                                                    {existingRefereeCv.itfBadgeLevel ? ` · ITF ${existingRefereeCv.itfBadgeLevel}` : ''}
-                                                    {existingRefereeCv.ilTemsilciligi ? ` · ${existingRefereeCv.ilTemsilciligi} Temsilciliği` : ''}
+                                                    {existingRefereeCv.ikortNo ? t.sc_1096(existingRefereeCv.ikortNo) : ''}
+                                                    {existingRefereeCv.refereeKademe ? t.sc_1097(existingRefereeCv.ikortNo ? ' · ' : '', { ADAY:t.sc_1016, IL:t.sc_1017, ULUSAL:t.sc_0396, ULUSLARARASI:t.sc_1018 }[existingRefereeCv.refereeKademe] || existingRefereeCv.refereeKademe) : ''}
+                                                    {existingRefereeCv.itfBadgeLevel ? t.sc_1098(existingRefereeCv.itfBadgeLevel) : ''}
+                                                    {existingRefereeCv.ilTemsilciligi ? t.sc_1099(existingRefereeCv.ilTemsilciligi) : ''}
                                                 </Text>
                                             ) : null}
                                             {sub === 'volleyball' && (existingRefereeCv.ikortNo || existingRefereeCv.refereeKademe) ? (
                                                 <Text style={{ color: colors.textSecondary, fontSize:11, marginBottom:6 }}>
-                                                    {existingRefereeCv.ikortNo ? `Sicil No: ${existingRefereeCv.ikortNo}` : ''}
-                                                    {existingRefereeCv.refereeKademe ? `${existingRefereeCv.ikortNo ? ' · ' : ''}${{ ADAY:'Aday Hakem', IL:'İl Hakemi', ULUSAL:'Ulusal Hakem', ULUSLARARASI:'Uluslararası Hakem' }[existingRefereeCv.refereeKademe] || existingRefereeCv.refereeKademe}` : ''}
-                                                    {existingRefereeCv.ilTemsilciligi ? ` · ${existingRefereeCv.ilTemsilciligi} Temsilciliği` : ''}
-                                                    {` · Vize ${existingRefereeCv.vizeAktif ? 'Güncel ✓' : 'Güncel Değil'}`}
+                                                    {existingRefereeCv.ikortNo ? t.sc_1100(existingRefereeCv.ikortNo) : ''}
+                                                    {existingRefereeCv.refereeKademe ? t.sc_1101(existingRefereeCv.ikortNo ? ' · ' : '', { ADAY:t.sc_1035, IL:t.sc_1036, ULUSAL:t.sc_1037, ULUSLARARASI:t.sc_1038 }[existingRefereeCv.refereeKademe] || existingRefereeCv.refereeKademe) : ''}
+                                                    {existingRefereeCv.ilTemsilciligi ? t.sc_1099(existingRefereeCv.ilTemsilciligi) : ''}
+                                                    {t.sc_1102(existingRefereeCv.vizeAktif ? t.sc_x_47c3bc6e63 : t.sc_1041)}
                                                     {existingRefereeCv.highestLeagueLevel ? ` · ${existingRefereeCv.highestLeagueLevel}` : ''}
                                                 </Text>
                                             ) : null}
                                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
                                                 {existingRefereeCv.cvUrl && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingRefereeCv.cvUrl)} style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>CV'yi Aç</Text>
+                                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0942}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                                 {(existingRefereeCv.certificateUrls?.length > 0 || existingRefereeCv.certificateUrl) && (
                                                     <TouchableOpacity onPress={() => Linking.openURL(existingRefereeCv.certificateUrls?.[0] || existingRefereeCv.certificateUrl)} style={{ backgroundColor:'#1e40af20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#1e40af50' }}>
-                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>Belgeyi Aç</Text>
+                                                        <Text style={{ color:'#60a5fa', fontSize:10, fontWeight:'700' }}>{t.sc_0962}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
                                             <TouchableOpacity onPress={() => { setShowCreateReferee(false); setCvUploadContext('referee'); setShowCvUploadModal(true); }} style={{ marginTop:8 }}>
-                                                <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>Değiştirmek için CV Yükle sekmesine git ›</Text>
+                                                <Text style={{ color:'#f59e0b', fontSize:10, fontWeight:'700' }}>{t.sc_0963}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     )}
 
                                     <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.pricePerMatchLabel}</Text>
-                                    <TextInput placeholder="Maç başı ücret (₺)" placeholderTextColor={colors.textMuted} value={refereeForm.pricePerMatch} onChangeText={v => setRefereeForm(f=>({...f,pricePerMatch:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
+                                    <TextInput placeholder={t.sc_1103} placeholderTextColor={colors.textMuted} value={refereeForm.pricePerMatch} onChangeText={v => setRefereeForm(f=>({...f,pricePerMatch:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border }} />
 
-                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>Yer / Zaman</Text>
+                                    <Text style={{ color:colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.sc_0968}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                         {[
-                                            { val: false, label: t.courtSpecifyBtn || 'Kort / Tesis Belirt' },
-                                            { val: true,  label: t.courtMutualBtn || 'Ortaklaşa Kararlaştırılır' },
+                                            { val: false, label: t.courtSpecifyBtn || t.sc_0969 },
+                                            { val: true,  label: t.courtMutualBtn || t.sc_0046 },
                                         ].map(({ val, label }) => (
                                             <TouchableOpacity key={String(val)}
                                                 onPress={() => setRefereeForm(f => ({ ...f, locationMutual: val }))}
@@ -30035,28 +30084,28 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     </View>
                                     {/* Kullanıcı isteği: konum artık zorunlu değil (opsiyonel bilgi), onun
                                         yerine aşağıdaki şehir(ler) alanı zorunlu. */}
-                                    {!refereeForm.locationMutual && <TextInput placeholder="Konum (kort/tesis adı, opsiyonel)" placeholderTextColor={colors.textMuted} value={refereeForm.location} onChangeText={v => setRefereeForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
-                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>Şehir(ler) *</Text>
+                                    {!refereeForm.locationMutual && <TextInput placeholder={t.sc_0970} placeholderTextColor={colors.textMuted} value={refereeForm.location} onChangeText={v => setRefereeForm(f=>({...f,location:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />}
+                                    <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.sc_0971}</Text>
                                     <MultiCityAutocomplete
                                         values={refereeForm.cities}
                                         onChange={v => setRefereeForm(f=>({...f,cities:v}))}
-                                        placeholder="Şehir ekle..."
+                                        placeholder={t.sc_0972}
                                         style={{ marginBottom: 8 }}
                                     />
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                        <TextInput placeholder="Başlangıç saati (09:00)" placeholderTextColor={colors.textMuted} value={refereeForm.timeFrom} onChangeText={v => setRefereeForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
-                                        <TextInput placeholder="Bitiş saati (21:00)" placeholderTextColor={colors.textMuted} value={refereeForm.timeTo} onChangeText={v => setRefereeForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder={t.sc_1104} placeholderTextColor={colors.textMuted} value={refereeForm.timeFrom} onChangeText={v => setRefereeForm(f=>({...f,timeFrom:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
+                                        <TextInput placeholder={t.sc_1105} placeholderTextColor={colors.textMuted} value={refereeForm.timeTo} onChangeText={v => setRefereeForm(f=>({...f,timeTo:v}))} style={{ flex:1, backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', borderWidth:1, borderColor:colors.border }} />
                                     </View>
 
-                                    <TextInput placeholder="Açıklama (opsiyonel)" placeholderTextColor={colors.textMuted} value={refereeForm.description} onChangeText={v => setRefereeForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
+                                    <TextInput placeholder={t.sc_0980} placeholderTextColor={colors.textMuted} value={refereeForm.description} onChangeText={v => setRefereeForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:14, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
 
                                     <View style={{ flexDirection:'row', gap:3 }}>
                                         <TouchableOpacity onPress={() => { setShowCreateReferee(false); resetRefereeForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
-                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>İptal</Text>
+                                            <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0065}</Text>
                                         </TouchableOpacity>
                                         <TouchableOpacity onPress={submitReferee} disabled={submittingReferee} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: '#f59e0b' }}>
                                             <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                {submittingReferee ? '...' : 'İlanı Yayınla'}
+                                                {submittingReferee ? '...' : t.sc_0913}
                                             </Text>
                                         </TouchableOpacity>
                                     </View>
@@ -30088,7 +30137,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
                                             style={{ paddingVertical:4, paddingHorizontal:8, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
                                             <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
-                                                {st === 'rivals' ? 'Bireysel Maçlar' : st === 'tournaments' ? 'Turnuvalar' : st === 'equipment' ? 'Ekipmanlar' : 'Hakemlik'}
+                                                {st === 'rivals' ? t.sc_1106 : st === 'tournaments' ? t.sc_1107 : st === 'equipment' ? t.sc_1108 : t.sc_0998}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
@@ -30285,11 +30334,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </View>
                                             )}
                                             <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
-                                                <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>Satıldı</Text>
+                                                <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{t.sc_1109}</Text>
                                             </View>
                                             <View style={{ padding:5 }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{eq.title}</Text>
-                                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : 'Fiyat sor'}</Text>
+                                                <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : t.sc_0903}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
                                             </View>
                                         </TouchableOpacity>
@@ -30310,12 +30359,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <View style={[s.card, { alignItems:'center', paddingVertical:14 }]}>
                                             <Text style={{ color:'#facc15', fontSize:28, fontWeight:'900' }}>{Number(refereeOverallAvgRating).toFixed(2)} ★</Text>
                                             <Text style={{ color: colors.textMuted, fontSize:12, marginTop:2 }}>
-                                                Genel Hakemlik Puanı · {refereeTotalReviews} değerlendirme
+                                                {t.sc_1110} {refereeTotalReviews} {t.sc_1111}
                                             </Text>
                                         </View>
                                     )}
                                     {archiveRefereedMatches.length === 0 ? (
-                                        <EmptyState emoji="🟨" text="Henüz hakemlik yaptığın tamamlanmış maç yok" />
+                                        <EmptyState emoji="🟨" text={t.sc_1112} />
                                     ) : archiveRefereedMatches.map(m => {
                                         const parts = Array.isArray(m.participants) ? m.participants : [];
                                         const allP = [m.sender, ...parts].filter(Boolean);
@@ -30326,7 +30375,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                            {m.matchDate ? new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                                                            {m.matchDate ? new Date(m.matchDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short', year:'numeric' }) : ''}
                                                             {m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
                                                         </Text>
                                                         {(m.courtName || m.location) ? (
@@ -30338,7 +30387,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     {m.avgRating != null ? (
                                                         <Text style={{ color:'#facc15', fontSize:15, fontWeight:'900' }}>{m.avgRating.toFixed(2)} ★</Text>
                                                     ) : (
-                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>Henüz oy yok</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11 }}>{t.sc_1113}</Text>
                                                     )}
                                                 </View>
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:6 }}>
@@ -30359,11 +30408,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 </View>
                                                                 {rv.ruleKnowledge != null && (
                                                                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:2 }}>
-                                                                        <Text style={s.refQChip}>Kurallara Hakimiyet: {rv.ruleKnowledge}/5</Text>
-                                                                        <Text style={s.refQChip}>Karar Tutarlılığı: {rv.decisionConsistency}/5</Text>
-                                                                        <Text style={s.refQChip}>Tarafsızlık: {rv.fairness}/5</Text>
-                                                                        <Text style={s.refQChip}>İletişim/Otorite: {rv.communication}/5</Text>
-                                                                        <Text style={s.refQChip}>Maç Temposu: {rv.gameManagement}/5</Text>
+                                                                        <Text style={s.refQChip}>{t.sc_1114} {rv.ruleKnowledge}/5</Text>
+                                                                        <Text style={s.refQChip}>{t.sc_1115} {rv.decisionConsistency}/5</Text>
+                                                                        <Text style={s.refQChip}>{t.sc_1116} {rv.fairness}/5</Text>
+                                                                        <Text style={s.refQChip}>{t.sc_1117} {rv.communication}/5</Text>
+                                                                        <Text style={s.refQChip}>{t.sc_1118} {rv.gameManagement}/5</Text>
                                                                     </View>
                                                                 )}
                                                                 {rv.comment ? <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:17, marginTop:2 }}>{rv.comment}</Text> : null}
@@ -30383,7 +30432,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             loadingArchiveTournaments ? (
                                 <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
                             ) : archiveTournaments.length === 0 ? (
-                                <EmptyState emoji="🏆" text="Henüz tamamlanmış turnuva yok" />
+                                <EmptyState emoji="🏆" text={t.sc_1119} />
                             ) : (
                                 <View style={{ gap:3, paddingVertical:5 }}>
                                     {archiveTournaments.map(tourn => {
@@ -30395,25 +30444,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     <View style={{ flex:1 }}>
                                                         <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', marginBottom:2 }}>{tourn.name}</Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                            {typeLabel}{tourn.city ? `  📍 ${tourn.city}` : ''}
+                                                            {typeLabel}{tourn.city ? `  📍 ${tourn.city === 'Dünya' ? t.sc_0395 : tourn.city}` : ''}
                                                         </Text>
                                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
                                                             👤 {tourn.creator?.fullName || tourn.creator?.username}
-                                                            {'  '}👥 {tourn._count?.participants || 0} katılımcı
+                                                            {'  '}👥 {tourn._count?.participants || 0} {t.sc_1120}
                                                         </Text>
                                                         {tourn.completedAt && (
                                                             <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                                                🏁 {new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' })}
+                                                                🏁 {new Date(tourn.completedAt).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short', year:'numeric' })}
                                                             </Text>
                                                         )}
                                                     </View>
                                                     <View style={{ alignItems:'flex-end', gap:3 }}>
                                                         <View style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#16a34a50' }}>
-                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>✅ Tamamlandı</Text>
+                                                            <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'800' }}>{t.sc_0399}</Text>
                                                         </View>
                                                         {participated && (
                                                             <View style={{ backgroundColor: cfg.color+'20', borderRadius:6, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: cfg.color+'50' }}>
-                                                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>Katıldım</Text>
+                                                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'700' }}>{t.sc_1121}</Text>
                                                             </View>
                                                         )}
                                                     </View>
@@ -30422,7 +30471,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     style={{ backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#a855f740', marginTop:8, flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                                                     onPress={() => setSelectedArchiveTournament(tourn)}
                                                 >
-                                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>📋 Turnuva Detayları</Text>
+                                                    <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>{t.sc_1122}</Text>
                                                     <Text style={{ color:'#c084fc', fontSize:14 }}>›</Text>
                                                 </TouchableOpacity>
                                             </View>
@@ -30627,7 +30676,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const fmtAgo = (d) => {
                                             const diff = Date.now() - new Date(d).getTime();
                                             const m = Math.floor(diff / 60000);
-                                            if (m < 1) return t.timeNow || 'şimdi';
+                                            if (m < 1) return t.timeNow || t.sc_1123;
                                             if (m < 60) return `${m}${t.timeMinSuffix || 'dk'}`;
                                             const h = Math.floor(m / 60);
                                             if (h < 24) return `${h}${t.timeHourSuffix || 's'}`;
@@ -30729,7 +30778,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                                 </TouchableOpacity>
                                                                                 {!isReply && (
                                                                                     <TouchableOpacity onPress={() => setMediaReplyingTo(c.id)}>
-                                                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700' }}>Yanıtla</Text>
+                                                                                        <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700' }}>{t.sc_0098}</Text>
                                                                                     </TouchableOpacity>
                                                                                 )}
                                                                             </View>
@@ -30740,22 +30789,22 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 return (
                                                                     <View style={{ paddingHorizontal: 9, paddingBottom: 9, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
                                                                         {topLevel.length === 0 ? (
-                                                                            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 6 }}>{t.emptyComments || 'Henüz yorum yok'}</Text>
+                                                                            <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 6 }}>{t.emptyComments || t.sc_1124}</Text>
                                                                         ) : topLevel.map(c => renderRow(c, false))}
                                                                         {mediaReplyingTo && (
                                                                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                                                                                 <Text style={{ color: colors.textMuted, fontSize: 11 }}>
-                                                                                    Yanıtlanıyor: {mediaComments.find(c => c.id === mediaReplyingTo)?.user?.username}
+                                                                                    {t.sc_0095} {mediaComments.find(c => c.id === mediaReplyingTo)?.user?.username}
                                                                                 </Text>
                                                                                 <TouchableOpacity onPress={() => setMediaReplyingTo(null)}>
-                                                                                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>✕ Vazgeç</Text>
+                                                                                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{t.sc_0096}</Text>
                                                                                 </TouchableOpacity>
                                                                             </View>
                                                                         )}
                                                                         <View style={{ flexDirection: 'row', gap: 3 }}>
                                                                             <TextInput
                                                                                 style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
-                                                                                placeholder={mediaReplyingTo ? 'Yanıt yaz...' : 'Yorum yaz...'}
+                                                                                placeholder={mediaReplyingTo ? t.sc_1125 : t.sc_0132}
                                                                                 placeholderTextColor={colors.textMuted}
                                                                                 value={mediaCommentText}
                                                                                 onChangeText={setMediaCommentText}
@@ -30796,10 +30845,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 <Modal visible={showMediaTypeSheet} animationType="slide" transparent onRequestClose={() => setShowMediaTypeSheet(false)}>
                                     <TouchableOpacity style={{ flex: 1, backgroundColor: '#00000080' }} activeOpacity={1} onPress={() => setShowMediaTypeSheet(false)}>
                                         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 17, paddingBottom: 37 }}>
-                                            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 16 }}>Ne paylaşmak istiyorsun?</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700', textAlign: 'center', marginBottom: 16 }}>{t.sc_1126}</Text>
                                             {[
-                                                { type: 'POST',  emoji: '🖼️', label: 'Gönderi',  desc: 'Fotoğraf veya video paylaş' },
-                                                { type: 'STORY', emoji: '⭕', label: 'Hikaye',   desc: '24 saat sonra kaybolur' },
+                                                { type: 'POST',  emoji: '🖼️', label: t.sc_1127,  desc: t.sc_1128 },
+                                                { type: 'STORY', emoji: '⭕', label: t.sc_1129,   desc: t.sc_1130 },
                                                 { type: 'REEL',  emoji: '🎬', label: lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : lang === 'de' ? 'Reels' : 'Reels', desc: lang === 'tr' ? 'Kısa video paylaş' : lang === 'ru' ? 'Поделиться коротким видео' : lang === 'de' ? 'Kurzes Video teilen' : 'Share a short video' },
                                             ].map(opt => (
                                                 <TouchableOpacity key={opt.type} onPress={() => pickMediaShare(opt.type)}
@@ -30818,12 +30867,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {/* Medya paylaş modal */}
                                 <Modal visible={showMediaShare} animationType="slide" transparent={!shareMusic} statusBarTranslucent={!!shareMusic} onRequestClose={() => setShowMediaShare(false)}>
                                     <View style={shareMusic ? { flex: 1, backgroundColor: colors.bg, paddingTop: insets.top } : { flex: 1, backgroundColor: '#00000090', justifyContent: 'flex-end' }}>
-                                        <KeyboardAwareForm adjustWindow={false} scrollEnabled={!!shareMusic} style={shareMusic ? { flex: 1, backgroundColor: colors.bg } : { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} contentContainerStyle={{ padding: 17, paddingBottom: shareMusic ? (insets.bottom || 0) + 28 : 33 }}>
+                                        <KeyboardAwareForm ref={shareFormRef} adjustWindow={false} scrollEnabled={!!shareMusic} style={shareMusic ? { flex: 1, backgroundColor: colors.bg } : { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20 }} contentContainerStyle={{ padding: 17, paddingBottom: shareMusic ? (insets.bottom || 0) + 28 : 33 }}>
                                             <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', marginBottom: 12 }}>
-                                                {mediaShareType === 'STORY' ? '⭕ Hikaye Paylaş' : mediaShareType === 'REEL' ? `🎬 ${lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : lang === 'de' ? 'Reels' : 'Reels'} Paylaş` : '🖼️ Gönderi Paylaş'}
+                                                {mediaShareType === 'STORY' ? t.sc_1131 : mediaShareType === 'REEL' ? t.sc_1132(lang === 'tr' ? 'Film Rulosu' : lang === 'ru' ? 'Ролики' : lang === 'de' ? 'Reels' : 'Reels') : t.sc_1133}
                                             </Text>
-                                            {mediaShareUri && (
-                                                <View style={{ width: '100%', height: shareMusic ? 300 : 200, borderRadius: 12, marginBottom: shareMusic ? 10 : 12, overflow: 'hidden', backgroundColor: '#000' }}>
+                                            {mediaShareUri && !shareMusic && (
+                                                <View style={{ width: '100%', height: 200, borderRadius: 12, marginBottom: 12, overflow: 'hidden', backgroundColor: '#000' }}>
                                                     {mediaShareIsVideo ? (
                                                         <VideoView player={shareClipPlayer} style={{ width: '100%', height: '100%' }} contentFit="cover" nativeControls={false} />
                                                     ) : (
@@ -30838,7 +30887,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     )}
                                                 </View>
                                             )}
-                                            {/* Seçilen parça, fotoğrafın veya videonun hemen altında. Aralık videonun süresine oturur. */}
+                                            {/* Müzik ayarı üstte; gönderi hemen altında kalsın ki video izlenirken aralık ayarlansın. */}
                                             {shareMusic && (() => {
                                                 const totalDur = musicDuration || musicDurationRef.current || 30;
                                                 const s = parseFloat(trimStart) || 0;
@@ -30847,11 +30896,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 const widthPct = Math.max(2, ((e - s) / totalDur) * 100);
                                                 const videoFit = mediaShareIsVideo ? Math.min(mediaShareSec || (e - s), mediaShareType === 'REEL' ? 90 : 60) : 0;
                                                 return (
-                                                    <View style={{ backgroundColor: '#0a0a14', borderRadius: 10, paddingHorizontal: 11, paddingTop: 7, paddingBottom: 11, marginBottom: 12 }}>
+                                                    <View onLayout={ev => { const h = ev.nativeEvent.layout.height; setMusicBlockH(prev => (Math.abs(prev - h) < 2 ? prev : h)); }} style={{ backgroundColor: '#0a0a14', borderRadius: 10, paddingHorizontal: 11, paddingTop: 7, paddingBottom: 11, marginBottom: 12 }}>
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 8 }}>
                                                             {shareMusic.coverUrl && <Image source={{ uri: shareMusic.coverUrl }} style={{ width: 26, height: 26, borderRadius: 4 }} />}
                                                             <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🎵 {shareMusic.title}</Text>
-                                                            <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}s – {e}s ({e - s}sn)</Text>
+                                                            <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}{t.sc_1134} {e}{t.sc_1135}{e - s}{t.sc_1136}</Text>
                                                         </View>
                                                         {videoFit > 0 && (
                                                             <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 8 }}>{t.musicFitVideo(videoFit)}</Text>
@@ -30874,8 +30923,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             />
                                                         </View>
                                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 10 }}>
-                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>0s</Text>
-                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>{Math.floor(totalDur)}s</Text>
+                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>{t.sc_1137}</Text>
+                                                            <Text style={{ color: '#6b7280', fontSize: 10 }}>{Math.floor(totalDur)}{t.sc_unit_sec}</Text>
                                                         </View>
                                                         <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700', marginBottom: 4 }}>{t.musicClipLen}</Text>
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -30897,16 +30946,32 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <TouchableOpacity onPress={previewTrim}
                                                                 style={{ paddingHorizontal: 12, height: 36, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: previewPlaying ? '#ef444420' : '#7c3aed20', borderWidth: 1, borderColor: previewPlaying ? '#ef444450' : '#7c3aed50' }}>
                                                                 <Text style={{ color: previewPlaying ? '#ef4444' : '#a78bfa', fontWeight: '800', fontSize: 12 }}>
-                                                                    {previewPlaying ? '⏹ Durdur' : '▶ Önizle'}
+                                                                    {previewPlaying ? t.sc_1147 : t.sc_1148}
                                                                 </Text>
                                                             </TouchableOpacity>
                                                         </View>
                                                     </View>
                                                 );
                                             })()}
+                                            {mediaShareUri && !!shareMusic && (
+                                                <View style={{ width: '100%', height: Math.max(180, Math.round(winH - (insets.top || 0) - 70 - (musicBlockH || 220))), borderRadius: 12, marginBottom: 12, overflow: 'hidden', backgroundColor: '#000' }}>
+                                                    {mediaShareIsVideo ? (
+                                                        <VideoView player={shareClipPlayer} style={{ width: '100%', height: '100%' }} contentFit="contain" nativeControls={false} />
+                                                    ) : (
+                                                        <Image source={{ uri: mediaShareUri }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                                                    )}
+                                                    {mediaShareType === 'STORY' && !!mediaShareCaption && (
+                                                        <View style={{ position: 'absolute', left: 12, right: 12, bottom: 12, alignItems: 'center' }}>
+                                                            <View style={{ backgroundColor: '#00000065', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 }}>
+                                                                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center' }}>{mediaShareCaption}</Text>
+                                                            </View>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                            )}
                                             <MentionCaptionInput
                                                 style={{ backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 14, minHeight: 48, textAlignVertical: 'top' }}
-                                                placeholder={mediaShareType === 'STORY' ? '✏️ Üzerine yazı ekle... (@ ile etiketle)' : 'Açıklama ekle (@ ile etiketle)...'}
+                                                placeholder={mediaShareType === 'STORY' ? t.sc_1138 : t.sc_1139}
                                                 placeholderTextColor={colors.textMuted}
                                                 value={mediaShareCaption}
                                                 onChangeText={setMediaShareCaption}
@@ -30924,9 +30989,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         : <Text style={{ fontSize: 16 }}>🎵</Text>}
                                                     <View style={{ flex: 1 }}>
                                                         <Text style={{ color: shareMusic ? '#a78bfa' : colors.textMuted, fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                            {shareMusic ? `${shareMusic.title} – ${shareMusic.artist}` : 'Müzik Ekle'}
+                                                            {shareMusic ? `${shareMusic.title} – ${shareMusic.artist}` : t.sc_1140}
                                                         </Text>
-                                                        {shareMusic && <Text style={{ color: '#7c3aed90', fontSize: 10 }}>{trimStart}s – {trimEnd}s · düzenle</Text>}
+                                                        {shareMusic && <Text style={{ color: '#7c3aed90', fontSize: 10 }}>{trimStart}{t.sc_1134} {trimEnd}{t.sc_1141}</Text>}
                                                     </View>
                                                     {shareMusic && <TouchableOpacity onPress={() => { setShareMusic(null); stopMusicPreview(); }} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                                                         <Text style={{ color: colors.textMuted, fontSize: 12 }}>✕</Text>
@@ -30936,7 +31001,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 6, paddingHorizontal: 7, borderRadius: 10, backgroundColor: shareLocation ? '#16a34a20' : colors.surface2, borderWidth: 1, borderColor: shareLocation ? '#16a34a60' : colors.border }}>
                                                     <Text style={{ fontSize: 14 }}>📍</Text>
                                                     <Text style={{ color: shareLocation ? '#4ade80' : colors.textMuted, fontSize: 11, fontWeight: '700', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                                        {gettingLocation ? 'Alınıyor...' : shareLocation || 'Konum Ekle'}
+                                                        {gettingLocation ? t.sc_1142 : shareLocation || t.sc_1143}
                                                     </Text>
                                                     {shareLocation && <TouchableOpacity onPress={() => setShareLocation('')} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                                                         <Text style={{ color: colors.textMuted, fontSize: 12 }}>✕</Text>
@@ -30946,11 +31011,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ flexDirection: 'row', gap: 3 }}>
                                                 <TouchableOpacity onPress={() => { setShowMediaShare(false); setMediaShareUri(null); setMediaShareSec(0); setMediaShareIsVideo(false); setMediaShareCaption(''); setShareMusic(null); setShareLocation(''); }}
                                                     style={{ flex: 1, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}>
-                                                    <Text style={{ color: colors.textMuted, fontWeight: '700' }}>İptal</Text>
+                                                    <Text style={{ color: colors.textMuted, fontWeight: '700' }}>{t.sc_0065}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={submitMediaShare} disabled={submittingMediaShare}
                                                     style={{ flex: 2, paddingVertical: 9, borderRadius: 10, alignItems: 'center', backgroundColor: cfg.color, opacity: submittingMediaShare ? 0.6 : 1 }}>
-                                                    <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? 'Yükleniyor...' : 'Paylaş'}</Text>
+                                                    <Text style={{ color: '#fff', fontWeight: '900' }}>{submittingMediaShare ? t.sc_0100 : t.sc_1144}</Text>
                                                 </TouchableOpacity>
                                             </View>
 
@@ -30967,7 +31032,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         style={{ margin: 12, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border }}>
                                                         <Text style={{ fontSize: 20 }}>📱</Text>
                                                         <View>
-                                                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Telefondan Yükle</Text>
+                                                            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{t.sc_1149}</Text>
                                                             <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>MP3, AAC, M4A...</Text>
                                                         </View>
                                                     </TouchableOpacity>
@@ -30975,7 +31040,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <Text style={{ fontSize: 16, marginRight: 8 }}>🔍</Text>
                                                         <TextInput
                                                             style={{ flex: 1, color: '#fff', fontSize: 14 }}
-                                                            placeholder="Şarkı veya sanatçı ara..."
+                                                            placeholder={t.sc_1150}
                                                             placeholderTextColor={colors.textMuted}
                                                             value={musicQuery}
                                                             onChangeText={searchDeezer}
@@ -30999,14 +31064,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{track.title}</Text>
                                                                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{track.artist.name}</Text>
                                                                 </View>
-                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>Seç</Text>
+                                                                <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700' }}>{t.sc_1151}</Text>
                                                             </TouchableOpacity>
                                                         ))}
                                                         {!searchingMusic && !detectingImage && !musicQuery && musicResults.length === 0 && (
                                                             <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 30 }}>{t.musicSuggestEmpty}</Text>
                                                         )}
                                                         {!searchingMusic && musicQuery && musicResults.length === 0 && (
-                                                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 30 }}>Sonuç bulunamadı</Text>
+                                                            <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 30 }}>{t.sc_1152}</Text>
                                                         )}
                                                     </ScrollView>
                                                 </View>
@@ -31132,7 +31197,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TextInput
                                                             value={newsDateFrom}
                                                             onChangeText={setNewsDateFrom}
-                                                            placeholder="YYYY-AA-GG"
+                                                            placeholder={t.sc_1153}
                                                             placeholderTextColor={colors.textMuted}
                                                             style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: newsDateFrom ? cfg.color + '60' : colors.border, paddingVertical: 11, paddingHorizontal: 13, fontSize: 14, fontWeight: '700', color: '#fff' }}
                                                         />
@@ -31140,7 +31205,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <TextInput
                                                             value={newsDateTo}
                                                             onChangeText={setNewsDateTo}
-                                                            placeholder="YYYY-AA-GG"
+                                                            placeholder={t.sc_1153}
                                                             placeholderTextColor={colors.textMuted}
                                                             style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 12, borderWidth: 1, borderColor: newsDateTo ? cfg.color + '60' : colors.border, paddingVertical: 11, paddingHorizontal: 13, fontSize: 14, fontWeight: '700', color: '#fff' }}
                                                         />
@@ -31391,11 +31456,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                     if (!hasProgress) { setGateAssessTarget(null); return; }
                     const target = gateAssessTarget;
                     Alert.alert(
-                        'Anketten Vazgeç',
-                        'Anketi tamamlamazsan bu dal aktivitelerinden kaldırılacak. Vazgeçmek istediğine emin misin?',
+                        t.sc_1154,
+                        t.sc_1155,
                         [
                             { text: 'Devam Et', style: 'cancel' },
-                            { text: 'Vazgeç', style: 'destructive', onPress: () => {
+                            { text: t.sc_0004, style: 'destructive', onPress: () => {
                                 setGateAssessTarget(null);
                                 api.delete(`/interests/${target.interestId}`).catch(() => {});
                             }},
@@ -31683,12 +31748,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined}>
                             <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:20, paddingBottom:34 }}>
                                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
-                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🚩 İlanı Bildir</Text>
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>{t.sc_1156}</Text>
                                     <TouchableOpacity onPress={() => setReportModal(p => ({...p, visible:false}))}>
                                         <Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text>
                                     </TouchableOpacity>
                                 </View>
-                                {['Yanıltıcı içerik', 'Uygunsuz görsel', 'Sahte ilan', 'Diğer'].map(r => (
+                                {[t.sc_1157, t.sc_1158, t.sc_1159, t.sc_0954].map(r => (
                                     <TouchableOpacity key={r}
                                         onPress={() => setReportModal(p => ({...p, reason: r, explanation: ''}))}
                                         style={{ flexDirection:'row', alignItems:'center', gap:10, paddingVertical:11, borderBottomWidth:1, borderBottomColor: colors.border }}>
@@ -31701,11 +31766,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {reportModal.reason && (
                                     <View style={{ marginTop:12 }}>
                                         <Text style={{ color: colors.textMuted, fontSize:12, marginBottom:6 }}>
-                                            Açıklama{reportModal.reason === 'Diğer' ? ' *' : ' (isteğe bağlı)'}
+                                            {t.sc_0514}{reportModal.reason === t.sc_0954 ? ' *' : t.sc_1160}
                                         </Text>
                                         <TextInput
                                             style={{ backgroundColor: colors.surface2, borderRadius:10, padding:10, color:'#fff', minHeight:72, textAlignVertical:'top', borderWidth:1, borderColor: colors.border }}
-                                            placeholder={reportModal.reason === 'Diğer' ? 'Lütfen açıklayın...' : 'Daha fazla bilgi ekleyebilirsiniz...'}
+                                            placeholder={reportModal.reason === t.sc_0954 ? t.sc_1161 : t.sc_1162}
                                             placeholderTextColor={colors.textMuted}
                                             multiline
                                             value={reportModal.explanation}
@@ -31717,14 +31782,14 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TouchableOpacity
                                         onPress={() => setReportModal(p => ({...p, visible:false}))}
                                         style={{ flex:1, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border }}>
-                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>Kapat</Text>
+                                        <Text style={{ color: colors.textMuted, fontWeight:'700' }}>{t.sc_0923}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                         onPress={submitReport}
-                                        disabled={!reportModal.reason || (reportModal.reason==='Diğer' && !reportModal.explanation.trim()) || reportingListingId===reportModal.id}
-                                        style={{ flex:2, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: (reportModal.reason && !(reportModal.reason==='Diğer' && !reportModal.explanation.trim())) ? '#f59e0b' : '#f59e0b40' }}>
+                                        disabled={!reportModal.reason || (reportModal.reason===t.sc_0954 && !reportModal.explanation.trim()) || reportingListingId===reportModal.id}
+                                        style={{ flex:2, paddingVertical:11, borderRadius:12, alignItems:'center', backgroundColor: (reportModal.reason && !(reportModal.reason===t.sc_0954 && !reportModal.explanation.trim())) ? '#f59e0b' : '#f59e0b40' }}>
                                         <Text style={{ color:'#000', fontWeight:'900', fontSize:14 }}>
-                                            {reportingListingId===reportModal.id ? '...' : 'Yöneticiye Gönder'}
+                                            {reportingListingId===reportModal.id ? '...' : t.sc_1163}
                                         </Text>
                                     </TouchableOpacity>
                                 </View>
@@ -31783,15 +31848,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         const cmOpp1 = cmParticipantsArr[0] || null;
                                         const cmOpp2 = cmParticipantsArr[1] || null;
                                         const removeCmPlayer = (userId, name) => {
-                                            Alert.alert('Katılımcıyı Çıkar', `${name} maçtan çıkarılsın mı? İlan tekrar açık hale gelir.`, [
-                                                { text: 'Vazgeç', style:'cancel' },
-                                                { text: 'Çıkar', style:'destructive', onPress: async () => {
+                                            Alert.alert(t.sc_0016, t.sc_1164(name), [
+                                                { text: t.sc_0004, style:'cancel' },
+                                                { text: t.sc_0018, style:'destructive', onPress: async () => {
                                                     try {
                                                         await api.delete(`/rivals/${commentMatch.id}/participants/${userId}`);
                                                         const res = await api.get(`/rivals/${commentMatch.id}`);
                                                         setCommentMatch(prev => prev ? { ...prev, participants: res.data.participants, senderTeam: res.data.senderTeam, status: res.data.status } : prev);
                                                         setMatchedUpcoming(prev => prev.map(m => m.id === res.data.id ? { ...m, participants: res.data.participants, senderTeam: res.data.senderTeam, status: res.data.status } : m));
-                                                    } catch(e) { Alert.alert('', e?.response?.data?.message || 'Hata'); }
+                                                    } catch(e) { Alert.alert('', e?.response?.data?.message || t.sc_0014); }
                                                 }},
                                             ]);
                                         };
@@ -31811,12 +31876,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <>
                                                                 <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(player)}</Text>
                                                                 {player.skillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(player.skillRating).toFixed(2)} ★</Text>}
-                                                                {isCommentOwner && !commentSwapSlot && <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>• uzun bas → taşı</Text>}
-                                                                {isCommentOwner && commentSwapSlot && <Text style={{ color:'#4ade80', fontSize:10, marginTop:2 }}>• buraya taşı</Text>}
-                                                                {isSource && <Text style={{ color:'#facc15', fontSize:10, marginTop:2 }}>• seçildi</Text>}
+                                                                {isCommentOwner && !commentSwapSlot && <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{t.sc_1165}</Text>}
+                                                                {isCommentOwner && commentSwapSlot && <Text style={{ color:'#4ade80', fontSize:10, marginTop:2 }}>{t.sc_1166}</Text>}
+                                                                {isSource && <Text style={{ color:'#facc15', fontSize:10, marginTop:2 }}>{t.sc_1167}</Text>}
                                                             </>
                                                         ) : (
-                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>— boş slot —</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:13 }}>{t.sc_1168}</Text>
                                                         )}
                                                     </TouchableOpacity>
                                                     {isCommentOwner && player && !commentSwapSlot && (
@@ -31824,7 +31889,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             onPress={() => removeCmPlayer(player.id, senderAlias(player))}
                                                             style={{ marginTop:3, paddingVertical:1, alignItems:'center', backgroundColor:'#dc262615', borderRadius:6, borderWidth:1, borderColor:'#dc262640' }}
                                                         >
-                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Çıkar</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0018}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
@@ -31834,24 +31899,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ marginBottom:8 }}>
                                                 {isCommentOwner && commentSwapSlot && (
                                                     <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor:'#1e293b', borderRadius:8, padding:5, marginBottom:8 }}>
-                                                        <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>Hedef slota dokun</Text>
+                                                        <Text style={{ color:'#facc15', fontSize:12, fontWeight:'700' }}>{t.sc_0167}</Text>
                                                         <TouchableOpacity onPress={() => setCommentSwapSlot(null)}>
-                                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>İptal</Text>
+                                                            <Text style={{ color:'#f87171', fontSize:12, fontWeight:'700' }}>{t.sc_0065}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 <View style={{ flexDirection:'row', gap:3 }}>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>KURUCU TAKIMI</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>{t.sc_1169}</Text>
                                                         <View style={{ borderRadius:8, padding:5, marginBottom:4, borderWidth:1, borderColor:'#6d28d930', backgroundColor:'#6d28d910' }}>
                                                             <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>{senderAlias(commentMatch.sender)}</Text>
                                                             {commentMatch.senderSkillRating != null && <Text style={{ color:'#facc15', fontSize:11, fontWeight:'800' }}>{Number(commentMatch.senderSkillRating).toFixed(2)} ★</Text>}
-                                                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>• kurucu</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, marginTop:2 }}>{t.sc_1170}</Text>
                                                         </View>
                                                         {mkCmSlot('partner', cmPartner, '#6d28d9')}
                                                     </View>
                                                     <View style={{ flex:1 }}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>RAKİP TAKIM</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', marginBottom:4 }}>{t.sc_1171}</Text>
                                                         {mkCmSlot('opp1', cmOpp1, '#dc2626')}
                                                         {mkCmSlot('opp2', cmOpp2, '#dc2626')}
                                                     </View>
@@ -31923,7 +31988,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                                 {!isReply && (
                                                     <TouchableOpacity onPress={() => startCommentModalReply(c)}>
-                                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
+                                                        <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.matchCommentReplyBtn || t.sc_0098}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -31939,10 +32004,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 {commentReplyingTo && (
                                     <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:9, paddingTop:6, backgroundColor: colors.bg }}>
                                         <Text style={{ color: colors.textMuted, fontSize:11 }}>
-                                            Yanıtlanıyor: {playerDisplayName(comments.find(c => c.id === commentReplyingTo)?.user, commentModalSportSub)}
+                                            {t.sc_0095} {playerDisplayName(comments.find(c => c.id === commentReplyingTo)?.user, commentModalSportSub)}
                                         </Text>
                                         <TouchableOpacity onPress={() => setCommentReplyingTo(null)}>
-                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>✕ Vazgeç</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700' }}>{t.sc_0096}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 )}
@@ -31974,7 +32039,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     <TextInput
                                         ref={commentModalInputRef}
                                         style={[s.fieldInput, { flex:1, height:44, marginBottom:0, fontSize:14 }]}
-                                        placeholder={commentReplyingTo ? (t.matchCommentReplyPh || 'Yanıt yaz... (@ ile etiketle)') : t.matchCommentPlaceholder}
+                                        placeholder={commentReplyingTo ? (t.matchCommentReplyPh || t.sc_0097) : t.matchCommentPlaceholder}
                                         placeholderTextColor={colors.textMuted}
                                         value={commentText}
                                         onChangeText={setCommentText}
@@ -32040,12 +32105,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                             const playoffMs = archiveModalMatches.filter(m => m.phase === 'PLAYOFF');
                             const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
                             const getRoundLabel = (round, phase) => {
-                                if (phase === 'GROUP') return `Grup - Tur ${round}`;
+                                if (phase === 'GROUP') return t.sc_0462(round);
                                 const fromEnd = playoffMaxRound - round;
-                                if (fromEnd === 0) return 'Final';
-                                if (fromEnd === 1) return 'Yarı Final';
-                                if (fromEnd === 2) return 'Çeyrek Final';
-                                return `Playoff - Tur ${round}`;
+                                if (fromEnd === 0) return t.sc_0436;
+                                if (fromEnd === 1) return t.sc_0437;
+                                if (fromEnd === 2) return t.sc_0438;
+                                return t.sc_0439(round);
                             };
                             // Kullanıcı isteği: Puan Tablosu'nun sağında ayrı bir sekme olarak "İlk
                             // 4'e Girenler" — final maçının galibi/mağlubu 1./2. 3./4. sıra artık
@@ -32090,7 +32155,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                 ];
                             })();
                             const tabs = ['details', 'matches', ...(hasGroup ? ['standings'] : []), ...(archiveTopFour.length > 0 ? ['topfour'] : [])];
-                            const tabLabel = { details:'Detaylar', matches:'Maçlar', standings:'Puan Tablosu', topfour: "İlk 4'e Girenler" };
+                            const tabLabel = { details:t.sc_1172, matches:t.sc_0428, standings:t.sc_0429, topfour: t.sc_1173 };
                             return (
                                 <>
                                     <View style={[s.modalHeader, { paddingHorizontal:21 }]}>
@@ -32111,35 +32176,35 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         {archiveModalTab === 'details' && (
                                             <>
                                                 <View style={{ backgroundColor:'#16a34a20', borderRadius:8, paddingHorizontal:9, paddingVertical:3, alignSelf:'flex-start', borderWidth:1, borderColor:'#16a34a50', marginBottom:14 }}>
-                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>✅ Tamamlandı</Text>
+                                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{t.sc_0399}</Text>
                                                 </View>
-                                                {row('📋 Format', typeLabel)}
-                                                {row('👤 Organizatör', tourn.creator?.fullName || tourn.creator?.username)}
-                                                {tourn.city ? row('📍 Şehir', tourn.city) : null}
-                                                {tourn.location ? row('🏟️ Mekan', tourn.location) : null}
-                                                {hasTournExplicitSurface(tourn) ? row('🎾 Zemin', getSurface(t, tourn.surface)) : null}
-                                                {typeof tourn.isIndoor === 'boolean' && hasTournSpecificCourt(tourn) ? row('🏠 Alan', tourn.isIndoor ? 'Kapalı' : 'Açık') : null}
-                                                {tourn.eventDate ? row('📅 Başlangıç', new Date(tourn.eventDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
-                                                {tourn.eventEndDate ? row('📅 Bitiş', new Date(tourn.eventEndDate).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
-                                                {row('👥 Katılımcı', `${tourn._count?.participants || 0} kişi`)}
-                                                {tourn.setsPerMatch ? row('🎯 Set/Maç', `${tourn.setsPerMatch} set`) : null}
-                                                {tourn.playoffQualifiers ? row('🏆 Playoff', `İlk ${tourn.playoffQualifiers} takım`) : null}
-                                                {tourn.prize1 ? row('🥇 1. Ödül', tourn.prize1) : null}
-                                                {tourn.prize2 ? row('🥈 2. Ödül', tourn.prize2) : null}
-                                                {tourn.prize3 ? row('🥉 3. Ödül', tourn.prize3) : null}
-                                                {tourn.surpriseGifts ? row('🎁 Sürpriz Hediyeler', tourn.surpriseGifts) : null}
-                                                {tourn.isPaid ? row('💰 Katılım Ücreti', `${tourn.playerFee} ₺`) : null}
+                                                {row(t.sc_1174, typeLabel)}
+                                                {row(t.sc_1175, tourn.creator?.fullName || tourn.creator?.username)}
+                                                {tourn.city ? row(t.sc_1176, tourn.city === 'Dünya' ? t.sc_0395 : tourn.city) : null}
+                                                {tourn.location ? row(t.sc_1177, tourn.location) : null}
+                                                {hasTournExplicitSurface(tourn) ? row(t.sc_1178, getSurface(t, tourn.surface)) : null}
+                                                {typeof tourn.isIndoor === 'boolean' && hasTournSpecificCourt(tourn) ? row(t.sc_1179, tourn.isIndoor ? t.sc_1180 : t.sc_1181) : null}
+                                                {tourn.eventDate ? row(t.sc_1182, new Date(tourn.eventDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {tourn.eventEndDate ? row(t.sc_1183, new Date(tourn.eventEndDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {row(t.sc_1184, t.sc_1185(tourn._count?.participants || 0))}
+                                                {tourn.setsPerMatch ? row(t.sc_1186, t.sc_1187(tourn.setsPerMatch)) : null}
+                                                {tourn.playoffQualifiers ? row(t.sc_1188, t.sc_1189(tourn.playoffQualifiers)) : null}
+                                                {tourn.prize1 ? row(t.sc_0552, tourn.prize1) : null}
+                                                {tourn.prize2 ? row(t.sc_0553, tourn.prize2) : null}
+                                                {tourn.prize3 ? row(t.sc_0554, tourn.prize3) : null}
+                                                {tourn.surpriseGifts ? row(t.sc_0555, tourn.surpriseGifts) : null}
+                                                {tourn.isPaid ? row(t.sc_1190, `${tourn.playerFee} ₺`) : null}
                                                 {Array.isArray(tourn.extraServices) && tourn.extraServices.length > 0
-                                                    ? row('🎉 Ekstra Hizmetler', tourn.extraServices.map(sv => `${sv.name} (${sv.included ? 'Dahil' : `+${sv.price}₺`})`).join(', '))
+                                                    ? row(t.sc_1191, tourn.extraServices.map(sv => `${sv.name} (${sv.included ? t.sc_0165 : `+${sv.price}₺`})`).join(', '))
                                                     : null}
-                                                {tourn.completedAt ? row('🏁 Tamamlandı', new Date(tourn.completedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'long', year:'numeric' })) : null}
+                                                {tourn.completedAt ? row(t.sc_1192, new Date(tourn.completedAt).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'long', year:'numeric' })) : null}
                                             </>
                                         )}
                                         {archiveModalTab === 'matches' && (
                                             archiveModalLoading
                                                 ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
                                                 : archiveModalMatches.length === 0
-                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Maç bulunamadı</Text>
+                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.sc_1193}</Text>
                                                     : (() => {
                                                         const seen = new Set();
                                                         const roundKeys = archiveModalMatches
@@ -32179,11 +32244,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             archiveModalLoading
                                                 ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
                                                 : archiveStandings.length === 0
-                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>Henüz maç sonucu yok</Text>
+                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.sc_0433}</Text>
                                                     : <View>
                                                         <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
-                                                            <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>Oyuncu</Text>
-                                                            {['O','G','B','M','Av','P'].map(h => (
+                                                            <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>{t.sc_0434}</Text>
+                                                            {[t.sc_st_played, t.sc_st_won, t.sc_st_draw, t.sc_st_lost, t.sc_st_avg, t.sc_st_pts].map(h => (
                                                                 <Text key={h} style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', width:24, textAlign:'center' }}>{h}</Text>
                                                             ))}
                                                         </View>
@@ -32205,7 +32270,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                 <View style={{ flexDirection:'row', gap:6, backgroundColor:'#60a5fa15', borderRadius:8, borderWidth:1, borderColor:'#60a5fa40', padding:9, marginBottom:12 }}>
                                                     <Text style={{ fontSize:13 }}>ℹ️</Text>
                                                     <Text style={{ color:'#93c5fd', fontSize:11.5, flex:1, lineHeight:16 }}>
-                                                        Playoff'a kalıp çeyrek final, yarı final ve final oynayan takımlardır.
+                                                        {t.sc_1194}
                                                     </Text>
                                                 </View>
                                                 {archiveTopFour.map((p, i) => (
@@ -32238,9 +32303,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                         <TouchableOpacity style={{ position: 'absolute', top: insets.top + 12, right: 66, zIndex: 10 }} onPress={() => {
                             const mp = mediaPosts[mediaViewIdx];
                             if (!mp) return;
-                            Alert.alert('Medyayı Sil', 'Bu fotoğraf/videoyu kalıcı olarak silmek istediğinize emin misiniz?', [
-                                { text: 'Vazgeç', style: 'cancel' },
-                                { text: 'Sil', style: 'destructive', onPress: async () => {
+                            Alert.alert(t.sc_0113, t.sc_0114, [
+                                { text: t.sc_0004, style: 'cancel' },
+                                { text: t.sc_delete, style: 'destructive', onPress: async () => {
                                     try {
                                         await api.delete(`/posts/${mp.id}`);
                                         setMediaPosts(prev => prev.filter(p => p.id !== mp.id));
@@ -32323,8 +32388,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     }
                                     if (!rv) return null;
                                     const oppName = rv.matchType === 'DOUBLE' || (rv.teamSize || 1) > 1
-                                        ? `${rv.founderTeamName || t.myTeamLabel || 'Kurucu'} — ${rv.opponentTeamName || t.oppTeamLabel || 'Rakip'}`
-                                        : `${playerDisplayName(rv.sender)} — ${rv.participants?.[0] ? playerDisplayName(rv.participants[0]) : (t.opponentLabel || 'Rakip')}`;
+                                        ? `${rv.founderTeamName || t.myTeamLabel || t.sc_0053} — ${rv.opponentTeamName || t.oppTeamLabel || t.sc_0075}`
+                                        : `${playerDisplayName(rv.sender)} — ${rv.participants?.[0] ? playerDisplayName(rv.participants[0]) : (t.opponentLabel || t.sc_0075)}`;
                                     const scoreText = Array.isArray(rv.score?.sets) && rv.score.sets.length > 0
                                         ? rv.score.sets.map(st => formatSetScore(st, 'sender', 'opponent', 'tbSender', 'tbOpponent')).join(', ')
                                         : null;
@@ -32333,7 +32398,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }} numberOfLines={1}>🎾 {oppName}</Text>
                                             {rv.matchDate && (
                                                 <Text style={{ color: '#ffffff80', fontSize: 11, marginTop: 2 }}>
-                                                    📅 {new Date(rv.matchDate).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}{rv.matchTime ? ` ${rv.matchTime}` : ''}
+                                                    📅 {new Date(rv.matchDate).toLocaleDateString(appLocale(t.lang), { day: 'numeric', month: 'short' })}{rv.matchTime ? ` ${rv.matchTime}` : ''}
                                                 </Text>
                                             )}
                                             {scoreText && (
@@ -32384,7 +32449,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     </TouchableOpacity>
                                                     {!isReply && (
                                                         <TouchableOpacity onPress={() => setMediaReplyingTo(c.id)}>
-                                                            <Text style={{ color: '#ffffff70', fontSize: 10, fontWeight: '700' }}>Yanıtla</Text>
+                                                            <Text style={{ color: '#ffffff70', fontSize: 10, fontWeight: '700' }}>{t.sc_0098}</Text>
                                                         </TouchableOpacity>
                                                     )}
                                                 </View>
@@ -32400,17 +32465,17 @@ export default function SubCategoryScreen({ route, navigation }) {
                                             {mediaReplyingTo && (
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: 3 }}>
                                                     <Text style={{ color: '#ffffff80', fontSize: 11 }}>
-                                                        Yanıtlanıyor: {mediaComments.find(c => c.id === mediaReplyingTo)?.user?.username}
+                                                        {t.sc_0095} {mediaComments.find(c => c.id === mediaReplyingTo)?.user?.username}
                                                     </Text>
                                                     <TouchableOpacity onPress={() => setMediaReplyingTo(null)}>
-                                                        <Text style={{ color: '#ffffff80', fontSize: 11, fontWeight: '700' }}>✕ Vazgeç</Text>
+                                                        <Text style={{ color: '#ffffff80', fontSize: 11, fontWeight: '700' }}>{t.sc_0096}</Text>
                                                     </TouchableOpacity>
                                                 </View>
                                             )}
                                             <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                                                 <TextInput
                                                     style={{ flex: 1, backgroundColor: '#ffffff15', borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: '#ffffff30' }}
-                                                    placeholder={mediaReplyingTo ? 'Yanıt yaz...' : 'Yorum yaz...'}
+                                                    placeholder={mediaReplyingTo ? t.sc_1125 : t.sc_0132}
                                                     placeholderTextColor="#ffffff50"
                                                     value={mediaCommentText}
                                                     onChangeText={setMediaCommentText}
@@ -32442,13 +32507,13 @@ export default function SubCategoryScreen({ route, navigation }) {
             <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
                 <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, maxHeight:'70%', paddingBottom: insets.bottom + 10 }}>
                     <View style={{ flexDirection:'row', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor: colors.border }}>
-                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>♥ Beğenenler</Text>
+                        <Text style={{ color:'#fff', fontSize:15, fontWeight:'800', flex:1 }}>{t.sc_1195}</Text>
                         <TouchableOpacity onPress={() => setLikersModal(null)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
                     </View>
                     {likersModal?.loading ? (
                         <ActivityIndicator color={cfg.color} style={{ marginVertical:24 }} />
                     ) : (likersModal?.list.length || 0) === 0 ? (
-                        <Text style={{ color: colors.textMuted, textAlign:'center', marginVertical:24 }}>Henüz kimse beğenmedi</Text>
+                        <Text style={{ color: colors.textMuted, textAlign:'center', marginVertical:24 }}>{t.sc_1196}</Text>
                     ) : (
                         <ScrollView contentContainerStyle={{ paddingHorizontal:16, paddingTop:6 }}>
                             {likersModal.list.map(like => (
