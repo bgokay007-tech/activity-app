@@ -19306,11 +19306,84 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </View>
                     );
                 })() : (
-                    tournMatches.length === 0
-                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Maç yok</Text>
-                        : (() => {
+                    (() => {
                             const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
-                            const playoffMaxRound = playoffMs.length ? Math.max(...playoffMs.map(m => m.round)) : 0;
+                            const tournType = String(item.type || '');
+                            const bracketMeta = (item.bracketData && typeof item.bracketData === 'object') ? item.bracketData : {};
+                            const sideCount = (tournType === '2' || tournType === '4')
+                                ? (tournTeams.length || Math.floor(participantCount / 2))
+                                : participantCount;
+                            const nextPow2 = (n) => { let p = 1; while (p < n) p *= 2; return p; };
+                            const reqRounds = parseInt(item.matchesBeforePlayoff, 10);
+                            const hasReqRounds = Number.isFinite(reqRounds) && reqRounds > 0;
+                            const bracketTotal = parseInt(bracketMeta.totalRounds, 10);
+                            let plannedGroup = 0;
+                            if (!item.dayTrip && ['1', '2', '3', '4', '5', '7'].includes(tournType)) {
+                                if ((tournType === '5' || tournType === '7') && Number.isFinite(bracketTotal) && bracketTotal > 0) {
+                                    plannedGroup = bracketTotal;
+                                } else if (tournType === '5') {
+                                    const n = Math.max(2, sideCount || 0);
+                                    const def = n >= 2 ? Math.max(1, Math.ceil(Math.log2(n))) : 0;
+                                    plannedGroup = hasReqRounds ? Math.min(reqRounds, Math.max(1, n - 1)) : def;
+                                } else if (tournType === '7') {
+                                    const n = sideCount || 0;
+                                    if (n >= 4) {
+                                        const def = Math.min(7, Math.max(3, n - 1));
+                                        plannedGroup = hasReqRounds ? Math.min(reqRounds, Math.max(1, n - 1)) : def;
+                                    } else if (hasReqRounds) plannedGroup = reqRounds;
+                                } else if (tournType === '2') {
+                                    plannedGroup = sideCount >= 2 ? sideCount - 1 : (hasReqRounds ? reqRounds : 0);
+                                } else if (hasReqRounds) {
+                                    plannedGroup = reqRounds;
+                                } else if (sideCount >= 2) {
+                                    plannedGroup = Math.min(sideCount - 1, 3);
+                                }
+                            }
+                            const groupRoundsNow = tournMatches.filter(m => m.phase === 'GROUP').map(m => m.round);
+                            const groupTotal = Math.max(plannedGroup, groupRoundsNow.length ? Math.max(...groupRoundsNow) : 0);
+                            const wbFromBracket = parseInt(bracketMeta.wbRounds, 10);
+                            const bracketSize = parseInt(bracketMeta.size, 10);
+                            const wbRounds = (Number.isFinite(wbFromBracket) && wbFromBracket > 0)
+                                ? wbFromBracket
+                                : (tournType === '6' && Number.isFinite(bracketSize) && bracketSize >= 2 ? Math.round(Math.log2(bracketSize)) : 0);
+                            const roundKeys = [];
+                            const seenRound = new Set();
+                            const pushRound = (phase, round) => {
+                                if (!phase || !Number.isFinite(round) || round <= 0) return;
+                                const k = `${phase}|${round}`;
+                                if (seenRound.has(k)) return;
+                                seenRound.add(k);
+                                roundKeys.push({ phase, round });
+                            };
+                            for (let r = 1; r <= groupTotal; r++) pushRound('GROUP', r);
+                            const winnerRoundsNow = tournMatches.filter(m => m.phase === 'WINNERS').map(m => m.round);
+                            const maxWinner = Math.max(wbRounds, winnerRoundsNow.length ? Math.max(...winnerRoundsNow) : 0);
+                            for (let r = 1; r <= maxWinner; r++) pushRound('WINNERS', r);
+                            const loserRoundsNow = tournMatches.filter(m => m.phase === 'LOSERS').map(m => m.round);
+                            const plannedLosers = (tournType === '6' && wbRounds >= 2) ? 2 * (wbRounds - 1) : 0;
+                            const maxLoser = Math.max(plannedLosers, loserRoundsNow.length ? Math.max(...loserRoundsNow) : 0);
+                            for (let r = 1; r <= maxLoser; r++) pushRound('LOSERS', r);
+                            const playoffRoundsNow = playoffMs.map(m => m.round).filter(r => Number.isFinite(r));
+                            if (playoffRoundsNow.length) {
+                                const minP = Math.min(...playoffRoundsNow);
+                                const maxP = Math.max(...playoffRoundsNow);
+                                for (let r = minP; r <= maxP; r++) pushRound('PLAYOFF', r);
+                            } else if (!item.dayTrip && groupTotal > 0 && ['1', '2', '3', '4'].includes(tournType)) {
+                                const qual = item.playoffQualifiers || 4;
+                                const poRounds = Math.round(Math.log2(nextPow2(Math.max(2, qual))));
+                                for (let i = 1; i <= poRounds; i++) pushRound('PLAYOFF', groupTotal + i);
+                            }
+                            const gfRoundsNow = [...new Set(tournMatches.filter(m => m.phase === 'GRAND_FINAL').map(m => m.round))].sort((a, b) => a - b);
+                            if (gfRoundsNow.length) gfRoundsNow.forEach(r => pushRound('GRAND_FINAL', r));
+                            else if (tournType === '6' && wbRounds > 0) pushRound('GRAND_FINAL', wbRounds + 1);
+                            for (const m of tournMatches) {
+                                if (!['GROUP', 'WINNERS', 'LOSERS', 'PLAYOFF', 'GRAND_FINAL'].includes(m.phase)) pushRound(m.phase, m.round);
+                            }
+                            if (roundKeys.length === 0) {
+                                return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>Maç yok</Text>;
+                            }
+                            const playoffKeyRounds = roundKeys.filter(k => k.phase === 'PLAYOFF').map(k => k.round);
+                            const playoffMaxRound = playoffKeyRounds.length ? Math.max(...playoffKeyRounds) : 0;
                             const getRoundLabel = (round, phase) => {
                                 if (phase === 'GROUP') return `Grup - Tur ${round}`;
                                 if (phase === 'WINNERS') return `Kazananlar · Tur ${round}`;
@@ -19322,10 +19395,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 if (fromEnd === 2) return 'Çeyrek Final';
                                 return `Playoff - Tur ${round}`;
                             };
-                            const seen = new Set();
-                            const roundKeys = tournMatches
-                                .filter(m => { const k=`${m.phase}|${m.round}`; if (seen.has(k)) return false; seen.add(k); return true; })
-                                .map(m => ({ phase:m.phase, round:m.round }));
 
                             // Her tur için hafta aralığı: bitiş = o turun deadline'ı, başlangıç = önceki
                             // turun deadline'ı (1. tur için turnuva başlangıç tarihi).
@@ -19358,9 +19427,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 }
                             }
 
+                            const keysWithMatches = roundKeys.filter(({ phase, round }) =>
+                                tournMatches.some(m => m.phase === phase && m.round === round));
+                            const defaultRoundKey = keysWithMatches.length
+                                ? `${keysWithMatches[keysWithMatches.length - 1].phase}|${keysWithMatches[keysWithMatches.length - 1].round}`
+                                : `${roundKeys[0].phase}|${roundKeys[0].round}`;
                             const activeKey = (selectedRoundKey && roundKeys.some(({ phase, round }) => `${phase}|${round}` === selectedRoundKey))
                                 ? selectedRoundKey
-                                : (roundKeys.length > 0 ? `${roundKeys[roundKeys.length - 1].phase}|${roundKeys[roundKeys.length - 1].round}` : null);
+                                : defaultRoundKey;
                             const [activePhase, activeRoundStr] = (activeKey || '').split('|');
                             const activeRound = parseInt(activeRoundStr);
                             // Bir önceki turdan joker'le sarkmış (hâlâ PENDING, deadline'ı o turun
@@ -19815,6 +19889,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             );
                                         })}
                                         </View>
+                                    {rMatches.length === 0 && (
+                                        <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:10 }}>
+                                            {t.tournRoundPending}
+                                        </Text>
+                                    )}
                                 </>
                             );
                           })()
