@@ -30328,31 +30328,31 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         ))}
                                     </ScrollView>
                                 )}
-                                {/* Paylaş ile aynı satır: o dalın kanalları ve videoları.
-                                    Liste ancak butona basılınca gelir; video dosyası inmez. */}
+                                {/* Paylaş, filtre, sonra o dalın kanalları ve videoları.
+                                    Liste ayrı pencerede açılır; oyuncu paylaşımları yerinde kalır.
+                                    İstek ancak butona basılınca gider, video dosyası inmez. */}
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 4 }}>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingRight: 6 }}>
-                                        <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
-                                            style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: cfg.color + '50' }}>
-                                            <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>{t.mediaShareBtn}</Text>
-                                        </TouchableOpacity>
-                                        {isSportsCategory && (
-                                            <>
-                                                <TouchableOpacity onPress={() => openSportMedia('channels')}
-                                                    style={{ backgroundColor: mediaBrowse === 'channels' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'channels' ? cfg.color + '50' : colors.border }}>
-                                                    <Text style={{ color: mediaBrowse === 'channels' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{t.mediaChannelsBtn(sportDisplayName)}</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity onPress={() => openSportMedia('videos')}
-                                                    style={{ backgroundColor: mediaBrowse === 'videos' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'videos' ? cfg.color + '50' : colors.border }}>
-                                                    <Text style={{ color: mediaBrowse === 'videos' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{t.mediaVideosBtn(sportDisplayName)}</Text>
-                                                </TouchableOpacity>
-                                            </>
-                                        )}
-                                    </ScrollView>
+                                    <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
+                                        style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: cfg.color + '50' }}>
+                                        <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>{t.mediaShareBtn}</Text>
+                                    </TouchableOpacity>
+                                    {!isSportsCategory && <View style={{ flex: 1 }} />}
                                     <TouchableOpacity onPress={() => setShowMediaFilter(true)}
                                         style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: mediaFilterActive ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaFilterActive ? cfg.color + '50' : colors.border }}>
                                         <Text style={{ color: mediaFilterActive ? cfg.color : colors.textMuted, fontWeight: '800', fontSize: 12 }}>{t.filterBtn}</Text>
                                     </TouchableOpacity>
+                                    {isSportsCategory && (
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ alignItems: 'center', gap: 4, paddingRight: 6 }}>
+                                            <TouchableOpacity onPress={() => openSportMedia('channels')}
+                                                style={{ backgroundColor: mediaBrowse === 'channels' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'channels' ? cfg.color + '50' : colors.border }}>
+                                                <Text style={{ color: mediaBrowse === 'channels' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{t.mediaChannelsBtn(sportDisplayName)}</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => openSportMedia('videos')}
+                                                style={{ backgroundColor: mediaBrowse === 'videos' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'videos' ? cfg.color + '50' : colors.border }}>
+                                                <Text style={{ color: mediaBrowse === 'videos' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1}>{t.mediaVideosBtn(sportDisplayName)}</Text>
+                                            </TouchableOpacity>
+                                        </ScrollView>
+                                    )}
                                 </View>
                                 <Modal visible={showMediaFilter} animationType="slide" transparent onRequestClose={() => setShowMediaFilter(false)}>
                                     <View style={s.modalOverlay}>
@@ -30400,30 +30400,41 @@ export default function SubCategoryScreen({ route, navigation }) {
                                     }}
                                     onClose={() => setShowMediaDateRange(false)}
                                 />
-                                {/* Instagram akışı. Kanal/video seçiliyken oyuncu paylaşımları gizlenir;
-                                    aynı butona tekrar basınca (mediaBrowse null) geri gelir. */}
-                                {mediaBrowse ? (
-                                    sportMediaLoading && !sportMedia ? (
-                                        <ActivityIndicator color={cfg.color} style={{ marginVertical: 16 }} />
-                                    ) : (
-                                        <View style={{ gap: 6 }}>
-                                            {((mediaBrowse === 'channels' ? sportMedia?.channels : sportMedia?.videos) || []).length === 0
-                                                ? <EmptyState emoji="▶️" text={mediaBrowse === 'channels' ? t.mediaChannelsEmpty : t.mediaVideosEmpty} />
-                                                : (mediaBrowse === 'channels' ? sportMedia.channels : sportMedia.videos).map(item => (
-                                                    <TouchableOpacity key={item.id || item.videoId} onPress={() => Linking.openURL(item.url).catch(() => {})}
-                                                        style={{ flexDirection: 'row', gap: 8, backgroundColor: colors.surface2, borderRadius: 10, padding: 6, alignItems: 'center' }}>
-                                                        {!!item.thumb && (
-                                                            <Image source={{ uri: item.thumb }} style={{ width: 96, height: 54, borderRadius: 6, backgroundColor: colors.surface }} />
-                                                        )}
-                                                        <View style={{ flex: 1 }}>
-                                                            <Text numberOfLines={2} style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{item.name || item.title}</Text>
-                                                            {!!item.author && <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{item.author}</Text>}
-                                                        </View>
-                                                    </TouchableOpacity>
-                                                ))}
-                                        </View>
-                                    )
-                                ) : filtered.length === 0
+                                <Modal visible={!!mediaBrowse} animationType="slide" transparent onRequestClose={() => setMediaBrowse(null)}>
+                                    <TouchableOpacity style={s.modalOverlay} activeOpacity={1} onPress={() => setMediaBrowse(null)}>
+                                        <TouchableOpacity activeOpacity={1} onPress={() => {}}
+                                            style={[s.modalBox, { paddingHorizontal: moderateScale(16), paddingBottom: insets.bottom + moderateScale(16) }]}>
+                                            <View style={s.modalHeader}>
+                                                <Text style={[s.modalTitle, { flex: 1, marginRight: 8 }]} numberOfLines={1}>
+                                                    {mediaBrowse === 'channels' ? t.mediaChannelsBtn(sportDisplayName) : t.mediaVideosBtn(sportDisplayName)}
+                                                </Text>
+                                                <TouchableOpacity onPress={() => setMediaBrowse(null)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                                            </View>
+                                            {sportMediaLoading && !sportMedia ? (
+                                                <ActivityIndicator color={cfg.color} style={{ marginVertical: 24 }} />
+                                            ) : (
+                                                <ScrollView style={{ maxHeight: winH * 0.62 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                                    {((mediaBrowse === 'channels' ? sportMedia?.channels : sportMedia?.videos) || []).length === 0
+                                                        ? <EmptyState emoji="▶️" text={mediaBrowse === 'channels' ? t.mediaChannelsEmpty : t.mediaVideosEmpty} />
+                                                        : (mediaBrowse === 'channels' ? sportMedia.channels : sportMedia.videos).map(item => (
+                                                            <TouchableOpacity key={item.id || item.videoId} onPress={() => Linking.openURL(item.url).catch(() => {})}
+                                                                style={{ flexDirection: 'row', gap: 8, backgroundColor: colors.surface2, borderRadius: 10, padding: 6, alignItems: 'center', marginBottom: 6 }}>
+                                                                {!!item.thumb && (
+                                                                    <Image source={{ uri: item.thumb }} style={{ width: 96, height: 54, borderRadius: 6, backgroundColor: colors.surface }} />
+                                                                )}
+                                                                <View style={{ flex: 1 }}>
+                                                                    <Text numberOfLines={2} style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{item.name || item.title}</Text>
+                                                                    {!!item.author && <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{item.author}</Text>}
+                                                                </View>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                </ScrollView>
+                                            )}
+                                        </TouchableOpacity>
+                                    </TouchableOpacity>
+                                </Modal>
+                                {/* Oyuncu paylaşımları kanal penceresinden bağımsız durur. */}
+                                {filtered.length === 0
                                     ? <EmptyState emoji="📸" text={t.emptyMedia} />
                                     : (() => {
                                         const fmtAgo = (d) => {
