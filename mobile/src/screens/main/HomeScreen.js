@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { setUser } from '../../store/slices/authSlice';
 import api from '../../services/api';
+import { prefetchBranchLists } from '../../services/branchCache';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
 import { CAT_PHOTOS, photoForSub } from '../../theme/visualAssets';
@@ -245,6 +246,7 @@ export default function HomeScreen({ navigation }) {
 
     const openListing = (item) => {
         if (!item?.subCategory) return;
+        prefetchBranchLists((item.category || 'SPORTS').toUpperCase(), item.subCategory);
         navigation.navigate('SubCategory', {
             category: (item.category || 'SPORTS').toUpperCase(),
             sub: item.subCategory,

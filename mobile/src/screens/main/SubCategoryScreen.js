@@ -31,6 +31,7 @@ import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '
 import { estimateCalories } from '../../utils/calorieEstimate';
 import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, formatSetScore, racketAlertText } from '../../utils/racketScore';
 import api from '../../services/api';
+import { prefetchBranchLists, recallBranch, rememberBranch } from '../../services/branchCache';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -23735,9 +23736,10 @@ export default function SubCategoryScreen({ route, navigation }) {
         (inviteSide || inviteDoubleSlot) ? { side: inviteSide, slotIndex: inviteSlotIndex ?? null, doubleSlot: inviteDoubleSlot ?? null } : null
     ), [inviteSide, inviteSlotIndex, inviteDoubleSlot]);
 
-    const [rivals, setRivals] = useState([]);
-    const [playerWanted, setPlayerWanted] = useState([]);
-    const [matchedUpcoming, setMatchedUpcoming] = useState([]);
+    const cachedBranch = recallBranch(category, sub);
+    const [rivals, setRivals] = useState(cachedBranch?.rivals || []);
+    const [playerWanted, setPlayerWanted] = useState(cachedBranch?.playerWanted || []);
+    const [matchedUpcoming, setMatchedUpcoming] = useState(cachedBranch?.matchedUpcoming || []);
     // RivalDetailModal'daki AYNI cache mantığı (bkz. oradaki yorum): bazı backend uçları
     // rivalUpdate broadcast ederken skillRating'i yeniden hesaplamıyor, bu yüzden liste
     // kartlarının (Digimon kart arka yüzü) elo puanı da anında kaybolabiliyordu.
@@ -23755,9 +23757,9 @@ export default function SubCategoryScreen({ route, navigation }) {
     const senderInterestCacheRef = useRef({});
     // Her saniye tick → Yaklaşan/Oynanan/Skor Bekleyen zaman filtreleri yenilenir
     const [, setTimeTick] = useState(0);
-    const [textPosts, setTextPosts] = useState([]);
-    const [mediaPosts, setMediaPosts] = useState([]);
-    const [mediaStories, setMediaStories] = useState([]);
+    const [textPosts, setTextPosts] = useState(cachedBranch?.textPosts || []);
+    const [mediaPosts, setMediaPosts] = useState(cachedBranch?.mediaPosts || []);
+    const [mediaStories, setMediaStories] = useState(cachedBranch?.mediaStories || []);
     const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
     // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
@@ -23964,11 +23966,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [vrSubmitting, setVrSubmitting] = useState(false);
     const [newPostText, setNewPostText] = useState('');
     const [submittingPost, setSubmittingPost] = useState(false);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [listsReady, setListsReady] = useState(!!cachedBranch);
     const [refreshing, setRefreshing] = useState(false);
     const [archiveRivals, setArchiveRivals] = useState([]);
     const [loadingArchive, setLoadingArchive] = useState(false);
-    const [pendingScore, setPendingScore] = useState([]);
+    const [pendingScore, setPendingScore] = useState(cachedBranch?.pendingScore || []);
     // Listeler her TAZE GET ile geldiğinde (bkz. load()) skillRating her zaman doğru/güncel
     // gelir — bu değerleri cache'e alıp, rivalUpdate broadcast'inde eksik gelen puanları
     // doldurmak için kullanılır (bkz. aşağıdaki socket handler'daki fillRatings).
@@ -24498,7 +24501,21 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     // Maç için hakem ilanları — ActivityRequest.positions (REFEREE/REFEREE_OFFER) kullanır,
     // "Oyuncu Aranıyor" listesinden ayrıca bu state'e ayrılır (bkz. load())
-    const [refereeMatches, setRefereeMatches] = useState([]);
+    const [refereeMatches, setRefereeMatches] = useState(cachedBranch?.refereeMatches || []);
+    const seenBranchKey = useRef(`${category}:${sub}`);
+    if (seenBranchKey.current !== `${category}:${sub}`) {
+        seenBranchKey.current = `${category}:${sub}`;
+        const next = recallBranch(category, sub);
+        setRivals(next?.rivals || []);
+        setPlayerWanted(next?.playerWanted || []);
+        setMatchedUpcoming(next?.matchedUpcoming || []);
+        setTextPosts(next?.textPosts || []);
+        setMediaPosts(next?.mediaPosts || []);
+        setMediaStories(next?.mediaStories || []);
+        setPendingScore(next?.pendingScore || []);
+        setRefereeMatches(next?.refereeMatches || []);
+        setListsReady(!!next);
+    }
     const [showCreateRefereeMatch, setShowCreateRefereeMatch] = useState(false);
 
     // Destek > Kulüpler — antrenör/hakem kadar karmaşık değil; isim + şehir zorunlu.
@@ -24764,17 +24781,9 @@ export default function SubCategoryScreen({ route, navigation }) {
         return off;
     }, [commentMatch?.id]);
 
-    const load = useCallback(async () => {
+    const load = useCallback(async (opts = {}) => {
         try {
-            const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await Promise.all([
-                api.get(`/rivals?category=${category}&subCategory=${sub}`),
-                api.get(`/rivals?category=${category}&subCategory=${sub}&matchType=PLAYER_WANTED`).catch(() => ({ data:[] })),
-                api.get(`/posts?category=${category}&subCategory=${sub}&communityOnly=true&limit=30`).catch(() => ({ data:[] })),
-                api.get(`/posts?category=${category}&subCategory=${sub}&mediaOnly=true&limit=50`).catch(() => ({ data:[] })),
-                api.get(`/posts?category=${category}&subCategory=${sub}&type=STORY&limit=100`).catch(() => ({ data:[] })),
-                api.get(`/rivals/upcoming?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
-                api.get(`/rivals/completed?category=${category}&subCategory=${sub}`).catch(() => ({ data:[] })),
-            ]);
+            const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await prefetchBranchLists(category, sub, { fresh: !!opts.fresh });
 
             const allRivals = rvRes.data;
             const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED');
@@ -24796,7 +24805,18 @@ export default function SubCategoryScreen({ route, navigation }) {
                 if (!storyMap[s.userId]) storyMap[s.userId] = { user: s.user, stories: [] };
                 storyMap[s.userId].stories.push(s);
             });
-            setMediaStories(Object.values(storyMap));
+            const storyGroups = Object.values(storyMap);
+            setMediaStories(storyGroups);
+            rememberBranch(category, sub, {
+                rivals: openRivals,
+                playerWanted: pwRes.data.filter(p => !isRefereeAd(p)),
+                refereeMatches: pwRes.data.filter(isRefereeAd),
+                matchedUpcoming: upcomingList,
+                pendingScore: Array.isArray(pendingRes.data) ? pendingRes.data : [],
+                textPosts: allPosts.filter(p => p.type === 'POST' && !p.imageUrl && !p.videoUrl),
+                mediaPosts: (Array.isArray(mediaRes.data) ? mediaRes.data : []).filter(p => p.type !== 'STORY'),
+                mediaStories: storyGroups,
+            });
 
             if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
                 const found = openRivals.find(r => r.id === highlightRivalId)
@@ -24820,7 +24840,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                 }
             }
         } catch(e) { console.warn(e?.message); }
-        finally { setLoading(false); setRefreshing(false); }
+        finally { setLoading(false); setListsReady(true); setRefreshing(false); }
     }, [category, sub, myId, highlightRivalId, notifNavKey]);
 
     useEffect(() => {
@@ -24828,16 +24848,13 @@ export default function SubCategoryScreen({ route, navigation }) {
         if (notifNavKey) autoOpenHandledRef.current = null;
     }, [notifNavKey]);
 
-    useEffect(() => {
-        const task = InteractionManager.runAfterInteractions(() => { load(); });
-        return () => task.cancel();
-    }, [load]);
+    useEffect(() => { load(); }, [load]);
     // Kullanıcı isteği: skor girişi sonrası maç kartı, arkaplandaki liste yenilenene kadar
     // (yaklaşık 1sn) eski konumunda (ör. yedek arayan maçlar "Açık İlanlar" başlığı altında
     // gösterildiği için orada) kalıp sonra doğru yere (Skor Bekleyen Maçlar) "atlıyordu" —
     // return eklenerek submitScore artık bu yenilemeyi (Alert.alert'ten ÖNCE) await edebiliyor,
     // kullanıcı uyarıyı kapattığında liste zaten doğru yerde.
-    const onRefresh = () => { setRefreshing(true); return load(); };
+    const onRefresh = () => { setRefreshing(true); return load({ fresh: true }); };
 
     useEffect(() => {
         ['rivals', 'tournaments', 'coaches', 'equipment', 'referees'].forEach(tab => {
@@ -24890,7 +24907,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const isMounted = useRef(false);
     useFocusEffect(useCallback(() => {
         if (!isMounted.current) { isMounted.current = true; return; }
-        load();
+        load({ fresh: true });
     }, [load]));
 
     const loadArchive = useCallback(() => {
@@ -25799,6 +25816,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [trimEnd, setTrimEnd] = useState('30');
     const [musicDuration, setMusicDuration] = useState(null);
     const [detectingImage, setDetectingImage] = useState(false);
+    const detectingRef = useRef(false);
     const suggestedMusicRef = useRef([]);
     const musicQueryRef = useRef('');
     // Gönderi ve hikaye en fazla 60 sn, reels 90 sn. Çizgi parçanın tamamıdır.
@@ -25831,17 +25849,31 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     const detectImageMusic = async ({ silent } = {}) => {
-        if (!mediaShareUri || detectingImage) return;
+        const uri = mediaShareUri || '';
+        const isVideo = mediaShareType === 'REEL' || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(uri);
+        if (!uri || isVideo || detectingRef.current) return;
+        detectingRef.current = true;
         setDetectingImage(true);
-        setMusicResults([]);
+        if (!musicQueryRef.current.trim()) setMusicResults([]);
+        const fallback = [
+            `${String(sub || 'sports').replace(/_/g, ' ')} music`,
+            'energetic workout',
+            'champion mindset',
+            'summer sports',
+        ];
         try {
-            const base64 = await FileSystem.readAsStringAsync(mediaShareUri, { encoding: FileSystem.EncodingType.Base64 });
-            const { data } = await api.post('/posts/suggest-music', {
-                imageBase64: base64,
-                mimeType: 'image/jpeg',
-                subCategory: sub,
-            });
-            const keywords = data.keywords || [];
+            let keywords = fallback;
+            try {
+                const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+                if (base64 && base64.length < 4000000) {
+                    const { data } = await api.post('/posts/suggest-music', {
+                        imageBase64: base64,
+                        mimeType: 'image/jpeg',
+                        subCategory: sub,
+                    }, { timeout: 12000 });
+                    if (Array.isArray(data?.keywords) && data.keywords.length) keywords = data.keywords;
+                }
+            } catch { /* fotoğraf okunamazsa dal adına göre ara */ }
             const lists = await Promise.all(keywords.slice(0, 4).map(async (kw) => {
                 try {
                     const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(kw)}&limit=8&output=json`);
@@ -25858,10 +25890,14 @@ export default function SubCategoryScreen({ route, navigation }) {
             }
             suggestedMusicRef.current = merged;
             if (!musicQueryRef.current.trim()) setMusicResults(merged);
+            if (!merged.length && !silent) Alert.alert('', t.musicSuggestEmpty);
         } catch {
             if (!silent) Alert.alert('', t.musicSuggestEmpty);
         }
-        finally { setDetectingImage(false); }
+        finally {
+            detectingRef.current = false;
+            setDetectingImage(false);
+        }
     };
 
     // Çizgiyi kaydırmak seçili aralığı olduğu gibi taşır. Bitiş tutacağı süreyi değiştirir.
@@ -26029,21 +26065,23 @@ export default function SubCategoryScreen({ route, navigation }) {
     };
 
     useEffect(() => {
-        if (!musicSheetOpen) return;
-        if (musicQueryRef.current.trim()) return;
+        suggestedMusicRef.current = [];
+        setMusicResults([]);
         const uri = mediaShareUri || '';
         const isVideo = mediaShareType === 'REEL' || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(uri);
         if (!uri || isVideo) return;
+        detectImageMusic({ silent: true });
+    }, [mediaShareUri]);
+
+    useEffect(() => {
+        if (!musicSheetOpen) return;
+        if (musicQueryRef.current.trim()) return;
         if (suggestedMusicRef.current.length) {
             setMusicResults(suggestedMusicRef.current);
             return;
         }
         detectImageMusic({ silent: true });
     }, [musicSheetOpen]);
-
-    useEffect(() => {
-        suggestedMusicRef.current = [];
-    }, [mediaShareUri]);
 
     const getGpsLocation = async () => {
         setGettingLocation(true);
@@ -27442,13 +27480,10 @@ export default function SubCategoryScreen({ route, navigation }) {
                 ))}
             </ScrollView>
 
-            {loading ? (
-                <ActivityIndicator color={cfg.color} style={{ marginTop:40 }} />
-            ) : (
-                <ScrollView
-                    contentContainerStyle={s.list}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cfg.color} />}
-                >
+            <ScrollView
+                contentContainerStyle={s.list}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cfg.color} />}
+            >
                     {/* ── RIVALS ── */}
                     {activeTab === 'rivals' && (
                         <>
@@ -27479,7 +27514,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             </TouchableOpacity>
                             {openRivalsExpanded && (
                                 (filteredRivals.length === 0 && upcomingNeedingSubs.length === 0)
-                                    ? <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />
+                                    ? (!listsReady ? null : <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />)
                                     : (
                                         <>
                                         <RivalCardsHScroll
@@ -30782,26 +30817,21 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>🎵 {shareMusic.title}</Text>
                                                             <Text style={{ color: '#6b7280', fontSize: 11 }}>{s}s – {e}s ({e - s}sn)</Text>
                                                         </View>
-                                                        {/* Trim bar */}
                                                         <View
                                                             {...windowPan.panHandlers}
                                                             onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
-                                                            style={{ height: 44, justifyContent: 'center' }}
+                                                            style={{ height: 48, justifyContent: 'center' }}
                                                         >
-                                                            {/* Arka plan izi */}
-                                                            <View style={{ height: 5, backgroundColor: '#1f2937', borderRadius: 3 }}>
-                                                                {/* Seçili aralık */}
-                                                                <View style={{ position: 'absolute', left: `${leftPct}%`, right: `${rightPct}%`, height: 5, backgroundColor: '#7c3aed', borderRadius: 3 }} />
+                                                            <View style={{ height: 28, borderRadius: 8, backgroundColor: '#1f2937', overflow: 'hidden' }}>
+                                                                <View style={{ position: 'absolute', left: `${leftPct}%`, right: `${rightPct}%`, top: 0, bottom: 0, backgroundColor: '#7c3aed' }} />
                                                             </View>
-                                                            {/* Başlangıç tutacağı */}
                                                             <View
                                                                 {...startHandlePan.panHandlers}
-                                                                style={{ position: 'absolute', left: `${leftPct}%`, width: 22, height: 22, borderRadius: 11, backgroundColor: '#7c3aed', borderWidth: 2.5, borderColor: '#fff', marginLeft: -11, alignSelf: 'center' }}
+                                                                style={{ position: 'absolute', left: `${leftPct}%`, width: 16, height: 36, borderRadius: 6, backgroundColor: '#fff', marginLeft: -8 }}
                                                             />
-                                                            {/* Bitiş tutacağı */}
                                                             <View
                                                                 {...endHandlePan.panHandlers}
-                                                                style={{ position: 'absolute', left: `${(e / totalDur) * 100}%`, width: 22, height: 22, borderRadius: 11, backgroundColor: '#a78bfa', borderWidth: 2.5, borderColor: '#fff', marginLeft: -11, alignSelf: 'center' }}
+                                                                style={{ position: 'absolute', left: `${(e / totalDur) * 100}%`, width: 16, height: 36, borderRadius: 6, backgroundColor: '#fff', marginLeft: -8 }}
                                                             />
                                                         </View>
                                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
@@ -30884,16 +30914,24 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         <View
                                                             {...windowPan.panHandlers}
                                                             onLayout={ev => { trimBarWidthRef.current = ev.nativeEvent.layout.width; }}
-                                                            style={{ height: 44, justifyContent: 'center', marginBottom: 6 }}
+                                                            style={{ height: 56, justifyContent: 'center', marginBottom: 8 }}
                                                         >
-                                                            <View style={{ height: 4, backgroundColor: '#374151', borderRadius: 2 }}>
+                                                            <View style={{ height: 32, borderRadius: 8, backgroundColor: '#1f2937', overflow: 'hidden' }}>
                                                                 <View style={{
-                                                                    position: 'absolute',
+                                                                    position: 'absolute', top: 0, bottom: 0,
                                                                     left: `${((parseFloat(trimStart) || 0) / (musicDuration || 1)) * 100}%`,
-                                                                    width: `${Math.max(0, ((parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)) / (musicDuration || 1)) * 100}%`,
-                                                                    height: 4, backgroundColor: '#7c3aed', borderRadius: 2,
+                                                                    width: `${Math.max(2, ((parseFloat(trimEnd) || 0) - (parseFloat(trimStart) || 0)) / (musicDuration || 1)) * 100}%`,
+                                                                    backgroundColor: '#7c3aed',
                                                                 }} />
                                                             </View>
+                                                            <View
+                                                                {...startHandlePan.panHandlers}
+                                                                style={{ position: 'absolute', left: `${((parseFloat(trimStart) || 0) / (musicDuration || 1)) * 100}%`, width: 18, height: 40, borderRadius: 6, backgroundColor: '#fff', marginLeft: -9 }}
+                                                            />
+                                                            <View
+                                                                {...endHandlePan.panHandlers}
+                                                                style={{ position: 'absolute', left: `${((parseFloat(trimEnd) || 0) / (musicDuration || 1)) * 100}%`, width: 18, height: 40, borderRadius: 6, backgroundColor: '#fff', marginLeft: -9 }}
+                                                            />
                                                         </View>
                                                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
                                                             <Text style={{ color: colors.textMuted, fontSize: 10 }}>0s</Text>
@@ -31361,8 +31399,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                             )}
                         </>
                     )}
-                </ScrollView>
-            )}
+            </ScrollView>
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
 

@@ -6,6 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
+import { prefetchBranchLists } from '../../services/branchCache';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -139,13 +140,14 @@ function parseIdList(raw) {
     }
 }
 
-function SportTile({ sub, label, count, favored, onOpen, onToggleFav, t, variant }) {
+function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant }) {
     const photo = SUB_PHOTOS[sub.id] || null;
     const tint = SUB_TINT[sub.id] || '#1C1F28';
     return (
         <TouchableOpacity
             style={[variant === 'row' ? sp.tileRow : sp.tile, count === 0 && sp.tileQuiet]}
             onPress={onOpen}
+            onPressIn={onPressIn}
             activeOpacity={0.85}
         >
             {photo ? (
@@ -180,7 +182,7 @@ export default function CategoryScreen({ route, navigation }) {
     const categoryLabel = t[CAT_LABEL_KEY[category]] || category;
 
     const [counts, setCounts] = useState({});
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [query, setQuery] = useState('');
     const [groupId, setGroupId] = useState('all');
     const [favIds, setFavIds] = useState([]);
@@ -226,7 +228,6 @@ export default function CategoryScreen({ route, navigation }) {
 
     useFocusEffect(
         useCallback(() => {
-            setLoading(true);
             fetchCounts();
             const known = new Set((SUB_MAP[category] || []).map(s => s.id));
             const asList = (res) => Array.isArray(res?.data) ? res.data : [];
@@ -289,6 +290,7 @@ export default function CategoryScreen({ route, navigation }) {
             navigation.navigate(SPECIAL_SCREENS[sub.id]);
             return;
         }
+        prefetchBranchLists(category, sub.id);
         // Bugün oynayayım: dala girince de o günün ilanları gelsin (31 Aralık gibi
         // uzak tarihli açık ilanlar "bugün"e karışmasın).
         navigation.navigate('SubCategory', {
@@ -384,6 +386,7 @@ export default function CategoryScreen({ route, navigation }) {
                                     <TouchableOpacity
                                         key={sub.id}
                                         style={[s.card, { borderColor: accentColor + '40' }]}
+                                        onPressIn={() => { if (!SPECIAL_SCREENS[sub.id]) prefetchBranchLists(category, sub.id); }}
                                         onPress={() => openSub(sub)}
                                         activeOpacity={0.75}
                                     >
@@ -438,6 +441,7 @@ export default function CategoryScreen({ route, navigation }) {
                 count={counts[sub.id] || 0}
                 favored={favIds.includes(sub.id)}
                 onOpen={() => openSub(sub)}
+                onPressIn={() => { if (!SPECIAL_SCREENS[sub.id]) prefetchBranchLists(category, sub.id); }}
                 onToggleFav={() => toggleFav(sub.id)}
                 t={t}
                 variant={variant}
@@ -551,7 +555,7 @@ export default function CategoryScreen({ route, navigation }) {
                         {subs.map(sub => {
                             const count = counts[sub.id] || 0;
                             return (
-                                <TouchableOpacity key={sub.id} style={nv.tile} onPress={() => openSub(sub)} activeOpacity={0.85}>
+                                <TouchableOpacity key={sub.id} style={nv.tile} onPressIn={() => { if (!SPECIAL_SCREENS[sub.id]) prefetchBranchLists(category, sub.id); }} onPress={() => openSub(sub)} activeOpacity={0.85}>
                                     <Image source={photoForSub(sub.id, category)} style={nv.tileImg} />
                                     <View style={nv.tileShade} />
                                     <Text style={nv.tileName} numberOfLines={2}>{subLabel(sub)}</Text>
