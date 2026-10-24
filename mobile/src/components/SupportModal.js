@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
+import useT from '../hooks/useT';
 
 // Kullanıcı isteği: admine destek mesajı yazma bölümü artık tek bir düz mesaj listesi değil —
 // her başlatılan sohbet kendi konusuyla (subject) ayrı bir "kutu" olsun, mesaj gönderince
@@ -17,6 +18,7 @@ import colors from '../theme/colors';
 // hepsi artık bunu import ediyor.
 export default function SupportModal({ visible, onClose }) {
     const insets = useSafeAreaInsets();
+    const i18n = useT();
     const lang = useSelector(s => s.lang?.lang || 'tr');
     const [view, setView] = useState('list'); // 'list' | 'thread' | 'new'
     const [tickets, setTickets] = useState([]);
@@ -100,11 +102,11 @@ export default function SupportModal({ visible, onClose }) {
     const fmtAgo = (d) => {
         const diff = Date.now() - new Date(d).getTime();
         const m = Math.floor(diff / 60000);
-        if (m < 1) return 'şimdi';
-        if (m < 60) return `${m}dk`;
+        if (m < 1) return i18n.timeNow;
+        if (m < 60) return i18n.timeAgoSuffix(`${m}${i18n.timeMinSuffix}`);
         const h = Math.floor(m / 60);
-        if (h < 24) return `${h}sa`;
-        return `${Math.floor(h / 24)}g`;
+        if (h < 24) return i18n.timeAgoSuffix(`${h}${i18n.timeHourSuffix}`);
+        return i18n.timeAgoSuffix(`${Math.floor(h / 24)}${i18n.timeDaySuffix}`);
     };
 
     const close = () => { onClose(); setView('list'); setActiveTicket(null); };
@@ -121,7 +123,7 @@ export default function SupportModal({ visible, onClose }) {
                                     <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }} numberOfLines={1}>{activeTicket?.subject}</Text>
                                 </TouchableOpacity>
                             ) : (
-                                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>💬 Admine Destek</Text>
+                                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>{i18n.supportModalTitle}</Text>
                             )}
                             <TouchableOpacity onPress={close}><Text style={{ color: colors.textMuted, fontSize: 18, padding: 3 }}>✕</Text></TouchableOpacity>
                         </View>
@@ -131,18 +133,18 @@ export default function SupportModal({ visible, onClose }) {
                                 {/* Kullanıcı isteği: yeni bir sohbet başlatırken konu + mesaj birlikte
                                     girilsin, gönderince o konunun adıyla bir sohbet kutusu oluşsun. */}
                                 <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border, marginBottom: 12 }}>
-                                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6 }}>+ Yeni Konu</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700', marginBottom: 6 }}>{i18n.supportNewTopic}</Text>
                                     <TextInput
                                         value={newSubject}
                                         onChangeText={setNewSubject}
-                                        placeholder="Konu (örn. Ödeme sorunu)"
+                                        placeholder={i18n.supportSubjectPh}
                                         placeholderTextColor={colors.textMuted}
                                         style={{ backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, marginBottom: 6 }}
                                     />
                                     <TextInput
                                         value={newMessage}
                                         onChangeText={setNewMessage}
-                                        placeholder="Mesajınızı yazın..."
+                                        placeholder={i18n.supportMessagePh}
                                         placeholderTextColor={colors.textMuted}
                                         multiline
                                         style={{ backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', fontSize: 13, borderWidth: 1, borderColor: colors.border, minHeight: 50, textAlignVertical: 'top', marginBottom: 6 }}
@@ -152,7 +154,7 @@ export default function SupportModal({ visible, onClose }) {
                                         disabled={creating || !newSubject.trim() || !newMessage.trim()}
                                         style={{ backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 9, alignItems: 'center', opacity: (creating || !newSubject.trim() || !newMessage.trim()) ? 0.5 : 1 }}
                                     >
-                                        {creating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>Gönder</Text>}
+                                        {creating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }}>{i18n.supportSend}</Text>}
                                     </TouchableOpacity>
                                 </View>
 
@@ -160,21 +162,21 @@ export default function SupportModal({ visible, onClose }) {
                                     {loadingTickets ? (
                                         <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
                                     ) : tickets.length === 0 ? (
-                                        <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>Henüz bir destek konunuz yok.</Text>
+                                        <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>{i18n.supportNoTickets}</Text>
                                     ) : (
-                                        tickets.map(t => (
-                                            <TouchableOpacity key={t.id} onPress={() => openTicket(t)}
-                                                style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: t.hasNewReply ? colors.purple : colors.border }}>
+                                        tickets.map(ticket => (
+                                            <TouchableOpacity key={ticket.id} onPress={() => openTicket(ticket)}
+                                                style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: ticket.hasNewReply ? colors.purple : colors.border }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', flex: 1 }} numberOfLines={1}>💬 {t.subject}</Text>
-                                                    {t.hasNewReply && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.purple, marginLeft: 6 }} />}
+                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800', flex: 1 }} numberOfLines={1}>💬 {ticket.subject}</Text>
+                                                    {ticket.hasNewReply && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.purple, marginLeft: 6 }} />}
                                                 </View>
-                                                {t.lastMessage && (
+                                                {ticket.lastMessage && (
                                                     <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 4 }} numberOfLines={1}>
-                                                        {t.lastMessage.isFromAdmin ? (t.lastMessage.isAutoReply ? 'AcTiViTy Destek: ' : 'Admin: ') : ''}{t.lastMessage.message}
+                                                        {ticket.lastMessage.isFromAdmin ? (ticket.lastMessage.isAutoReply ? i18n.supportTeamPrefix : i18n.supportAdminPrefix) : ''}{ticket.lastMessage.message}
                                                     </Text>
                                                 )}
-                                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4 }}>{fmtAgo(t.updatedAt)} önce{t.status === 'CLOSED' ? ' · Kapatıldı' : ''}</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4 }}>{fmtAgo(ticket.updatedAt)}{ticket.status === 'CLOSED' ? ` · ${i18n.supportClosed}` : ''}</Text>
                                             </TouchableOpacity>
                                         ))
                                     )}
@@ -197,7 +199,7 @@ export default function SupportModal({ visible, onClose }) {
                                             }}>
                                                 {m.isFromAdmin && (
                                                     <Text style={{ color: colors.purple, fontSize: 10, fontWeight: '800', marginBottom: 2 }}>
-                                                        {m.isAutoReply ? 'AcTiViTy Destek' : 'Admin'}
+                                                        {m.isAutoReply ? i18n.supportTeamName : i18n.supportAdminName}
                                                     </Text>
                                                 )}
                                                 <Text style={{ color: '#fff', fontSize: 13 }}>{m.message}</Text>
@@ -210,7 +212,7 @@ export default function SupportModal({ visible, onClose }) {
                                         <TextInput
                                             value={messageText}
                                             onChangeText={setMessageText}
-                                            placeholder="Yanıt yaz..."
+                                            placeholder={i18n.supportReplyPh}
                                             placeholderTextColor={colors.textMuted}
                                             multiline
                                             style={{ flex: 1, backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border, color: '#fff', fontSize: 13, paddingHorizontal: 10, paddingVertical: 8, maxHeight: 90 }}

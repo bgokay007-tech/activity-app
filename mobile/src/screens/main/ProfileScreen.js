@@ -1634,7 +1634,7 @@ export default function ProfileScreen({ route, navigation }) {
         setFriendActionLoading(key);
         try {
             await api.post(`/friends/request/${targetUser.id}`);
-            Alert.alert('', `${targetUser.fullName || targetUser.username} kullanıcısına arkadaşlık isteği gönderildi.`);
+            Alert.alert('', t.friendRequestSent(targetUser.fullName || targetUser.username));
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setFriendActionLoading(null); }
@@ -1645,7 +1645,7 @@ export default function ProfileScreen({ route, navigation }) {
         setFriendActionLoading(key);
         try {
             await api.post(`/users/${targetUser.id}/follow`);
-            Alert.alert('', `${targetUser.fullName || targetUser.username} kullanıcısına takip isteği gönderildi.`);
+            Alert.alert('', t.followRequestSent(targetUser.fullName || targetUser.username));
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setFriendActionLoading(null); }
@@ -1659,7 +1659,7 @@ export default function ProfileScreen({ route, navigation }) {
             navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other } });
         } catch (e) {
             if (e?.response?.status === 403) {
-                Alert.alert('', e.response.data?.message || 'Bu kullanıcı tarafından engellendiniz.');
+                Alert.alert('', e.response.data?.message || t.blockedByUser);
             } else {
                 Alert.alert('', t.actionFailed);
             }
@@ -1994,7 +1994,7 @@ export default function ProfileScreen({ route, navigation }) {
     };
 
     const handleRemoveFollower = (followerUser) => {
-        Alert.alert('Takipçi Kaldır', `${followerUser.fullName || followerUser.username} takipçilikten kaldırılsın mı?`, [
+        Alert.alert(t.removeFollowerTitle, t.removeFollowerConfirm(followerUser.fullName || followerUser.username), [
             { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
             { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
                 try {
@@ -2006,7 +2006,7 @@ export default function ProfileScreen({ route, navigation }) {
     };
 
     const handleUnfollowFromList = (followingUser) => {
-        Alert.alert('Takibi Bırak', `${followingUser.fullName || followingUser.username} takipten çıkarılsın mı?`, [
+        Alert.alert(t.unfollowTitle, t.unfollowConfirm(followingUser.fullName || followingUser.username), [
             { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
             { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
                 try {
@@ -2018,7 +2018,7 @@ export default function ProfileScreen({ route, navigation }) {
     };
 
     const handleRemoveFriendFromList = (friendUser) => {
-        Alert.alert(t.friendsBtn || 'Arkadaşlıktan Çık', `${friendUser.fullName || friendUser.username} arkadaşlıktan çıkarılsın mı?`, [
+        Alert.alert(t.unfriendBtn, t.unfriendConfirm(friendUser.fullName || friendUser.username), [
             { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
             { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
                 try {
@@ -2519,7 +2519,7 @@ export default function ProfileScreen({ route, navigation }) {
                 await api.delete(`/friends/unfriend/${userId}`);
                 setFriendStatus({ status: 'NONE' });
             } else if (friendStatus.status === 'ACCEPTED') {
-                Alert.alert(t.friendsBtn, t.unfriendConfirm || 'Arkadaşlıktan çıkarılsın mı?', [
+                Alert.alert(t.unfriendBtn, t.unfriendConfirm(profile?.fullName || profile?.username || ''), [
                     { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
                     { text: t.yes || 'Evet', style: 'destructive', onPress: async () => {
                         try { await api.delete(`/friends/unfriend/${userId}`); setFriendStatus({ status: 'NONE' }); setFriendCount(c => Math.max(0, c - 1)); }
@@ -2543,15 +2543,15 @@ export default function ProfileScreen({ route, navigation }) {
     // doğrudan profilinden engelleyebilir — engellenen kişi artık bu profili göremez.
     const handleBlockUser = () => {
         Alert.alert(
-            '🚫 Kullanıcıyı Engelle',
-            `${profile?.fullName || profile?.username} adlı kullanıcıyı engellemek istediğinize emin misiniz? Engellerseniz birbirinizin profilini göremez, mesajlaşamaz, arkadaşlığınız varsa kaldırılır.`,
+            t.blockUserTitle,
+            t.blockUserConfirm(profile?.fullName || profile?.username),
             [
-                { text: 'Vazgeç', style: 'cancel' },
-                { text: 'Engelle', style: 'destructive', onPress: async () => {
+                { text: t.dismissBtn, style: 'cancel' },
+                { text: t.msgBlockAction, style: 'destructive', onPress: async () => {
                     try {
                         await api.post(`/friends/block/${userId}`);
                         navigation.goBack();
-                    } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Engellenemedi.'); }
+                    } catch (e) { Alert.alert(t.error, e?.response?.data?.message || t.blockFail); }
                 } },
             ]
         );
@@ -2564,7 +2564,7 @@ export default function ProfileScreen({ route, navigation }) {
             navigation.navigate('MessagesTab', { screen: 'Chat', params: { conversation: enriched, other: enriched.other } });
         } catch (e) {
             if (e?.response?.status === 403) {
-                Alert.alert('', e.response.data?.message || 'Bu kullanıcı tarafından engellendiniz.');
+                Alert.alert('', e.response.data?.message || t.blockedByUser);
             } else {
                 console.warn(e?.message);
             }
@@ -2701,7 +2701,7 @@ export default function ProfileScreen({ route, navigation }) {
                 {isOwnProfile ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <TouchableOpacity onPress={openSupport} style={s.logoutBtn}>
-                            <Text style={s.logoutText}>💬 Destek</Text>
+                            <Text style={s.logoutText}>{t.supportBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={handleLogout} style={s.logoutBtn}>
                             <Text style={s.logoutText}>{t.logoutBtn}</Text>
@@ -2709,7 +2709,7 @@ export default function ProfileScreen({ route, navigation }) {
                     </View>
                 ) : friendStatus?.status === 'ACCEPTED' ? (
                     <TouchableOpacity onPress={handleFriendAction} style={s.logoutBtn}>
-                        <Text style={s.logoutText}>✕ {t.unfriendBtn || 'Arkadaşlıktan Çık'}</Text>
+                        <Text style={s.logoutText}>✕ {t.unfriendBtn}</Text>
                     </TouchableOpacity>
                 ) : friendStatus?.status === 'PENDING' && friendStatus.isSender ? (
                     <TouchableOpacity onPress={handleFriendAction} style={s.logoutBtn}>
@@ -2727,7 +2727,7 @@ export default function ProfileScreen({ route, navigation }) {
                     onPress={() => navigation.navigate('BusinessHome')}
                     activeOpacity={0.85}
                 >
-                    <Text style={s.bizBannerText}>🏢 İşletme Hesabım</Text>
+                    <Text style={s.bizBannerText}>{t.myBusinessBanner}</Text>
                     <Text style={s.bizBannerArrow}>›</Text>
                 </TouchableOpacity>
             )}
@@ -2867,10 +2867,10 @@ export default function ProfileScreen({ route, navigation }) {
                             {friendStatus?.status === 'PENDING' && !friendStatus.isSender ? (
                                 <>
                                     <TouchableOpacity style={[s.actionBtn, s.actionBtnActive]} onPress={() => handleRespondFriendRequest('accept')}>
-                                        <Text style={s.actionBtnText}>✓ {t.acceptBtn || 'Kabul Et'}</Text>
+                                        <Text style={s.actionBtnText}>✓ {t.acceptBtn}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={s.actionBtn} onPress={() => handleRespondFriendRequest('reject')}>
-                                        <Text style={s.actionBtnText}>✕ {t.rejectBtn || 'Reddet'}</Text>
+                                        <Text style={s.actionBtnText}>✕ {t.rejectBtn}</Text>
                                     </TouchableOpacity>
                                 </>
                             ) : (
@@ -3464,14 +3464,14 @@ export default function ProfileScreen({ route, navigation }) {
                     <KeyboardAvoidingView behavior="padding" style={{ width:'100%' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>Arkadaş Ara</Text>
+                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900' }}>{t.friendSearchTitle}</Text>
                             <TouchableOpacity onPress={() => { setShowAddFriendModal(false); setFriendSearchQuery(''); setFriendSearchResults([]); }}>
                                 <Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <TextInput
                             style={{ backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:11, paddingVertical:8, color:'#fff', fontSize:14, borderWidth:1, borderColor: colors.border }}
-                            placeholder="İsim veya kullanıcı adı yazın..."
+                            placeholder={t.friendSearchPh}
                             placeholderTextColor={colors.textMuted}
                             value={friendSearchQuery}
                             onChangeText={setFriendSearchQuery}
@@ -3481,9 +3481,9 @@ export default function ProfileScreen({ route, navigation }) {
                             {searchingFriends ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                             ) : friendSearchQuery.trim().length < 2 ? (
-                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>En az 2 karakter yazın</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{t.friendSearchMin}</Text>
                             ) : friendSearchResults.length === 0 ? (
-                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Kullanıcı bulunamadı</Text>
+                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{t.userNotFound}</Text>
                             ) : friendSearchResults.map(u => (
                                 <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                     <TouchableOpacity
@@ -3821,16 +3821,16 @@ export default function ProfileScreen({ route, navigation }) {
                             <TouchableOpacity
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, backgroundColor: colors.purple + '20', borderRadius:12, paddingVertical:8, marginBottom:12, borderWidth:1, borderColor: colors.purple + '50' }}
                                 onPress={() => { setShowFriendsListModal(false); setShowAddFriendModal(true); }}>
-                                <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>🔎 Arkadaş Ara</Text>
+                                <Text style={{ color: colors.purple, fontWeight:'800', fontSize:13 }}>{t.searchFriendsBtn}</Text>
                             </TouchableOpacity>
                         )}
 
                         <View style={{ flexDirection:'row', gap:3, marginBottom:12 }}>
                             {[
-                                { key:'friends', label:'Arkadaşlar' },
-                                { key:'following', label:'Takip Ettiklerim' },
-                                { key:'followers', label:'Takipçilerim' },
-                                ...(isOwnProfile ? [{ key:'blocked', label:'Engellenen Kullanıcılar' }] : []),
+                                { key:'friends', label: t.friendsLabel },
+                                { key:'following', label: t.followingTab },
+                                { key:'followers', label: t.followersTab },
+                                ...(isOwnProfile ? [{ key:'blocked', label: t.blockedUsersTab }] : []),
                             ].map(tab => (
                                 <TouchableOpacity
                                     key={tab.key}
@@ -3846,7 +3846,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 loadingFriendsList ? (
                                     <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                                 ) : friendsList.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz arkadaş yok</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{t.noFriendsYetShort}</Text>
                                 ) : friendsList.map(f => (
                                     <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                         <TouchableOpacity
@@ -3865,7 +3865,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                         {isOwnProfile && (
                                             <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFriendFromList(f)}>
-                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Arkadaşlıktan Çık</Text>
+                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.unfriendBtn}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -3876,7 +3876,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 loadingFollowLists ? (
                                     <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                                 ) : followingList.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz kimseyi takip etmiyorsun</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{t.noFollowingYet}</Text>
                                 ) : followingList.map(f => (
                                     <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                         <TouchableOpacity style={{ flex:1, flexDirection:'row', alignItems:'center' }} onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
@@ -3893,7 +3893,7 @@ export default function ProfileScreen({ route, navigation }) {
                                         </TouchableOpacity>
                                         {isOwnProfile && (
                                             <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleUnfollowFromList(f)}>
-                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Takipten Çık</Text>
+                                                <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.unfollowBtn}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -3907,7 +3907,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     <>
                                         {pendingFollowReqs.length > 0 && (
                                             <View style={{ marginBottom: 12 }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>⏳ Bekleyen İstekler</Text>
+                                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginBottom:6 }}>{t.pendingRequestsLabel}</Text>
                                                 {pendingFollowReqs.map(req => (
                                                     <View key={req.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.purple + '40' }}>
                                                         <View style={{ flex:1 }}>
@@ -3925,7 +3925,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             </View>
                                         )}
                                         {followersList.length === 0 ? (
-                                            <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:10 }}>Henüz takipçin yok</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:10 }}>{t.noFollowersYet}</Text>
                                         ) : followersList.map(f => (
                                             <View key={f.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                                 <TouchableOpacity style={{ flex:1, flexDirection:'row', alignItems:'center' }} onPress={() => { setShowFriendsListModal(false); navigation.push('Profile', { userId: f.id }); }}>
@@ -3942,7 +3942,7 @@ export default function ProfileScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                                 {isOwnProfile && (
                                                     <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleRemoveFollower(f)}>
-                                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Kaldır</Text>
+                                                        <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.removeBtn}</Text>
                                                     </TouchableOpacity>
                                                 )}
                                             </View>
@@ -3955,7 +3955,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 loadingBlockedList ? (
                                     <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                                 ) : blockedList.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz kimseyi engellemedin</Text>
+                                    <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{t.noBlockedUsersYet}</Text>
                                 ) : blockedList.map(u => (
                                     <View key={u.id} style={{ flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius:14, padding:9, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
                                         <View style={{ flex:1, flexDirection:'row', alignItems:'center' }}>
@@ -3971,7 +3971,7 @@ export default function ProfileScreen({ route, navigation }) {
                                             </View>
                                         </View>
                                         <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }} onPress={() => handleUnblockUser(u)}>
-                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>Engeli Kaldır</Text>
+                                            <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.unblockBtn}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 ))

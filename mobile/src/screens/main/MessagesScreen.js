@@ -44,13 +44,14 @@ export default function MessagesScreen({ navigation }) {
     };
 
     const unblockMessages = (user) => {
-        Alert.alert('Engeli Kaldır', `${user.fullName || user.username} adlı kullanıcının mesaj engeli kaldırılsın mı?`, [
-            { text: 'Vazgeç', style: 'cancel' },
-            { text: 'Kaldır', onPress: async () => {
+        const name = user.fullName || user.username;
+        Alert.alert(t.unblockTitle, t.unblockConfirm(name), [
+            { text: t.dismissBtn, style: 'cancel' },
+            { text: t.unblockAction, onPress: async () => {
                 try {
                     await api.delete(`/friends/message-block/${user.id}`);
                     setMsgBlockedList(prev => prev.filter(u => u.id !== user.id));
-                } catch (e) { Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.'); }
+                } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailedLong); }
             } },
         ]);
     };
@@ -92,7 +93,7 @@ export default function MessagesScreen({ navigation }) {
     const lastMessagePreview = (last) => {
         if (!last) return t.noMsgYet;
         const prefix = last.senderId === myId ? (t.youPrefix || 'Sen: ') : '';
-        const body = last.content || (last.imageUrl ? '📷 Fotoğraf' : last.audioUrl ? '🎤 Sesli mesaj' : '');
+        const body = last.content || (last.imageUrl ? t.photoPreview : last.audioUrl ? t.voicePreview : '');
         return prefix + body;
     };
 
@@ -111,7 +112,7 @@ export default function MessagesScreen({ navigation }) {
             const { data } = await api.post(`/messages/conversation/${id}/mute`, hours ? { hours } : {});
             setConversations(prev => prev.map(c => c.id === id ? { ...c, isMuted: true, mutedUntil: data.mutedUntil } : c));
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+            Alert.alert('', e?.response?.data?.message || t.actionFailedLong);
         } finally {
             closeActionMenu();
         }
@@ -124,7 +125,7 @@ export default function MessagesScreen({ navigation }) {
             await api.delete(`/messages/conversation/${id}/mute`);
             setConversations(prev => prev.map(c => c.id === id ? { ...c, isMuted: false, mutedUntil: null } : c));
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+            Alert.alert('', e?.response?.data?.message || t.actionFailedLong);
         } finally {
             closeActionMenu();
         }
@@ -137,7 +138,7 @@ export default function MessagesScreen({ navigation }) {
             await api.post(`/messages/conversation/${id}/mark-read`);
             setConversations(prev => prev.map(c => c.id === id ? { ...c, unreadCount: 0 } : c));
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+            Alert.alert('', e?.response?.data?.message || t.actionFailedLong);
         } finally {
             closeActionMenu();
         }
@@ -148,17 +149,17 @@ export default function MessagesScreen({ navigation }) {
         const other = actionMenu.other;
         closeActionMenu();
         Alert.alert(
-            'Mesajları Engelle',
-            `${other?.fullName || other?.username} adlı kullanıcının mesajlarını engellemek istediğinize emin misiniz? Arkadaşlığınız, takibiniz ve profilinizi görmesi etkilenmez — sadece mesajlaşamazsınız.`,
+            t.msgBlockTitle,
+            t.msgBlockConfirm(other?.fullName || other?.username),
             [
-                { text: 'Vazgeç', style: 'cancel' },
+                { text: t.dismissBtn, style: 'cancel' },
                 {
-                    text: 'Engelle', style: 'destructive', onPress: async () => {
+                    text: t.msgBlockAction, style: 'destructive', onPress: async () => {
                         try {
                             await api.post(`/friends/message-block/${other.id}`);
-                            Alert.alert('', 'Kullanıcının mesajları engellendi.');
+                            Alert.alert('', t.msgBlockedDone);
                         } catch (e) {
-                            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+                            Alert.alert('', e?.response?.data?.message || t.actionFailedLong);
                         }
                     },
                 },
@@ -216,10 +217,10 @@ export default function MessagesScreen({ navigation }) {
                 <Text style={styles.title}>{t.messagesTitle}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                     <TouchableOpacity onPress={openMsgBlocked} style={styles.supportBtn}>
-                        <Text style={styles.supportBtnText}>🚫 Engellenenler</Text>
+                        <Text style={styles.supportBtnText}>{t.msgBlockedShort}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={openSupport} style={styles.supportBtn}>
-                        <Text style={styles.supportBtnText}>🆘 Destek</Text>
+                        <Text style={styles.supportBtnText}>{t.supportShort}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -247,7 +248,7 @@ export default function MessagesScreen({ navigation }) {
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalBox}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>🚫 Mesajları Engellenenler</Text>
+                            <Text style={styles.modalTitle}>{t.msgBlockedTitle}</Text>
                             <TouchableOpacity onPress={() => setMsgBlockedOpen(false)}>
                                 <Text style={styles.modalClose}>✕</Text>
                             </TouchableOpacity>
@@ -256,7 +257,7 @@ export default function MessagesScreen({ navigation }) {
                             {msgBlockedLoading ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginVertical: 16 }} />
                             ) : msgBlockedList.length === 0 ? (
-                                <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>Mesajlarını engellediğiniz kimse yok.</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', paddingVertical: 20 }}>{t.msgBlockedEmpty}</Text>
                             ) : (
                                 msgBlockedList.map(u => (
                                     <View key={u.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#1e293b', borderRadius: 12, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
@@ -265,7 +266,7 @@ export default function MessagesScreen({ navigation }) {
                                             <Text style={{ color: colors.textMuted, fontSize: 11 }}>{u.username}</Text>
                                         </View>
                                         <TouchableOpacity style={{ backgroundColor: '#dc262620', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: '#dc262650' }} onPress={() => unblockMessages(u)}>
-                                            <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>Engeli Kaldır</Text>
+                                            <Text style={{ color: '#f87171', fontSize: 11, fontWeight: '700' }}>{t.unblockBtn}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 ))
@@ -282,7 +283,7 @@ export default function MessagesScreen({ navigation }) {
                         <Text style={styles.menuTitle}>{actionMenu?.other?.fullName || actionMenu?.other?.username}</Text>
                         {actionMenu?.isMuted ? (
                             <TouchableOpacity style={styles.menuRow} onPress={unmute}>
-                                <Text style={styles.menuRowText}>🔊 Sesi Aç</Text>
+                                <Text style={styles.menuRowText}>{t.unmuteBtn}</Text>
                             </TouchableOpacity>
                         ) : (
                             <View style={[styles.menuRow, styles.muteInputRow]}>
@@ -291,25 +292,25 @@ export default function MessagesScreen({ navigation }) {
                                     style={styles.muteHoursInput}
                                     value={muteHours}
                                     onChangeText={setMuteHours}
-                                    placeholder="Saat (boş = süresiz)"
+                                    placeholder={t.muteHoursPh}
                                     placeholderTextColor={colors.textMuted}
                                     keyboardType="numeric"
                                 />
                                 <TouchableOpacity style={styles.muteApplyBtn} onPress={muteFor}>
-                                    <Text style={styles.muteApplyBtnText}>Sessize Al</Text>
+                                    <Text style={styles.muteApplyBtnText}>{t.muteApplyBtn}</Text>
                                 </TouchableOpacity>
                             </View>
                         )}
                         {(actionMenu?.unreadCount || 0) > 0 && (
                             <TouchableOpacity style={styles.menuRow} onPress={markRead}>
-                                <Text style={styles.menuRowText}>✓ Okundu Olarak İşaretle</Text>
+                                <Text style={styles.menuRowText}>{t.markAsRead}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity style={styles.menuRow} onPress={blockFromList}>
-                            <Text style={[styles.menuRowText, { color: '#f87171' }]}>🔇 Mesajları Engelle</Text>
+                            <Text style={[styles.menuRowText, { color: '#f87171' }]}>{t.msgBlockMenu}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.menuRow, { borderBottomWidth: 0 }]} onPress={closeActionMenu}>
-                            <Text style={[styles.menuRowText, { color: colors.textMuted }]}>Vazgeç</Text>
+                            <Text style={[styles.menuRowText, { color: colors.textMuted }]}>{t.dismissBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>

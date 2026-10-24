@@ -29,11 +29,23 @@ const MONTHS_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','A
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function labelDate(str) {
+function sunFirstDays(t) {
+    const d = t?.calDays;
+    if (!Array.isArray(d) || d.length !== 7) return DAYS_TR;
+    return [d[6], d[0], d[1], d[2], d[3], d[4], d[5]];
+}
+function labelDate(str, t) {
     if (!str) return '';
     const [y, m, d] = str.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
-    return `${DAYS_TR[dt.getDay()]} ${d} ${MONTHS_TR[m - 1]}`;
+    const days = t ? sunFirstDays(t) : DAYS_TR;
+    const months = t?.calMonths || MONTHS_TR;
+    return `${days[dt.getDay()]} ${d} ${months[m - 1]}`;
+}
+const CAT_I18N = { SPORTS: 'sportsTab', SOCIAL: 'socialTab', ARTS: 'artsTab', GAMES: 'gamesTab' };
+function catName(cat, t) {
+    const key = CAT_I18N[cat?.key];
+    return (key && t?.[key]) || cat?.label || '';
 }
 
 // Karma akışı yakından uzağa sıralamak için — gerçek bir tarihi olan içerikler
@@ -51,6 +63,7 @@ function feedSortTime(dateStr, timeStr) {
 
 // ── Mini takvim (modal içi) ──
 function MiniCalendar({ selected, onSelect, minDate }) {
+    const t = useT();
     const today = new Date();
     const initDate = selected ? (() => { const [y,m] = selected.split('-').map(Number); return { y, m: m-1 }; })()
                               : { y: today.getFullYear(), m: today.getMonth() };
@@ -71,13 +84,13 @@ function MiniCalendar({ selected, onSelect, minDate }) {
                 <TouchableOpacity onPress={() => setView(v => v.m === 0 ? { y: v.y-1, m: 11 } : { y: v.y, m: v.m-1 })} style={cal.navBtn}>
                     <Text style={cal.navArrow}>‹</Text>
                 </TouchableOpacity>
-                <Text style={cal.navTitle}>{MONTHS_TR[view.m]} {view.y}</Text>
+                <Text style={cal.navTitle}>{(t.calMonths || MONTHS_TR)[view.m]} {view.y}</Text>
                 <TouchableOpacity onPress={() => setView(v => v.m === 11 ? { y: v.y+1, m: 0 } : { y: v.y, m: v.m+1 })} style={cal.navBtn}>
                     <Text style={cal.navArrow}>›</Text>
                 </TouchableOpacity>
             </View>
             <View style={cal.dayHeaders}>
-                {DAYS_TR.map(d => <Text key={d} style={cal.dayHeader}>{d}</Text>)}
+                {sunFirstDays(t).map(d => <Text key={d} style={cal.dayHeader}>{d}</Text>)}
             </View>
             <View style={cal.grid}>
                 {cells.map((day, idx) => {
@@ -105,6 +118,7 @@ function MiniCalendar({ selected, onSelect, minDate }) {
 
 // ── Tarih aralığı modal ──
 function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
+    const t = useT();
     const insets = useSafeAreaInsets();
     const [from, setFrom] = useState(dateFrom);
     const [to,   setTo]   = useState(dateTo);
@@ -128,17 +142,17 @@ function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
             <View style={m.overlay}>
                 <View style={[m.sheet, { paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
-                    <Text style={m.title}>📅 Tarih Aralığı</Text>
+                    <Text style={m.title}>{t.dateRangeTitle}</Text>
 
                     <View style={m.tabRow}>
                         <TouchableOpacity style={[m.tab, picking === 'from' && m.tabActive]} onPress={() => setPicking('from')}>
-                            <Text style={m.tabLabel}>Başlangıç</Text>
-                            <Text style={[m.tabValue, from && { color: colors.purpleLight }]}>{from ? labelDate(from) : 'Seç'}</Text>
+                            <Text style={m.tabLabel}>{t.dateRangeStart}</Text>
+                            <Text style={[m.tabValue, from && { color: colors.purpleLight }]}>{from ? labelDate(from, t) : t.dateRangeSelect}</Text>
                         </TouchableOpacity>
                         <Text style={m.tabSep}>→</Text>
                         <TouchableOpacity style={[m.tab, picking === 'to' && m.tabActive]} onPress={() => setPicking('to')}>
-                            <Text style={m.tabLabel}>Bitiş</Text>
-                            <Text style={[m.tabValue, to && { color: colors.purpleLight }]}>{to ? labelDate(to) : 'Seç'}</Text>
+                            <Text style={m.tabLabel}>{t.dateRangeEnd}</Text>
+                            <Text style={[m.tabValue, to && { color: colors.purpleLight }]}>{to ? labelDate(to, t) : t.dateRangeSelect}</Text>
                         </TouchableOpacity>
                     </View>
 
@@ -150,10 +164,10 @@ function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
 
                     <View style={m.btnRow}>
                         <TouchableOpacity style={m.clearBtn} onPress={() => { setFrom(''); setTo(''); }} activeOpacity={0.8}>
-                            <Text style={m.clearBtnText}>Temizle</Text>
+                            <Text style={m.clearBtnText}>{t.dateRangeClear}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={m.applyBtn} onPress={() => onApply(from, to)} activeOpacity={0.8}>
-                            <Text style={m.applyBtnText}>Uygula</Text>
+                            <Text style={m.applyBtnText}>{t.dateRangeApply}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -164,6 +178,7 @@ function DateRangeModal({ visible, dateFrom, dateTo, onApply, onClose }) {
 
 // ── Saat aralığı modal ──
 function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
+    const t = useT();
     const insets = useSafeAreaInsets();
     const [from, setFrom] = useState(timeFrom);
     const [to,   setTo]   = useState(timeTo);
@@ -175,9 +190,9 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
             <View style={m.overlay}>
                 <View style={[m.sheet, { paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
-                    <Text style={m.title}>🕐 Saat Aralığı</Text>
+                    <Text style={m.title}>{t.timeRangeTitle}</Text>
 
-                    <Text style={m.subLabel}>Başlangıç{from ? ` — ${from}` : ''}</Text>
+                    <Text style={m.subLabel}>{t.dateRangeStart}{from ? ` — ${from}` : ''}</Text>
                     <View style={m.hourGrid}>
                         {HOURS.map(h => (
                             <TouchableOpacity
@@ -191,7 +206,7 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
                         ))}
                     </View>
 
-                    <Text style={[m.subLabel, { marginTop: 10 }]}>Bitiş{to ? ` — ${to}` : ''}</Text>
+                    <Text style={[m.subLabel, { marginTop: 10 }]}>{t.dateRangeEnd}{to ? ` — ${to}` : ''}</Text>
                     <View style={m.hourGrid}>
                         {HOURS.map(h => {
                             const disabled = !!from && h <= from;
@@ -211,10 +226,10 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
 
                     <View style={[m.btnRow, { marginTop: 16 }]}>
                         <TouchableOpacity style={m.clearBtn} onPress={() => { setFrom(''); setTo(''); }} activeOpacity={0.8}>
-                            <Text style={m.clearBtnText}>Temizle</Text>
+                            <Text style={m.clearBtnText}>{t.dateRangeClear}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={m.applyBtn} onPress={() => onApply(from, to)} activeOpacity={0.8}>
-                            <Text style={m.applyBtnText}>Uygula</Text>
+                            <Text style={m.applyBtnText}>{t.dateRangeApply}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -227,6 +242,7 @@ function TimeRangeModal({ visible, timeFrom, timeTo, onApply, onClose }) {
 // ── Kategori seçim modalı — kullanıcı isteği: forma dokununca açılır, 1 veya daha
 // fazla kategori seçilip "Onayla" ile kapanır, seçilenler formun içinde yazılı görünür. ──
 function CatsModal({ visible, categories, selCats, onApply, onClose }) {
+    const t = useT();
     const insets = useSafeAreaInsets();
     const [tmp, setTmp] = useState(selCats);
     useEffect(() => { if (visible) setTmp(selCats); }, [visible]);
@@ -238,7 +254,7 @@ function CatsModal({ visible, categories, selCats, onApply, onClose }) {
             <View style={m.overlay}>
                 <View style={[m.sheet, { height: undefined, paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
-                    <Text style={m.title}>🏷 Kategori Seç</Text>
+                    <Text style={m.title}>{t.pickCategoryTitle}</Text>
                     <View style={m.subGrid}>
                         {categories.map(cat => {
                             const active = tmp.includes(cat.key);
@@ -250,18 +266,18 @@ function CatsModal({ visible, categories, selCats, onApply, onClose }) {
                                     activeOpacity={0.8}
                                 >
                                     <Text style={m.subChipEmoji}>{cat.emoji}</Text>
-                                    <Text style={[m.subChipText, active && { color: cat.color }]}>{cat.label}</Text>
+                                    <Text style={[m.subChipText, active && { color: cat.color }]}>{catName(cat, t)}</Text>
                                 </TouchableOpacity>
                             );
                         })}
                     </View>
                     <View style={m.btnRow}>
                         <TouchableOpacity style={m.clearBtn} onPress={() => { setTmp([]); onApply([]); }} activeOpacity={0.8}>
-                            <Text style={m.clearBtnText}>Temizle</Text>
+                            <Text style={m.clearBtnText}>{t.dateRangeClear}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={m.applyBtn} onPress={() => onApply(tmp)} activeOpacity={0.8}>
                             <Text style={m.applyBtnText}>
-                                Onayla{tmp.length > 0 ? ` (${tmp.length})` : ''}
+                                {t.confirmCount(tmp.length)}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -272,6 +288,7 @@ function CatsModal({ visible, categories, selCats, onApply, onClose }) {
 }
 
 function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) {
+    const t = useT();
     const insets = useSafeAreaInsets();
     const [tmp, setTmp] = useState(selSubs);
     useEffect(() => { if (visible) setTmp(selSubs); }, [visible]);
@@ -290,10 +307,10 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
                 <View style={[m.sheet, { height: '85%', paddingBottom: (Platform.OS === 'ios' ? 36 : 24) + insets.bottom }]}>
                     <View style={m.handle} />
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <Text style={m.title}>⚡ Dal Seç</Text>
+                        <Text style={m.title}>{t.pickBranchTitle}</Text>
                         {tmp.length > 0 && (
                             <TouchableOpacity onPress={() => setTmp([])} activeOpacity={0.8}>
-                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>Tümünü Kaldır</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{t.removeAll}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -302,7 +319,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
                             if (!cat.subs || cat.subs.length === 0) return null;
                             return (
                                 <View key={cat.key} style={{ marginBottom: 12 }}>
-                                    <Text style={[m.subLabel, { marginBottom: 6 }]}>{cat.emoji} {cat.label}</Text>
+                                    <Text style={[m.subLabel, { marginBottom: 6 }]}>{cat.emoji} {catName(cat, t)}</Text>
                                     <View style={m.subGrid}>
                                         {cat.subs.map(sub => {
                                             const active = tmp.includes(sub.key);
@@ -314,7 +331,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
                                                     activeOpacity={0.8}
                                                 >
                                                     <Text style={m.subChipEmoji}>{sub.emoji}</Text>
-                                                    <Text style={[m.subChipText, active && { color: cat.color }]}>{sub.label}</Text>
+                                                    <Text style={[m.subChipText, active && { color: cat.color }]}>{getSubCategoryLabel(sub.key, t.lang)}</Text>
                                                 </TouchableOpacity>
                                             );
                                         })}
@@ -325,11 +342,11 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
                     </ScrollView>
                     <View style={m.btnRow}>
                         <TouchableOpacity style={m.clearBtn} onPress={() => { setTmp([]); onApply([]); }} activeOpacity={0.8}>
-                            <Text style={m.clearBtnText}>Temizle</Text>
+                            <Text style={m.clearBtnText}>{t.dateRangeClear}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={m.applyBtn} onPress={() => onApply(tmp)} activeOpacity={0.8}>
                             <Text style={m.applyBtnText}>
-                                Uygula{tmp.length > 0 ? ` (${tmp.length})` : ''}
+                                {t.applyCount(tmp.length)}
                             </Text>
                         </TouchableOpacity>
                     </View>
@@ -341,6 +358,7 @@ function SubsModal({ visible, categories, selCats, selSubs, onApply, onClose }) 
 
 // ── Konum girişi + öneri ──
 function LocationInput({ placeholder, value, onChange, type, province, compact }) {
+    const t = useT();
     const [suggestions, setSuggestions] = useState([]);
     const [searched, setSearched] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -400,13 +418,13 @@ function LocationInput({ placeholder, value, onChange, type, province, compact }
                     {showApprovalBtn && (
                         <TouchableOpacity style={s.approvalBtn} onPress={sendApproval} disabled={submitting} activeOpacity={0.8}>
                             <Text style={s.approvalText} numberOfLines={2}>
-                                {submitting ? '⏳ Gönderiliyor…' : `📨 "${value}" için onay gönder`}
+                                {submitting ? t.approvalSending : t.approvalSend(value)}
                             </Text>
                         </TouchableOpacity>
                     )}
                     {submitted && (
                         <View style={s.approvalSent}>
-                            <Text style={s.approvalSentText} numberOfLines={2}>✅ Gönderildi — admin onaylayınca listeye eklenir.</Text>
+                            <Text style={s.approvalSentText} numberOfLines={2}>{t.approvalSentNote}</Text>
                         </View>
                     )}
                 </ScrollView>
@@ -417,12 +435,13 @@ function LocationInput({ placeholder, value, onChange, type, province, compact }
 
 // ── Aktivite kartı ──
 function ActivityCard({ item, navigation, onJoin, joining }) {
+    const t = useT();
     const catMeta  = CAT_MAP[item.category]  || { color: colors.purple, label: item.category, emoji: '🏅' };
     const subMeta  = SUB_MAP[item.subCategory];
     const subEmoji = subMeta?.emoji || '🏅';
     // Kullanıcı isteği: sağ üstteki rozet kategori (ör. "⚽ Spor") değil, ilanın kendi dalını
     // (ör. "🎾 Tenis"/"🏓 Padel") göstersin — hangi kategoride olduğu zaten sol tarafta yazıyor.
-    const badgeLabel = subMeta?.label || catMeta.label;
+    const badgeLabel = getSubCategoryLabel(item.subCategory, t.lang) || catName(catMeta.key ? { key: item.category, label: catMeta.label } : { label: catMeta.label }, t);
     const badgeEmoji = subMeta?.emoji || catMeta.emoji;
     // Kullanıcı isteği: "1 kişi aranıyor" sayısı yanlıştı — sadece participants dizisini
     // sayıyor, senderTeam (kurucunun ekip arkadaşları) ve unassignedPlayers (henüz
@@ -440,7 +459,8 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
     const fmtDate = (dt) => {
         if (!dt) return '';
         const d = new Date(dt);
-        return `${DAYS_TR[d.getDay()]} ${d.getDate()} ${MONTHS_TR[d.getMonth()]}`;
+        const days = sunFirstDays(t);
+        return `${days[d.getDay()]} ${d.getDate()} ${(t.calMonths || MONTHS_TR)[d.getMonth()]}`;
     };
 
     return (
@@ -459,7 +479,7 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                     <Text style={s.cardEmoji}>{subEmoji}</Text>
                     <View style={{ flex: 1 }}>
                         <Text style={s.cardSub} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                            {item.subCategory?.toUpperCase()}{item.matchMode === 'COMPETITIVE' ? ' · Rekabetçi' : ''}
+                            {getSubCategoryLabel(item.subCategory, t.lang) || item.subCategory}{item.matchMode === 'COMPETITIVE' ? ` · ${t.feedCompetitive}` : ''}
                         </Text>
                         <Text style={s.cardUser} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.sender?.fullName || item.sender?.username || '—'}</Text>
                     </View>
@@ -470,12 +490,12 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                 <View style={s.infoRow}>
                     {item.matchDate && <Text style={s.infoChip}>📅 {fmtDate(item.matchDate)}{item.matchTime ? ` · ${item.matchTime}` : ''}</Text>}
                     {(item.location || item.courtAddress) && <Text style={s.infoChip} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>📍 {item.location || item.courtAddress}</Text>}
-                    {item.duration && <Text style={s.infoChip}>⏱ {item.duration} dk</Text>}
+                    {item.duration && <Text style={s.infoChip}>⏱ {t.durationMin(item.duration)}</Text>}
                     {item.level && <Text style={s.infoChip}>🎯 {item.level}</Text>}
                     {/* Kullanıcı isteği: cinsiyet kısıtlaması ve derece aralığı varsa kartta da
                         gösterilsin — SubCategoryScreen'deki RivalCard ile aynı bilgi/desen. */}
                     {item.genderReq && item.genderReq !== 'MIX' && (
-                        <Text style={s.infoChip}>{item.genderReq === 'MALE' ? '👨 Sadece Erkek' : '👩 Sadece Kadın'}</Text>
+                        <Text style={s.infoChip}>{item.genderReq === 'MALE' ? t.maleOnly : t.femaleOnly}</Text>
                     )}
                     {hasRatingRange && (
                         <Text style={s.infoChip}>
@@ -487,18 +507,18 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
                 </View>
                 {item.message ? <Text style={s.cardMsg} numberOfLines={2}>{item.message}</Text> : null}
                 <View style={s.cardFooter}>
-                    <Text style={s.spotsText}>{spots > 0 ? `${spots} kişi aranıyor` : 'Dolu'}</Text>
-                    {item.courtFeePerPerson > 0 && <Text style={s.feeText}>💰 {item.courtFeePerPerson} ₺/kişi</Text>}
+                    <Text style={s.spotsText}>{spots > 0 ? t.spotsWanted(spots) : t.spotsFull}</Text>
+                    {item.courtFeePerPerson > 0 && <Text style={s.feeText}>{t.perPersonPrice(item.courtFeePerPerson)}</Text>}
                     {item._myJoinStatus === 'PENDING' ? (
-                        <View style={s.pendingBadge}><Text style={s.pendingText}>⏳ Bekliyor</Text></View>
+                        <View style={s.pendingBadge}><Text style={s.pendingText}>{t.pendingBtn}</Text></View>
                     ) : item._myJoinStatus === 'ACCEPTED' ? (
                         <View style={[s.pendingBadge, { backgroundColor: colors.green+'22', borderColor: colors.green+'55' }]}>
-                            <Text style={[s.pendingText, { color: colors.greenLight }]}>✓ Katıldın</Text>
+                            <Text style={[s.pendingText, { color: colors.greenLight }]}>{t.joinedBadge}</Text>
                         </View>
                     ) : spots > 0 ? (
                         <TouchableOpacity style={[s.joinBtn, joining && { opacity: 0.5 }]}
                             onPress={() => onJoin(item)} disabled={joining} activeOpacity={0.8}>
-                            {joining ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.joinBtnText}>Katıl</Text>}
+                            {joining ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.joinBtnText}>{t.feedJoin}</Text>}
                         </TouchableOpacity>
                     ) : null}
                 </View>
@@ -509,6 +529,7 @@ function ActivityCard({ item, navigation, onJoin, joining }) {
 
 // ── Konser/Sinema/Tiyatro (satıştaki) — ortak bilet kartı ──
 function TicketedCard({ item, emoji }) {
+    const t = useT();
     const priceLabel = item.priceMin != null
         ? `${item.priceMin}${item.priceMax && item.priceMax !== item.priceMin ? '–' + item.priceMax : ''} ${item.currency || ''}`.trim()
         : null;
@@ -531,7 +552,7 @@ function TicketedCard({ item, emoji }) {
                 {priceLabel && <Text style={s.ticketedPrice}>{priceLabel}</Text>}
                 {item.ticketUrl && (
                     <TouchableOpacity style={s.ticketedBtn} onPress={() => Linking.openURL(item.ticketUrl)}>
-                        <Text style={s.ticketedBtnText}>🎟️ Bilet Al</Text>
+                        <Text style={s.ticketedBtnText}>{t.buyTicketShort}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -541,6 +562,7 @@ function TicketedCard({ item, emoji }) {
 
 // ── Ana ekran ──
 export default function ActivityFeedScreen({ navigation }) {
+    const t = useT();
     const lang     = useSelector(s => s.lang?.lang || 'en');
     const logoText = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
     const insets   = useSafeAreaInsets();
@@ -592,12 +614,12 @@ export default function ActivityFeedScreen({ navigation }) {
             setMapError(null);
             try {
                 const perm = await Location.requestForegroundPermissionsAsync();
-                if (!perm.granted) { setMapError('Konum izni verilmedi'); return; }
+                if (!perm.granted) { setMapError(t.locationPermMsg); return; }
                 const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
                 loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
                 setMapMyLocation(loc);
             } catch {
-                setMapError('Konum alınamadı');
+                setMapError(t.locationFailedMsg);
                 return;
             } finally {
                 setMapLoading(false);
@@ -769,7 +791,7 @@ export default function ActivityFeedScreen({ navigation }) {
     };
 
     const dateLabel = dateFrom || dateTo
-        ? [dateFrom && labelDate(dateFrom), dateTo && labelDate(dateTo)].filter(Boolean).join(' – ')
+        ? [dateFrom && labelDate(dateFrom, t), dateTo && labelDate(dateTo, t)].filter(Boolean).join(' – ')
         : null;
     const timeLabel = timeFrom || timeTo
         ? [timeFrom || '?', timeTo || '?'].join(' – ')
@@ -827,7 +849,7 @@ export default function ActivityFeedScreen({ navigation }) {
                         <Text style={am.bellBtnText}>🗺️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={openSupport} style={s.supportBtn} activeOpacity={0.8}>
-                        <Text style={s.supportBtnText}>💬 Destek</Text>
+                        <Text style={s.supportBtnText}>{t.supportBtn}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -843,13 +865,13 @@ export default function ActivityFeedScreen({ navigation }) {
                     {hasFilter && (
                         <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
                             <TouchableOpacity onPress={clearAll} style={s.clearBtn} activeOpacity={0.8}>
-                                <Text style={s.clearBtnText}>✕ Temizle</Text>
+                                <Text style={s.clearBtnText}>{t.feedClear}</Text>
                             </TouchableOpacity>
                         </View>
                     )}
                     <View style={s.filterRow}>
-                        <LocationInput placeholder="İl" value={city} onChange={setCity} type="city" compact />
-                        <LocationInput placeholder="İlçe" value={district} onChange={setDistrict} type="district" province={city} compact />
+                        <LocationInput placeholder={t.provinceLabel} value={city} onChange={setCity} type="city" compact />
+                        <LocationInput placeholder={t.manualDistrictLabel} value={district} onChange={setDistrict} type="district" province={city} compact />
                         <TouchableOpacity style={[s.pickerField, { flex: 1 }, dateLabel && s.pickerFieldActive]} onPress={() => setShowDateModal(true)} activeOpacity={0.8}>
                             <Text style={[s.pickerFieldText, dateLabel && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                 {dateLabel || '📅'}
@@ -871,7 +893,7 @@ export default function ActivityFeedScreen({ navigation }) {
                             activeOpacity={0.8}
                         >
                             <Text style={[s.pickerFieldText, selCats.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {selCats.length > 0 ? selCats.map(k => categories.find(c => c.key === k)?.label || k).join(', ') : 'Kategori seç…'}
+                                {selCats.length > 0 ? selCats.map(k => { const c = categories.find(x => x.key === k); return c ? catName(c, t) : k; }).join(', ') : t.pickCategoryPh}
                             </Text>
                         </TouchableOpacity>
 
@@ -881,7 +903,7 @@ export default function ActivityFeedScreen({ navigation }) {
                             activeOpacity={0.8}
                         >
                             <Text style={[s.pickerFieldText, selSubs.length > 0 && { color: colors.purpleLight }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {selSubs.length > 0 ? selSubs.map(k => SUB_MAP[k]?.label || k).join(', ') : 'Dal seç…'}
+                                {selSubs.length > 0 ? selSubs.map(k => getSubCategoryLabel(k, t.lang) || k).join(', ') : t.pickBranchPh}
                             </Text>
                             <Text style={s.pickerArrow}>›</Text>
                         </TouchableOpacity>
@@ -893,17 +915,17 @@ export default function ActivityFeedScreen({ navigation }) {
                     <TouchableOpacity
                         style={[s.feedTabBtn, feedTab === 'current' && s.feedTabBtnActive]}
                         onPress={() => setFeedTab('current')} activeOpacity={0.8}>
-                        <Text style={[s.feedTabText, feedTab === 'current' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Aktivite</Text>
+                        <Text style={[s.feedTabText, feedTab === 'current' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.feedTabCurrent}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[s.feedTabBtn, feedTab === 'upcomingFull' && s.feedTabBtnActive]}
                         onPress={() => setFeedTab('upcomingFull')} activeOpacity={0.8}>
-                        <Text style={[s.feedTabText, feedTab === 'upcomingFull' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Yaklaşan Aktiviteler{upcomingFullFeedItems.length > 0 ? ` (${upcomingFullFeedItems.length})` : ''}</Text>
+                        <Text style={[s.feedTabText, feedTab === 'upcomingFull' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.feedTabUpcoming}{upcomingFullFeedItems.length > 0 ? ` (${upcomingFullFeedItems.length})` : ''}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[s.feedTabBtn, feedTab === 'past' && s.feedTabBtnActive]}
                         onPress={() => setFeedTab('past')} activeOpacity={0.8}>
-                        <Text style={[s.feedTabText, feedTab === 'past' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>Geçmiş Aktiviteler{pastFeedItems.length > 0 ? ` (${pastFeedItems.length})` : ''}</Text>
+                        <Text style={[s.feedTabText, feedTab === 'past' && s.feedTabTextActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{t.feedTabPast}{pastFeedItems.length > 0 ? ` (${pastFeedItems.length})` : ''}</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -914,8 +936,8 @@ export default function ActivityFeedScreen({ navigation }) {
                     if (list.length === 0) return (
                         <View style={s.center}>
                             <Text style={s.emptyEmoji}>🔍</Text>
-                            <Text style={s.emptyText}>{feedTab === 'past' ? 'Geçmiş aktivite yok' : feedTab === 'upcomingFull' ? 'Yaklaşan dolu aktivite yok' : 'Aktivite bulunamadı'}</Text>
-                            <Text style={s.emptyHint}>{feedTab === 'past' ? 'Süresi geçen aktiviteler burada listelenir' : feedTab === 'upcomingFull' ? 'Kontenjanı dolmuş yaklaşan aktiviteler burada listelenir' : 'Filtreni değiştir veya daha sonra tekrar bak'}</Text>
+                            <Text style={s.emptyText}>{feedTab === 'past' ? t.feedEmptyPast : feedTab === 'upcomingFull' ? t.feedEmptyUpcoming : t.feedEmptyCurrent}</Text>
+                            <Text style={s.emptyHint}>{feedTab === 'past' ? t.feedHintPast : feedTab === 'upcomingFull' ? t.feedHintUpcoming : t.feedHintCurrent}</Text>
                         </View>
                     );
                     return (
@@ -981,29 +1003,29 @@ export default function ActivityFeedScreen({ navigation }) {
                         <ScreenBackButton onPress={() => setShowActivityMap(false)} style={{ marginRight: 14, padding: 1 }}>
                             <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                         </ScreenBackButton>
-                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>🗺️ Yakındaki Aktiviteler</Text>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>{t.nearbyTitle}</Text>
                         <TouchableOpacity onPress={() => setShowMapDateModal(true)}
                             style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: colors.border }}>
                             <Text style={{ color: colors.purple, fontSize: 12, fontWeight: '700' }}>
-                                📅 {toDateStr(mapDate) === toDateStr(new Date()) ? 'Bugün' : `${mapDate.getDate()} ${MONTHS_TR[mapDate.getMonth()]}`}
+                                📅 {toDateStr(mapDate) === toDateStr(new Date()) ? t.todayLabel : `${mapDate.getDate()} ${(t.calMonths || MONTHS_TR)[mapDate.getMonth()]}`}
                             </Text>
                         </TouchableOpacity>
                     </View>
                     {mapDataLoading && (
                         <View style={{ paddingVertical: 6, alignItems: 'center', backgroundColor: colors.purple + '15' }}>
-                            <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>Seçilen tarih için etkinlikler yükleniyor...</Text>
+                            <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }}>{t.mapLoadingEvents}</Text>
                         </View>
                     )}
                     {mapLoading ? (
                         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                             <ActivityIndicator color={colors.purple} />
-                            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 8 }}>Konumunuz alınıyor...</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 8 }}>{t.mapLoadingLocation}</Text>
                         </View>
                     ) : mapError ? (
                         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
                             <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{mapError}</Text>
                             <TouchableOpacity onPress={openActivityMap} style={{ backgroundColor: colors.purple, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 16 }}>
-                                <Text style={{ color: '#fff', fontWeight: '700' }}>Tekrar Dene</Text>
+                                <Text style={{ color: '#fff', fontWeight: '700' }}>{t.retryBtn}</Text>
                             </TouchableOpacity>
                         </View>
                     ) : mapMyLocation ? (() => {
@@ -1068,8 +1090,8 @@ export default function ActivityFeedScreen({ navigation }) {
                                 <View style={{ position: 'absolute', bottom: 16, left: 16, right: 16, backgroundColor: colors.surface, borderRadius: 12, padding: 10, borderWidth: 1, borderColor: colors.border }}>
                                     <Text style={{ color: colors.textMuted, fontSize: 12, textAlign: 'center' }}>
                                         {totalCount > 0
-                                            ? `${totalCount} aktivite konum bilgisiyle haritada — bir işaretçiye dokunup açın`
-                                            : 'Konum bilgisi olan bir aktivite bulunamadı'}
+                                            ? t.mapLocatedCount(totalCount)
+                                            : t.mapNoneLocated}
                                     </Text>
                                 </View>
                             </>

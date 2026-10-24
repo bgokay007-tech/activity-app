@@ -21,15 +21,15 @@ function Avatar({ user, size = 36 }) {
     );
 }
 
-function timeAgo(date) {
+function timeAgo(date, t) {
     const diffSec = Math.max(0, Math.floor((Date.now() - new Date(date).getTime()) / 1000));
-    if (diffSec < 60) return 'az önce görüldü';
+    if (diffSec < 60) return t.seenJustNow;
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin} dakika önce görüldü`;
+    if (diffMin < 60) return t.seenMinutesAgo(diffMin);
     const diffHour = Math.floor(diffMin / 60);
-    if (diffHour < 24) return `${diffHour} saat önce görüldü`;
+    if (diffHour < 24) return t.seenHoursAgo(diffHour);
     const diffDay = Math.floor(diffHour / 24);
-    return `${diffDay} gün önce görüldü`;
+    return t.seenDaysAgo(diffDay);
 }
 
 export default function ChatScreen({ route, navigation }) {
@@ -85,10 +85,6 @@ export default function ChatScreen({ route, navigation }) {
         category: challengeParam.category,
         subCategory: challengeParam.subCategory,
     } : null);
-
-    const pendingOffer = [...messages].reverse().find(m =>
-        m.meta?.kind === 'CHALLENGE_OFFER' && m.meta?.status === 'PENDING' && m.senderId !== myId
-    );
 
     const openEquipmentListing = (listing) => {
         if (!listing?.category || !listing?.subCategory) return;
@@ -221,19 +217,19 @@ export default function ChatScreen({ route, navigation }) {
 
     const confirmBlock = () => {
         Alert.alert(
-            'Mesajları Engelle',
-            `${other?.fullName || other?.username} adlı kullanıcının mesajlarını engellemek istediğinize emin misiniz? Arkadaşlığınız, takibiniz ve profilinizi görmesi etkilenmez — sadece mesajlaşamazsınız.`,
+            t.msgBlockTitle,
+            t.msgBlockConfirm(other?.fullName || other?.username),
             [
-                { text: 'Vazgeç', style: 'cancel' },
+                { text: t.dismissBtn, style: 'cancel' },
                 {
-                    text: 'Engelle', style: 'destructive', onPress: async () => {
+                    text: t.msgBlockAction, style: 'destructive', onPress: async () => {
                         setBlocking(true);
                         try {
                             await api.post(`/friends/message-block/${other.id}`);
-                            Alert.alert('', 'Kullanıcının mesajları engellendi.');
+                            Alert.alert('', t.msgBlockedDone);
                             navigation.goBack();
                         } catch (e) {
-                            Alert.alert('', e?.response?.data?.message || 'İşlem başarısız oldu.');
+                            Alert.alert('', e?.response?.data?.message || t.actionFailedLong);
                         } finally {
                             setBlocking(false);
                         }
@@ -248,13 +244,13 @@ export default function ChatScreen({ route, navigation }) {
         setReportSubmitting(true);
         try {
             await api.post('/users/me/support-messages', {
-                message: `🚩 Kullanıcı şikayeti: @${other?.username} (${other?.id})\nSebep: ${reportReason.trim()}`,
+                message: t.reportTicketBody(other?.username, other?.id, reportReason.trim()),
             });
             setReportModalVisible(false);
             setReportReason('');
-            Alert.alert('', 'Şikayetiniz iletildi, ekibimiz inceleyecek.');
+            Alert.alert('', t.reportSent);
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Şikayet gönderilemedi.');
+            Alert.alert('', e?.response?.data?.message || t.reportFail);
         } finally {
             setReportSubmitting(false);
         }
@@ -268,7 +264,7 @@ export default function ChatScreen({ route, navigation }) {
             await api.delete(`/messages/${item.id}`);
             setMessages(prev => prev.filter(m => m.id !== item.id));
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Mesaj silinemedi.');
+            Alert.alert('', e?.response?.data?.message || t.msgDeleteFail);
         }
     };
 
@@ -279,27 +275,27 @@ export default function ChatScreen({ route, navigation }) {
                 ? { ...m, deletedForEveryone: true, content: '', imageUrl: null, audioUrl: null, audioDuration: null }
                 : m));
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Mesaj silinemedi.');
+            Alert.alert('', e?.response?.data?.message || t.msgDeleteFail);
         }
     };
 
     const confirmDeleteForEveryone = (item) => {
         if (item.read) {
             Alert.alert(
-                'Karşı Taraf Zaten Okudu',
-                'Karşı taraf bu mesajı zaten okumuş, ama yine de mesaj alanından silebilirsiniz.',
+                t.alreadyReadTitle,
+                t.alreadyReadBody,
                 [
-                    { text: 'Vazgeç', style: 'cancel' },
-                    { text: 'Yine de Sil', style: 'destructive', onPress: () => deleteForEveryone(item) },
+                    { text: t.dismissBtn, style: 'cancel' },
+                    { text: t.deleteAnyway, style: 'destructive', onPress: () => deleteForEveryone(item) },
                 ],
             );
         } else {
             Alert.alert(
-                'Mesajı Herkesten Sil',
-                'Bu mesaj karşı taraftan da silinecek, artık okuyamayacak.',
+                t.deleteForEveryoneTitle,
+                t.deleteForEveryoneBody,
                 [
-                    { text: 'Vazgeç', style: 'cancel' },
-                    { text: 'Sil', style: 'destructive', onPress: () => deleteForEveryone(item) },
+                    { text: t.dismissBtn, style: 'cancel' },
+                    { text: t.deleteBtn, style: 'destructive', onPress: () => deleteForEveryone(item) },
                 ],
             );
         }
@@ -402,7 +398,7 @@ export default function ChatScreen({ route, navigation }) {
             } catch (e) {
                 console.warn('ChatScreen init error:', e?.message);
                 if (e?.response?.status === 403) {
-                    Alert.alert('', e.response.data?.message || 'Bu kullanıcı tarafından engellendiniz.');
+                    Alert.alert('', e.response.data?.message || t.blockedByUser);
                     navigation.goBack();
                 }
             }
@@ -494,14 +490,14 @@ export default function ChatScreen({ route, navigation }) {
             await sendPayload({ content: text });
         } catch (e) {
             console.warn(e?.message);
-            Alert.alert('Hata', e?.response?.data?.message || 'Mesaj gönderilemedi');
+            Alert.alert(t.error, e?.response?.data?.message || t.msgSendFail);
         }
         finally { setSending(false); }
     };
 
     const pickAndSendImage = async () => {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!perm.granted) return Alert.alert('', 'Galeri izni gerekli');
+        if (!perm.granted) return Alert.alert('', t.galleryPerm);
         const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
         if (result.canceled || !result.assets?.[0]) return;
         const asset = result.assets[0];
@@ -512,7 +508,7 @@ export default function ChatScreen({ route, navigation }) {
             const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
             await sendPayload({ content: '', imageUrl: uploadData.url });
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Fotoğraf gönderilemedi');
+            Alert.alert('', e?.response?.data?.message || t.photoSendFail);
         } finally {
             setUploadingMedia(false);
         }
@@ -521,7 +517,7 @@ export default function ChatScreen({ route, navigation }) {
     const startRecording = async () => {
         try {
             const perm = await Audio.requestPermissionsAsync();
-            if (!perm.granted) return Alert.alert('', 'Mikrofon izni gerekli');
+            if (!perm.granted) return Alert.alert('', t.micPerm);
             await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
             const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
             recordingRef.current = recording;
@@ -529,7 +525,7 @@ export default function ChatScreen({ route, navigation }) {
             setRecordSeconds(0);
             recordTimerRef.current = setInterval(() => setRecordSeconds(s => s + 1), 1000);
         } catch (e) {
-            Alert.alert('', 'Ses kaydı başlatılamadı');
+            Alert.alert('', t.voiceStartFail);
         }
     };
 
@@ -559,7 +555,7 @@ export default function ChatScreen({ route, navigation }) {
             const { data: uploadData } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
             await sendPayload({ content: '', audioUrl: uploadData.url, audioDuration: Math.round(uploadData.duration || duration) });
         } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'Sesli mesaj gönderilemedi');
+            Alert.alert('', e?.response?.data?.message || t.voiceSendFail);
         } finally {
             setUploadingMedia(false);
         }
@@ -584,7 +580,7 @@ export default function ChatScreen({ route, navigation }) {
                 if (status.didJustFinish) setPlayingId(null);
             });
         } catch {
-            Alert.alert('', 'Sesli mesaj oynatılamadı');
+            Alert.alert('', t.voicePlayFail);
         }
     };
 
@@ -602,7 +598,7 @@ export default function ChatScreen({ route, navigation }) {
                 {item.id === unreadDividerId && (
                     <View style={styles.newDivider}>
                         <View style={styles.newDividerLine} />
-                        <Text style={styles.newDividerText}>Yeni Mesajlar</Text>
+                        <Text style={styles.newDividerText}>{t.newMessagesDivider}</Text>
                         <View style={styles.newDividerLine} />
                     </View>
                 )}
@@ -614,7 +610,7 @@ export default function ChatScreen({ route, navigation }) {
                     style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}
                 >
                     {item.deletedForEveryone ? (
-                        <Text style={styles.deletedText}>🚫 Bu mesaj silindi</Text>
+                        <Text style={styles.deletedText}>{t.messageDeleted}</Text>
                     ) : (
                     <>
                     {item.equipmentListing && (
@@ -626,7 +622,7 @@ export default function ChatScreen({ route, navigation }) {
                             )}
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.msgEquipTitle} numberOfLines={1}>{item.equipmentListing.title}</Text>
-                                <Text style={styles.msgEquipPrice}>{item.equipmentListing.price > 0 ? `${item.equipmentListing.price} ₺` : 'Fiyat sor'}</Text>
+                                <Text style={styles.msgEquipPrice}>{item.equipmentListing.price > 0 ? `${item.equipmentListing.price} ₺` : t.askPrice}</Text>
                             </View>
                         </TouchableOpacity>
                     )}
@@ -635,7 +631,7 @@ export default function ChatScreen({ route, navigation }) {
                             <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>🎓</Text></View>
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.msgEquipTitle} numberOfLines={1}>{item.coachListing.credentialLevel}{item.coachListing.certName ? ` · ${item.coachListing.certName}` : ''}</Text>
-                                <Text style={styles.msgEquipPrice}>{item.coachListing.priceIndividual > 0 ? `${item.coachListing.priceIndividual} ₺/saat` : 'Antrenörlük ilanı'}</Text>
+                                <Text style={styles.msgEquipPrice}>{item.coachListing.priceIndividual > 0 ? t.perHourPrice(item.coachListing.priceIndividual) : t.coachListingLabel}</Text>
                             </View>
                         </TouchableOpacity>
                     )}
@@ -644,7 +640,7 @@ export default function ChatScreen({ route, navigation }) {
                             <View style={[styles.msgEquipImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 16 }}>🏟️</Text></View>
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.msgEquipTitle} numberOfLines={1}>{item.clubListing.name}</Text>
-                                <Text style={styles.msgEquipPrice}>{item.clubListing.membershipFee > 0 ? `${item.clubListing.membershipFee} ₺/ay` : (t.clubChatCard || 'Kulüp')}</Text>
+                                <Text style={styles.msgEquipPrice}>{item.clubListing.membershipFee > 0 ? t.perMonthPrice(item.clubListing.membershipFee) : (t.clubChatCard || t.coachListingLabel)}</Text>
                             </View>
                         </TouchableOpacity>
                     )}
@@ -784,7 +780,7 @@ export default function ChatScreen({ route, navigation }) {
                     )}
                     <View style={{ flex: 1 }}>
                         <Text style={styles.equipBannerTitle} numberOfLines={1}>{equipment.title}</Text>
-                        <Text style={styles.equipBannerPrice}>{equipment.price > 0 ? `${equipment.price} ₺` : 'Fiyat sor'}</Text>
+                        <Text style={styles.equipBannerPrice}>{equipment.price > 0 ? `${equipment.price} ₺` : t.askPrice}</Text>
                     </View>
                     <Text style={styles.equipBannerArrow}>›</Text>
                 </TouchableOpacity>
@@ -796,7 +792,7 @@ export default function ChatScreen({ route, navigation }) {
                     <View style={[styles.equipBannerImg, styles.equipBannerImgPh]}><Text style={{ fontSize: 20 }}>🎓</Text></View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.equipBannerTitle} numberOfLines={1}>{coachListingCtx.credentialLevel}{coachListingCtx.certName ? ` · ${coachListingCtx.certName}` : ''}</Text>
-                        <Text style={styles.equipBannerPrice}>{coachListingCtx.priceIndividual > 0 ? `${coachListingCtx.priceIndividual} ₺/saat` : 'Antrenörlük ilanı hakkında'}</Text>
+                        <Text style={styles.equipBannerPrice}>{coachListingCtx.priceIndividual > 0 ? t.perHourPrice(coachListingCtx.priceIndividual) : t.coachListingAbout}</Text>
                     </View>
                     <Text style={styles.equipBannerArrow}>›</Text>
                 </TouchableOpacity>
@@ -851,7 +847,7 @@ export default function ChatScreen({ route, navigation }) {
             {(() => {
                 const lastMine = [...messages].reverse().find(m => m.senderId === myId);
                 if (!lastMine?.read || !lastMine?.readAt) return null;
-                return <Text style={styles.seenText}>{timeAgo(lastMine.readAt)}</Text>;
+                return <Text style={styles.seenText}>{timeAgo(lastMine.readAt, t)}</Text>;
             })()}
 
             {/* Meydan okuma kabul edildiyse yer/zaman öneri şeridi */}
@@ -885,7 +881,7 @@ export default function ChatScreen({ route, navigation }) {
                     />
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                         <TouchableOpacity style={[styles.challengeBtn, { flex: 1, backgroundColor: colors.surface2 }]} onPress={() => setScheduleOpen(false)}>
-                            <Text style={styles.challengeBtnText}>{t.cancelBtn || 'Vazgeç'}</Text>
+                            <Text style={styles.challengeBtnText}>{t.dismissBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.challengeBtn, { flex: 1, backgroundColor: '#7c3aed', opacity: schedBusy ? 0.6 : 1 }]} disabled={schedBusy} onPress={submitScheduleProposal}>
                             <Text style={styles.challengeBtnText}>{schedBusy ? '...' : (t.challengeSendProposal || 'Öner')}</Text>
@@ -940,13 +936,13 @@ export default function ChatScreen({ route, navigation }) {
             <Modal visible={reportModalVisible} animationType="slide" transparent onRequestClose={() => setReportModalVisible(false)}>
                 <View style={styles.reportOverlay}>
                     <View style={styles.reportBox}>
-                        <Text style={styles.reportTitle}>🚩 Kullanıcıyı Şikayet Et</Text>
-                        <Text style={styles.reportHint}>Uygunsuz içerik (cinsel içerikli fotoğraf, küfür/argo, taciz vb.) için sebep belirtin, ekibimiz inceleyecek.</Text>
+                        <Text style={styles.reportTitle}>{t.reportUserTitle}</Text>
+                        <Text style={styles.reportHint}>{t.reportUserHint}</Text>
                         <TextInput
                             style={styles.reportInput}
                             value={reportReason}
                             onChangeText={setReportReason}
-                            placeholder="Şikayet sebebinizi yazın..."
+                            placeholder={t.reportReasonPh}
                             placeholderTextColor={colors.textMuted}
                             multiline
                         />
@@ -954,10 +950,10 @@ export default function ChatScreen({ route, navigation }) {
                             style={[styles.reportSubmitBtn, (!reportReason.trim() || reportSubmitting) && styles.sendBtnDisabled]}
                             onPress={submitReport}
                             disabled={!reportReason.trim() || reportSubmitting}>
-                            <Text style={styles.reportSubmitText}>{reportSubmitting ? '...' : 'Şikayeti Gönder'}</Text>
+                            <Text style={styles.reportSubmitText}>{reportSubmitting ? '...' : t.reportSendBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => setReportModalVisible(false)} style={{ alignItems: 'center', marginTop: 10 }}>
-                            <Text style={{ color: colors.textMuted }}>Vazgeç</Text>
+                            <Text style={{ color: colors.textMuted }}>{t.dismissBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -997,16 +993,16 @@ export default function ChatScreen({ route, navigation }) {
                             style={styles.actionSheetRow}
                             onPress={() => { setHeaderMenuVisible(false); confirmBlock(); }}
                         >
-                            <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>🔇 Mesajları Engelle</Text>
+                            <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>{t.msgBlockMenu}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={styles.actionSheetRow}
                             onPress={() => { setHeaderMenuVisible(false); setReportReason(''); setReportModalVisible(true); }}
                         >
-                            <Text style={styles.actionSheetRowText}>🚩 Şikayet Et</Text>
+                            <Text style={styles.actionSheetRowText}>{t.reportMenu}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.actionSheetRow, { borderBottomWidth: 0 }]} onPress={() => setHeaderMenuVisible(false)}>
-                            <Text style={[styles.actionSheetRowText, { color: colors.textMuted }]}>Vazgeç</Text>
+                            <Text style={[styles.actionSheetRowText, { color: colors.textMuted }]}>{t.dismissBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
@@ -1021,17 +1017,17 @@ export default function ChatScreen({ route, navigation }) {
                                 style={styles.actionSheetRow}
                                 onPress={() => { const item = messageOptionsFor; closeMessageOptions(); confirmDeleteForEveryone(item); }}
                             >
-                                <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>🗑️ Herkesten Sil</Text>
+                                <Text style={[styles.actionSheetRowText, { color: '#f87171' }]}>{t.deleteForEveryoneMenu}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity
                             style={styles.actionSheetRow}
                             onPress={() => { const item = messageOptionsFor; closeMessageOptions(); deleteForMe(item); }}
                         >
-                            <Text style={styles.actionSheetRowText}>🗑️ Benden Sil</Text>
+                            <Text style={styles.actionSheetRowText}>{t.deleteForMeMenu}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.actionSheetRow, { borderBottomWidth: 0 }]} onPress={closeMessageOptions}>
-                            <Text style={[styles.actionSheetRowText, { color: colors.textMuted }]}>Vazgeç</Text>
+                            <Text style={[styles.actionSheetRowText, { color: colors.textMuted }]}>{t.dismissBtn}</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
