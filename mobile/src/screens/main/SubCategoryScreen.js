@@ -1052,33 +1052,67 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
     const isVideo = !post.imageUrl && !!post.videoUrl;
     const shouldPlayInline = isVideo && (!dataSaverMode || inlineUnlocked);
     const player = useVideoPlayer(null);
+    const musicPlayer = useVideoPlayer(null);
     useEffect(() => {
         if (shouldPlayInline) {
             player.loop = true;
             player.muted = true;
+            player.volume = 0;
             if (post.musicUrl) quietVideoForMusic(player);
-            player.replaceAsync(post.videoUrl).then(() => player.play()).catch(() => {});
+            player.replaceAsync(post.videoUrl).then(() => {
+                if (post.musicUrl) quietVideoForMusic(player);
+                player.play();
+            }).catch(() => {});
         } else {
             player.pause();
         }
-    }, [shouldPlayInline, post.videoUrl]);
+    }, [shouldPlayInline, post.videoUrl, post.musicUrl]);
 
     useEffect(() => {
-        if (!playMusic || !post?.musicUrl || dataSaverMode) return undefined;
+        if (!playMusic || !post?.musicUrl) {
+            try { musicPlayer.pause(); } catch { /* */ }
+            return undefined;
+        }
         let dead = false;
-        let localStop = null;
-        startPostMusic(post).then(stop => {
-            if (dead) stop?.();
-            else localStop = stop;
+        const start = Math.max(0, Number(post.musicStartTime) || 0);
+        const endRaw = Number(post.musicEndTime);
+        const end = endRaw > start ? endRaw : start + 30;
+        quietVideoForMusic(player);
+        try {
+            musicPlayer.audioMixingMode = 'mixWithOthers';
+            musicPlayer.muted = false;
+            musicPlayer.volume = 1;
+            musicPlayer.loop = false;
+            musicPlayer.timeUpdateEventInterval = 0.25;
+        } catch { /* */ }
+        let timeSub;
+        try {
+            timeSub = musicPlayer.addListener('timeUpdate', ({ currentTime }) => {
+                if (dead) return;
+                const dur = musicPlayer.duration || 0;
+                const clipEnd = dur > 0 ? Math.min(end, dur) : end;
+                if (currentTime >= clipEnd - 0.12) {
+                    const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
+                    musicPlayer.currentTime = clipStart;
+                    musicPlayer.play();
+                }
+            });
+        } catch { /* */ }
+        const uri = String(post.musicUrl).replace(/^http:\/\//i, 'https://');
+        musicPlayer.replaceAsync(uri).then(() => {
+            if (dead) return;
+            const dur = musicPlayer.duration || 0;
+            const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
+            quietVideoForMusic(player);
+            musicPlayer.currentTime = clipStart;
+            musicPlayer.play();
         }).catch(() => {});
         return () => {
             dead = true;
-            if (localStop) {
-                if (stopFeedPostMusic === localStop) stopFeedPostMusic = null;
-                localStop();
-            }
+            try { timeSub?.remove(); } catch { /* */ }
+            try { musicPlayer.pause(); } catch { /* */ }
         };
-    }, [playMusic, post?.id, post?.musicUrl, post?.musicStartTime, post?.musicEndTime, dataSaverMode]);
+    }, [playMusic, post?.id, post?.musicUrl, post?.musicStartTime, post?.musicEndTime]);
 
     const handlePress = () => {
         if (!isVideo) { onOpenFullscreen(); return; }
@@ -23844,6 +23878,18 @@ export default function SubCategoryScreen({ route, navigation }) {
     // güncellensin diye useFocusEffect ile tekrar okunuyor.
     const [dataSaverMode, setDataSaverMode] = useState(false);
     const mediaCardRefs = useRef(new Map());
+    const cardRefFns = useRef(new Map());
+    const cardRefFor = (id) => {
+        let fn = cardRefFns.current.get(id);
+        if (!fn) {
+            fn = (node) => {
+                if (node) mediaCardRefs.current.set(id, node);
+                else mediaCardRefs.current.delete(id);
+            };
+            cardRefFns.current.set(id, fn);
+        }
+        return fn;
+    };
     const [audiblePostId, setAudiblePostId] = useState(null);
     useFocusEffect(useCallback(() => {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
@@ -23928,9 +23974,11 @@ export default function SubCategoryScreen({ route, navigation }) {
         });
     }, [dataSaverMode, activeTab, mediaViewIdx, winH]);
     useEffect(() => {
-        const timer = setTimeout(pickAudiblePost, 120);
-        return () => clearTimeout(timer);
-    }, [pickAudiblePost, mediaPosts]);
+        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return undefined;
+        pickAudiblePost();
+        const timer = setInterval(pickAudiblePost, 400);
+        return () => clearInterval(timer);
+    }, [pickAudiblePost, mediaPosts, dataSaverMode, activeTab, mediaViewIdx]);
     // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
     // paylaşımlarında SADECE 🎬 ikonu gösterip hiçbir zaman gerçekten oynatmıyordu (görsel
     // dışında bir <Video>/<VideoView> hiç render edilmiyordu, tüm Medya sekmesi genelinde
@@ -23946,6 +23994,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     // dokümantasyonu: "the setup callback runs only once during player creation"). Bu yüzden
     // source değişikliğini ayrı bir efektte replaceAsync ile elle uygulamak gerekiyor.
     const mediaViewPlayer = useVideoPlayer(null);
+    const musicViewPlayer = useVideoPlayer(null);
     useEffect(() => {
         if (mediaViewVideoUrl) {
             const mp = mediaViewIdx !== null ? mediaPosts[mediaViewIdx] : null;
@@ -23963,26 +24012,52 @@ export default function SubCategoryScreen({ route, navigation }) {
         ? `${viewedMusic.id}|${viewedMusic.musicUrl}|${viewedMusic.musicStartTime}|${viewedMusic.musicEndTime}`
         : '';
     useEffect(() => {
-        if (!viewedMusic?.musicUrl) return undefined;
-        quietVideoForMusic(mediaViewPlayer);
+        if (!viewedMusic?.musicUrl) {
+            try { musicViewPlayer.pause(); } catch { /* */ }
+            return undefined;
+        }
         let dead = false;
-        let localStop = null;
+        const start = Math.max(0, Number(viewedMusic.musicStartTime) || 0);
+        const endRaw = Number(viewedMusic.musicEndTime);
+        const end = endRaw > start ? endRaw : start + 30;
+        quietVideoForMusic(mediaViewPlayer);
+        try {
+            musicViewPlayer.audioMixingMode = 'mixWithOthers';
+            musicViewPlayer.muted = false;
+            musicViewPlayer.volume = 1;
+            musicViewPlayer.loop = false;
+            musicViewPlayer.timeUpdateEventInterval = 0.25;
+        } catch { /* */ }
+        let timeSub;
+        try {
+            timeSub = musicViewPlayer.addListener('timeUpdate', ({ currentTime }) => {
+                if (dead) return;
+                const dur = musicViewPlayer.duration || 0;
+                const clipEnd = dur > 0 ? Math.min(end, dur) : end;
+                if (currentTime >= clipEnd - 0.12) {
+                    const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
+                    musicViewPlayer.currentTime = clipStart;
+                    musicViewPlayer.play();
+                }
+            });
+        } catch { /* */ }
+        const uri = String(viewedMusic.musicUrl).replace(/^http:\/\//i, 'https://');
         const timer = setTimeout(() => {
             if (dead) return;
-            quietVideoForMusic(mediaViewPlayer);
-            startPostMusic(viewedMusic).then(stop => {
-                if (dead) stop?.();
-                else localStop = stop;
+            musicViewPlayer.replaceAsync(uri).then(() => {
+                if (dead) return;
+                const dur = musicViewPlayer.duration || 0;
+                const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
+                quietVideoForMusic(mediaViewPlayer);
+                musicViewPlayer.currentTime = clipStart;
+                musicViewPlayer.play();
             }).catch(() => {});
-        }, 120);
+        }, 150);
         return () => {
             dead = true;
             clearTimeout(timer);
-            if (localStop) {
-                if (stopFeedPostMusic === localStop) stopFeedPostMusic = null;
-                localStop();
-            }
-            try { mediaViewPlayer.muted = false; } catch { /* */ }
+            try { timeSub?.remove(); } catch { /* */ }
+            try { musicViewPlayer.pause(); } catch { /* */ }
         };
     }, [viewedMusicKey]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
@@ -30942,10 +31017,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                     };
                                                     return (
                                                         <View
-                                                            ref={post.musicUrl ? (node => {
-                                                                if (node) mediaCardRefs.current.set(post.id, node);
-                                                                else mediaCardRefs.current.delete(post.id);
-                                                            }) : undefined}
+                                                            ref={post.musicUrl ? cardRefFor(post.id) : undefined}
                                                             onLayout={post.musicUrl ? () => pickAudiblePost() : undefined}
                                                             key={post.id}
                                                             style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 }}
