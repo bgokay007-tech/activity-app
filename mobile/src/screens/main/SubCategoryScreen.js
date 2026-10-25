@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
@@ -978,35 +978,70 @@ function stopActivePostMusic() {
     if (stop) stop();
 }
 
-// Seçilen aralık dosyanın içinde döner. Akıştaki ilk gönderi ve tam ekran aynı
-// çaları kullanır; ikisi birden ses bindirmez.
+function quietVideoForMusic(player) {
+    if (!player) return;
+    try { player.muted = true; } catch { /* */ }
+    try { player.volume = 0; } catch { /* */ }
+    try { player.audioMixingMode = 'mixWithOthers'; } catch { /* */ }
+}
+
+// Seçilen aralık dosyanın içinde döner. Akışta ekranı dolduran gönderi ile tam
+// ekran aynı çaları kullanır. create anında positionMillis vermek Android'de
+// sesi hiç başlatmadan hata veriyordu.
 async function startPostMusic(post) {
     const gen = ++postMusicGen;
     stopActivePostMusic();
     if (!post?.musicUrl) return null;
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+    await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+    });
+    const uri = String(post.musicUrl).replace(/^http:\/\//i, 'https://');
     const startSec = Math.max(0, Number(post.musicStartTime) || 0);
     const endRaw = Number(post.musicEndTime);
     const endSec = endRaw > startSec ? endRaw : startSec + 30;
-    const startMs = Math.floor(startSec * 1000);
-    const endMs = Math.floor(endSec * 1000);
-    const { sound } = await Audio.Sound.createAsync(
-        { uri: post.musicUrl },
-        { shouldPlay: true, positionMillis: startMs },
+    let startMs = Math.floor(startSec * 1000);
+    let endMs = Math.floor(endSec * 1000);
+    const { sound, status } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: false, volume: 1, isMuted: false, progressUpdateIntervalMillis: 120 },
     );
     if (gen !== postMusicGen) {
         sound.unloadAsync().catch(() => {});
         return null;
     }
+    const fileMs = status?.isLoaded ? (status.durationMillis || 0) : 0;
+    if (fileMs && startMs >= fileMs - 250) startMs = 0;
+    if (fileMs && endMs > fileMs) endMs = fileMs;
+    if (endMs <= startMs + 400) endMs = fileMs || (startMs + 15000);
+    if (startMs > 0) {
+        try { await sound.setPositionAsync(startMs); } catch { startMs = 0; }
+    }
+    if (gen !== postMusicGen) {
+        sound.unloadAsync().catch(() => {});
+        return null;
+    }
+    await sound.playAsync();
     let looping = false;
+    let alive = true;
     sound.setOnPlaybackStatusUpdate(st => {
-        if (!st.isLoaded || looping) return;
-        if (st.didJustFinish || st.positionMillis >= endMs - 120) {
+        if (!alive || !st.isLoaded || looping) return;
+        if (st.didJustFinish || st.positionMillis >= endMs - 80) {
             looping = true;
             sound.setPositionAsync(startMs).then(() => sound.playAsync()).catch(() => {}).finally(() => { looping = false; });
+            return;
+        }
+        // Sessiz video oynatıcısı ses odağını alıp parçayı durdurursa geri başlat.
+        if (!st.isPlaying && st.positionMillis < endMs - 200) {
+            sound.playAsync().catch(() => {});
         }
     });
-    const stop = () => { sound.unloadAsync().catch(() => {}); };
+    const stop = () => { alive = false; sound.unloadAsync().catch(() => {}); };
     stopFeedPostMusic = stop;
     return stop;
 }
@@ -1021,6 +1056,7 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
         if (shouldPlayInline) {
             player.loop = true;
             player.muted = true;
+            if (post.musicUrl) quietVideoForMusic(player);
             player.replaceAsync(post.videoUrl).then(() => player.play()).catch(() => {});
         } else {
             player.pause();
@@ -23807,6 +23843,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     // tam ekran açılıp oynasın (bkz. MediaTile). Profil'de değiştirilince buraya dönünce
     // güncellensin diye useFocusEffect ile tekrar okunuyor.
     const [dataSaverMode, setDataSaverMode] = useState(false);
+    const mediaCardRefs = useRef(new Map());
+    const [audiblePostId, setAudiblePostId] = useState(null);
     useFocusEffect(useCallback(() => {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
     }, []));
@@ -23869,6 +23907,30 @@ export default function SubCategoryScreen({ route, navigation }) {
     const pendingStoryRef = useRef([]);
     const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
+    const pickAudiblePost = useCallback(() => {
+        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return;
+        const jobs = [];
+        mediaCardRefs.current.forEach((node, id) => {
+            if (!node?.measureInWindow) return;
+            jobs.push(new Promise(resolve => {
+                node.measureInWindow((x, y, w, h) => {
+                    if (!h) { resolve(null); return; }
+                    const vis = Math.max(0, Math.min(y + h, winH) - Math.max(y, 0));
+                    resolve({ id, y, ratioPost: vis / h, ratioScreen: vis / winH });
+                });
+            }));
+        });
+        if (!jobs.length) { setAudiblePostId(prev => (prev ? null : prev)); return; }
+        Promise.all(jobs).then(rows => {
+            const ok = rows.filter(r => r && (r.ratioPost >= 0.75 || r.ratioScreen >= 0.75)).sort((a, b) => a.y - b.y);
+            const next = ok[0]?.id || null;
+            setAudiblePostId(prev => (prev === next ? prev : next));
+        });
+    }, [dataSaverMode, activeTab, mediaViewIdx, winH]);
+    useEffect(() => {
+        const timer = setTimeout(pickAudiblePost, 120);
+        return () => clearTimeout(timer);
+    }, [pickAudiblePost, mediaPosts]);
     // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
     // paylaşımlarında SADECE 🎬 ikonu gösterip hiçbir zaman gerçekten oynatmıyordu (görsel
     // dışında bir <Video>/<VideoView> hiç render edilmiyordu, tüm Medya sekmesi genelinde
@@ -23886,7 +23948,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     const mediaViewPlayer = useVideoPlayer(null);
     useEffect(() => {
         if (mediaViewVideoUrl) {
-            mediaViewPlayer.replaceAsync(mediaViewVideoUrl).then(() => mediaViewPlayer.play()).catch(() => {});
+            const mp = mediaViewIdx !== null ? mediaPosts[mediaViewIdx] : null;
+            if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
+            mediaViewPlayer.replaceAsync(mediaViewVideoUrl).then(() => {
+                if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
+                mediaViewPlayer.play();
+            }).catch(() => {});
         } else {
             mediaViewPlayer.pause();
         }
@@ -23897,15 +23964,20 @@ export default function SubCategoryScreen({ route, navigation }) {
         : '';
     useEffect(() => {
         if (!viewedMusic?.musicUrl) return undefined;
-        try { mediaViewPlayer.muted = true; } catch { /* fotoğrafta oynatıcı boş */ }
+        quietVideoForMusic(mediaViewPlayer);
         let dead = false;
         let localStop = null;
-        startPostMusic(viewedMusic).then(stop => {
-            if (dead) stop?.();
-            else localStop = stop;
-        }).catch(() => {});
+        const timer = setTimeout(() => {
+            if (dead) return;
+            quietVideoForMusic(mediaViewPlayer);
+            startPostMusic(viewedMusic).then(stop => {
+                if (dead) stop?.();
+                else localStop = stop;
+            }).catch(() => {});
+        }, 120);
         return () => {
             dead = true;
+            clearTimeout(timer);
             if (localStop) {
                 if (stopFeedPostMusic === localStop) stopFeedPostMusic = null;
                 localStop();
@@ -27729,6 +27801,9 @@ export default function SubCategoryScreen({ route, navigation }) {
 
             <ScrollView
                 contentContainerStyle={s.list}
+                scrollEventThrottle={200}
+                onScroll={() => { if (activeTab === 'media') pickAudiblePost(); }}
+                onMomentumScrollEnd={() => { if (activeTab === 'media') pickAudiblePost(); }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cfg.color} />}
             >
                     {/* ── RIVALS ── */}
@@ -30866,7 +30941,15 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                         }
                                                     };
                                                     return (
-                                                        <View key={post.id} style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 }}>
+                                                        <View
+                                                            ref={post.musicUrl ? (node => {
+                                                                if (node) mediaCardRefs.current.set(post.id, node);
+                                                                else mediaCardRefs.current.delete(post.id);
+                                                            }) : undefined}
+                                                            onLayout={post.musicUrl ? () => pickAudiblePost() : undefined}
+                                                            key={post.id}
+                                                            style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 }}
+                                                        >
                                                             {/* Başlık: avatar + kullanıcı + zaman */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 7 }}>
                                                                 <Avatar name={post.user?.username} avatar={post.user?.avatar} size={36} color={cfg.color} />
@@ -30879,7 +30962,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
                                                                 basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
-                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={i === 0} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={!dataSaverMode && mediaViewIdx === null && audiblePostId === post.id} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
                                                             {!!post.musicName && (
                                                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
                                                                     <Text style={{ fontSize: 12 }}>🎵</Text>
