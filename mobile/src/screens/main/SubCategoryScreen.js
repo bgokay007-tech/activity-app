@@ -23942,6 +23942,15 @@ export default function SubCategoryScreen({ route, navigation }) {
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
     const [musicDetail, setMusicDetail] = useState(null);
     const [savedPostIds, setSavedPostIds] = useState(() => new Set());
+    const [mutedMusicIds, setMutedMusicIds] = useState(() => new Set());
+    const toggleMutePostMusic = (postId) => {
+        if (!postId) return;
+        setMutedMusicIds(prev => {
+            const next = new Set(prev);
+            if (next.has(postId)) next.delete(postId); else next.add(postId);
+            return next;
+        });
+    };
     const pickAudiblePost = useCallback(() => {
         if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return;
         const jobs = [];
@@ -24027,12 +24036,12 @@ export default function SubCategoryScreen({ route, navigation }) {
         ? `${viewedMusic.id}|${viewedMusic.musicUrl}|${viewedMusic.musicStartTime}|${viewedMusic.musicEndTime}`
         : '';
     useEffect(() => {
-        if (!viewedMusic?.musicUrl || musicDetail) return undefined;
+        if (!viewedMusic?.musicUrl || musicDetail || mutedMusicIds.has(viewedMusic.id)) return undefined;
         let cancel = false;
         quietVideoForMusic(mediaViewPlayer);
         startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
         return () => { cancel = true; stopActivePostMusic(); };
-    }, [viewedMusicKey, musicDetail]);
+    }, [viewedMusicKey, musicDetail, mutedMusicIds]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
     // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
@@ -31055,7 +31064,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
                                                                 basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
-                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={!dataSaverMode && mediaViewIdx === null && !musicDetail && audiblePostId === post.id} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={!dataSaverMode && mediaViewIdx === null && !musicDetail && audiblePostId === post.id && !mutedMusicIds.has(post.id)} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
                                                             {!!post.musicName && (
                                                                 <TouchableOpacity onPress={() => setMusicDetail(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
                                                                     <Text style={{ fontSize: 12 }}>🎵</Text>
@@ -31074,6 +31083,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                     <Text style={{ color: inlineMediaCommentsPostId === post.id ? cfg.color : colors.textMuted, fontSize: 20 }}>💬</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{commentCount}</Text>
                                                                 </TouchableOpacity>
+                                                                {(post.musicUrl || post.musicName) && (
+                                                                    <TouchableOpacity onPress={() => toggleMutePostMusic(post.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                                                        <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(post.id) ? '🔇' : '🔊'}</Text>
+                                                                    </TouchableOpacity>
+                                                                )}
                                                                 <TouchableOpacity onPress={() => toggleSavePost(post)} style={{ marginLeft: 'auto' }}>
                                                                     <Text style={{ fontSize: 20, color: savedPostIds.has(post.id) ? colors.purple : colors.textMuted }}>🔖</Text>
                                                                 </TouchableOpacity>
@@ -32839,6 +32853,11 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <Text style={{ color: mediaShowComments ? cfg.color : '#ffffff80', fontSize: 20 }}>💬</Text>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{mediaComments.length || mp._count?.comments || 0}</Text>
                                     </TouchableOpacity>
+                                    {(mp.musicUrl || mp.musicName) && (
+                                        <TouchableOpacity onPress={() => toggleMutePostMusic(mp.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                            <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(mp.id) ? '🔇' : '🔊'}</Text>
+                                        </TouchableOpacity>
+                                    )}
                                     <TouchableOpacity onPress={() => toggleSavePost(mp)} style={{ marginLeft: 'auto' }}>
                                         <Text style={{ fontSize: 20, color: savedPostIds.has(mp.id) ? '#c4b5fd' : '#ffffff80' }}>🔖</Text>
                                     </TouchableOpacity>
