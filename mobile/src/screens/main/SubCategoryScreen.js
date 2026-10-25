@@ -20,18 +20,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as DocumentPicker from 'expo-document-picker';
 import { CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system/legacy';
 import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, hasWearOsWatch, hasHuaweiWatch, startHuaweiScoreSession, updateHuaweiScoreSession, stopHuaweiScoreSession } from '../../../modules/wear-bridge';
 import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
 import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, formatSetScore, racketAlertText } from '../../utils/racketScore';
 import api from '../../services/api';
-import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache } from '../../services/branchCache';
+import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache, hydrateBranch } from '../../services/branchCache';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -988,62 +988,87 @@ function quietVideoForMusic(player) {
 // Seçilen aralık dosyanın içinde döner. Akışta ekranı dolduran gönderi ile tam
 // ekran aynı çaları kullanır. create anında positionMillis vermek Android'de
 // sesi hiç başlatmadan hata veriyordu.
+async function musicFile(url) {
+    let hash = 0;
+    const src = String(url);
+    for (let i = 0; i < src.length; i++) hash = ((hash << 5) - hash + src.charCodeAt(i)) | 0;
+    const dest = `${FileSystem.cacheDirectory}post-music-${Math.abs(hash)}.mp3`;
+    try {
+        const info = await FileSystem.getInfoAsync(dest);
+        if (info.exists && (info.size || 0) > 800) return dest;
+    } catch { /* yeniden indir */ }
+    const res = await FileSystem.downloadAsync(String(url).replace(/^http:\/\//i, 'https://'), dest);
+    if (res.status && res.status >= 400) throw new Error('music');
+    return res.uri;
+}
+
+// Deezer önizlemesi yönlendirmeli bir mp3. Video oynatıcısı bu adresi sessiz
+// açıyor ve ses odağını da alıyordu. Parça önce telefona iner, video kısıkken
+// ayrı çalar.
 async function startPostMusic(post) {
     const gen = ++postMusicGen;
     stopActivePostMusic();
     if (!post?.musicUrl) return null;
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-    });
-    const uri = String(post.musicUrl).replace(/^http:\/\//i, 'https://');
-    const startSec = Math.max(0, Number(post.musicStartTime) || 0);
-    const endRaw = Number(post.musicEndTime);
-    const endSec = endRaw > startSec ? endRaw : startSec + 30;
-    let startMs = Math.floor(startSec * 1000);
-    let endMs = Math.floor(endSec * 1000);
-    const { sound, status } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: false, volume: 1, isMuted: false, progressUpdateIntervalMillis: 120 },
-    );
-    if (gen !== postMusicGen) {
-        sound.unloadAsync().catch(() => {});
+    try { pausePlayback(); } catch { /* mini oynatıcı yok */ }
+    const remote = String(post.musicUrl).replace(/^http:\/\//i, 'https://');
+    let uri = remote;
+    try { uri = await musicFile(remote); } catch { uri = remote; }
+    if (gen !== postMusicGen) return null;
+    try {
+        await Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+            interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+        });
+        const startSec = Math.max(0, Number(post.musicStartTime) || 0);
+        const endRaw = Number(post.musicEndTime);
+        const endSec = endRaw > startSec ? endRaw : startSec + 30;
+        let startMs = Math.floor(startSec * 1000);
+        let endMs = Math.floor(endSec * 1000);
+        const { sound, status } = await Audio.Sound.createAsync(
+            { uri },
+            { shouldPlay: true, volume: 1, isMuted: false, progressUpdateIntervalMillis: 250 },
+        );
+        if (gen !== postMusicGen) {
+            sound.unloadAsync().catch(() => {});
+            return null;
+        }
+        const fileMs = status?.isLoaded ? (status.durationMillis || 0) : 0;
+        if (fileMs && startMs >= fileMs - 250) startMs = 0;
+        if (fileMs && endMs > fileMs) endMs = fileMs;
+        if (endMs <= startMs + 400) endMs = fileMs || (startMs + 15000);
+        if (startMs > 0) {
+            try { await sound.setPositionAsync(startMs); } catch { /* baştan çalsın */ }
+        }
+        const loaded = await sound.getStatusAsync();
+        if (loaded.isLoaded && !loaded.isPlaying) {
+            try { await sound.playAsync(); } catch { /* */ }
+        }
+        let looping = false;
+        let resumes = 0;
+        let alive = true;
+        sound.setOnPlaybackStatusUpdate(st => {
+            if (!alive || !st.isLoaded || looping) return;
+            if (st.didJustFinish || st.positionMillis >= endMs - 80) {
+                looping = true;
+                sound.setPositionAsync(startMs).then(() => sound.playAsync()).catch(() => {}).finally(() => { looping = false; });
+                return;
+            }
+            if (!st.isPlaying && resumes < 3) {
+                resumes += 1;
+                sound.playAsync().catch(() => {});
+            }
+        });
+        const stop = () => { alive = false; sound.unloadAsync().catch(() => {}); };
+        stopFeedPostMusic = stop;
+        return stop;
+    } catch {
         return null;
     }
-    const fileMs = status?.isLoaded ? (status.durationMillis || 0) : 0;
-    if (fileMs && startMs >= fileMs - 250) startMs = 0;
-    if (fileMs && endMs > fileMs) endMs = fileMs;
-    if (endMs <= startMs + 400) endMs = fileMs || (startMs + 15000);
-    if (startMs > 0) {
-        try { await sound.setPositionAsync(startMs); } catch { startMs = 0; }
-    }
-    if (gen !== postMusicGen) {
-        sound.unloadAsync().catch(() => {});
-        return null;
-    }
-    await sound.playAsync();
-    let looping = false;
-    let alive = true;
-    sound.setOnPlaybackStatusUpdate(st => {
-        if (!alive || !st.isLoaded || looping) return;
-        if (st.didJustFinish || st.positionMillis >= endMs - 80) {
-            looping = true;
-            sound.setPositionAsync(startMs).then(() => sound.playAsync()).catch(() => {}).finally(() => { looping = false; });
-            return;
-        }
-        // Sessiz video oynatıcısı ses odağını alıp parçayı durdurursa geri başlat.
-        if (!st.isPlaying && st.positionMillis < endMs - 200) {
-            sound.playAsync().catch(() => {});
-        }
-    });
-    const stop = () => { alive = false; sound.unloadAsync().catch(() => {}); };
-    stopFeedPostMusic = stop;
-    return stop;
 }
 
 function MediaTile({ post, dataSaverMode, onOpenFullscreen, playMusic }) {
@@ -1052,7 +1077,6 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
     const isVideo = !post.imageUrl && !!post.videoUrl;
     const shouldPlayInline = isVideo && (!dataSaverMode || inlineUnlocked);
     const player = useVideoPlayer(null);
-    const musicPlayer = useVideoPlayer(null);
     useEffect(() => {
         if (shouldPlayInline) {
             player.loop = true;
@@ -1060,8 +1084,8 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
             player.volume = 0;
             if (post.musicUrl) quietVideoForMusic(player);
             player.replaceAsync(post.videoUrl).then(() => {
-                if (post.musicUrl) quietVideoForMusic(player);
                 player.play();
+                if (post.musicUrl) quietVideoForMusic(player);
             }).catch(() => {});
         } else {
             player.pause();
@@ -1069,49 +1093,11 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
     }, [shouldPlayInline, post.videoUrl, post.musicUrl]);
 
     useEffect(() => {
-        if (!playMusic || !post?.musicUrl) {
-            try { musicPlayer.pause(); } catch { /* */ }
-            return undefined;
-        }
-        let dead = false;
-        const start = Math.max(0, Number(post.musicStartTime) || 0);
-        const endRaw = Number(post.musicEndTime);
-        const end = endRaw > start ? endRaw : start + 30;
+        if (!playMusic || !post?.musicUrl) return undefined;
+        let cancel = false;
         quietVideoForMusic(player);
-        try {
-            musicPlayer.audioMixingMode = 'mixWithOthers';
-            musicPlayer.muted = false;
-            musicPlayer.volume = 1;
-            musicPlayer.loop = false;
-            musicPlayer.timeUpdateEventInterval = 0.25;
-        } catch { /* */ }
-        let timeSub;
-        try {
-            timeSub = musicPlayer.addListener('timeUpdate', ({ currentTime }) => {
-                if (dead) return;
-                const dur = musicPlayer.duration || 0;
-                const clipEnd = dur > 0 ? Math.min(end, dur) : end;
-                if (currentTime >= clipEnd - 0.12) {
-                    const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
-                    musicPlayer.currentTime = clipStart;
-                    musicPlayer.play();
-                }
-            });
-        } catch { /* */ }
-        const uri = String(post.musicUrl).replace(/^http:\/\//i, 'https://');
-        musicPlayer.replaceAsync(uri).then(() => {
-            if (dead) return;
-            const dur = musicPlayer.duration || 0;
-            const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
-            quietVideoForMusic(player);
-            musicPlayer.currentTime = clipStart;
-            musicPlayer.play();
-        }).catch(() => {});
-        return () => {
-            dead = true;
-            try { timeSub?.remove(); } catch { /* */ }
-            try { musicPlayer.pause(); } catch { /* */ }
-        };
+        startPostMusic(post).then(() => { if (cancel) stopActivePostMusic(); });
+        return () => { cancel = true; stopActivePostMusic(); };
     }, [playMusic, post?.id, post?.musicUrl, post?.musicStartTime, post?.musicEndTime]);
 
     const handlePress = () => {
@@ -23994,14 +23980,13 @@ export default function SubCategoryScreen({ route, navigation }) {
     // dokümantasyonu: "the setup callback runs only once during player creation"). Bu yüzden
     // source değişikliğini ayrı bir efektte replaceAsync ile elle uygulamak gerekiyor.
     const mediaViewPlayer = useVideoPlayer(null);
-    const musicViewPlayer = useVideoPlayer(null);
     useEffect(() => {
         if (mediaViewVideoUrl) {
             const mp = mediaViewIdx !== null ? mediaPosts[mediaViewIdx] : null;
             if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
             mediaViewPlayer.replaceAsync(mediaViewVideoUrl).then(() => {
-                if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
                 mediaViewPlayer.play();
+                if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
             }).catch(() => {});
         } else {
             mediaViewPlayer.pause();
@@ -24012,53 +23997,11 @@ export default function SubCategoryScreen({ route, navigation }) {
         ? `${viewedMusic.id}|${viewedMusic.musicUrl}|${viewedMusic.musicStartTime}|${viewedMusic.musicEndTime}`
         : '';
     useEffect(() => {
-        if (!viewedMusic?.musicUrl) {
-            try { musicViewPlayer.pause(); } catch { /* */ }
-            return undefined;
-        }
-        let dead = false;
-        const start = Math.max(0, Number(viewedMusic.musicStartTime) || 0);
-        const endRaw = Number(viewedMusic.musicEndTime);
-        const end = endRaw > start ? endRaw : start + 30;
+        if (!viewedMusic?.musicUrl) return undefined;
+        let cancel = false;
         quietVideoForMusic(mediaViewPlayer);
-        try {
-            musicViewPlayer.audioMixingMode = 'mixWithOthers';
-            musicViewPlayer.muted = false;
-            musicViewPlayer.volume = 1;
-            musicViewPlayer.loop = false;
-            musicViewPlayer.timeUpdateEventInterval = 0.25;
-        } catch { /* */ }
-        let timeSub;
-        try {
-            timeSub = musicViewPlayer.addListener('timeUpdate', ({ currentTime }) => {
-                if (dead) return;
-                const dur = musicViewPlayer.duration || 0;
-                const clipEnd = dur > 0 ? Math.min(end, dur) : end;
-                if (currentTime >= clipEnd - 0.12) {
-                    const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
-                    musicViewPlayer.currentTime = clipStart;
-                    musicViewPlayer.play();
-                }
-            });
-        } catch { /* */ }
-        const uri = String(viewedMusic.musicUrl).replace(/^http:\/\//i, 'https://');
-        const timer = setTimeout(() => {
-            if (dead) return;
-            musicViewPlayer.replaceAsync(uri).then(() => {
-                if (dead) return;
-                const dur = musicViewPlayer.duration || 0;
-                const clipStart = dur > 0 && start >= dur - 0.2 ? 0 : start;
-                quietVideoForMusic(mediaViewPlayer);
-                musicViewPlayer.currentTime = clipStart;
-                musicViewPlayer.play();
-            }).catch(() => {});
-        }, 150);
-        return () => {
-            dead = true;
-            clearTimeout(timer);
-            try { timeSub?.remove(); } catch { /* */ }
-            try { musicViewPlayer.pause(); } catch { /* */ }
-        };
+        startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
+        return () => { cancel = true; stopActivePostMusic(); };
     }, [viewedMusicKey]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
@@ -25070,7 +25013,23 @@ export default function SubCategoryScreen({ route, navigation }) {
 
     const load = useCallback(async (opts = {}) => {
         try {
+            let freshApplied = false;
+            if (!opts.fresh) {
+                hydrateBranch(category, sub).then((disk) => {
+                    if (freshApplied || !disk) return;
+                    setRivals(disk.rivals || []);
+                    setPlayerWanted(disk.playerWanted || []);
+                    setRefereeMatches(disk.refereeMatches || []);
+                    setMatchedUpcoming(disk.matchedUpcoming || []);
+                    setPendingScore(disk.pendingScore || []);
+                    setTextPosts(disk.textPosts || []);
+                    setMediaPosts(disk.mediaPosts || []);
+                    setMediaStories(disk.mediaStories || []);
+                    setListsReady(true);
+                }).catch(() => {});
+            }
             const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await prefetchBranchLists(category, sub, { fresh: !!opts.fresh });
+            freshApplied = true;
 
             const allRivals = rvRes.data;
             const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED');
@@ -26502,14 +26461,22 @@ export default function SubCategoryScreen({ route, navigation }) {
             let musicPayload = null;
             if (shareMusic) {
                 let musicUrl = shareMusic.uploadedUrl || shareMusic.previewUrl;
+                const uploadAudio = async (uri, name, type) => {
+                    const audioForm = new FormData();
+                    audioForm.append('file', { uri, name, type });
+                    const { data: audioUp } = await api.post('/upload', audioForm, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    if (audioUp?.url) musicUrl = audioUp.url;
+                };
                 if (shareMusic.isLocal && shareMusic.localUri) {
                     try {
-                        const audioForm = new FormData();
                         const audioName = (shareMusic.title || 'music').replace(/[^\w.\-]+/g, '_') || 'music';
-                        audioForm.append('file', { uri: shareMusic.localUri, name: `${audioName}.m4a`, type: 'audio/mp4' });
-                        const { data: audioUp } = await api.post('/upload', audioForm, { headers: { 'Content-Type': 'multipart/form-data' } });
-                        if (audioUp?.url) musicUrl = audioUp.url;
+                        await uploadAudio(shareMusic.localUri, `${audioName}.m4a`, 'audio/mp4');
                     } catch { /* dosya yüklenemezse önizleme adresi kalsın */ }
+                } else if (shareMusic.previewUrl && !shareMusic.uploadedUrl) {
+                    try {
+                        const local = await musicFile(shareMusic.previewUrl);
+                        await uploadAudio(local, 'music.mp3', 'audio/mpeg');
+                    } catch { /* deezer adresi kalsın, çalarken indirilir */ }
                 }
                 musicPayload = {
                     musicName: shareMusic.title,

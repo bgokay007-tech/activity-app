@@ -6,7 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
-import { prefetchBranchLists } from '../../services/branchCache';
+import { prefetchBranchLists, recallCounts, rememberCounts, hydrateCounts, prefetchHotBranches } from '../../services/branchCache';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -181,7 +181,7 @@ export default function CategoryScreen({ route, navigation }) {
     const subLabel = (sub) => (lang === 'tr' ? (sub.labelTR || sub.label) : lang === 'ru' ? (sub.labelRU || sub.label) : lang === 'de' ? (sub.labelDE || sub.label) : sub.label);
     const categoryLabel = t[CAT_LABEL_KEY[category]] || category;
 
-    const [counts, setCounts] = useState({});
+    const [counts, setCounts] = useState(() => recallCounts(category) || {});
     const [loading, setLoading] = useState(false);
     const [query, setQuery] = useState('');
     const [groupId, setGroupId] = useState('all');
@@ -209,8 +209,20 @@ export default function CategoryScreen({ route, navigation }) {
 
     const fetchCounts = useCallback(() => {
         const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+        hydrateCounts().then(() => {
+            const cached = recallCounts(category);
+            if (cached) {
+                setCounts(cached);
+                prefetchHotBranches(category, cached);
+            }
+        });
         api.get(`/rivals/counts?category=${category}`)
-            .then(r => setCounts(r.data))
+            .then(r => {
+                const next = r.data || {};
+                rememberCounts(category, next);
+                setCounts(next);
+                prefetchHotBranches(category, next);
+            })
             .catch(e => console.warn(e?.message))
             .finally(() => setLoading(false));
         if (isSports) {
