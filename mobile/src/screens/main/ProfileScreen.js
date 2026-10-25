@@ -579,15 +579,25 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                                         <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={fc.eloChipRed}>
                                                             <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                                         </TouchableOpacity>
-                                                        <TouchableOpacity onPress={openAssessPicker} style={fc.eloChipYellow}>
-                                                            <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {lang === 'tr' ? 'Değerlendir' : lang === 'ru' ? 'Оценить' : lang === 'de' ? 'Bewerten' : 'Assess'}</Text>
+                                                        <TouchableOpacity
+                                                            onPress={() => (['tennis', 'padel', 'pickleball'].includes(item.subCategory) ? setShowRacquetFeedback(true) : openAssessPicker())}
+                                                            style={fc.eloChipYellow}
+                                                        >
+                                                            <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {['tennis', 'padel', 'pickleball'].includes(item.subCategory) ? t.myEvaluationsBtn : t.assessBtn}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {!isOwnProfile && (
-                                                    <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={[fc.eloChipRed, { marginTop: moderateScale(4) }]}>
-                                                        <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
-                                                    </TouchableOpacity>
+                                                    <View style={[fc.eloActionRow, { marginTop: moderateScale(4) }]}>
+                                                        {['tennis', 'padel', 'pickleball'].includes(item.subCategory) && (
+                                                            <TouchableOpacity onPress={() => setShowRacquetFeedback(true)} style={fc.eloChipYellow}>
+                                                                <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {t.assessBtn}</Text>
+                                                            </TouchableOpacity>
+                                                        )}
+                                                        <TouchableOpacity onPress={() => setShowCancelReschedModal(true)} style={fc.eloChipRed}>
+                                                            <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 )}
                                             </>
                                         ) : item.assessmentCompleted && (
@@ -643,7 +653,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                         <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : lang==='ru' ? 'Предстоящие матчи' : lang==='de' ? 'Bevorstehende Spiele' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={onArchive} style={fc.actionBtn}>
-                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {lang==='tr' ? 'Maç Arşivi' : lang==='ru' ? 'Архив матчей' : lang==='de' ? 'Spielarchiv' : 'Archive'}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
+                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {t.profileSportArchive}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
                                     </TouchableOpacity>
                                     {isOwnProfile && (
                                         isEditingAlias ? (
@@ -741,17 +751,15 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             {/* ── Voleybol Değerlendirmesi ── */}
                             {item.subCategory === 'volleyball' && (
                                 <TouchableOpacity style={fc.actionBtnWide} onPress={() => setShowVolleyballRating(true)}>
-                                    <Text style={[fc.actionTxt, { color: '#a855f7', textAlign: 'center' }]}>{t.volleyballRatingBtn}</Text>
+                                    <Text style={[fc.actionTxt, { color: '#a855f7', textAlign: 'center' }]}>{isOwnProfile ? t.myEvaluationsBtn : t.assessBtn}</Text>
                                 </TouchableOpacity>
                             )}
 
-                            {/* Tenis/padel/pickleball: antrenör + maç arkadaşı geri bildirimi — ELO'ya yazılmaz */}
+                            {/* Tenis/padel/pickleball: kendi profilde alınan notlar, başkasında değerlendirme formu */}
                             {(item.subCategory === 'tennis' || item.subCategory === 'padel' || item.subCategory === 'pickleball') && (
                                 <TouchableOpacity style={fc.actionBtnWide} onPress={() => setShowRacquetFeedback(true)}>
                                     <Text style={[fc.actionTxt, { color: item.subCategory === 'padel' || item.subCategory === 'pickleball' ? '#06b6d4' : '#22c55e', textAlign: 'center' }]}>
-                                        {item.subCategory === 'pickleball' ? t.racquetFeedbackBtnPickleball
-                                            : item.subCategory === 'padel' ? t.racquetFeedbackBtnPadel
-                                            : t.racquetFeedbackBtnTennis}
+                                        {isOwnProfile ? t.myEvaluationsBtn : t.assessBtn}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -1814,7 +1822,9 @@ export default function ProfileScreen({ route, navigation }) {
     const [showMyArchive, setShowMyArchive] = useState(false);
     const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
     const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
-    const [archiveSubTab, setArchiveSubTab] = useState('rivals');
+    const [archivePane, setArchivePane] = useState(null); // null = başlıklar, sonra matches|tournaments|media|equipment
+    const [archiveEquipment, setArchiveEquipment] = useState([]);
+    const [loadingArchiveEquipment, setLoadingArchiveEquipment] = useState(false);
     const [myUpcoming, setMyUpcoming] = useState([]);
     const [myHistory, setMyHistory] = useState([]);
     const [myTournamentHistory, setMyTournamentHistory] = useState([]);
@@ -1861,7 +1871,8 @@ export default function ProfileScreen({ route, navigation }) {
 
     const openMyArchive = async (subCategory = null) => {
         setArchiveSub(subCategory);
-        setArchiveSubTab('rivals');
+        setArchivePane(null);
+        setArchiveEquipment([]);
         setShowMyArchive(true);
         const loads = [];
         if (myHistory.length === 0) {
@@ -1907,6 +1918,22 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingFriends, setLoadingFriends] = useState(false);
 
     const userId = targetUserId || myUser?.id;
+
+    useEffect(() => {
+        if (!showMyArchive || archivePane !== 'equipment' || !archiveSub || !userId) return undefined;
+        let cancelled = false;
+        setLoadingArchiveEquipment(true);
+        const params = new URLSearchParams({ category: 'SPORTS', subCategory: archiveSub, status: 'SOLD' });
+        api.get(`/equipment?${params.toString()}`)
+            .then(res => {
+                const rows = Array.isArray(res.data) ? res.data : [];
+                const mine = rows.filter(eq => eq.userId === userId || eq.soldToUserId === userId);
+                if (!cancelled) setArchiveEquipment(mine);
+            })
+            .catch(() => { if (!cancelled) setArchiveEquipment([]); })
+            .finally(() => { if (!cancelled) setLoadingArchiveEquipment(false); });
+        return () => { cancelled = true; };
+    }, [showMyArchive, archivePane, archiveSub, userId]);
 
     // Gizlilik liste seçici hangi yoldan açılırsa açılsın arkadaş listesini yüklesin
     useEffect(() => {
@@ -3156,31 +3183,48 @@ export default function ProfileScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            {/* ── Maç Arşivi Modal ── */}
-            <Modal visible={showMyArchive} animationType="slide" transparent onRequestClose={() => setShowMyArchive(false)}>
-                <View style={s.modalOverlay}>
-                    <View style={[s.modalBox, { maxHeight:'85%' }]}>
-                        <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>
-                                {archiveSub ? `${SUB_EMOJI[archiveSub] || '🏅'} ${archiveSub} ${t.matchArchiveTitle || 'Maç Arşivi'}` : t.matchArchiveTitle}
-                            </Text>
-                            <TouchableOpacity onPress={() => setShowMyArchive(false)}>
-                                <Text style={s.modalClose}>✕</Text>
-                            </TouchableOpacity>
-                        </View>
-                        {/* Archive sub-tabs */}
-                        <View style={{ flexDirection:'row', gap:3, paddingHorizontal:13, paddingBottom:5 }}>
-                            {['rivals','tournaments'].map(st => (
-                                <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
-                                    style={{ flex:1, paddingVertical:3, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? colors.purple : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? colors.purple : colors.border }}>
-                                    <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
-                                        {st === 'rivals' ? '⚔️ Bireysel Maçlar' : '🏆 Turnuvalar'}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        <ScrollView showsVerticalScrollIndicator={false}>
-                            {archiveSubTab === 'rivals' && (loadingHistory ? (
+            {/* ── Spor arşivi: başlıklar, seçilince tam pencere ── */}
+            <Modal visible={showMyArchive} animationType="slide" onRequestClose={() => { setArchivePane(null); setShowMyArchive(false); }}>
+                <View style={{ flex:1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+                    <View style={{ flex:1, paddingHorizontal:16, paddingBottom: insets.bottom + 12 }}>
+                        {(() => {
+                            const sportName = archiveSub ? (getSubCategoryLabel(archiveSub, lang) || archiveSub) : '';
+                            const paneTitle = archivePane === 'matches' ? t.archiveHubMatches
+                                : archivePane === 'tournaments' ? t.archiveHubTournaments
+                                : archivePane === 'media' ? t.archiveHubMedia
+                                : archivePane === 'equipment' ? t.archiveHubEquipment(sportName)
+                                : `${SUB_EMOJI[archiveSub] || '🗃️'} ${sportName} ${t.profileSportArchive}`;
+                            return (
+                                <View style={{ flexDirection:'row', alignItems:'center', gap:8, paddingVertical:12 }}>
+                                    {archivePane ? (
+                                        <TouchableOpacity onPress={() => setArchivePane(null)} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+                                            <Text style={{ color:'#fff', fontSize:18, fontWeight:'800' }}>←</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }} numberOfLines={2}>{paneTitle}</Text>
+                                    <TouchableOpacity onPress={() => { setArchivePane(null); setShowMyArchive(false); }}>
+                                        <Text style={{ color:'#6b7280', fontSize:22 }}>✕</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })()}
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+                            {!archivePane && (
+                                <View style={{ gap:10 }}>
+                                    {[
+                                        { id: 'matches', label: t.archiveHubMatches },
+                                        { id: 'tournaments', label: t.archiveHubTournaments },
+                                        { id: 'media', label: t.archiveHubMedia },
+                                        { id: 'equipment', label: t.archiveHubEquipment(archiveSub ? (getSubCategoryLabel(archiveSub, lang) || archiveSub) : '') },
+                                    ].map(row => (
+                                        <TouchableOpacity key={row.id} onPress={() => setArchivePane(row.id)}
+                                            style={{ backgroundColor: colors.surface2, borderRadius:14, paddingHorizontal:16, paddingVertical:18, borderWidth:1, borderColor: colors.border, minHeight: touchSize(56), justifyContent:'center' }}>
+                                            <Text style={{ color:'#fff', fontSize:15, fontWeight:'800' }}>{row.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+                            {archivePane === 'matches' && (loadingHistory ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                             ) : (() => {
                                 const filtered = archiveSub ? myHistory.filter(m => m.subCategory === archiveSub) : myHistory;
@@ -3243,7 +3287,7 @@ export default function ProfileScreen({ route, navigation }) {
                                     );
                                 });
                             })())}
-                            {archiveSubTab === 'tournaments' && (loadingTournamentHistory ? (
+                            {archivePane === 'tournaments' && (loadingTournamentHistory ? (
                                 <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
                             ) : (() => {
                                 const filtered = archiveSub ? myTournamentHistory.filter(tt => tt.subCategory === archiveSub) : myTournamentHistory;
@@ -3287,6 +3331,49 @@ export default function ProfileScreen({ route, navigation }) {
                                     </View>
                                 ));
                             })())}
+                            {archivePane === 'media' && (() => {
+                                const items = [...(posts || []), ...(reels || []), ...(stories || [])].filter(p => {
+                                    if (!archiveSub) return true;
+                                    if (p.subCategory === archiveSub) return true;
+                                    return Array.isArray(p.targets) && p.targets.some(tg => tg.subCategory === archiveSub);
+                                });
+                                if (items.length === 0) return <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.archiveMediaEmpty}</Text>;
+                                return items.map(p => (
+                                    <View key={p.id} style={{ flexDirection:'row', gap:10, alignItems:'center', borderBottomWidth:1, borderBottomColor: colors.border, paddingVertical:10 }}>
+                                        {(p.imageUrl || p.videoUrl) ? (
+                                            <Image source={{ uri: p.imageUrl || p.videoUrl }} style={{ width:56, height:56, borderRadius:8, backgroundColor: colors.surface2 }} />
+                                        ) : (
+                                            <View style={{ width:56, height:56, borderRadius:8, backgroundColor: colors.surface2, alignItems:'center', justifyContent:'center' }}>
+                                                <Text style={{ fontSize:20 }}>{p.type === 'REEL' ? '🎬' : p.type === 'STORY' ? '⭕' : '🖼️'}</Text>
+                                            </View>
+                                        )}
+                                        <View style={{ flex:1 }}>
+                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }} numberOfLines={2}>{p.content || (p.type === 'REEL' ? 'Reel' : p.type === 'STORY' ? 'Story' : 'Post')}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize:11, marginTop:2 }}>
+                                                {p.createdAt ? new Date(p.createdAt).toLocaleDateString('tr-TR', { day:'numeric', month:'short', year:'numeric' }) : ''}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                ));
+                            })()}
+                            {archivePane === 'equipment' && (loadingArchiveEquipment ? (
+                                <ActivityIndicator color={colors.purple} style={{ marginTop:30 }} />
+                            ) : archiveEquipment.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.archiveEquipmentEmpty}</Text>
+                            ) : archiveEquipment.map(eq => {
+                                const soldByMe = eq.userId === userId;
+                                return (
+                                    <View key={eq.id} style={{ borderBottomWidth:1, borderBottomColor: colors.border, paddingVertical:10 }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                                            <Text style={{ color:'#fff', fontSize:14, fontWeight:'800', flex:1 }} numberOfLines={2}>{eq.title}</Text>
+                                            <View style={{ backgroundColor: soldByMe ? '#16a34a20' : '#38bdf820', borderRadius:6, paddingHorizontal:6, paddingVertical:2, borderWidth:1, borderColor: soldByMe ? '#16a34a50' : '#38bdf850' }}>
+                                                <Text style={{ color: soldByMe ? '#4ade80' : '#38bdf8', fontSize:10, fontWeight:'800' }}>{soldByMe ? t.archiveSoldBadge : t.archiveBoughtBadge}</Text>
+                                            </View>
+                                        </View>
+                                        <Text style={{ color:'#c084fc', fontSize:13, fontWeight:'800', marginTop:4 }}>{eq.price > 0 ? `${eq.price} ₺` : ''}</Text>
+                                    </View>
+                                );
+                            }))}
                         </ScrollView>
                     </View>
                 </View>
