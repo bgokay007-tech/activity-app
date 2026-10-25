@@ -41,6 +41,7 @@ import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
+import MusicDetailModal from '../../components/MusicDetailModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
 import CityAutocomplete from '../../components/CityAutocomplete';
 import VenueNameAutocomplete from '../../components/VenueNameAutocomplete';
@@ -23939,6 +23940,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const pendingStoryRef = useRef([]);
     const [storyViewer, setStoryViewer] = useState({ visible: false, userIdx: 0, storyIdx: 0 });
     const [mediaViewIdx, setMediaViewIdx] = useState(null);
+    const [musicDetail, setMusicDetail] = useState(null);
+    const [savedPostIds, setSavedPostIds] = useState(() => new Set());
     const pickAudiblePost = useCallback(() => {
         if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return;
         const jobs = [];
@@ -23965,6 +23968,33 @@ export default function SubCategoryScreen({ route, navigation }) {
         const timer = setInterval(pickAudiblePost, 400);
         return () => clearInterval(timer);
     }, [pickAudiblePost, mediaPosts, dataSaverMode, activeTab, mediaViewIdx]);
+    useEffect(() => {
+        if (activeTab !== 'media') return undefined;
+        let alive = true;
+        api.get('/saved/ids').then(({ data }) => {
+            if (alive) setSavedPostIds(new Set(data?.postIds || []));
+        }).catch(() => {});
+        return () => { alive = false; };
+    }, [activeTab]);
+    const toggleSavePost = async (post) => {
+        if (!post?.id) return;
+        const on = savedPostIds.has(post.id);
+        setSavedPostIds(prev => {
+            const next = new Set(prev);
+            if (on) next.delete(post.id); else next.add(post.id);
+            return next;
+        });
+        try {
+            if (on) await api.delete(`/saved/posts/${post.id}`);
+            else await api.post(`/saved/posts/${post.id}`);
+        } catch {
+            setSavedPostIds(prev => {
+                const next = new Set(prev);
+                if (on) next.add(post.id); else next.delete(post.id);
+                return next;
+            });
+        }
+    };
     // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
     // paylaşımlarında SADECE 🎬 ikonu gösterip hiçbir zaman gerçekten oynatmıyordu (görsel
     // dışında bir <Video>/<VideoView> hiç render edilmiyordu, tüm Medya sekmesi genelinde
@@ -23997,12 +24027,12 @@ export default function SubCategoryScreen({ route, navigation }) {
         ? `${viewedMusic.id}|${viewedMusic.musicUrl}|${viewedMusic.musicStartTime}|${viewedMusic.musicEndTime}`
         : '';
     useEffect(() => {
-        if (!viewedMusic?.musicUrl) return undefined;
+        if (!viewedMusic?.musicUrl || musicDetail) return undefined;
         let cancel = false;
         quietVideoForMusic(mediaViewPlayer);
         startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
         return () => { cancel = true; stopActivePostMusic(); };
-    }, [viewedMusicKey]);
+    }, [viewedMusicKey, musicDetail]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
     // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
@@ -26066,6 +26096,8 @@ export default function SubCategoryScreen({ route, navigation }) {
     const trimDragRef = useRef(() => {});
     trimDragRef.current = setTrimDragging;
     const [musicSheetOpen, setMusicSheetOpen] = useState(false);
+    const [savedMusicList, setSavedMusicList] = useState([]);
+    const [showSavedMusic, setShowSavedMusic] = useState(false);
     const [musicTrimOpen, setMusicTrimOpen] = useState(false);
     const [musicQuery, setMusicQuery] = useState('');
     const [musicResults, setMusicResults] = useState([]);
@@ -26379,6 +26411,28 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         detectImageMusic({ silent: true });
     }, [musicSheetOpen]);
+
+    useEffect(() => {
+        if (!musicSheetOpen) return undefined;
+        let alive = true;
+        api.get('/saved', { params: { kind: 'MUSIC' } })
+            .then(({ data }) => { if (alive) setSavedMusicList(Array.isArray(data) ? data : []); })
+            .catch(() => {});
+        return () => { alive = false; };
+    }, [musicSheetOpen]);
+
+    const pickSavedMusic = (item) => {
+        setShowSavedMusic(false);
+        setMusicSheetOpen(false);
+        openTrimFor({
+            title: item.musicName,
+            artist: item.musicArtist || '',
+            coverUrl: item.musicCoverUrl,
+            previewUrl: item.musicUrl,
+            uploadedUrl: item.musicUrl,
+            duration: 30,
+        });
+    };
 
     const getGpsLocation = async () => {
         setGettingLocation(true);
@@ -31001,12 +31055,12 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
                                                                 basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
-                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={!dataSaverMode && mediaViewIdx === null && audiblePostId === post.id} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={!dataSaverMode && mediaViewIdx === null && !musicDetail && audiblePostId === post.id} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
                                                             {!!post.musicName && (
-                                                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
+                                                                <TouchableOpacity onPress={() => setMusicDetail(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
                                                                     <Text style={{ fontSize: 12 }}>🎵</Text>
                                                                     <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '700', flex: 1 }} numberOfLines={1}>{post.musicName}{post.musicArtist ? ` – ${post.musicArtist}` : ''}</Text>
-                                                                </View>
+                                                                </TouchableOpacity>
                                                             )}
                                                             {/* Aksiyon satırı */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingTop: 7, paddingBottom: 3 }}>
@@ -31019,6 +31073,9 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                                 <TouchableOpacity onPress={() => toggleInlineMediaComments(post.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                                                     <Text style={{ color: inlineMediaCommentsPostId === post.id ? cfg.color : colors.textMuted, fontSize: 20 }}>💬</Text>
                                                                     <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{commentCount}</Text>
+                                                                </TouchableOpacity>
+                                                                <TouchableOpacity onPress={() => toggleSavePost(post)} style={{ marginLeft: 'auto' }}>
+                                                                    <Text style={{ fontSize: 20, color: savedPostIds.has(post.id) ? colors.purple : colors.textMuted }}>🔖</Text>
                                                                 </TouchableOpacity>
                                                             </View>
                                                             {/* Açıklama */}
@@ -31371,6 +31428,25 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
                                                         </TouchableOpacity>
                                                     </View>
+                                                    <TouchableOpacity onPress={() => setShowSavedMusic(v => !v)}
+                                                        style={{ marginHorizontal: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border }}>
+                                                        <Text style={{ fontSize: 20 }}>🔖</Text>
+                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13, flex: 1 }}>{t.sv_pick}</Text>
+                                                        <Text style={{ color: colors.textMuted }}>{showSavedMusic ? '▴' : '▾'}</Text>
+                                                    </TouchableOpacity>
+                                                    {showSavedMusic && savedMusicList.map(item => (
+                                                        <TouchableOpacity key={item.id} onPress={() => pickSavedMusic(item)}
+                                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+                                                            {item.musicCoverUrl ? <Image source={{ uri: item.musicCoverUrl }} style={{ width: 40, height: 40, borderRadius: 6 }} /> : <Text>🎵</Text>}
+                                                            <View style={{ flex: 1 }}>
+                                                                <Text style={{ color: '#fff', fontWeight: '700' }} numberOfLines={1}>{item.musicName}</Text>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.musicArtist}</Text>
+                                                            </View>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                    {showSavedMusic && savedMusicList.length === 0 && (
+                                                        <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 8 }}>{t.sv_empty_music}</Text>
+                                                    )}
                                                     <TouchableOpacity onPress={pickPhoneAudio}
                                                         style={{ margin: 12, marginBottom: 4, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface2, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, borderWidth: 1, borderColor: colors.border }}>
                                                         <Text style={{ fontSize: 20 }}>📱</Text>
@@ -32632,6 +32708,8 @@ export default function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
 
+            <MusicDetailModal visible={!!musicDetail} track={musicDetail} onClose={() => setMusicDetail(null)} />
+
             {/* ── Media Viewer ── */}
             <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); }} android_keyboardInputMode="adjustNothing">
                 {/* Kullanıcı isteği: tam ekran medya telefonun üst/alt dokunmatik gezinme
@@ -32761,7 +32839,16 @@ export default function SubCategoryScreen({ route, navigation }) {
                                         <Text style={{ color: mediaShowComments ? cfg.color : '#ffffff80', fontSize: 20 }}>💬</Text>
                                         <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{mediaComments.length || mp._count?.comments || 0}</Text>
                                     </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => toggleSavePost(mp)} style={{ marginLeft: 'auto' }}>
+                                        <Text style={{ fontSize: 20, color: savedPostIds.has(mp.id) ? '#c4b5fd' : '#ffffff80' }}>🔖</Text>
+                                    </TouchableOpacity>
                                 </View>
+                                {!!mp.musicName && (
+                                    <TouchableOpacity onPress={() => setMusicDetail(mp)} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 }}>
+                                        <Text style={{ fontSize: 14 }}>🎵</Text>
+                                        <Text style={{ color: '#c4b5fd', fontWeight: '800', flex: 1 }} numberOfLines={1}>{mp.musicName}{mp.musicArtist ? ` – ${mp.musicArtist}` : ''}</Text>
+                                    </TouchableOpacity>
+                                )}
 
                                 {/* Inline comments — kullanıcı isteği: MatchComment ile aynı algoritma
                                     (silme + "görüldü" uyarısı), tek seviye yanıtlama, beğeni, isme

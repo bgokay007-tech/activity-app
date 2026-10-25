@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import { renderMentionText } from '../../components/MentionCaptionInput';
+import MusicDetailModal from '../../components/MusicDetailModal';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -40,7 +41,7 @@ function timeAgo(dateStr) {
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
-function PostCard({ post, liked, onToggleLike, isVisible, dataSaver, isMusicPlaying, onMusicTap }) {
+function PostCard({ post, liked, saved, onToggleLike, onToggleSave, isVisible, dataSaver, isMusicPlaying, onMusicTap }) {
     const lastTap = useRef(0);
     const [heartFlash, setHeartFlash] = useState(false);
     const [videoPaused, setVideoPaused] = useState(false);
@@ -156,7 +157,7 @@ function PostCard({ post, liked, onToggleLike, isVisible, dataSaver, isMusicPlay
                         <Text style={[s.actionIcon, { fontSize: 20, color: '#fff' }]}>↗</Text>
                     </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={s.actionBtn} activeOpacity={0.7}>
+                <TouchableOpacity style={s.actionBtn} activeOpacity={0.7} onPress={() => onToggleSave(post)}>
                     <Text style={s.actionIcon}>🔖</Text>
                 </TouchableOpacity>
             </View>
@@ -224,6 +225,8 @@ export default function UserPostsScreen({ route, navigation }) {
     const [visiblePostId, setVisiblePostId] = useState(null);
     const [dataSaver, setDataSaver] = useState(false);
     const [playingMusicPostId, setPlayingMusicPostId] = useState(null);
+    const [savedIds, setSavedIds] = useState(() => new Set());
+    const [musicDetail, setMusicDetail] = useState(null);
 
     const soundRef = useRef(null);
     const postsRef = useRef([]);
@@ -282,6 +285,7 @@ export default function UserPostsScreen({ route, navigation }) {
             dataSaverRef.current = val;
         }).catch(() => {});
 
+        api.get('/saved/ids').then(({ data }) => setSavedIds(new Set(data?.postIds || []))).catch(() => {});
         api.get(`/posts/user/${userId}?type=POST`)
             .then(({ data }) => {
                 const list = Array.isArray(data) ? data : [];
@@ -309,13 +313,29 @@ export default function UserPostsScreen({ route, navigation }) {
         }
     }, [visiblePostId]); // eslint-disable-line
 
-    const handleMusicTap = useCallback(async (post) => {
-        if (playingMusicPostId === post.id) {
-            await stopSound();
-        } else {
-            await startMusic(post);
+    const handleMusicTap = useCallback((post) => {
+        if (post?.musicName) setMusicDetail(post);
+    }, []);
+
+    const toggleSave = useCallback(async (post) => {
+        if (!post?.id) return;
+        const on = savedIds.has(post.id);
+        setSavedIds(prev => {
+            const next = new Set(prev);
+            if (on) next.delete(post.id); else next.add(post.id);
+            return next;
+        });
+        try {
+            if (on) await api.delete(`/saved/posts/${post.id}`);
+            else await api.post(`/saved/posts/${post.id}`);
+        } catch {
+            setSavedIds(prev => {
+                const next = new Set(prev);
+                if (on) next.add(post.id); else next.delete(post.id);
+                return next;
+            });
         }
-    }, [playingMusicPostId, stopSound, startMusic]);
+    }, [savedIds]);
 
     const toggleLike = useCallback(async (postId) => {
         const already = likedIds.has(postId);
@@ -353,13 +373,15 @@ export default function UserPostsScreen({ route, navigation }) {
         <PostCard
             post={item}
             liked={likedIds.has(item.id)}
+            saved={savedIds.has(item.id)}
             onToggleLike={toggleLike}
+            onToggleSave={toggleSave}
             isVisible={visiblePostId === item.id}
             dataSaver={dataSaver}
             isMusicPlaying={playingMusicPostId === item.id}
             onMusicTap={handleMusicTap}
         />
-    ), [likedIds, toggleLike, visiblePostId, dataSaver, playingMusicPostId, handleMusicTap]);
+    ), [likedIds, savedIds, toggleLike, toggleSave, visiblePostId, dataSaver, playingMusicPostId, handleMusicTap]);
 
     return (
         <View style={s.container}>
@@ -391,6 +413,7 @@ export default function UserPostsScreen({ route, navigation }) {
                     viewabilityConfig={viewabilityConfig}
                 />
             )}
+            <MusicDetailModal visible={!!musicDetail} track={musicDetail} onClose={() => setMusicDetail(null)} />
         </View>
     );
 }

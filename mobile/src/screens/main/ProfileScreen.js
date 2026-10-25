@@ -3078,6 +3078,14 @@ export default function ProfileScreen({ route, navigation }) {
                         </Text>
                     </TouchableOpacity>
                 )}
+                {isOwnProfile && (
+                    <TouchableOpacity
+                        style={ap.reservBtn}
+                        onPress={() => navigation.navigate('Saved')}
+                    >
+                        <Text style={ap.reservBtnText}>{t.sv_profile}</Text>
+                    </TouchableOpacity>
+                )}
 
                 {/* ── Admin Panel Butonu (sadece admin) ── */}
                 {isOwnProfile && myUser?.isAdmin && (

@@ -40,6 +40,7 @@ model User {
   commentLikes     CommentLike[]
   playlists        Playlist[]
   likedTracks      LikedTrack[]
+  savedItems       SavedItem[]
   followers        Follow[]  @relation("following")
   following        Follow[]  @relation("follower")
   sentRequests     ActivityRequest[] @relation("sender")
@@ -906,6 +907,7 @@ model Post {
   comments     Comment[]
   likes        Like[]
   storyViews   StoryView[]
+  savedItems   SavedItem[]
   // DM'de "gönderiyi/hikayeyi/reels'i arkadaşa ilet" ile eklenen mesajlar (bkz. Message.sharedPostId)
   sharedInMessages Message[]
 }
@@ -996,6 +998,29 @@ model LikedTrack {
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, trackId])
+}
+
+// Instagram kaydet: gönderi, reels ve müzik aynı listede, türüne göre ayrılır.
+// Müzik bir gönderiye bağlı olmayabilir; musicKey o parçanın adresi.
+model SavedItem {
+  id             String   @id @default(uuid())
+  userId         String
+  kind           String
+  saveKey        String
+  postId         String?
+  musicUrl       String?
+  musicName      String?
+  musicArtist    String?
+  musicCoverUrl  String?
+  musicStartTime Float?
+  musicEndTime   Float?
+  createdAt      DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, saveKey])
+  @@index([userId, kind])
 }
 
 // TAKİP — istek/onay gerektirir (PENDING -> ACCEPTED | REJECTED), her yon birbirinden bagimsizdir
