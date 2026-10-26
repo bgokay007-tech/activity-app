@@ -209,8 +209,32 @@ model User {
   travelTrips          TravelTrip[]
   travelTripRequests   TravelTripRequest[]
   travelVerification   TravelVerification?
+  paymentMethods       PaymentMethod[]
 
   @@index([lat, lng])
+}
+
+// Kişisel Bilgiler'de kayıtlı kartlar. Numara şifreli durur; güvenlik kodu hiç saklanmaz.
+// İleride ödeme, sunucu tarafında openPan ile bu kaydı kullanır — numara telefona dönmez.
+model PaymentMethod {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holderName  String
+  brand       String
+  last4       String
+  expiryMonth Int
+  expiryYear  Int
+  panCipher   String
+  panIv       String
+  panTag      String
+  panHash     String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, panHash])
+  @@index([userId])
 }
 
 model ProfileChangeRequest {

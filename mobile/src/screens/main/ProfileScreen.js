@@ -27,6 +27,8 @@ import CityPickerModal from '../../components/CityPickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import TelegramIcon, { TELEGRAM_BLUE } from '../../components/TelegramIcon';
 import KeyboardSafeModal from '../../components/KeyboardSafeModal';
+import KeyboardAwareForm from '../../components/KeyboardAwareForm';
+import PaymentMethodsSection from '../../components/PaymentMethodsSection';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
@@ -4324,9 +4326,11 @@ export default function ProfileScreen({ route, navigation }) {
                     </TouchableOpacity>
                 </View>
 
-                <ScrollView
+                <KeyboardAwareForm
+                    adjustWindow={false}
+                    bottomOffset={88}
                     showsVerticalScrollIndicator={false}
-                    style={{ maxHeight: 420 }}
+                    style={{ maxHeight: 520 }}
                     keyboardShouldPersistTaps="handled"
                     contentContainerStyle={{ paddingBottom: 24 }}
                 >
@@ -4546,7 +4550,9 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={{ color: colors.textMuted }}>{joinDate(profile?.createdAt, lang)}</Text>
                             </View>
 
-                        </ScrollView>
+                            <PaymentMethodsSection active={profileInfoOpen} />
+
+                        </KeyboardAwareForm>
 
                         <View style={[s.modalBtns, { marginTop: 16 }]}>
                             <TouchableOpacity style={s.cancelBtn} onPress={() => setProfileInfoOpen(false)}>
