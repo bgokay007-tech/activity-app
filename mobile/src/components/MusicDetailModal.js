@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, Image, ActivityIndicator, StyleSheet } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -24,6 +25,7 @@ async function localPreview(url) {
 export default function MusicDetailModal({ visible, track, onClose }) {
     const t = useT();
     const insets = useSafeAreaInsets();
+    const screenFocused = useIsFocused();
     const [playing, setPlaying] = useState(false);
     const [busy, setBusy] = useState(false);
     const [savedId, setSavedId] = useState(null);
@@ -41,7 +43,7 @@ export default function MusicDetailModal({ visible, track, onClose }) {
     useEffect(() => {
         let sound = null;
         let dead = false;
-        if (!visible || !track?.musicUrl) return undefined;
+        if (!visible || !screenFocused || !track?.musicUrl) return undefined;
         (async () => {
             setBusy(true);
             try {
@@ -82,7 +84,7 @@ export default function MusicDetailModal({ visible, track, onClose }) {
             setPlaying(false);
             sound?.unloadAsync().catch(() => {});
         };
-    }, [visible, track?.musicUrl, track?.musicStartTime, track?.musicEndTime]);
+    }, [visible, screenFocused, track?.musicUrl, track?.musicStartTime, track?.musicEndTime]);
 
     const toggleSave = async () => {
         if (!track?.musicUrl || !track?.musicName || saving) return;

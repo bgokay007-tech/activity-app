@@ -974,6 +974,8 @@ let stopFeedPostMusic = null;
 let postMusicGen = 0;
 
 function stopActivePostMusic() {
+    // Üretim numarasını artır: indirme bitince ses yeniden başlamasın.
+    postMusicGen += 1;
     const stop = stopFeedPostMusic;
     stopFeedPostMusic = null;
     if (stop) stop();
@@ -1008,7 +1010,9 @@ async function musicFile(url) {
 // ayrı çalar.
 async function startPostMusic(post) {
     const gen = ++postMusicGen;
-    stopActivePostMusic();
+    const prev = stopFeedPostMusic;
+    stopFeedPostMusic = null;
+    if (prev) prev();
     if (!post?.musicUrl) return null;
     try { pausePlayback(); } catch { /* mini oynatıcı yok */ }
     const remote = String(post.musicUrl).replace(/^http:\/\//i, 'https://');
@@ -1025,6 +1029,7 @@ async function startPostMusic(post) {
             shouldDuckAndroid: true,
             playThroughEarpieceAndroid: false,
         });
+        if (gen !== postMusicGen) return null;
         const startSec = Math.max(0, Number(post.musicStartTime) || 0);
         const endRaw = Number(post.musicEndTime);
         const endSec = endRaw > startSec ? endRaw : startSec + 30;
@@ -1034,10 +1039,17 @@ async function startPostMusic(post) {
             { uri },
             { shouldPlay: true, volume: 1, isMuted: false, progressUpdateIntervalMillis: 250 },
         );
-        if (gen !== postMusicGen) {
+        let alive = true;
+        const stop = () => {
+            alive = false;
+            sound.stopAsync().catch(() => {});
             sound.unloadAsync().catch(() => {});
+        };
+        if (gen !== postMusicGen) {
+            stop();
             return null;
         }
+        stopFeedPostMusic = stop;
         const fileMs = status?.isLoaded ? (status.durationMillis || 0) : 0;
         if (fileMs && startMs >= fileMs - 250) startMs = 0;
         if (fileMs && endMs > fileMs) endMs = fileMs;
@@ -1045,53 +1057,52 @@ async function startPostMusic(post) {
         if (startMs > 0) {
             try { await sound.setPositionAsync(startMs); } catch { /* baştan çalsın */ }
         }
+        if (!alive || gen !== postMusicGen) return null;
         const loaded = await sound.getStatusAsync();
+        if (!alive || gen !== postMusicGen) return null;
         if (loaded.isLoaded && !loaded.isPlaying) {
             try { await sound.playAsync(); } catch { /* */ }
         }
         let looping = false;
-        let resumes = 0;
-        let alive = true;
         sound.setOnPlaybackStatusUpdate(st => {
             if (!alive || !st.isLoaded || looping) return;
             if (st.didJustFinish || st.positionMillis >= endMs - 80) {
                 looping = true;
-                sound.setPositionAsync(startMs).then(() => sound.playAsync()).catch(() => {}).finally(() => { looping = false; });
-                return;
-            }
-            if (!st.isPlaying && resumes < 3) {
-                resumes += 1;
-                sound.playAsync().catch(() => {});
+                sound.setPositionAsync(startMs).then(() => {
+                    if (alive) return sound.playAsync();
+                    return null;
+                }).catch(() => {}).finally(() => { looping = false; });
             }
         });
-        const stop = () => { alive = false; sound.unloadAsync().catch(() => {}); };
-        stopFeedPostMusic = stop;
         return stop;
     } catch {
         return null;
     }
 }
 
-function MediaTile({ post, dataSaverMode, onOpenFullscreen, playMusic }) {
+function MediaTile({ post, dataSaverMode, onOpenFullscreen, playMusic, active = true }) {
         const t = useT();
 const [inlineUnlocked, setInlineUnlocked] = useState(false);
     const isVideo = !post.imageUrl && !!post.videoUrl;
     const shouldPlayInline = isVideo && (!dataSaverMode || inlineUnlocked);
     const player = useVideoPlayer(null);
     useEffect(() => {
-        if (shouldPlayInline) {
+        let cancelled = false;
+        if (active && shouldPlayInline) {
             player.loop = true;
             player.muted = true;
             player.volume = 0;
             if (post.musicUrl) quietVideoForMusic(player);
             player.replaceAsync(post.videoUrl).then(() => {
+                if (cancelled) { player.pause(); return; }
                 player.play();
                 if (post.musicUrl) quietVideoForMusic(player);
             }).catch(() => {});
         } else {
             player.pause();
         }
-    }, [shouldPlayInline, post.videoUrl, post.musicUrl]);
+        return () => { cancelled = true; try { player.pause(); } catch { /* */ } };
+    }, [shouldPlayInline, post.videoUrl, post.musicUrl, active]);
 
     useEffect(() => {
         if (!playMusic || !post?.musicUrl) return undefined;
@@ -23525,6 +23536,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
     const replyPausedRef = useRef(false);
     const soundRef = useRef(null);
     const goNextRef = useRef(null);
+    const storyFocused = useIsFocused();
 
     useEffect(() => { replyPausedRef.current = !!(replyPaused || shareTarget); }, [replyPaused, shareTarget]);
 
@@ -23562,27 +23574,33 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
             });
         }, TICK);
 
-        // Music playback
         let stopTimeout;
+        let cancelled = false;
         const startMs = (story?.musicStartTime || 0) * 1000;
         const endMs = (story?.musicEndTime || 30) * 1000;
-        if (story?.musicUrl) {
+        if (storyFocused && story?.musicUrl) {
             Audio.setAudioModeAsync({ playsInSilentModeIOS: true })
                 .then(() => Audio.Sound.createAsync({ uri: story.musicUrl }, { shouldPlay: true, positionMillis: startMs }))
                 .then(({ sound }) => {
+                    if (cancelled) {
+                        sound.stopAsync().catch(() => {});
+                        sound.unloadAsync().catch(() => {});
+                        return;
+                    }
                     soundRef.current = sound;
                     stopTimeout = setTimeout(() => sound.stopAsync().catch(() => {}), endMs - startMs + 500);
                 }).catch(() => {});
         }
 
         return () => {
+            cancelled = true;
             clearInterval(interval);
             if (stopTimeout) clearTimeout(stopTimeout);
             soundRef.current?.stopAsync().catch(() => {});
             soundRef.current?.unloadAsync().catch(() => {});
             soundRef.current = null;
         };
-    }, [storyViewer.userIdx, storyViewer.storyIdx]);
+    }, [storyViewer.userIdx, storyViewer.storyIdx, storyFocused, story?.musicUrl]);
 
     if (!story) return null;
 
@@ -23877,7 +23895,11 @@ export default function SubCategoryScreen({ route, navigation }) {
         }
         return fn;
     };
+    const screenFocused = useIsFocused();
     const [audiblePostId, setAudiblePostId] = useState(null);
+    useFocusEffect(useCallback(() => {
+        return () => { stopActivePostMusic(); };
+    }, []));
     useFocusEffect(useCallback(() => {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
     }, []));
@@ -24020,28 +24042,31 @@ export default function SubCategoryScreen({ route, navigation }) {
     // source değişikliğini ayrı bir efektte replaceAsync ile elle uygulamak gerekiyor.
     const mediaViewPlayer = useVideoPlayer(null);
     useEffect(() => {
-        if (mediaViewVideoUrl) {
+        let cancelled = false;
+        if (screenFocused && mediaViewVideoUrl) {
             const mp = mediaViewIdx !== null ? mediaPosts[mediaViewIdx] : null;
             if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
             mediaViewPlayer.replaceAsync(mediaViewVideoUrl).then(() => {
+                if (cancelled) { mediaViewPlayer.pause(); return; }
                 mediaViewPlayer.play();
                 if (mp?.musicUrl) quietVideoForMusic(mediaViewPlayer);
             }).catch(() => {});
         } else {
             mediaViewPlayer.pause();
         }
-    }, [mediaViewVideoUrl]);
+        return () => { cancelled = true; try { mediaViewPlayer.pause(); } catch { /* */ } };
+    }, [mediaViewVideoUrl, screenFocused]);
     const viewedMusic = mediaViewIdx !== null ? mediaPosts[mediaViewIdx] : null;
     const viewedMusicKey = viewedMusic?.musicUrl
         ? `${viewedMusic.id}|${viewedMusic.musicUrl}|${viewedMusic.musicStartTime}|${viewedMusic.musicEndTime}`
         : '';
     useEffect(() => {
-        if (!viewedMusic?.musicUrl || musicDetail || mutedMusicIds.has(viewedMusic.id)) return undefined;
+        if (!screenFocused || !viewedMusic?.musicUrl || musicDetail || mutedMusicIds.has(viewedMusic.id)) return undefined;
         let cancel = false;
         quietVideoForMusic(mediaViewPlayer);
         startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
         return () => { cancel = true; stopActivePostMusic(); };
-    }, [viewedMusicKey, musicDetail, mutedMusicIds]);
+    }, [viewedMusicKey, musicDetail, mutedMusicIds, screenFocused]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
     // aynı maça bağlı birden fazla medyada tekrar tekrar istek atılmasın.
@@ -31064,7 +31089,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
                                                                 basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
-                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} playMusic={!dataSaverMode && mediaViewIdx === null && !musicDetail && audiblePostId === post.id && !mutedMusicIds.has(post.id)} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} active={screenFocused} playMusic={screenFocused && !dataSaverMode && mediaViewIdx === null && !musicDetail && audiblePostId === post.id && !mutedMusicIds.has(post.id)} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
                                                             {!!post.musicName && (
                                                                 <TouchableOpacity onPress={() => setMusicDetail(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
                                                                     <Text style={{ fontSize: 12 }}>🎵</Text>
