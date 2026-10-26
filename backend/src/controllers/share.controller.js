@@ -196,6 +196,74 @@ export const getTournamentSharePage = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+function formatMatchSet(set) {
+    if (!set) return '';
+    if (set.matchTiebreak) return `TB ${set.sender ?? set.p1}-${set.opponent ?? set.p2}`;
+    const a = set.sender ?? set.p1 ?? 0;
+    const b = set.opponent ?? set.p2 ?? 0;
+    const tbA = set.tbSender ?? set.tb1;
+    const tbB = set.tbOpponent ?? set.tb2;
+    if (tbA != null && tbB != null && Math.max(a, b) === 7 && Math.min(a, b) === 6) {
+        return `${a}-${b} (${tbA}-${tbB})`;
+    }
+    return `${a}-${b}`;
+}
+
+export const getMatchSharePage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const match = await prisma.activityRequest.findUnique({
+            where: { id },
+            select: {
+                id: true, subCategory: true, courtName: true, location: true, city: true,
+                matchDate: true, matchTime: true, score: true, scoreStatus: true,
+                matchType: true, senderTeam: true, participants: true,
+                sender: { select: { fullName: true, username: true } },
+                receiver: { select: { fullName: true, username: true } },
+            },
+        });
+        const pageUrl = `${BACKEND_URL}/share/match/${id}`;
+        if (!match || match.scoreStatus !== 'CONFIRMED' || !match.score?.sets?.length) {
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            return res.status(404).send(renderSharePage({
+                title: 'Maç sonucu bulunamadı',
+                description: 'Bu maç sonucu henüz onaylanmamış veya kaldırılmış.',
+                pageUrl, notFound: true,
+            }));
+        }
+        const label = (p) => p?.fullName || p?.username || '';
+        const teamA = [label(match.sender), ...(Array.isArray(match.senderTeam) ? match.senderTeam.map(label) : [])].filter(Boolean).join(' & ');
+        const teamBParts = Array.isArray(match.participants) ? match.participants.map(label).filter(Boolean) : [];
+        if (match.receiver && !teamBParts.includes(label(match.receiver))) teamBParts.unshift(label(match.receiver));
+        const teamB = teamBParts.join(' & ');
+        const sets = match.score.sets || [];
+        let aSets = 0, bSets = 0;
+        for (const s of sets) {
+            const a = s.sender ?? s.p1 ?? 0;
+            const b = s.opponent ?? s.p2 ?? 0;
+            if (a > b) aSets++; else if (b > a) bSets++;
+        }
+        const setLines = sets.map(formatMatchSet).filter(Boolean).join(' · ');
+        const sub = subCategoryLabel(match.subCategory);
+        const place = match.courtName || match.location || match.city;
+        const dateStr = formatDate(match.matchDate);
+        const title = `AcTiViTy · ${sub} ${aSets}–${bSets}`;
+        const descParts = [
+            `${teamA || 'A'} vs ${teamB || 'B'}`,
+            setLines,
+        ];
+        if (dateStr) descParts.push(`📅 ${dateStr}${match.matchTime ? ' ' + match.matchTime : ''}`);
+        if (place) descParts.push(`📍 ${place}`);
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderSharePage({
+            title,
+            description: descParts.filter(Boolean).join(' • '),
+            deepLink: `activityapp://rival/${id}`,
+            pageUrl,
+        }));
+    } catch (e) { next(e); }
+};
+
 export const getPostSharePage = async (req, res, next) => {
     try {
         const { id } = req.params;

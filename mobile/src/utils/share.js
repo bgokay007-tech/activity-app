@@ -1,4 +1,5 @@
 import { Share } from 'react-native';
+import { shellT } from '../i18n/packs/shell';
 import { BASE_URL } from '../services/api';
 
 const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
@@ -14,8 +15,8 @@ export async function shareRival(rival, t) {
     // dallarda eskisi gibi hep "Rakip arıyorum".
     const isVolleyballPlayerAd = rival.subCategory === 'volleyball' && rival.matchType !== 'PLAYER_WANTED';
     const intro = isVolleyballPlayerAd
-        ? (t?.sharePlayerWantedIntro || 'Oyuncu arıyorum, katılmak ister misin?')
-        : (t?.shareRivalIntro || 'Rakip arıyorum, katılmak ister misin?');
+        ? (t?.sharePlayerWantedIntro || shellT('sh_0310'))
+        : (t?.shareRivalIntro || shellT('sh_0322'));
     const parts = [intro];
     if (place) parts.push(`📍 ${place}`);
     if (rival.matchDate) parts.push(`📅 ${new Date(rival.matchDate).toLocaleDateString('tr-TR')}${rival.matchTime ? ' ' + rival.matchTime : ''}`);
@@ -25,7 +26,7 @@ export async function shareRival(rival, t) {
     // (bkz. RivalCard'daki aynı gerekçe) kaçıncı sırada kabul edildikleri (Katılımcı 1/2/3)
     // olarak gösterilir, "Rakip 1"/"Rakip 2" gibi kesin bir koltuğa atanmış gibi değil.
     const nameOf = (p) => p?.fullName || p?.username || '';
-    const label = (n) => t?.cardParticipantLabel ? t.cardParticipantLabel(n) : `Katılımcı ${n}`;
+    const label = (n) => t?.cardParticipantLabel ? t.cardParticipantLabel(n) : shellT('sh_0655', n);
     const confirmed = [];
     if (rival.matchType === 'DOUBLE') {
         // Kullanıcı isteği: ilanı açan kişi de zaten oynayacak oyunculardan biri — paylaşım
@@ -58,13 +59,23 @@ export async function shareRival(rival, t) {
 export async function shareTournament(tournament, t) {
     const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
     const place = tournament.location || tournament.city;
-    const parts = [`${t?.shareTournamentIntro || 'Turnuvaya katıl!'} 🏆 ${tournament.name || ''}`.trim()];
+    const parts = [`${t?.shareTournamentIntro || shellT('sh_0663')} 🏆 ${tournament.name || ''}`.trim()];
     if (place) parts.push(`📍 ${place}`);
     if (tournament.eventDate) parts.push(`📅 ${new Date(tournament.eventDate).toLocaleDateString('tr-TR')}${tournament.eventTime ? ' ' + tournament.eventTime : ''}`);
     parts.push(url);
     try {
         await Share.share({ message: parts.join('\n'), url });
     } catch { /* kullanıcı paylaşımı iptal etti */ }
+}
+
+export async function shareMatchResult(match, t) {
+    const { buildMatchSharePayload, matchShareMessage } = await import('./matchShareCard.js');
+    const payload = buildMatchSharePayload(match, t);
+    if (!payload) return;
+    const message = matchShareMessage(payload, t);
+    try {
+        await Share.share({ message, url: payload.url });
+    } catch { /* iptal */ }
 }
 
 export async function sharePost(post, t) {
@@ -74,12 +85,12 @@ export async function sharePost(post, t) {
     const kind = post.type === 'REEL'
         ? (t?.shareReelKind || 'reel')
         : post.type === 'STORY'
-            ? (t?.shareStoryKind || 'hikaye')
-            : (t?.sharePostKind || 'gönderi');
+            ? (t?.shareStoryKind || shellT('sh_0664'))
+            : (t?.sharePostKind || shellT('sh_0054'));
     const parts = [
         t?.sharePostIntro
             ? t.sharePostIntro(author, kind)
-            : (author ? `${author} bir ${kind} paylaştı` : `AcTiViTy ${kind}`),
+            : (author ? shellT('sh_0637', author, kind) : `AcTiViTy ${kind}`),
     ];
     const snippet = String(post.content || '').trim();
     if (snippet) parts.push(snippet.slice(0, 160));

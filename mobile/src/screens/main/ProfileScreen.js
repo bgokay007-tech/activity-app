@@ -31,6 +31,7 @@ import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 import PaymentMethodsSection from '../../components/PaymentMethodsSection';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
+import MatchResultShareModal from '../../components/MatchResultShareModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
 import SportAnalysisModal from '../../components/SportAnalysisModal';
 import { sharePost } from '../../utils/share';
@@ -1826,6 +1827,7 @@ export default function ProfileScreen({ route, navigation }) {
     const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
     const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
     const [archivePane, setArchivePane] = useState(null); // null = başlıklar, sonra matches|tournaments|media|equipment
+    const [shareArchiveMatch, setShareArchiveMatch] = useState(null);
     const [archiveEquipment, setArchiveEquipment] = useState([]);
     const [loadingArchiveEquipment, setLoadingArchiveEquipment] = useState(false);
     const [myUpcoming, setMyUpcoming] = useState([]);
@@ -3294,6 +3296,12 @@ export default function ProfileScreen({ route, navigation }) {
                                                     );
                                                 })}
                                             </View>
+                                            {sets?.length > 0 && (
+                                                <TouchableOpacity onPress={() => setShareArchiveMatch(m)}
+                                                    style={{ marginTop:8, alignSelf:'flex-start', backgroundColor:'#7c3aed25', borderRadius:8, paddingHorizontal:10, paddingVertical:6, borderWidth:1, borderColor:'#7c3aed55' }}>
+                                                    <Text style={{ color:'#c084fc', fontWeight:'800', fontSize:12 }}>{t.shareMatchShareBtn}</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
                                     );
                                 });
@@ -4336,6 +4344,11 @@ export default function ProfileScreen({ route, navigation }) {
                 visible={!!sharePostTarget}
                 post={sharePostTarget}
                 onClose={() => { setSharePostTarget(null); setStoryReplyPaused(false); }}
+            />
+            <MatchResultShareModal
+                visible={!!shareArchiveMatch}
+                match={shareArchiveMatch}
+                onClose={() => setShareArchiveMatch(null)}
             />
 
             {/* ── Profile Info Modal ── */}

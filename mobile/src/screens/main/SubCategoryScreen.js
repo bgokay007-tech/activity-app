@@ -41,6 +41,7 @@ import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
+import MatchResultShareModal from '../../components/MatchResultShareModal';
 import MusicDetailModal from '../../components/MusicDetailModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
 import CityAutocomplete from '../../components/CityAutocomplete';
@@ -6887,6 +6888,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // kalori hesabı için kullanılıyor.
     const myGender = useSelector(s => s.auth.user?.gender);
     const [showScore, setShowScore] = useState(false);
+    const [shareResultOpen, setShareResultOpen] = useState(false);
     // Kullanıcı isteği: "Yedek İstekleri" listesi yer kaplıyordu — en sağa dokununca açılıp
     // kapanan bir ok eklendi, varsayılan kapalı (yer tasarrufu için).
     const [subRequestsExpanded, setSubRequestsExpanded] = useState(false);
@@ -9313,7 +9315,16 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                 </Text>
                             </View>
                             {match.scoreStatus === 'CONFIRMED' ? (
-                                <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', textAlign:'center', marginTop:8 }}>{t.confirmedScore}</Text>
+                                <>
+                                    <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700', textAlign:'center', marginTop:8 }}>{t.confirmedScore}</Text>
+                                    {isParticipant && (
+                                        <TouchableOpacity
+                                            onPress={() => setShareResultOpen(true)}
+                                            style={{ marginTop:10, backgroundColor:'#7c3aed25', borderRadius:10, paddingVertical:10, borderWidth:1, borderColor:'#7c3aed60', alignItems:'center' }}>
+                                            <Text style={{ color:'#c084fc', fontWeight:'800', fontSize:13 }}>{t.shareMatchShareBtn}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </>
                             ) : match.scoreEnteredBy !== myId ? (
                                 <TouchableOpacity style={[s.joinBtn, { marginTop:8 }]} onPress={confirmScore}>
                                     <Text style={s.joinBtnText}>{t.confirmScoreBtn}</Text>
@@ -9323,6 +9334,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             )}
                         </View>
                     )}
+                    <MatchResultShareModal visible={shareResultOpen} match={match} onClose={() => setShareResultOpen(false)} />
 
                     {/* Skor bekleyen maçta, skorla birlikte paylaşılan (henüz onaylanmamış) medya —
                         kendi paylaştığımsa "onay bekliyor" rozeti, karşı tarafınsa Onayla/Reddet. */}
@@ -12709,6 +12721,7 @@ function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel,
 }
 
 function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview }) {
+    const [shareResultOpen, setShareResultOpen] = useState(false);
     const t = useT();
     const m = match;
     const isOwner = m.senderId === myId;
@@ -12901,6 +12914,12 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
             )}
 
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
+                {sets?.length > 0 && (
+                    <TouchableOpacity onPress={() => setShareResultOpen(true)}
+                        style={{ backgroundColor:'#7c3aed25', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#7c3aed55' }}>
+                        <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>{t.shareMatchShareBtn}</Text>
+                    </TouchableOpacity>
+                )}
                 {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
                     && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
                     <TouchableOpacity onPress={() => { onAppeal(m); onClose(); }}
@@ -12921,6 +12940,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                     </TouchableOpacity>
                 )}
             </View>
+            <MatchResultShareModal visible={shareResultOpen} match={m} onClose={() => setShareResultOpen(false)} />
         </>
     );
 }
