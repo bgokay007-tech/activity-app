@@ -140,8 +140,8 @@ function parseIdList(raw) {
     }
 }
 
-function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant, showPhoto = true }) {
-    const photo = showPhoto ? (SUB_PHOTOS[sub.id] || null) : null;
+function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant }) {
+    const photo = SUB_PHOTOS[sub.id] || null;
     const tint = SUB_TINT[sub.id] || '#1C1F28';
     return (
         <TouchableOpacity
@@ -182,14 +182,6 @@ export default function CategoryScreen({ route, navigation }) {
     const categoryLabel = t[CAT_LABEL_KEY[category]] || category;
 
     const [counts, setCounts] = useState(() => recallCounts(category) || {});
-    // Fotoğraflar ilk karede çözülünce spor ekranı geç açılıyordu. İsim ve ilan
-    // sayısı hemen çizilir, görseller bir sonraki karede gelir.
-    const [showPhotos, setShowPhotos] = useState(false);
-    useEffect(() => {
-        setShowPhotos(false);
-        const id = setTimeout(() => setShowPhotos(true), 32);
-        return () => clearTimeout(id);
-    }, [category]);
     const [loading, setLoading] = useState(false);
     const [query, setQuery] = useState('');
     const [groupId, setGroupId] = useState('all');
@@ -451,7 +443,6 @@ export default function CategoryScreen({ route, navigation }) {
 
         const renderTile = (sub, variant) => (
             <SportTile
-                showPhoto={showPhotos}
                 key={sub.id}
                 sub={sub}
                 label={subLabel(sub)}
@@ -573,7 +564,7 @@ export default function CategoryScreen({ route, navigation }) {
                             const count = counts[sub.id] || 0;
                             return (
                                 <TouchableOpacity key={sub.id} style={nv.tile} onPressIn={() => { if (!SPECIAL_SCREENS[sub.id]) prefetchBranchLists(category, sub.id); }} onPress={() => openSub(sub)} activeOpacity={0.85}>
-                                    {showPhotos ? <Image source={photoForSub(sub.id, category)} style={nv.tileImg} /> : null}
+                                    <Image source={photoForSub(sub.id, category)} style={nv.tileImg} />
                                     <View style={nv.tileShade} />
                                     <Text style={nv.tileName} numberOfLines={2}>{subLabel(sub)}</Text>
                                     <Text style={nv.tileMeta}>
