@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { setUser } from '../../store/slices/authSlice';
 import api from '../../services/api';
-import { prefetchBranchLists, prefetchCounts, prefetchHotBranches } from '../../services/branchCache';
+import { prefetchBranchLists, prefetchCounts } from '../../services/branchCache';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
 import { CAT_PHOTOS, photoForSub } from '../../theme/visualAssets';
@@ -192,7 +192,7 @@ export default function HomeScreen({ navigation }) {
 
     useFocusEffect(useCallback(() => {
         let alive = true;
-        prefetchCounts('SPORTS').then((c) => { if (alive) prefetchHotBranches('SPORTS', c); });
+        prefetchCounts('SPORTS');
         const load = async () => {
             try {
                 const meRes = await api.get('/auth/me');

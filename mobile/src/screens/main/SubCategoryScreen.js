@@ -23692,7 +23692,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
-export default function SubCategoryScreen({ route, navigation }) {
+function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
             openExpiredResolve,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
@@ -23710,8 +23710,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     // yanlış derece kısıtlaması reddiyle sonuçlanıyordu. Dala her girişte kendi güncel bilgisi
     // sessizce tazeleniyor.
     useFocusEffect(useCallback(() => {
-        api.get('/auth/me').then(({ data }) => dispatch(setUser(data))).catch(() => {});
-    }, []));
+        // İlk kareyle yarışmasın: profil tazelemesi ekran oturduktan sonra.
+        const id = setTimeout(() => {
+            api.get('/auth/me').then(({ data }) => dispatch(setUser(data))).catch(() => {});
+        }, 700);
+        return () => clearTimeout(id);
+    }, [dispatch]));
 
     // İlan oluşturmadan/kort rezervasyonuna girmeden önce bu dalın "Aktivitelerim"e
     // eklenmiş (ve gizli olmayan) olduğunu kontrol eder — backend ilan oluşturmada zaten
@@ -23725,6 +23729,12 @@ export default function SubCategoryScreen({ route, navigation }) {
     // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
     // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
     const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction, ratingType }
+    // Kapalı pencereler (filtre, il seçici) ilk karede kurulmasın — dal girişi kilitleniyordu.
+    const [chromeReady, setChromeReady] = useState(false);
+    useEffect(() => {
+        const id = setTimeout(() => setChromeReady(true), 80);
+        return () => clearTimeout(id);
+    }, [sub]);
     // Padel/pickleball: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ.
     const defaultAssessRatingType = (sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined;
     const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen') => {
@@ -27375,6 +27385,7 @@ export default function SubCategoryScreen({ route, navigation }) {
     return (
         <>
         <View style={[s.container, { paddingTop: Platform.OS==='ios' ? 56 : 40 }]}>
+            {chromeReady && <>
             <CityPickerModal
                 visible={showCityFilter}
                 onClose={() => setShowCityFilter(false)}
@@ -27865,6 +27876,7 @@ export default function SubCategoryScreen({ route, navigation }) {
                     </KeyboardAvoidingView>
                 </View>
             </Modal>
+            </>}
 
             {/* Header */}
             <View style={s.header}>
@@ -33190,3 +33202,42 @@ const s = StyleSheet.create({
     chip:             { paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(8), borderRadius: moderateScale(10), backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipText:         { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700' },
 });
+
+// Dal ekranı ilk karede binlerce satır kuruyordu; geçiş o bitene kadar kilitleniyordu.
+// Önce başlık çizilir, ağır ağaç bir sonraki karede bağlanır.
+function SubCategoryEntry(props) {
+    const { category, sub } = props.route?.params || {};
+    const navigation = props.navigation;
+    const lang = useSelector(s => s.lang?.lang || 'en');
+    const t = useT();
+    const insets = useSafeAreaInsets();
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        const outer = requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (alive) setOpen(true);
+            });
+        });
+        return () => {
+            alive = false;
+            cancelAnimationFrame(outer);
+        };
+    }, [category, sub]);
+    if (!open) {
+        const name = getSubCategoryLabel(sub, lang) || '';
+        return (
+            <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: Math.max(insets.top, 12) }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 }}>
+                    <ScreenBackButton onPress={() => navigation.goBack()}>
+                        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>{t.back}</Text>
+                    </ScreenBackButton>
+                    <Text style={{ color: '#fff', fontSize: 18, fontWeight: '900', marginLeft: 8, flex: 1 }} numberOfLines={1}>{name}</Text>
+                </View>
+            </View>
+        );
+    }
+    return <SubCategoryScreen {...props} />;
+}
+
+export default SubCategoryEntry;

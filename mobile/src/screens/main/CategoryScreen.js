@@ -6,7 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
-import { prefetchBranchLists, recallCounts, rememberCounts, hydrateCounts, prefetchHotBranches } from '../../services/branchCache';
+import { prefetchBranchLists, recallCounts, rememberCounts, hydrateCounts } from '../../services/branchCache';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -140,8 +140,8 @@ function parseIdList(raw) {
     }
 }
 
-function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant }) {
-    const photo = SUB_PHOTOS[sub.id] || null;
+function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant, showPhoto = true }) {
+    const photo = showPhoto ? (SUB_PHOTOS[sub.id] || null) : null;
     const tint = SUB_TINT[sub.id] || '#1C1F28';
     return (
         <TouchableOpacity
@@ -182,6 +182,14 @@ export default function CategoryScreen({ route, navigation }) {
     const categoryLabel = t[CAT_LABEL_KEY[category]] || category;
 
     const [counts, setCounts] = useState(() => recallCounts(category) || {});
+    // Fotoğraflar ilk karede çözülünce spor ekranı geç açılıyordu. İsim ve ilan
+    // sayısı hemen çizilir, görseller bir sonraki karede gelir.
+    const [showPhotos, setShowPhotos] = useState(false);
+    useEffect(() => {
+        setShowPhotos(false);
+        const id = setTimeout(() => setShowPhotos(true), 32);
+        return () => clearTimeout(id);
+    }, [category]);
     const [loading, setLoading] = useState(false);
     const [query, setQuery] = useState('');
     const [groupId, setGroupId] = useState('all');
@@ -211,17 +219,13 @@ export default function CategoryScreen({ route, navigation }) {
         const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
         hydrateCounts().then(() => {
             const cached = recallCounts(category);
-            if (cached) {
-                setCounts(cached);
-                prefetchHotBranches(category, cached);
-            }
+            if (cached) setCounts(cached);
         });
         api.get(`/rivals/counts?category=${category}`)
             .then(r => {
                 const next = r.data || {};
                 rememberCounts(category, next);
                 setCounts(next);
-                prefetchHotBranches(category, next);
             })
             .catch(e => console.warn(e?.message))
             .finally(() => setLoading(false));
@@ -447,6 +451,7 @@ export default function CategoryScreen({ route, navigation }) {
 
         const renderTile = (sub, variant) => (
             <SportTile
+                showPhoto={showPhotos}
                 key={sub.id}
                 sub={sub}
                 label={subLabel(sub)}
@@ -568,7 +573,7 @@ export default function CategoryScreen({ route, navigation }) {
                             const count = counts[sub.id] || 0;
                             return (
                                 <TouchableOpacity key={sub.id} style={nv.tile} onPressIn={() => { if (!SPECIAL_SCREENS[sub.id]) prefetchBranchLists(category, sub.id); }} onPress={() => openSub(sub)} activeOpacity={0.85}>
-                                    <Image source={photoForSub(sub.id, category)} style={nv.tileImg} />
+                                    {showPhotos ? <Image source={photoForSub(sub.id, category)} style={nv.tileImg} /> : null}
                                     <View style={nv.tileShade} />
                                     <Text style={nv.tileName} numberOfLines={2}>{subLabel(sub)}</Text>
                                     <Text style={nv.tileMeta}>
