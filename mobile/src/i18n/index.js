@@ -1358,6 +1358,10 @@ const en = {
 
     // Profile screen
     postsLabel: 'Posts',
+    postMediaTab: 'Media posts',
+    postTextTab: 'Text posts',
+    postMediaEmpty: 'No photo or video posts yet',
+    postTextEmpty: 'No text posts yet',
     reels: 'Reels',
     commentsLabel: 'Comments',
     commentsHiddenText: 'The owner has hidden comments on this post.',
@@ -4034,6 +4038,10 @@ const tr = {
 
     // Profile screen
     postsLabel: 'Gönderiler',
+    postMediaTab: 'Medya gönderileri',
+    postTextTab: 'Yazı gönderileri',
+    postMediaEmpty: 'Henüz fotoğraf veya video gönderisi yok',
+    postTextEmpty: 'Henüz yazı gönderisi yok',
     reels: 'Reels',
     commentsLabel: 'Yorumlar',
     commentsHiddenText: 'Bu gönderinin yorumları paylaşan kişi tarafından gizlenmiş.',
@@ -6707,6 +6715,10 @@ const ru = {
 
     // Profile screen
     postsLabel: 'Посты',
+    postMediaTab: 'Медиа-посты',
+    postTextTab: 'Текстовые посты',
+    postMediaEmpty: 'Пока нет постов с фото или видео',
+    postTextEmpty: 'Текстовых постов пока нет',
     reels: 'Ролики',
     commentsLabel: 'Комментарии',
     commentsHiddenText: 'Владелец скрыл комментарии к этому посту.',
@@ -9379,6 +9391,10 @@ const de = {
 
     // Profile screen
     postsLabel: 'Beiträge',
+    postMediaTab: 'Medienbeiträge',
+    postTextTab: 'Textbeiträge',
+    postMediaEmpty: 'Noch keine Foto- oder Videobeiträge',
+    postTextEmpty: 'Noch keine Textbeiträge',
     reels: 'Reels',
     commentsLabel: 'Kommentare',
     commentsHiddenText: 'Der Besitzer hat Kommentare zu diesem Beitrag ausgeblendet.',

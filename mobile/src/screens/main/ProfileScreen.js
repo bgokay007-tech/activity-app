@@ -1702,6 +1702,7 @@ export default function ProfileScreen({ route, navigation }) {
 
     // Profil kartlarinin (Gonderiler/Reels/Arkadaslar/Aktiviteler) modal gorunumleri
     const [showPostsModal, setShowPostsModal] = useState(false);
+    const [postsKind, setPostsKind] = useState('media');
     const [showReelsModal, setShowReelsModal] = useState(false);
 
     // Medya görüntüleyici (yorumlar + beğenenler)
@@ -2862,7 +2863,7 @@ export default function ProfileScreen({ route, navigation }) {
 
                     {/* 2×2 stat grid */}
                     <View style={s.statGrid}>
-                        <StatCard emoji="🔥" label={t.postsLabel}      count={postCount}        onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => setShowPostsModal(true)} />
+                        <StatCard emoji="🔥" label={t.postsLabel}      count={postCount}        onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => { setPostsKind('media'); setShowPostsModal(true); }} />
                         <StatCard emoji="🎬" label={t.reels}            count={reelCount}        onAdd={isOwnProfile ? handleCreateReel : null} onPress={() => setShowReelsModal(true)} />
                         <StatCard emoji="👥" label={t.friendsLabel}     count={friendCount}      onAdd={isOwnProfile ? () => setShowAddFriendModal(true) : null} onPress={openFriendsList} />
                         <StatCard emoji="🏃" label={t.activitiesLabel}  count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} onPress={() => isOwnProfile ? setManageOpen(true) : setShowActivitiesViewModal(true)} />
@@ -3692,22 +3693,42 @@ export default function ProfileScreen({ route, navigation }) {
                             </TouchableOpacity>
                         )}
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            {posts.length === 0 ? (
-                                <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>Henüz gönderi yok</Text>
-                            ) : (
-                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
-                                    {posts.map(p => (
-                                        <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={() => openMediaViewer(p)} style={{ width:'31.5%', aspectRatio:1, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
-                                            {p.imageUrl || p.videoUrl
-                                                ? <Image source={{ uri: p.imageUrl || p.videoUrl }} style={{ width:'100%', height:'100%' }} />
-                                                : <View style={{ flex:1, padding:3, justifyContent:'center' }}>
-                                                    <Text style={{ color: colors.textSecondary, fontSize:10 }} numberOfLines={4}>{p.content}</Text>
-                                                  </View>
-                                            }
+                            <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                                {['media', 'text'].map(kind => {
+                                    const on = postsKind === kind;
+                                    return (
+                                        <TouchableOpacity key={kind} onPress={() => setPostsKind(kind)}
+                                            style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: on ? colors.purple + '30' : colors.surface2, borderWidth:1, borderColor: on ? colors.purple : colors.border }}>
+                                            <Text style={{ color: on ? '#fff' : colors.textMuted, fontWeight:'800', fontSize:12 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                {kind === 'media' ? t.postMediaTab : t.postTextTab}
+                                            </Text>
                                         </TouchableOpacity>
-                                    ))}
-                                </View>
-                            )}
+                                    );
+                                })}
+                            </View>
+                            {(() => {
+                                const shown = posts.filter(p => postsKind === 'media' ? !!(p.imageUrl || p.videoUrl) : !p.imageUrl && !p.videoUrl);
+                                if (shown.length === 0) {
+                                    return <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', marginTop:30 }}>{postsKind === 'media' ? t.postMediaEmpty : t.postTextEmpty}</Text>;
+                                }
+                                if (postsKind === 'text') {
+                                    return shown.map(p => (
+                                        <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={() => openMediaViewer(p)}
+                                            style={{ backgroundColor: colors.surface2, borderRadius:12, padding:12, marginBottom:8, borderWidth:1, borderColor: colors.border }}>
+                                            <Text style={{ color:'#fff', fontSize:13, lineHeight:18 }} numberOfLines={6}>{p.content}</Text>
+                                        </TouchableOpacity>
+                                    ));
+                                }
+                                return (
+                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        {shown.map(p => (
+                                            <TouchableOpacity key={p.id} activeOpacity={0.85} onPress={() => openMediaViewer(p)} style={{ width:'31.5%', aspectRatio:1, borderRadius:10, overflow:'hidden', backgroundColor: colors.surface2 }}>
+                                                <Image source={{ uri: p.imageUrl || p.videoUrl }} style={{ width:'100%', height:'100%' }} />
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                );
+                            })()}
                         </ScrollView>
                     </View>
                 </View>

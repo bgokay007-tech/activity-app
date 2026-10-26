@@ -1166,6 +1166,7 @@ function ProfilePage() {
     const [friendship, setFriendship] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [posts, setPosts] = useState([]);
+    const [postKind, setPostKind] = useState('media');
     const [reels, setReels] = useState([]);
     const [stories, setStories] = useState([]);
     const [postsLoading, setPostsLoading] = useState(false);
@@ -1370,7 +1371,7 @@ function ProfilePage() {
                                         {/* Posts */}
                                         <div className="flex items-center gap-1">
                                             <button
-                                                onClick={() => { setActiveTab('posts'); setShowArchive(false); }}
+                                                onClick={() => { setPostKind('media'); setActiveTab('posts'); setShowArchive(false); }}
                                                 className={`flex-1 rounded-lg py-1.5 px-3 flex items-center justify-between transition ${activeTab === 'posts' && !showArchive ? 'bg-purple-600/30 border border-purple-500/50' : 'bg-gray-800 border border-transparent hover:bg-gray-700'}`}
                                             >
                                                 <span className="text-gray-400 text-xs font-bold">✍️ {t('profile.posts')}</span>
@@ -1552,21 +1553,35 @@ function ProfilePage() {
                             {postsLoading ? (
                                 <p className="text-gray-500 text-center py-10 text-sm">{t('common.loading')}</p>
                             ) : showArchive ? null : activeTab === 'posts' ? (() => {
-                                const mediaPosts = posts.filter(p => p.imageUrl || p.videoUrl);
-                                return mediaPosts.length === 0 ? (
-                                    <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
-                                        <p className="text-4xl mb-3">📷</p>
-                                        <p className="text-gray-500 text-sm">{t('profile.no_posts')}</p>
-                                        {isOwnProfile && <button onClick={() => openCreate('POST')} className="mt-3 text-purple-400 hover:text-purple-300 text-sm transition">{t('profile.share_photo')}</button>}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {mediaPosts.map(post => (
-                                            <PostCard key={post.id} post={post} isOwner={isOwnProfile}
-                                                onOpen={() => setViewingContent(post)}
-                                                onDelete={id => setPosts(prev => prev.filter(p => p.id !== id))}
-                                                showComments />
-                                        ))}
+                                const shown = posts.filter(p => postKind === 'text' ? !p.imageUrl && !p.videoUrl : !!(p.imageUrl || p.videoUrl));
+                                const tabBtn = (kind, label) => (
+                                    <button type="button" onClick={() => setPostKind(kind)}
+                                        className={`flex-1 rounded-lg py-2 text-xs font-bold transition ${postKind === kind ? 'bg-purple-600/30 border border-purple-500/50 text-white' : 'bg-gray-800 border border-transparent text-gray-400 hover:bg-gray-700'}`}>
+                                        {label}
+                                    </button>
+                                );
+                                return (
+                                    <div>
+                                        <div className="flex gap-2 mb-4">
+                                            {tabBtn('media', t('profile.post_media_tab'))}
+                                            {tabBtn('text', t('profile.post_text_tab'))}
+                                        </div>
+                                        {shown.length === 0 ? (
+                                            <div className="text-center py-12 bg-gray-900 rounded-2xl border border-gray-800">
+                                                <p className="text-4xl mb-3">{postKind === 'text' ? '📝' : '📷'}</p>
+                                                <p className="text-gray-500 text-sm">{postKind === 'text' ? t('profile.no_text_posts') : t('profile.no_posts')}</p>
+                                                {isOwnProfile && postKind === 'media' && <button onClick={() => openCreate('POST')} className="mt-3 text-purple-400 hover:text-purple-300 text-sm transition">{t('profile.share_photo')}</button>}
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {shown.map(post => (
+                                                    <PostCard key={post.id} post={post} isOwner={isOwnProfile}
+                                                        onOpen={() => setViewingContent(post)}
+                                                        onDelete={id => setPosts(prev => prev.filter(p => p.id !== id))}
+                                                        showComments />
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })() : activeTab === 'reels' ? (() => {
