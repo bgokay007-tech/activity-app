@@ -92,6 +92,12 @@ export function prefetchHotBranches(category, counts) {
 
 export function prefetchBranchLists(category, sub, { fresh = false } = {}) {
     const key = keyOf(category, sub);
+    // fresh: yorum/beğeni sonrası bayat paket dönmesin (ana sayfaya gidip gelince
+    // medya yorum sayacı 0 kalıyordu — rawCache silinmeden eski _count geliyordu).
+    if (fresh) {
+        rawCache.delete(key);
+        inflight.delete(key);
+    }
     if (!fresh && rawCache.has(key)) return Promise.resolve(rawCache.get(key));
     if (!fresh && inflight.has(key)) return inflight.get(key);
     const task = Promise.all([

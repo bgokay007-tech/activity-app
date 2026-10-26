@@ -669,9 +669,10 @@ export const getComments = async (req, res, next) => {
         const { id } = req.params;
         const post = await prisma.post.findUnique({ where: { id }, select: { userId: true } });
         if (!post) return res.status(404).json({ message: 'Not found' });
-        if (!(await canSeeLikesComments(post.userId, req.userId))) {
-            return res.status(403).json({ message: 'Bu gönderinin yorumları gizli' });
-        }
+        // Yorum YAZMAK herkese açık (addComment); gizlilik sadece kimlikleri (kim yazdı)
+        // gizler — eskiden burası 403 dönünce yazılan yorumlar kaybolmuş gibi görünüyordu
+        // (sayacı da 0, liste boş). Metin her zaman gelir; kimlik gizlenince username maskelenir.
+        const canSeeIdentities = await canSeeLikesComments(post.userId, req.userId);
 
         const comments = await prisma.comment.findMany({
             where: { postId: id },
@@ -695,13 +696,17 @@ export const getComments = async (req, res, next) => {
             toMark.forEach(c => { c.viewedBy = [...(Array.isArray(c.viewedBy) ? c.viewedBy : []), req.userId]; });
         }
 
-        res.json(comments.map(c => ({
-            ...c,
-            isLiked: c.likes.length > 0,
-            likeCount: c._count.likes,
-            likes: undefined,
-            _count: undefined,
-        })));
+        res.json(comments.map(c => {
+            const showUser = canSeeIdentities || c.userId === req.userId || post.userId === req.userId;
+            return {
+                ...c,
+                user: showUser ? c.user : { id: null, username: '…', avatar: null },
+                isLiked: c.likes.length > 0,
+                likeCount: c._count.likes,
+                likes: undefined,
+                _count: undefined,
+            };
+        }));
     } catch (error) {
         next(error);
     }

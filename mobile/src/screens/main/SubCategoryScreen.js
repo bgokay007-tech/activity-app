@@ -24118,6 +24118,28 @@ function SubCategoryScreen({ route, navigation }) {
     // Kullanıcı isteği: medyaya yorum yapınca yorum sayacı akış/gridde ANINDA artsın —
     // sayfadan çıkıp girmeye gerek kalmadan (mediaLikeCounts ile aynı desen).
     const [mediaCommentCounts, setMediaCommentCounts] = useState({});
+    // Yorum yazılınca hem anlık sayaç hem dal cache (_count) güncellenir — aksi halde ana
+    // sayfaya gidip gelince bayat paket "0 yorum" gösteriyordu.
+    const bumpMediaCommentCount = useCallback((postId, delta = 1) => {
+        if (!postId) return;
+        setMediaCommentCounts(prev => {
+            const base = prev[postId];
+            const fromPost = mediaPosts.find(p => p.id === postId)?._count?.comments;
+            const cur = base ?? (fromPost || 0);
+            return { ...prev, [postId]: Math.max(0, cur + delta) };
+        });
+        setMediaPosts(prev => {
+            const next = prev.map(p => {
+                if (p.id !== postId) return p;
+                const n = Math.max(0, (p._count?.comments || 0) + delta);
+                return { ...p, _count: { ...(p._count || {}), comments: n } };
+            });
+            const cached = recallBranch(category, sub);
+            if (cached) rememberBranch(category, sub, { ...cached, mediaPosts: next });
+            return next;
+        });
+        dropBranchListCache(category, sub);
+    }, [mediaPosts, category, sub]);
     // Kalbe uzun basınca beğenenler listesi — kullanıcı isteği: "beğenenleri görebilmesi için
     // kalbe uzun basılı tutsun". Medya feed kartı VE tam ekran görüntüleyici AYNI paylaşılan
     // state/modalı kullanıyor (bkz. openLikersModal, aşağıdaki Modal render'ı).
@@ -24168,8 +24190,12 @@ function SubCategoryScreen({ route, navigation }) {
 
     const doDeleteMediaComment = async (commentId) => {
         try {
+            const removed = mediaComments.filter(c => c.id === commentId || c.parentId === commentId);
+            const postId = removed[0]?.postId || inlineMediaCommentsPostId
+                || (mediaViewIdx != null ? mediaPosts[mediaViewIdx]?.id : null);
             await api.delete(`/posts/comments/${commentId}`);
             setMediaComments(prev => prev.filter(c => c.id !== commentId && c.parentId !== commentId));
+            if (postId) bumpMediaCommentCount(postId, -Math.max(1, removed.length));
         } catch (e) { Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0042); }
     };
     const deleteMediaComment = (comment) => {
@@ -25197,7 +25223,9 @@ function SubCategoryScreen({ route, navigation }) {
         if (notifNavKey) autoOpenHandledRef.current = null;
     }, [notifNavKey]);
 
-    useEffect(() => { load(); }, [load]);
+    // fresh: true — ana sayfaya çıkıp aynı dala dönünce rawCache'teki bayat medya
+    // (_count.comments=0) yorumları silinmiş gibi göstermesin.
+    useEffect(() => { load({ fresh: true }); }, [load]);
     // Kullanıcı isteği: skor girişi sonrası maç kartı, arkaplandaki liste yenilenene kadar
     // (yaklaşık 1sn) eski konumunda (ör. yedek arayan maçlar "Açık İlanlar" başlığı altında
     // gösterildiği için orada) kalıp sonra doğru yere (Skor Bekleyen Maçlar) "atlıyordu" —
@@ -31174,8 +31202,10 @@ function SubCategoryScreen({ route, navigation }) {
                                                                         setMediaCommentText('');
                                                                         setMediaReplyingTo(null);
                                                                         setMediaComments(prev => [...prev, data]);
-                                                                        setMediaCommentCounts(prev => ({ ...prev, [post.id]: (prev[post.id] ?? (post._count?.comments || 0)) + 1 }));
-                                                                    } catch {}
+                                                                        bumpMediaCommentCount(post.id, 1);
+                                                                    } catch (e) {
+                                                                        Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+                                                                    }
                                                                     finally { setSendingMediaComment(false); }
                                                                 };
                                                                 const renderRow = (c, isReply) => {
@@ -32855,9 +32885,10 @@ function SubCategoryScreen({ route, navigation }) {
                                 setMediaCommentText('');
                                 setMediaReplyingTo(null);
                                 setMediaComments(prev => [...prev, data]);
-                                // Kullanıcı isteği: yorum sayacı akış/gridde de ANINDA artsın.
-                                setMediaCommentCounts(prev => ({ ...prev, [mp.id]: (prev[mp.id] ?? (mp._count?.comments || 0)) + 1 }));
-                            } catch {}
+                                bumpMediaCommentCount(mp.id, 1);
+                            } catch (e) {
+                                Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+                            }
                             finally { setSendingMediaComment(false); }
                         };
 
@@ -32908,7 +32939,9 @@ function SubCategoryScreen({ route, navigation }) {
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={openMediaComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                                         <Text style={{ color: mediaShowComments ? cfg.color : '#ffffff80', fontSize: 20 }}>💬</Text>
-                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>{mediaComments.length || mp._count?.comments || 0}</Text>
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>
+                                            {mediaCommentCounts[mp.id] ?? (mp._count?.comments || 0)}
+                                        </Text>
                                     </TouchableOpacity>
                                     {(mp.musicUrl || mp.musicName) && (
                                         <TouchableOpacity onPress={() => toggleMutePostMusic(mp.id)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
