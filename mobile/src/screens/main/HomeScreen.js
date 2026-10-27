@@ -8,11 +8,13 @@ import * as Location from 'expo-location';
 import { setUser } from '../../store/slices/authSlice';
 import api from '../../services/api';
 import { prefetchBranchLists, prefetchCounts } from '../../services/branchCache';
+import { warmSportPhotos } from '../../utils/warmSportPhotos';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
 import { CAT_PHOTOS, photoForSub } from '../../theme/visualAssets';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
+import SportPhotoWarmup from '../../components/SportPhotoWarmup';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 
@@ -297,6 +299,7 @@ export default function HomeScreen({ navigation }) {
 
     return (
         <View style={s.container}>
+            <SportPhotoWarmup />
             <CityPickerModal
                 visible={showCityPicker}
                 onClose={() => setShowCityPicker(false)}
@@ -319,12 +322,16 @@ export default function HomeScreen({ navigation }) {
                         <TouchableOpacity
                             key={cat.id}
                             style={nv.tile}
-                            onPressIn={() => { if (cat.enabled) prefetchCounts(cat.id); }}
+                            onPressIn={() => {
+                                if (!cat.enabled) return;
+                                prefetchCounts(cat.id);
+                                if (cat.id === 'SPORTS') warmSportPhotos();
+                            }}
                             onPress={() => cat.enabled && navigation.navigate('Category', { category: cat.id })}
                             activeOpacity={0.85}
                             disabled={!cat.enabled}
                         >
-                            <Image source={CAT_PHOTOS[cat.id]} style={nv.tileImg} />
+                            <Image source={CAT_PHOTOS[cat.id]} style={nv.tileImg} fadeDuration={0} />
                             <View style={nv.tileShade} />
                             <Text style={nv.tileLabel}>{CAT_LABELS[cat.id]}</Text>
                         </TouchableOpacity>

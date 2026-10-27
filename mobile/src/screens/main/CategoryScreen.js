@@ -1,12 +1,13 @@
 ﻿import { useState, useCallback, useEffect, useMemo } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
-import { View, Text, Image, ScrollView, FlatList, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform, InteractionManager } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform, InteractionManager } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import { prefetchBranchLists, recallCounts, rememberCounts, hydrateCounts } from '../../services/branchCache';
+import { warmSportPhotos } from '../../utils/warmSportPhotos';
 import { onSocket } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -152,7 +153,7 @@ function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav,
         >
             {photo ? (
                 <>
-                    <Image source={photo} style={sp.tileImg} />
+                    <Image source={photo} style={sp.tileImg} fadeDuration={0} />
                     <View style={sp.tileShade} />
                 </>
             ) : (
@@ -182,6 +183,8 @@ export default function CategoryScreen({ route, navigation }) {
     const categoryLabel = t[CAT_LABEL_KEY[category]] || category;
 
     const [counts, setCounts] = useState(() => recallCounts(category) || {});
+    // Spor'a basılınca fotoğraflar zaten ısıtılmış olsun (Home'dan gelindiyse no-op).
+    useEffect(() => { if (isSports) warmSportPhotos(); }, [isSports]);
     const [loading, setLoading] = useState(false);
     const [query, setQuery] = useState('');
     const [groupId, setGroupId] = useState('all');
@@ -491,33 +494,14 @@ export default function CategoryScreen({ route, navigation }) {
 
                 {loading ? (
                     <ActivityIndicator color={colors.purple} style={{ marginTop: 40 }} />
-                ) : searching ? (
+                ) : (
                     <ScrollView
                         contentContainerStyle={[sp.list, { paddingBottom: listPad }]}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                     >
-                        {filtered.length === 0 ? (
-                            <Text style={sp.empty}>{t.noSportMatch}</Text>
-                        ) : (
-                            <View style={sp.grid}>{filtered.map(sub => renderTile(sub))}</View>
-                        )}
-                    </ScrollView>
-                ) : (
-                    <FlatList
-                        data={visibleGroups}
-                        keyExtractor={(g) => g.id}
-                        // Tüm grup JPEG'leri aynı anda çözülünce Spor girişi kilitleniyordu.
-                        initialNumToRender={2}
-                        maxToRenderPerBatch={1}
-                        windowSize={3}
-                        removeClippedSubviews
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                        keyboardDismissMode="on-drag"
-                        contentContainerStyle={[sp.list, { paddingBottom: listPad }]}
-                        ListHeaderComponent={(
+                        {!searching && (
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sp.chipRow} keyboardShouldPersistTaps="handled">
                                 {[
                                     { id: 'today', label: t.intentPlayToday },
@@ -535,7 +519,14 @@ export default function CategoryScreen({ route, navigation }) {
                                 ))}
                             </ScrollView>
                         )}
-                        renderItem={({ item: g }) => {
+
+                        {searching ? (
+                            filtered.length === 0 ? (
+                                <Text style={sp.empty}>{t.noSportMatch}</Text>
+                            ) : (
+                                <View style={sp.grid}>{filtered.map(sub => renderTile(sub))}</View>
+                            )
+                        ) : visibleGroups.map(g => {
                             const items = (SUB_MAP.SPORTS || []).filter(sub => g.ids.includes(sub.id)).filter(passesIntent).sort((a, b) => sortSport(a, b, g.ids));
                             if (items.length === 0) return null;
                             // Grubun tek emojisi (ör. sadece 🎾) diğer dalları görünmez kılıyordu — gruptaki
@@ -549,7 +540,7 @@ export default function CategoryScreen({ route, navigation }) {
                                 return { id, emoji };
                             }).filter(Boolean);
                             return (
-                                <View style={sp.groupBlock}>
+                                <View key={g.id} style={sp.groupBlock}>
                                     <View style={sp.groupTitleRow}>
                                         <Text style={[sp.groupTitle, { marginBottom: 0 }]}>{t[g.key]}</Text>
                                         {groupIcons.map(ic => ic.image
@@ -561,8 +552,8 @@ export default function CategoryScreen({ route, navigation }) {
                                     </ScrollView>
                                 </View>
                             );
-                        }}
-                    />
+                        })}
+                    </ScrollView>
                 )}
             </KeyboardAvoidingView>
         );

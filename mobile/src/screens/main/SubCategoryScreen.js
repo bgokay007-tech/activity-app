@@ -23749,18 +23749,12 @@ function SubCategoryScreen({ route, navigation }) {
     // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
     // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
     const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction, ratingType }
-    // Kapalı pencereler + ağır liste ilk karede kurulmasın — dal girişi kilitleniyordu.
+    // Kapalı pencereler ilk karede kurulmasın; liste hemen gelsin.
     const [chromeReady, setChromeReady] = useState(false);
-    const [bodyReady, setBodyReady] = useState(false);
     useEffect(() => {
         setChromeReady(false);
-        setBodyReady(false);
-        const bodyTimer = setTimeout(() => setBodyReady(true), 16);
         const chromeTimer = setTimeout(() => setChromeReady(true), 120);
-        return () => {
-            clearTimeout(bodyTimer);
-            clearTimeout(chromeTimer);
-        };
+        return () => clearTimeout(chromeTimer);
     }, [sub]);
     // Padel/pickleball: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ.
     const defaultAssessRatingType = (sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined;
@@ -28020,10 +28014,6 @@ function SubCategoryScreen({ route, navigation }) {
                 onMomentumScrollEnd={() => { if (activeTab === 'media') pickAudiblePost(); }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cfg.color} />}
             >
-                    {!bodyReady ? (
-                        <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
-                    ) : (
-                    <>
                     {/* ── RIVALS ── */}
                     {activeTab === 'rivals' && (
                         <>
@@ -31989,8 +31979,6 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
                         </>
                     )}
-                    </>
-                    )}
             </ScrollView>
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
@@ -33286,8 +33274,8 @@ const s = StyleSheet.create({
     chipText:         { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700' },
 });
 
-// Dal ekranı ilk karede binlerce satır kuruyordu; geçiş o bitene kadar kilitleniyordu.
-// Önce başlık çizilir; ağır ağaç etkileşimler bittikten sonra bağlanır.
+// Geçiş animasyonu bitsin diye tek kare boş başlık; InteractionManager bekletmesi
+// saniyelik boşluk yaratıyordu — kaldırıldı.
 function SubCategoryEntry(props) {
     const { category, sub } = props.route?.params || {};
     const navigation = props.navigation;
@@ -33298,15 +33286,12 @@ function SubCategoryEntry(props) {
     useEffect(() => {
         let alive = true;
         setOpen(false);
-        const task = InteractionManager.runAfterInteractions(() => {
-            // Bir kare daha bekle — shell boyansın, sonra ağır mount.
-            requestAnimationFrame(() => {
-                if (alive) setOpen(true);
-            });
+        const id = requestAnimationFrame(() => {
+            if (alive) setOpen(true);
         });
         return () => {
             alive = false;
-            task.cancel?.();
+            cancelAnimationFrame(id);
         };
     }, [category, sub]);
     if (!open) {
