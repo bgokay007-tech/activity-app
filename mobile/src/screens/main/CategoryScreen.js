@@ -162,9 +162,9 @@ function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav,
             )}
             {photo ? <View style={sp.tileShade} /> : null}
             {count > 0 && <View style={sp.liveDot} />}
-            <Pressable onPress={onToggleFav} hitSlop={10} style={sp.starBtn}>
+            <TouchableOpacity onPress={onToggleFav} hitSlop={10} style={sp.starBtn} delayPressIn={0} activeOpacity={0.7}>
                 <Text style={[sp.star, favored && { color: colors.purple }]}>{favored ? '★' : '☆'}</Text>
-            </Pressable>
+            </TouchableOpacity>
             <Text style={[sp.tileName, count === 0 && { bottom: 12 }]} numberOfLines={2}>{label}</Text>
             {count > 0 ? <Text style={sp.tileMeta}>{t.listings(count)}</Text> : null}
         </TouchableOpacity>
@@ -513,6 +513,8 @@ function CategoryScreen({ route, navigation }) {
                                         key={chip.id}
                                         style={[sp.intentChip, intent === chip.id && sp.intentChipOn]}
                                         onPress={() => setIntent(prev => prev === chip.id ? null : chip.id)}
+                                        delayPressIn={0}
+                                        delayPressOut={0}
                                         activeOpacity={0.8}
                                     >
                                         <Text style={[sp.intentChipText, intent === chip.id && sp.intentChipTextOn]}>{chip.label}</Text>
@@ -548,9 +550,11 @@ function CategoryScreen({ route, navigation }) {
                                             ? <Image key={ic.id} source={ic.image} style={sp.groupIconImg} resizeMode="contain" />
                                             : <Text key={ic.id} style={sp.groupIconEmoji}>{ic.emoji}</Text>)}
                                     </View>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sp.row} keyboardShouldPersistTaps="handled">
-                                        {items.map(sub => renderTile(sub, 'row'))}
-                                    </ScrollView>
+                                    {/* Yatay ScrollView iç içe olunca Spor'da dokunuş ~1sn gecikiyordu;
+                                        Sanat/Sosyal/Oyun tek dikey kaydırmada anında tepki veriyor — aynı model. */}
+                                    <View style={sp.grid}>
+                                        {items.map(sub => renderTile(sub))}
+                                    </View>
                                 </View>
                             );
                         })}
