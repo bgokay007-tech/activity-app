@@ -149,18 +149,18 @@ function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav,
             style={[variant === 'row' ? sp.tileRow : sp.tile, count === 0 && sp.tileQuiet]}
             onPress={onOpen}
             onPressIn={onPressIn}
+            delayPressIn={0}
+            delayPressOut={0}
             activeOpacity={0.85}
         >
-            {photo ? (
-                <>
-                    <Image source={photo} style={sp.tileImg} fadeDuration={0} />
-                    <View style={sp.tileShade} />
-                </>
-            ) : (
-                <View style={[sp.tileFill, { backgroundColor: tint }]}>
+            {/* Koyu zemin her zaman durur — JPEG geç çözülse bile kart yeri boş kalmaz / yeşil flaş olmaz */}
+            <View style={[sp.tileFill, { backgroundColor: tint }]} />
+            {photo ? <Image source={photo} style={sp.tileImg} fadeDuration={0} /> : (
+                <View style={sp.tileFill}>
                     <Text style={sp.tileEmoji}>{sub.emoji}</Text>
                 </View>
             )}
+            {photo ? <View style={sp.tileShade} /> : null}
             {count > 0 && <View style={sp.liveDot} />}
             <Pressable onPress={onToggleFav} hitSlop={10} style={sp.starBtn}>
                 <Text style={[sp.star, favored && { color: colors.purple }]}>{favored ? '★' : '☆'}</Text>
@@ -171,7 +171,7 @@ function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav,
     );
 }
 
-export default function CategoryScreen({ route, navigation }) {
+function CategoryScreen({ route, navigation }) {
     const { category: categoryParam } = route.params;
     const category = String(categoryParam || '').toUpperCase();
     const isSports = category === 'SPORTS';
@@ -306,19 +306,20 @@ export default function CategoryScreen({ route, navigation }) {
     };
 
     const openSub = (sub) => {
-        if (isSports) persistRecents(sub.id);
+        // Önce geçiş — setState/AsyncStorage navigasyonu bir kare bile geciktirmesin.
         if (SPECIAL_SCREENS[sub.id]) {
             navigation.navigate(SPECIAL_SCREENS[sub.id]);
-            return;
+        } else {
+            prefetchBranchLists(category, sub.id);
+            // Bugün oynayayım: dala girince de o günün ilanları gelsin (31 Aralık gibi
+            // uzak tarihli açık ilanlar "bugün"e karışmasın).
+            navigation.navigate('SubCategory', {
+                category,
+                sub: sub.id,
+                ...(intent === 'today' ? { initialDateFilter: 'today' } : {}),
+            });
         }
-        prefetchBranchLists(category, sub.id);
-        // Bugün oynayayım: dala girince de o günün ilanları gelsin (31 Aralık gibi
-        // uzak tarihli açık ilanlar "bugün"e karışmasın).
-        navigation.navigate('SubCategory', {
-            category,
-            sub: sub.id,
-            ...(intent === 'today' ? { initialDateFilter: 'today' } : {}),
-        });
+        if (isSports) setTimeout(() => persistRecents(sub.id), 0);
     };
 
     const toggleFav = (id) => {
@@ -340,9 +341,9 @@ export default function CategoryScreen({ route, navigation }) {
         return i < 0 ? 99 : i;
     };
 
+    // İlan sayısı gelince yeniden sıralama kartları zıplatıyordu ("doğa geç geldi" hissi).
+    // Sıra sabit; sayı sadece rozet olarak güncellenir.
     const sortSport = (a, b, groupIds) => {
-        const ca = counts[a.id] || 0, cb = counts[b.id] || 0;
-        if (cb !== ca) return cb - ca;
         const order = groupIds || SPORT_GROUPS.flatMap(g => g.ids);
         const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
         return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
@@ -703,3 +704,39 @@ const sp = StyleSheet.create({
     tileMeta: { position: 'absolute', left: 10, right: 10, bottom: 10, color: colors.purple, fontSize: 11, fontWeight: '600' },
     empty: { color: colors.textSecondary, fontSize: 14, fontWeight: '500', textAlign: 'center', marginTop: 32 },
 });
+
+// Ana sayfa → Spor: ağır ızgara bitene kadar Home kilitlenmesin. Önce başlık, sonra içerik.
+function CategoryEntry(props) {
+    const navigation = props.navigation;
+    const category = String(props.route?.params?.category || '').toUpperCase();
+    const t = useT();
+    const insets = useSafeAreaInsets();
+    const [open, setOpen] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        setOpen(false);
+        const id = requestAnimationFrame(() => {
+            if (alive) setOpen(true);
+        });
+        return () => {
+            alive = false;
+            cancelAnimationFrame(id);
+        };
+    }, [category]);
+    if (!open) {
+        const title = t[CAT_LABEL_KEY[category]] || category;
+        return (
+            <View style={[s.container, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
+                <View style={sp.topBar}>
+                    <ScreenBackButton onPress={() => navigation.goBack()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={sp.topBack}>{t.back}</Text>
+                    </ScreenBackButton>
+                    <Text style={sp.topTitle} numberOfLines={1}>{title}</Text>
+                </View>
+            </View>
+        );
+    }
+    return <CategoryScreen {...props} />;
+}
+
+export default CategoryEntry;

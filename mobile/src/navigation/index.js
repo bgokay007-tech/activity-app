@@ -282,8 +282,8 @@ function HomeStackNav() {
     return (
         <HomeStack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
             <HomeStack.Screen name="Home" component={HomeScreen} />
-            <HomeStack.Screen name="Category" component={CategoryScreen} options={{ animation: 'none' }} />
-            <HomeStack.Screen name="SubCategory" component={SubCategoryScreen} options={{ animation: 'none' }} />
+            <HomeStack.Screen name="Category" component={CategoryScreen} options={{ animation: 'none', freezeOnBlur: true }} />
+            <HomeStack.Screen name="SubCategory" component={SubCategoryScreen} options={{ animation: 'none', freezeOnBlur: true }} />
             <HomeStack.Screen name="RecordTrail" component={RecordTrailScreen} />
             <HomeStack.Screen name="AddTrailAdmin" component={AddTrailAdminScreen} />
             <HomeStack.Screen name="Profile" component={ProfileScreen} />

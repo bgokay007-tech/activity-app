@@ -328,6 +328,8 @@ export default function HomeScreen({ navigation }) {
                                 if (cat.id === 'SPORTS') warmSportPhotos();
                             }}
                             onPress={() => cat.enabled && navigation.navigate('Category', { category: cat.id })}
+                            delayPressIn={0}
+                            delayPressOut={0}
                             activeOpacity={0.85}
                             disabled={!cat.enabled}
                         >
