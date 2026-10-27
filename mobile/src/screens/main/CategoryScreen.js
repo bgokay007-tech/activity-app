@@ -1,6 +1,6 @@
 ﻿import { useState, useCallback, useEffect, useMemo } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
-import { View, Text, Image, ScrollView, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform, InteractionManager } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Platform, InteractionManager } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
