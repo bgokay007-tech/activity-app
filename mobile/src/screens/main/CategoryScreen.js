@@ -1,6 +1,6 @@
 ﻿import { useState, useCallback, useEffect, useMemo } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
-import { View, Text, Image, ScrollView, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, FlatList, TouchableOpacity, Pressable, StyleSheet, ActivityIndicator, TextInput, Platform, InteractionManager } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -236,40 +236,50 @@ export default function CategoryScreen({ route, navigation }) {
 
     useFocusEffect(
         useCallback(() => {
+            // İlan sayıları hafif — hemen. Favori/ilgi/maça ait 3 istek ilk kareyi kilitlemesin.
             fetchCounts();
-            const known = new Set((SUB_MAP[category] || []).map(s => s.id));
-            const asList = (res) => Array.isArray(res?.data) ? res.data : [];
-            if (isSports) {
-                AsyncStorage.getItem(FAV_KEY).then(raw => setFavIds(parseIdList(raw))).catch(() => {});
-                AsyncStorage.getItem(RECENT_KEY).then(raw => setRecentIds(parseIdList(raw))).catch(() => {});
-                const isMine = (item) => {
-                    if (!item || !myId) return false;
-                    if (item.senderId === myId || item.sender?.id === myId) return true;
-                    if (item.receiverId === myId || item.receiver?.id === myId) return true;
-                    if ((item.participants || []).some(p => p?.id === myId)) return true;
-                    return (item.senderTeam || []).some(p => p?.id === myId);
-                };
-                Promise.all([
-                    api.get('/interests/my').catch(() => ({ data: [] })),
-                    api.get('/rivals/my-upcoming').catch(() => ({ data: [] })),
-                    api.get('/rivals/my').catch(() => ({ data: [] })),
-                ]).then(([intRes, upRes, myRes]) => {
-                    const interests = asList(intRes).filter(i => !i.hidden && known.has(i.subCategory));
-                    setMyInterests(interests);
-                    const involved = new Set();
-                    asList(upRes).forEach(m => { if (m?.subCategory && known.has(m.subCategory)) involved.add(m.subCategory); });
-                    asList(myRes).forEach(m => {
-                        if (!m?.subCategory || !known.has(m.subCategory)) return;
-                        if (m.status !== 'OPEN' && m.status !== 'MATCHED') return;
-                        if (isMine(m)) involved.add(m.subCategory);
-                    });
-                    setInvolvedSubIds([...involved]);
-                }).catch(() => {});
-            } else {
-                api.get('/interests/my').then(intRes => {
-                    setMyInterests(asList(intRes).filter(i => !i.hidden && known.has(i.subCategory)));
-                }).catch(() => setMyInterests([]));
-            }
+            let cancelled = false;
+            const task = InteractionManager.runAfterInteractions(() => {
+                if (cancelled) return;
+                const known = new Set((SUB_MAP[category] || []).map(s => s.id));
+                const asList = (res) => Array.isArray(res?.data) ? res.data : [];
+                if (isSports) {
+                    AsyncStorage.getItem(FAV_KEY).then(raw => { if (!cancelled) setFavIds(parseIdList(raw)); }).catch(() => {});
+                    AsyncStorage.getItem(RECENT_KEY).then(raw => { if (!cancelled) setRecentIds(parseIdList(raw)); }).catch(() => {});
+                    const isMine = (item) => {
+                        if (!item || !myId) return false;
+                        if (item.senderId === myId || item.sender?.id === myId) return true;
+                        if (item.receiverId === myId || item.receiver?.id === myId) return true;
+                        if ((item.participants || []).some(p => p?.id === myId)) return true;
+                        return (item.senderTeam || []).some(p => p?.id === myId);
+                    };
+                    Promise.all([
+                        api.get('/interests/my').catch(() => ({ data: [] })),
+                        api.get('/rivals/my-upcoming').catch(() => ({ data: [] })),
+                        api.get('/rivals/my').catch(() => ({ data: [] })),
+                    ]).then(([intRes, upRes, myRes]) => {
+                        if (cancelled) return;
+                        const interests = asList(intRes).filter(i => !i.hidden && known.has(i.subCategory));
+                        setMyInterests(interests);
+                        const involved = new Set();
+                        asList(upRes).forEach(m => { if (m?.subCategory && known.has(m.subCategory)) involved.add(m.subCategory); });
+                        asList(myRes).forEach(m => {
+                            if (!m?.subCategory || !known.has(m.subCategory)) return;
+                            if (m.status !== 'OPEN' && m.status !== 'MATCHED') return;
+                            if (isMine(m)) involved.add(m.subCategory);
+                        });
+                        setInvolvedSubIds([...involved]);
+                    }).catch(() => {});
+                } else {
+                    api.get('/interests/my').then(intRes => {
+                        if (!cancelled) setMyInterests(asList(intRes).filter(i => !i.hidden && known.has(i.subCategory)));
+                    }).catch(() => { if (!cancelled) setMyInterests([]); });
+                }
+            });
+            return () => {
+                cancelled = true;
+                task.cancel?.();
+            };
         }, [fetchCounts, isSports, myId, category])
     );
 
@@ -481,14 +491,33 @@ export default function CategoryScreen({ route, navigation }) {
 
                 {loading ? (
                     <ActivityIndicator color={colors.purple} style={{ marginTop: 40 }} />
-                ) : (
+                ) : searching ? (
                     <ScrollView
                         contentContainerStyle={[sp.list, { paddingBottom: listPad }]}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
                         keyboardDismissMode="on-drag"
                     >
-                        {!searching && (
+                        {filtered.length === 0 ? (
+                            <Text style={sp.empty}>{t.noSportMatch}</Text>
+                        ) : (
+                            <View style={sp.grid}>{filtered.map(sub => renderTile(sub))}</View>
+                        )}
+                    </ScrollView>
+                ) : (
+                    <FlatList
+                        data={visibleGroups}
+                        keyExtractor={(g) => g.id}
+                        // Tüm grup JPEG'leri aynı anda çözülünce Spor girişi kilitleniyordu.
+                        initialNumToRender={2}
+                        maxToRenderPerBatch={1}
+                        windowSize={3}
+                        removeClippedSubviews
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="on-drag"
+                        contentContainerStyle={[sp.list, { paddingBottom: listPad }]}
+                        ListHeaderComponent={(
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sp.chipRow} keyboardShouldPersistTaps="handled">
                                 {[
                                     { id: 'today', label: t.intentPlayToday },
@@ -506,14 +535,7 @@ export default function CategoryScreen({ route, navigation }) {
                                 ))}
                             </ScrollView>
                         )}
-
-                        {searching ? (
-                            filtered.length === 0 ? (
-                                <Text style={sp.empty}>{t.noSportMatch}</Text>
-                            ) : (
-                                <View style={sp.grid}>{filtered.map(sub => renderTile(sub))}</View>
-                            )
-                        ) : visibleGroups.map(g => {
+                        renderItem={({ item: g }) => {
                             const items = (SUB_MAP.SPORTS || []).filter(sub => g.ids.includes(sub.id)).filter(passesIntent).sort((a, b) => sortSport(a, b, g.ids));
                             if (items.length === 0) return null;
                             // Grubun tek emojisi (ör. sadece 🎾) diğer dalları görünmez kılıyordu — gruptaki
@@ -527,7 +549,7 @@ export default function CategoryScreen({ route, navigation }) {
                                 return { id, emoji };
                             }).filter(Boolean);
                             return (
-                                <View key={g.id} style={sp.groupBlock}>
+                                <View style={sp.groupBlock}>
                                     <View style={sp.groupTitleRow}>
                                         <Text style={[sp.groupTitle, { marginBottom: 0 }]}>{t[g.key]}</Text>
                                         {groupIcons.map(ic => ic.image
@@ -539,8 +561,8 @@ export default function CategoryScreen({ route, navigation }) {
                                     </ScrollView>
                                 </View>
                             );
-                        })}
-                    </ScrollView>
+                        }}
+                    />
                 )}
             </KeyboardAvoidingView>
         );

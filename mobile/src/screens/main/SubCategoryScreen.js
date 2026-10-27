@@ -23749,11 +23749,18 @@ function SubCategoryScreen({ route, navigation }) {
     // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
     // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
     const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction, ratingType }
-    // Kapalı pencereler (filtre, il seçici) ilk karede kurulmasın — dal girişi kilitleniyordu.
+    // Kapalı pencereler + ağır liste ilk karede kurulmasın — dal girişi kilitleniyordu.
     const [chromeReady, setChromeReady] = useState(false);
+    const [bodyReady, setBodyReady] = useState(false);
     useEffect(() => {
-        const id = setTimeout(() => setChromeReady(true), 80);
-        return () => clearTimeout(id);
+        setChromeReady(false);
+        setBodyReady(false);
+        const bodyTimer = setTimeout(() => setBodyReady(true), 16);
+        const chromeTimer = setTimeout(() => setChromeReady(true), 120);
+        return () => {
+            clearTimeout(bodyTimer);
+            clearTimeout(chromeTimer);
+        };
     }, [sub]);
     // Padel/pickleball: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ.
     const defaultAssessRatingType = (sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined;
@@ -25223,9 +25230,22 @@ function SubCategoryScreen({ route, navigation }) {
         if (notifNavKey) autoOpenHandledRef.current = null;
     }, [notifNavKey]);
 
-    // fresh: true — ana sayfaya çıkıp aynı dala dönünce rawCache'teki bayat medya
-    // (_count.comments=0) yorumları silinmiş gibi göstermesin.
-    useEffect(() => { load({ fresh: true }); }, [load]);
+    // Girişte fresh:true önbelleği ve dokunuşta başlayan prefetch'i siliyordu —
+    // dal 1 sn kilitleniyordu. Önce önbellek/prefetch ile boya; sonra arka planda taze çek.
+    useEffect(() => {
+        let cancelled = false;
+        let refreshTimer = null;
+        load({ fresh: false }).finally(() => {
+            if (cancelled) return;
+            refreshTimer = setTimeout(() => {
+                if (!cancelled) load({ fresh: true });
+            }, 1200);
+        });
+        return () => {
+            cancelled = true;
+            if (refreshTimer) clearTimeout(refreshTimer);
+        };
+    }, [load]);
     // Kullanıcı isteği: skor girişi sonrası maç kartı, arkaplandaki liste yenilenene kadar
     // (yaklaşık 1sn) eski konumunda (ör. yedek arayan maçlar "Açık İlanlar" başlığı altında
     // gösterildiği için orada) kalıp sonra doğru yere (Skor Bekleyen Maçlar) "atlıyordu" —
@@ -25234,14 +25254,18 @@ function SubCategoryScreen({ route, navigation }) {
     const onRefresh = () => { setRefreshing(true); return load({ fresh: true }); };
 
     useEffect(() => {
-        ['rivals', 'tournaments', 'coaches', 'equipment', 'referees'].forEach(tab => {
-            api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=${tab}`)
-                .then(res => {
-                    if (res.data.city) setCityAlertCity(res.data.city);
-                    setTabSubCities(prev => ({ ...prev, [tab]: res.data.subscribedCities || [] }));
-                })
-                .catch(() => {});
-        });
+        // 5 paralel istek giriş karesiyle yarışmasın
+        const timer = setTimeout(() => {
+            ['rivals', 'tournaments', 'coaches', 'equipment', 'referees'].forEach(tab => {
+                api.get(`/city-alerts/${encodeURIComponent(sub)}?tab=${tab}`)
+                    .then(res => {
+                        if (res.data.city) setCityAlertCity(res.data.city);
+                        setTabSubCities(prev => ({ ...prev, [tab]: res.data.subscribedCities || [] }));
+                    })
+                    .catch(() => {});
+            });
+        }, 900);
+        return () => clearTimeout(timer);
     }, [sub]);
 
     // Picker'dan il toggle (herhangi bir sekme için)
@@ -27996,6 +28020,10 @@ function SubCategoryScreen({ route, navigation }) {
                 onMomentumScrollEnd={() => { if (activeTab === 'media') pickAudiblePost(); }}
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={cfg.color} />}
             >
+                    {!bodyReady ? (
+                        <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
+                    ) : (
+                    <>
                     {/* ── RIVALS ── */}
                     {activeTab === 'rivals' && (
                         <>
@@ -31961,6 +31989,8 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
                         </>
                     )}
+                    </>
+                    )}
             </ScrollView>
 
             {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
@@ -33257,7 +33287,7 @@ const s = StyleSheet.create({
 });
 
 // Dal ekranı ilk karede binlerce satır kuruyordu; geçiş o bitene kadar kilitleniyordu.
-// Önce başlık çizilir, ağır ağaç bir sonraki karede bağlanır.
+// Önce başlık çizilir; ağır ağaç etkileşimler bittikten sonra bağlanır.
 function SubCategoryEntry(props) {
     const { category, sub } = props.route?.params || {};
     const navigation = props.navigation;
@@ -33267,14 +33297,16 @@ function SubCategoryEntry(props) {
     const [open, setOpen] = useState(false);
     useEffect(() => {
         let alive = true;
-        const outer = requestAnimationFrame(() => {
+        setOpen(false);
+        const task = InteractionManager.runAfterInteractions(() => {
+            // Bir kare daha bekle — shell boyansın, sonra ağır mount.
             requestAnimationFrame(() => {
                 if (alive) setOpen(true);
             });
         });
         return () => {
             alive = false;
-            cancelAnimationFrame(outer);
+            task.cancel?.();
         };
     }, [category, sub]);
     if (!open) {

@@ -268,6 +268,7 @@ export default function HomeScreen({ navigation }) {
                             <TouchableOpacity
                                 key={cat.id}
                                 style={[s.card, { borderColor: cat.borderColor, backgroundColor: cat.bgColor, opacity: cat.enabled ? 1 : 0.5 }]}
+                                onPressIn={() => { if (cat.enabled) prefetchCounts(cat.id); }}
                                 onPress={() => cat.enabled && navigation.navigate('Category', { category: cat.id })}
                                 activeOpacity={cat.enabled ? 0.8 : 1}
                                 disabled={!cat.enabled}
@@ -318,6 +319,7 @@ export default function HomeScreen({ navigation }) {
                         <TouchableOpacity
                             key={cat.id}
                             style={nv.tile}
+                            onPressIn={() => { if (cat.enabled) prefetchCounts(cat.id); }}
                             onPress={() => cat.enabled && navigation.navigate('Category', { category: cat.id })}
                             activeOpacity={0.85}
                             disabled={!cat.enabled}
