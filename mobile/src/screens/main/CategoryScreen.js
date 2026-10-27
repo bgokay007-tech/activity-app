@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useEffect, useMemo } from 'react';
+﻿import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput, Platform, InteractionManager } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -144,16 +144,39 @@ function parseIdList(raw) {
 function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant }) {
     const photo = SUB_PHOTOS[sub.id] || null;
     const tint = SUB_TINT[sub.id] || '#1C1F28';
+    // Yatay ScrollView içindeki TouchableOpacity dokunuşu geciktiriyordu. Ham touch:
+    // kaydırma = iptal, dokunup kaldır = anında aç — stil aynı (satır satır yatay).
+    const origin = useRef(null);
+    const starHit = useRef(false);
+    const [pressed, setPressed] = useState(false);
     return (
-        <TouchableOpacity
-            style={[variant === 'row' ? sp.tileRow : sp.tile, count === 0 && sp.tileQuiet]}
-            onPress={onOpen}
-            onPressIn={onPressIn}
-            delayPressIn={0}
-            delayPressOut={0}
-            activeOpacity={0.85}
+        <View
+            style={[variant === 'row' ? sp.tileRow : sp.tile, count === 0 && sp.tileQuiet, pressed && { opacity: 0.85 }]}
+            onTouchStart={(e) => {
+                origin.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+                starHit.current = false;
+                setPressed(true);
+                onPressIn?.();
+            }}
+            onTouchMove={(e) => {
+                if (!origin.current) return;
+                const dx = Math.abs(e.nativeEvent.pageX - origin.current.x);
+                const dy = Math.abs(e.nativeEvent.pageY - origin.current.y);
+                if (dx > 12 || dy > 12) {
+                    origin.current = null;
+                    setPressed(false);
+                }
+            }}
+            onTouchEnd={() => {
+                if (origin.current && !starHit.current) onOpen();
+                origin.current = null;
+                setPressed(false);
+            }}
+            onTouchCancel={() => {
+                origin.current = null;
+                setPressed(false);
+            }}
         >
-            {/* Koyu zemin her zaman durur — JPEG geç çözülse bile kart yeri boş kalmaz / yeşil flaş olmaz */}
             <View style={[sp.tileFill, { backgroundColor: tint }]} />
             {photo ? <Image source={photo} style={sp.tileImg} fadeDuration={0} /> : (
                 <View style={sp.tileFill}>
@@ -162,12 +185,19 @@ function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav,
             )}
             {photo ? <View style={sp.tileShade} /> : null}
             {count > 0 && <View style={sp.liveDot} />}
-            <TouchableOpacity onPress={onToggleFav} hitSlop={10} style={sp.starBtn} delayPressIn={0} activeOpacity={0.7}>
+            <TouchableOpacity
+                onPressIn={() => { starHit.current = true; }}
+                onPress={onToggleFav}
+                hitSlop={10}
+                style={sp.starBtn}
+                delayPressIn={0}
+                activeOpacity={0.7}
+            >
                 <Text style={[sp.star, favored && { color: colors.purple }]}>{favored ? '★' : '☆'}</Text>
             </TouchableOpacity>
             <Text style={[sp.tileName, count === 0 && { bottom: 12 }]} numberOfLines={2}>{label}</Text>
             {count > 0 ? <Text style={sp.tileMeta}>{t.listings(count)}</Text> : null}
-        </TouchableOpacity>
+        </View>
     );
 }
 
@@ -550,11 +580,9 @@ function CategoryScreen({ route, navigation }) {
                                             ? <Image key={ic.id} source={ic.image} style={sp.groupIconImg} resizeMode="contain" />
                                             : <Text key={ic.id} style={sp.groupIconEmoji}>{ic.emoji}</Text>)}
                                     </View>
-                                    {/* Yatay ScrollView iç içe olunca Spor'da dokunuş ~1sn gecikiyordu;
-                                        Sanat/Sosyal/Oyun tek dikey kaydırmada anında tepki veriyor — aynı model. */}
-                                    <View style={sp.grid}>
-                                        {items.map(sub => renderTile(sub))}
-                                    </View>
+                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={sp.row} keyboardShouldPersistTaps="always">
+                                        {items.map(sub => renderTile(sub, 'row'))}
+                                    </ScrollView>
                                 </View>
                             );
                         })}
