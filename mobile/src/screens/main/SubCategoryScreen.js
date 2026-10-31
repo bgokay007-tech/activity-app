@@ -42,6 +42,7 @@ import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
 import ExternalMediaShareModal from '../../components/ExternalMediaShareModal';
+import SavePostToListModal from '../../components/SavePostToListModal';
 import MatchResultShareModal from '../../components/MatchResultShareModal';
 import MusicDetailModal from '../../components/MusicDetailModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
@@ -24000,6 +24001,7 @@ function SubCategoryScreen({ route, navigation }) {
     // Medya / reels → uygulama dışı paylaşım sayfası; oradan isteğe bağlı arkadaşa DM.
     const [mediaExtShare, setMediaExtShare] = useState(null);
     const [mediaFriendShare, setMediaFriendShare] = useState(null);
+    const [savePostTarget, setSavePostTarget] = useState(null);
     const toggleMutePostMusic = (postId) => {
         if (!postId) return;
         setMutedMusicIds(prev => {
@@ -24042,24 +24044,18 @@ function SubCategoryScreen({ route, navigation }) {
         }).catch(() => {});
         return () => { alive = false; };
     }, [activeTab]);
-    const toggleSavePost = async (post) => {
+    const openSavePost = (post) => {
         if (!post?.id) return;
-        const on = savedPostIds.has(post.id);
+        setSavePostTarget(post);
+    };
+    const onSavePostChanged = (saved) => {
+        const id = savePostTarget?.id;
+        if (!id) return;
         setSavedPostIds(prev => {
             const next = new Set(prev);
-            if (on) next.delete(post.id); else next.add(post.id);
+            if (saved) next.add(id); else next.delete(id);
             return next;
         });
-        try {
-            if (on) await api.delete(`/saved/posts/${post.id}`);
-            else await api.post(`/saved/posts/${post.id}`);
-        } catch {
-            setSavedPostIds(prev => {
-                const next = new Set(prev);
-                if (on) next.add(post.id); else next.delete(post.id);
-                return next;
-            });
-        }
     };
     // Kullanıcı isteği: "tenis medyadan oynatmıyor" — tam ekran medya görüntüleyicisi video
     // paylaşımlarında SADECE 🎬 ikonu gösterip hiçbir zaman gerçekten oynatmıyordu (görsel
@@ -31202,7 +31198,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                                         <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(post.id) ? '🔇' : '🔊'}</Text>
                                                                     </TouchableOpacity>
                                                                 )}
-                                                                <TouchableOpacity onPress={() => toggleSavePost(post)} style={{ marginLeft: 'auto' }}>
+                                                                <TouchableOpacity onPress={() => openSavePost(post)} style={{ marginLeft: 'auto' }}>
                                                                     <Text style={{ fontSize: 20, color: savedPostIds.has(post.id) ? colors.purple : colors.textMuted }}>🔖</Text>
                                                                 </TouchableOpacity>
                                                             </View>
@@ -32850,6 +32846,12 @@ function SubCategoryScreen({ route, navigation }) {
                 post={mediaFriendShare}
                 onClose={() => setMediaFriendShare(null)}
             />
+            <SavePostToListModal
+                visible={!!savePostTarget}
+                postId={savePostTarget?.id}
+                onClose={() => setSavePostTarget(null)}
+                onChanged={onSavePostChanged}
+            />
 
             {/* ── Media Viewer ── */}
             <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); }} android_keyboardInputMode="adjustNothing">
@@ -32997,7 +32999,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(mp.id) ? '🔇' : '🔊'}</Text>
                                         </TouchableOpacity>
                                     )}
-                                    <TouchableOpacity onPress={() => toggleSavePost(mp)} style={{ marginLeft: 'auto' }}>
+                                    <TouchableOpacity onPress={() => openSavePost(mp)} style={{ marginLeft: 'auto' }}>
                                         <Text style={{ fontSize: 20, color: savedPostIds.has(mp.id) ? '#c4b5fd' : '#ffffff80' }}>🔖</Text>
                                     </TouchableOpacity>
                                 </View>

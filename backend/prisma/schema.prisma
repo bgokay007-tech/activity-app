@@ -41,6 +41,7 @@ model User {
   playlists        Playlist[]
   likedTracks      LikedTrack[]
   savedItems       SavedItem[]
+  savedLists       SavedList[]
   followers        Follow[]  @relation("following")
   following        Follow[]  @relation("follower")
   sentRequests     ActivityRequest[] @relation("sender")
@@ -932,6 +933,7 @@ model Post {
   likes        Like[]
   storyViews   StoryView[]
   savedItems   SavedItem[]
+  savedListItems SavedListItem[]
   // DM'de "gönderiyi/hikayeyi/reels'i arkadaşa ilet" ile eklenen mesajlar (bkz. Message.sharedPostId)
   sharedInMessages Message[]
 }
@@ -1045,6 +1047,33 @@ model SavedItem {
 
   @@unique([userId, saveKey])
   @@index([userId, kind])
+}
+
+// Kaydedilenler listeleri: GENERAL = kategori yok; CUSTOM = kullanıcı kategorisi.
+model SavedList {
+  id        String   @id @default(uuid())
+  userId    String
+  kind      String   @default("CUSTOM") // GENERAL | CUSTOM
+  name      String?
+  createdAt DateTime @default(now())
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items SavedListItem[]
+
+  @@index([userId])
+}
+
+model SavedListItem {
+  id        String   @id @default(uuid())
+  listId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  list SavedList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  post Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, postId])
+  @@index([postId])
 }
 
 // TAKİP — istek/onay gerektirir (PENDING -> ACCEPTED | REJECTED), her yon birbirinden bagimsizdir

@@ -1,4 +1,6 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import useT from '../../hooks/useT';
+import { shellT } from '../../i18n/packs/shell';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, FlatList, TouchableOpacity, TouchableWithoutFeedback,
@@ -11,6 +13,7 @@ import api from '../../services/api';
 import colors from '../../theme/colors';
 import { renderMentionText } from '../../components/MentionCaptionInput';
 import MusicDetailModal from '../../components/MusicDetailModal';
+import SavePostToListModal from '../../components/SavePostToListModal';
 
 const SCREEN_W = Dimensions.get('window').width;
 
@@ -30,18 +33,19 @@ const SUB_EMOJI = {
 function timeAgo(dateStr) {
     const diff = Date.now() - new Date(dateStr).getTime();
     const m = Math.floor(diff / 60000);
-    if (m < 1) return 'az önce';
-    if (m < 60) return `${m} dk önce`;
+    if (m < 1) return shellT('sh_0165');
+    if (m < 60) return shellT('sh_0643', m);
     const h = Math.floor(m / 60);
-    if (h < 24) return `${h} sa önce`;
+    if (h < 24) return shellT('sh_0641', h);
     const d = Math.floor(h / 24);
-    if (d < 7) return `${d} gün önce`;
+    if (d < 7) return shellT('sh_0640', d);
     return new Date(dateStr).toLocaleDateString('tr-TR');
 }
 
 // ─── Post Card ────────────────────────────────────────────────────────────────
 
 function PostCard({ post, liked, saved, onToggleLike, onToggleSave, isVisible, dataSaver, isMusicPlaying, onMusicTap }) {
+    const t = useT();
     const lastTap = useRef(0);
     const [heartFlash, setHeartFlash] = useState(false);
     const [videoPaused, setVideoPaused] = useState(false);
@@ -123,7 +127,7 @@ function PostCard({ post, liked, saved, onToggleLike, onToggleSave, isVisible, d
                         {showDataSaverCover && (
                             <View style={s.dataSaverCover} pointerEvents="none">
                                 <Text style={s.dataSaverPlayIcon}>▶</Text>
-                                <Text style={s.dataSaverText}>Veri tasarrufu · oynatmak için dokun</Text>
+                                <Text style={s.dataSaverText}>{t.sh_0476}</Text>
                             </View>
                         )}
 
@@ -158,7 +162,7 @@ function PostCard({ post, liked, saved, onToggleLike, onToggleSave, isVisible, d
                     </TouchableOpacity>
                 </View>
                 <TouchableOpacity style={s.actionBtn} activeOpacity={0.7} onPress={() => onToggleSave(post)}>
-                    <Text style={s.actionIcon}>🔖</Text>
+                    <Text style={[s.actionIcon, saved && { opacity: 1 }]}>🔖</Text>
                 </TouchableOpacity>
             </View>
 
@@ -217,6 +221,8 @@ function PostCard({ post, liked, saved, onToggleLike, onToggleSave, isVisible, d
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function UserPostsScreen({ route, navigation }) {
+    const t = useT();
+
     const { userId, username } = route.params;
 
     const [posts, setPosts] = useState([]);
@@ -227,6 +233,7 @@ export default function UserPostsScreen({ route, navigation }) {
     const [playingMusicPostId, setPlayingMusicPostId] = useState(null);
     const [savedIds, setSavedIds] = useState(() => new Set());
     const [musicDetail, setMusicDetail] = useState(null);
+    const [savePostTarget, setSavePostTarget] = useState(null);
 
     const soundRef = useRef(null);
     const postsRef = useRef([]);
@@ -317,25 +324,19 @@ export default function UserPostsScreen({ route, navigation }) {
         if (post?.musicName) setMusicDetail(post);
     }, []);
 
-    const toggleSave = useCallback(async (post) => {
+    const openSave = useCallback((post) => {
         if (!post?.id) return;
-        const on = savedIds.has(post.id);
+        setSavePostTarget(post);
+    }, []);
+    const onSaveChanged = useCallback((saved) => {
+        const id = savePostTarget?.id;
+        if (!id) return;
         setSavedIds(prev => {
             const next = new Set(prev);
-            if (on) next.delete(post.id); else next.add(post.id);
+            if (saved) next.add(id); else next.delete(id);
             return next;
         });
-        try {
-            if (on) await api.delete(`/saved/posts/${post.id}`);
-            else await api.post(`/saved/posts/${post.id}`);
-        } catch {
-            setSavedIds(prev => {
-                const next = new Set(prev);
-                if (on) next.add(post.id); else next.delete(post.id);
-                return next;
-            });
-        }
-    }, [savedIds]);
+    }, [savePostTarget?.id]);
 
     const toggleLike = useCallback(async (postId) => {
         const already = likedIds.has(postId);
@@ -375,13 +376,13 @@ export default function UserPostsScreen({ route, navigation }) {
             liked={likedIds.has(item.id)}
             saved={savedIds.has(item.id)}
             onToggleLike={toggleLike}
-            onToggleSave={toggleSave}
+            onToggleSave={openSave}
             isVisible={visiblePostId === item.id}
             dataSaver={dataSaver}
             isMusicPlaying={playingMusicPostId === item.id}
             onMusicTap={handleMusicTap}
         />
-    ), [likedIds, savedIds, toggleLike, toggleSave, visiblePostId, dataSaver, playingMusicPostId, handleMusicTap]);
+    ), [likedIds, savedIds, toggleLike, openSave, visiblePostId, dataSaver, playingMusicPostId, handleMusicTap]);
 
     return (
         <View style={s.container}>
@@ -400,7 +401,7 @@ export default function UserPostsScreen({ route, navigation }) {
             ) : posts.length === 0 ? (
                 <View style={s.center}>
                     <Text style={{ fontSize: 48, opacity: 0.3 }}>📷</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 15, marginTop: 12 }}>Henüz gönderi yok</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 15, marginTop: 12 }}>{t.sh_0415}</Text>
                 </View>
             ) : (
                 <FlatList
@@ -414,6 +415,12 @@ export default function UserPostsScreen({ route, navigation }) {
                 />
             )}
             <MusicDetailModal visible={!!musicDetail} track={musicDetail} onClose={() => setMusicDetail(null)} />
+            <SavePostToListModal
+                visible={!!savePostTarget}
+                postId={savePostTarget?.id}
+                onClose={() => setSavePostTarget(null)}
+                onChanged={onSaveChanged}
+            />
         </View>
     );
 }

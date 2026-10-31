@@ -99,7 +99,15 @@ export default function ExternalMediaShareModal({ visible, post, onClose, onShar
         Alert.alert('', t.media_ext_gallery_hint || '');
     };
 
+    // Uygulama içi "arkadaşa gönder" her zaman en başta.
     const items = [
+        {
+            id: 'friend', emoji: '👥', label: t.shareToFriendTitle || t.media_ext_friend || 'Friend',
+            go: async () => {
+                onClose?.();
+                onShareToFriend?.(post);
+            },
+        },
         {
             id: 'whatsapp', emoji: '💬', label: 'WhatsApp',
             go: () => openOrFallback(
@@ -182,13 +190,6 @@ export default function ExternalMediaShareModal({ visible, post, onClose, onShar
         {
             id: 'more', emoji: '⋯', label: t.media_ext_more || 'More apps',
             go: () => sharePost(post, t),
-        },
-        {
-            id: 'friend', emoji: '👥', label: t.shareToFriendTitle || t.media_ext_friend || 'Friend',
-            go: async () => {
-                onClose?.();
-                onShareToFriend?.(post);
-            },
         },
     ];
 
