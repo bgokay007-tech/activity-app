@@ -41,6 +41,7 @@ import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
 import SharePostToFriendModal from '../../components/SharePostToFriendModal';
+import ExternalMediaShareModal from '../../components/ExternalMediaShareModal';
 import MatchResultShareModal from '../../components/MatchResultShareModal';
 import MusicDetailModal from '../../components/MusicDetailModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
@@ -23996,7 +23997,8 @@ function SubCategoryScreen({ route, navigation }) {
     const [musicDetail, setMusicDetail] = useState(null);
     const [savedPostIds, setSavedPostIds] = useState(() => new Set());
     const [mutedMusicIds, setMutedMusicIds] = useState(() => new Set());
-    // Medya / reels → arkadaşa DM ile ilet (hikâyedeki SharePostToFriendModal ile aynı).
+    // Medya / reels → uygulama dışı paylaşım sayfası; oradan isteğe bağlı arkadaşa DM.
+    const [mediaExtShare, setMediaExtShare] = useState(null);
     const [mediaFriendShare, setMediaFriendShare] = useState(null);
     const toggleMutePostMusic = (postId) => {
         if (!postId) return;
@@ -31157,14 +31159,21 @@ function SubCategoryScreen({ route, navigation }) {
                                                             key={post.id}
                                                             style={{ backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 8 }}
                                                         >
-                                                            {/* Başlık: avatar + kullanıcı + zaman */}
+                                                            {/* Başlık: avatar + kullanıcı + zaman; en sağda uygulama dışı gönder */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 9, paddingVertical: 7 }}>
                                                                 <Avatar name={post.user?.username} avatar={post.user?.avatar} size={36} color={cfg.color} />
                                                                 <View style={{ flex: 1 }}>
                                                                     <Text style={{ color: '#fff', fontWeight: '800', fontSize: 13 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{post.user?.fullName || post.user?.username}</Text>
                                                                     <Text style={{ color: colors.textMuted, fontSize: 11 }}>{post.user?.username} · {fmtAgo(post.createdAt)}</Text>
                                                                 </View>
-                                                                {post.type === 'REEL' && <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '800' }}>🎬</Text>}
+                                                                {post.type === 'REEL' && <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '800', marginRight: 4 }}>🎬</Text>}
+                                                                <TouchableOpacity
+                                                                    onPress={() => setMediaExtShare(post)}
+                                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                                    style={{ paddingHorizontal: 8, paddingVertical: 5, borderRadius: 8, backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border }}
+                                                                >
+                                                                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{t.shareToFriendBtn || t.sc_0816}</Text>
+                                                                </TouchableOpacity>
                                                             </View>
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
@@ -31193,9 +31202,6 @@ function SubCategoryScreen({ route, navigation }) {
                                                                         <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(post.id) ? '🔇' : '🔊'}</Text>
                                                                     </TouchableOpacity>
                                                                 )}
-                                                                <TouchableOpacity onPress={() => setMediaFriendShare(post)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                                                    <Text style={{ color: colors.textMuted, fontSize: 16, fontWeight: '800' }}>{t.shareToFriendBtn || t.sc_0816}</Text>
-                                                                </TouchableOpacity>
                                                                 <TouchableOpacity onPress={() => toggleSavePost(post)} style={{ marginLeft: 'auto' }}>
                                                                     <Text style={{ fontSize: 20, color: savedPostIds.has(post.id) ? colors.purple : colors.textMuted }}>🔖</Text>
                                                                 </TouchableOpacity>
@@ -32833,6 +32839,12 @@ function SubCategoryScreen({ route, navigation }) {
             </Modal>
 
             <MusicDetailModal visible={!!musicDetail} track={musicDetail} onClose={() => setMusicDetail(null)} />
+            <ExternalMediaShareModal
+                visible={!!mediaExtShare}
+                post={mediaExtShare}
+                onClose={() => setMediaExtShare(null)}
+                onShareToFriend={(p) => setMediaFriendShare(p)}
+            />
             <SharePostToFriendModal
                 visible={!!mediaFriendShare}
                 post={mediaFriendShare}
@@ -32926,9 +32938,18 @@ function SubCategoryScreen({ route, navigation }) {
                                     ? <Image source={{ uri: mp.imageUrl }} style={{ width: '100%', height: mediaShowComments ? '50%' : '75%' }} resizeMode="contain" />
                                     : <VideoView player={mediaViewPlayer} style={{ width: '100%', height: mediaShowComments ? '50%' : '75%' }} allowsFullscreen allowsPictureInPicture nativeControls />
                                 }
-                                <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', marginTop: 8 }}>
-                                    {mp.user?.username} · {getSubCategoryLabel(mp.subCategory, t.lang)}
-                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, paddingHorizontal: 16, width: '100%', justifyContent: 'center' }}>
+                                    <Text style={{ color: '#ffffff90', fontSize: 12, fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>
+                                        {mp.user?.username} · {getSubCategoryLabel(mp.subCategory, t.lang)}
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={() => setMediaExtShare(mp)}
+                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, backgroundColor: '#ffffff18', borderWidth: 1, borderColor: '#ffffff30' }}
+                                    >
+                                        <Text style={{ color: '#fff', fontSize: 13, fontWeight: '800' }}>{t.shareToFriendBtn || t.sc_0816}</Text>
+                                    </TouchableOpacity>
+                                </View>
 
                                 {/* Kullanıcı isteği: bu medya bir maç skor girişinden paylaşıldıysa
                                     (rivalId) altında o maçın detayı gösterilsin. */}
@@ -32976,9 +32997,6 @@ function SubCategoryScreen({ route, navigation }) {
                                             <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(mp.id) ? '🔇' : '🔊'}</Text>
                                         </TouchableOpacity>
                                     )}
-                                    <TouchableOpacity onPress={() => setMediaFriendShare(mp)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                        <Text style={{ color: '#ffffff80', fontSize: 16, fontWeight: '800' }}>{t.shareToFriendBtn || t.sc_0816}</Text>
-                                    </TouchableOpacity>
                                     <TouchableOpacity onPress={() => toggleSavePost(mp)} style={{ marginLeft: 'auto' }}>
                                         <Text style={{ fontSize: 20, color: savedPostIds.has(mp.id) ? '#c4b5fd' : '#ffffff80' }}>🔖</Text>
                                     </TouchableOpacity>
