@@ -23996,6 +23996,8 @@ function SubCategoryScreen({ route, navigation }) {
     const [musicDetail, setMusicDetail] = useState(null);
     const [savedPostIds, setSavedPostIds] = useState(() => new Set());
     const [mutedMusicIds, setMutedMusicIds] = useState(() => new Set());
+    // Medya / reels → arkadaşa DM ile ilet (hikâyedeki SharePostToFriendModal ile aynı).
+    const [mediaFriendShare, setMediaFriendShare] = useState(null);
     const toggleMutePostMusic = (postId) => {
         if (!postId) return;
         setMutedMusicIds(prev => {
@@ -31191,6 +31193,9 @@ function SubCategoryScreen({ route, navigation }) {
                                                                         <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(post.id) ? '🔇' : '🔊'}</Text>
                                                                     </TouchableOpacity>
                                                                 )}
+                                                                <TouchableOpacity onPress={() => setMediaFriendShare(post)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                                                    <Text style={{ color: colors.textMuted, fontSize: 16, fontWeight: '800' }}>{t.shareToFriendBtn || t.sc_0816}</Text>
+                                                                </TouchableOpacity>
                                                                 <TouchableOpacity onPress={() => toggleSavePost(post)} style={{ marginLeft: 'auto' }}>
                                                                     <Text style={{ fontSize: 20, color: savedPostIds.has(post.id) ? colors.purple : colors.textMuted }}>🔖</Text>
                                                                 </TouchableOpacity>
@@ -32828,6 +32833,11 @@ function SubCategoryScreen({ route, navigation }) {
             </Modal>
 
             <MusicDetailModal visible={!!musicDetail} track={musicDetail} onClose={() => setMusicDetail(null)} />
+            <SharePostToFriendModal
+                visible={!!mediaFriendShare}
+                post={mediaFriendShare}
+                onClose={() => setMediaFriendShare(null)}
+            />
 
             {/* ── Media Viewer ── */}
             <Modal visible={mediaViewIdx !== null} animationType="fade" transparent onRequestClose={() => { setMediaViewIdx(null); setMediaShowComments(false); setMediaComments([]); setMediaCommentText(''); setMediaReplyingTo(null); }} android_keyboardInputMode="adjustNothing">
@@ -32966,6 +32976,9 @@ function SubCategoryScreen({ route, navigation }) {
                                             <Text style={{ fontSize: 18 }}>{mutedMusicIds.has(mp.id) ? '🔇' : '🔊'}</Text>
                                         </TouchableOpacity>
                                     )}
+                                    <TouchableOpacity onPress={() => setMediaFriendShare(mp)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                        <Text style={{ color: '#ffffff80', fontSize: 16, fontWeight: '800' }}>{t.shareToFriendBtn || t.sc_0816}</Text>
+                                    </TouchableOpacity>
                                     <TouchableOpacity onPress={() => toggleSavePost(mp)} style={{ marginLeft: 'auto' }}>
                                         <Text style={{ fontSize: 20, color: savedPostIds.has(mp.id) ? '#c4b5fd' : '#ffffff80' }}>🔖</Text>
                                     </TouchableOpacity>
