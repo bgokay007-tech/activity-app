@@ -24413,6 +24413,39 @@ function SubCategoryScreen({ route, navigation }) {
         scan(rivals); scan(matchedUpcoming); scan(pendingScore);
     }, [rivals, matchedUpcoming, pendingScore]);
     const [archiveCity, setArchiveCity] = useState('');
+    // Kullanıcı isteği: arşiv filtresinde "Konum" değil İl + altında İlçe; harf yazdıkça
+    // /cities önerileri (bkz. otomatik-tamamlama.md).
+    const [archiveDistrict, setArchiveDistrict] = useState('');
+    const [archiveCitySuggestions, setArchiveCitySuggestions] = useState([]);
+    const [archiveDistrictSuggestions, setArchiveDistrictSuggestions] = useState([]);
+    const archiveCitySearchTimer = useRef(null);
+    const archiveDistrictSearchTimer = useRef(null);
+    const searchArchiveProvince = (text) => {
+        setArchiveCity(text);
+        setArchiveDistrict('');
+        setArchiveDistrictSuggestions([]);
+        clearTimeout(archiveCitySearchTimer.current);
+        if (text.trim().length < 1) { setArchiveCitySuggestions([]); return; }
+        archiveCitySearchTimer.current = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/cities', { params: { q: text.trim() } });
+                setArchiveCitySuggestions([...new Set((Array.isArray(data) ? data : []).map(c => c.province).filter(Boolean))].slice(0, 12));
+            } catch { setArchiveCitySuggestions([]); }
+        }, 300);
+    };
+    const searchArchiveDistrict = (text) => {
+        setArchiveDistrict(text);
+        clearTimeout(archiveDistrictSearchTimer.current);
+        if (!archiveCity.trim() || text.trim().length < 1) { setArchiveDistrictSuggestions([]); return; }
+        archiveDistrictSearchTimer.current = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/cities', { params: { province: archiveCity.trim(), q: text.trim() } });
+                setArchiveDistrictSuggestions(
+                    [...new Set((Array.isArray(data) ? data : []).filter(c => c.district).map(c => c.district))].slice(0, 12),
+                );
+            } catch { setArchiveDistrictSuggestions([]); }
+        }, 300);
+    };
     const [archiveDateFrom, setArchiveDateFrom] = useState('');
     const [archiveDateTo, setArchiveDateTo] = useState('');
     // Kullanıcı isteği: tarih aralığı artık elle "YYYY-AA-GG" yazılmıyor, takvimden
@@ -24496,11 +24529,12 @@ function SubCategoryScreen({ route, navigation }) {
     }, [archiveSubTab]);
     const archiveFilterSummaryLabel = () => {
         const parts = [];
-        if (archiveCity) parts.push(archiveCity);
+        if (archiveCity) parts.push(archiveDistrict ? `${archiveCity} / ${archiveDistrict}` : archiveCity);
         if (archiveDateFrom || archiveDateTo) parts.push(`${archiveDateFrom || '…'}–${archiveDateTo || '…'}`);
         if (archivePlayer) parts.push(archivePlayer.fullName || archivePlayer.username);
         return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : lang === 'de' ? 'Filter' : 'Filter');
     };
+    const archiveLocFilterActive = !!(archiveCity || archiveDistrict);
     // Kullanıcı isteği: arşiv tarih aralığı artık DateRangePickerModal (takvim) ile seçiliyor —
     // o bileşen Date nesnesiyle çalışıyor, archiveDateFrom/To ise API'ye "YYYY-AA-GG" string
     // olarak gidiyor (dependency array'lerde de string olarak kullanılıyor) — sadece bu iki
@@ -25380,6 +25414,7 @@ function SubCategoryScreen({ route, navigation }) {
         setLoadingArchive(true);
         const params = new URLSearchParams({ category, subCategory: sub, scope: 'all' });
         if (archiveCity) params.set('city', archiveCity);
+        if (archiveDistrict) params.set('district', archiveDistrict);
         if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
         if (archiveDateTo) params.set('dateTo', archiveDateTo);
         if (archivePlayer) params.set('player', archivePlayer.id);
@@ -25393,21 +25428,22 @@ function SubCategoryScreen({ route, navigation }) {
             })
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
-    }, [activeTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo, archivePlayer]);
+    }, [activeTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo, archivePlayer]);
 
     const loadArchiveEquipment = useCallback(async () => {
         if (activeTab !== 'archive' || archiveSubTab !== 'equipment') return;
         setLoadingArchiveEquipment(true);
         try {
             const params = new URLSearchParams({ category, subCategory: sub, status: 'SOLD' });
-            if (archiveCity) params.set('city', archiveCity);
+            // Ekipmanda ayrı ilçe alanı yok — il + ilçe metni location/city içinde aranır
+            if (archiveCity) params.set('city', archiveDistrict ? `${archiveCity} ${archiveDistrict}` : archiveCity);
             if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
             if (archiveDateTo) params.set('dateTo', archiveDateTo);
             const { data } = await api.get(`/equipment?${params.toString()}`);
             setArchiveEquipment(Array.isArray(data) ? data : []);
         } catch { /* silent */ }
         finally { setLoadingArchiveEquipment(false); }
-    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
+    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { loadArchiveEquipment(); });
@@ -25425,13 +25461,14 @@ function SubCategoryScreen({ route, navigation }) {
         try {
             const params = new URLSearchParams({ category, subCategory: sub });
             if (archiveCity) params.set('city', archiveCity);
+            if (archiveDistrict) params.set('district', archiveDistrict);
             if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
             if (archiveDateTo) params.set('dateTo', archiveDateTo);
             const { data } = await api.get(`/tournaments/archived?${params.toString()}`);
             setArchiveTournaments(Array.isArray(data) ? data : []);
         } catch { /* silent */ }
         finally { setLoadingArchiveTournaments(false); }
-    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDateFrom, archiveDateTo]);
+    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { loadArchiveTournaments(); });
@@ -30667,9 +30704,9 @@ function SubCategoryScreen({ route, navigation }) {
                                 (bkz. showArchiveFilterModal). */}
                             <TouchableOpacity
                                 onPress={() => setShowArchiveFilterModal(true)}
-                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveCity || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveCity || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.border }}
+                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: (archiveCity || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                <Text style={{ color: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     🔍 {archiveFilterSummaryLabel()}
                                 </Text>
                                 <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
@@ -30684,22 +30721,70 @@ function SubCategoryScreen({ route, navigation }) {
                                         <Text style={{ color:'#fff', fontSize:16, fontWeight:'900' }}>🔍 {lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : lang === 'de' ? 'Filter' : 'Filter'}</Text>
                                         <TouchableOpacity onPress={() => setShowArchiveFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                                     </View>
-                                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                                    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
+                                        {/* Kullanıcı isteği: Konum değil İl + altında İlçe; harf yazdıkça öneri. */}
                                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {lang==='tr' ? 'Konum' : lang === 'ru' ? 'Локация' : lang === 'de' ? 'Standort' : 'Location'}</Text>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {t.archiveFilterProvince}</Text>
                                             {archiveCity ? (
-                                                <TouchableOpacity onPress={() => setArchiveCity('')}>
-                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{lang==='tr' ? 'Sıfırla' : lang === 'ru' ? 'Сбросить' : lang === 'de' ? 'Zurücksetzen' : 'Reset'}</Text>
+                                                <TouchableOpacity onPress={() => { setArchiveCity(''); setArchiveDistrict(''); setArchiveCitySuggestions([]); setArchiveDistrictSuggestions([]); }}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{t.archiveFilterReset}</Text>
                                                 </TouchableOpacity>
                                             ) : null}
                                         </View>
-                                        <TextInput
-                                            value={archiveCity}
-                                            onChangeText={setArchiveCity}
-                                            placeholder={lang==='tr' ? 'Şehir ara...' : lang === 'ru' ? 'Поиск города...' : lang === 'de' ? 'Stadt suchen...' : 'Search city...'}
-                                            placeholderTextColor={colors.textMuted}
-                                            style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff', marginBottom:18 }}
-                                        />
+                                        <View style={{ marginBottom: archiveCitySuggestions.length ? 6 : 14, zIndex: 20 }}>
+                                            <TextInput
+                                                value={archiveCity}
+                                                onChangeText={searchArchiveProvince}
+                                                placeholder={t.archiveFilterProvincePh}
+                                                placeholderTextColor={colors.textMuted}
+                                                style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveCity ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color:'#fff' }}
+                                            />
+                                            {archiveCitySuggestions.length > 0 && (
+                                                <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, marginTop:6, overflow:'hidden' }}>
+                                                    {archiveCitySuggestions.map((p, i) => (
+                                                        <TouchableOpacity
+                                                            key={p}
+                                                            onPress={() => { setArchiveCity(p); setArchiveCitySuggestions([]); setArchiveDistrict(''); setArchiveDistrictSuggestions([]); }}
+                                                            style={{ paddingHorizontal:13, paddingVertical:10, borderBottomWidth: i === archiveCitySuggestions.length - 1 ? 0 : 1, borderBottomColor: colors.border }}
+                                                        >
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>📍 {p}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
+
+                                        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                            <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🏘️ {t.archiveFilterDistrict}</Text>
+                                            {archiveDistrict ? (
+                                                <TouchableOpacity onPress={() => { setArchiveDistrict(''); setArchiveDistrictSuggestions([]); }}>
+                                                    <Text style={{ color: cfg.color, fontSize:11, fontWeight:'700' }}>{t.archiveFilterReset}</Text>
+                                                </TouchableOpacity>
+                                            ) : null}
+                                        </View>
+                                        <View style={{ marginBottom: archiveDistrictSuggestions.length ? 6 : 18, zIndex: 10 }}>
+                                            <TextInput
+                                                value={archiveDistrict}
+                                                onChangeText={searchArchiveDistrict}
+                                                placeholder={archiveCity.trim() ? t.archiveFilterDistrictPh : t.archiveFilterPickProvinceFirst}
+                                                placeholderTextColor={colors.textMuted}
+                                                editable={!!archiveCity.trim()}
+                                                style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor: archiveDistrict ? cfg.color+'60' : colors.border, paddingVertical:11, paddingHorizontal:13, fontSize:14, fontWeight:'700', color: archiveCity.trim() ? '#fff' : colors.textMuted, opacity: archiveCity.trim() ? 1 : 0.55 }}
+                                            />
+                                            {archiveDistrictSuggestions.length > 0 && (
+                                                <View style={{ backgroundColor:colors.surface2, borderRadius:12, borderWidth:1, borderColor:colors.border, marginTop:6, overflow:'hidden' }}>
+                                                    {archiveDistrictSuggestions.map((d, i) => (
+                                                        <TouchableOpacity
+                                                            key={d}
+                                                            onPress={() => { setArchiveDistrict(d); setArchiveDistrictSuggestions([]); }}
+                                                            style={{ paddingHorizontal:13, paddingVertical:10, borderBottomWidth: i === archiveDistrictSuggestions.length - 1 ? 0 : 1, borderBottomColor: colors.border }}
+                                                        >
+                                                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'700' }}>🏘️ {d}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            )}
+                                        </View>
 
                                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
                                             <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📅 {lang==='tr' ? 'Tarih Aralığı' : lang === 'ru' ? 'Диапазон дат' : lang === 'de' ? 'Datumsbereich' : 'Date Range'}</Text>

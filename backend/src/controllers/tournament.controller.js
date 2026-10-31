@@ -3694,7 +3694,7 @@ export const setChatNotifyPref = async (req, res, next) => {
 
 export const getArchivedTournaments = async (req, res, next) => {
     try {
-        const { category, subCategory, city, dateFrom, dateTo, participantId } = req.query;
+        const { category, subCategory, city, district, dateFrom, dateTo, participantId } = req.query;
         const myId = req.userId;
         const filterUserId = participantId || null;
 
@@ -3706,6 +3706,7 @@ export const getArchivedTournaments = async (req, res, next) => {
                 { city:     { contains: city, mode: 'insensitive' } },
                 { location: { contains: city, mode: 'insensitive' } },
             ]}),
+            ...(district && { location: { contains: district, mode: 'insensitive' } }),
             ...(dateFrom && { completedAt: { gte: new Date(dateFrom) } }),
             ...(dateTo   && { completedAt: { lte: new Date(dateTo) } }),
             ...(filterUserId && {

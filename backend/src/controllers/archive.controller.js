@@ -5,7 +5,7 @@ const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
 export const getArchive = async (req, res, next) => {
     try {
-        const { category, subCategory, city, court, dateFrom, dateTo, scope, player } = req.query;
+        const { category, subCategory, city, district, court, dateFrom, dateTo, scope, player } = req.query;
         const myId = req.userId;
         const allUsers = scope === 'all';
         // Kullanıcı isteği: arşivde belirli bir arkadaşın/oyuncunun maçlarını arayabilme —
@@ -37,6 +37,8 @@ export const getArchive = async (req, res, next) => {
                 { city:     { contains: city, mode: 'insensitive' } },
                 { location: { contains: city, mode: 'insensitive' } },
             ]}),
+            // İlçe: turnuvada ayrı alan yok — location metninde aranır
+            ...(district && { location: { contains: district, mode: 'insensitive' } }),
             ...(hasDate && { completedAt: dateFilter }),
         };
 
@@ -61,7 +63,15 @@ export const getArchive = async (req, res, next) => {
             scoreStatus: 'CONFIRMED',
             ...(category    && { category }),
             ...(subCategory && { subCategory }),
-            ...(city  && { location: { contains: city, mode: 'insensitive' } }),
+            ...(city && { OR: [
+                { location: { contains: city, mode: 'insensitive' } },
+                { courtAddress: { contains: city, mode: 'insensitive' } },
+            ]}),
+            ...(district && { OR: [
+                { district: { contains: district, mode: 'insensitive' } },
+                { location: { contains: district, mode: 'insensitive' } },
+                { courtAddress: { contains: district, mode: 'insensitive' } },
+            ]}),
             ...(court && { courtName: { contains: court, mode: 'insensitive' } }),
             ...(hasDate && { completedAt: dateFilter }),
         };
