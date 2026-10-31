@@ -1010,7 +1010,8 @@ async function musicFile(url) {
 
 // Deezer önizlemesi yönlendirmeli bir mp3. Video oynatıcısı bu adresi sessiz
 // açıyor ve ses odağını da alıyordu. Parça önce telefona iner, video kısıkken
-// ayrı çalar.
+// ayrı çalar. Video döngüsü / kısa ses kesintisinde kendi kendine dursun diye
+// watchdog + güvenli loop var.
 async function startPostMusic(post) {
     const gen = ++postMusicGen;
     const prev = stopFeedPostMusic;
@@ -1028,8 +1029,11 @@ async function startPostMusic(post) {
             playsInSilentModeIOS: true,
             staysActiveInBackground: false,
             interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+            // DuckOthers video player odak alınca müziği bastırıyordu; DoNotMix
+            // de video ile çatışıyordu. Mix yok Android'de — DuckOthers + muted
+            // video + watchdog ile toparlıyoruz.
             interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
-            shouldDuckAndroid: true,
+            shouldDuckAndroid: false,
             playThroughEarpieceAndroid: false,
         });
         if (gen !== postMusicGen) return null;
@@ -1040,11 +1044,19 @@ async function startPostMusic(post) {
         let endMs = Math.floor(endSec * 1000);
         const { sound, status } = await Audio.Sound.createAsync(
             { uri },
-            { shouldPlay: true, volume: 1, isMuted: false, progressUpdateIntervalMillis: 250 },
+            {
+                shouldPlay: true, volume: 1, isMuted: false,
+                progressUpdateIntervalMillis: 250,
+                isLooping: false,
+            },
         );
         let alive = true;
+        let looping = false;
+        let resumeTimer = null;
         const stop = () => {
             alive = false;
+            if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+            try { sound.setOnPlaybackStatusUpdate(null); } catch { /* */ }
             sound.stopAsync().catch(() => {});
             sound.unloadAsync().catch(() => {});
         };
@@ -1061,22 +1073,40 @@ async function startPostMusic(post) {
             try { await sound.setPositionAsync(startMs); } catch { /* baştan çalsın */ }
         }
         if (!alive || gen !== postMusicGen) return null;
-        const loaded = await sound.getStatusAsync();
-        if (!alive || gen !== postMusicGen) return null;
-        if (loaded.isLoaded && !loaded.isPlaying) {
-            try { await sound.playAsync(); } catch { /* */ }
-        }
-        let looping = false;
+        const ensurePlaying = async () => {
+            if (!alive || gen !== postMusicGen || looping) return;
+            try {
+                const st = await sound.getStatusAsync();
+                if (!alive || !st.isLoaded) return;
+                if (!st.isPlaying) await sound.playAsync();
+            } catch { /* */ }
+        };
+        await ensurePlaying();
+        const loopToStart = () => {
+            if (!alive || looping) return;
+            looping = true;
+            sound.setPositionAsync(startMs)
+                .then(() => (alive ? sound.playAsync() : null))
+                .catch(() => {})
+                .finally(() => {
+                    looping = false;
+                    ensurePlaying();
+                });
+        };
         sound.setOnPlaybackStatusUpdate(st => {
-            if (!alive || !st.isLoaded || looping) return;
-            if (st.didJustFinish || st.positionMillis >= endMs - 80) {
-                looping = true;
-                sound.setPositionAsync(startMs).then(() => {
-                    if (alive) return sound.playAsync();
-                    return null;
-                }).catch(() => {}).finally(() => { looping = false; });
+            if (!alive || !st.isLoaded) return;
+            if (looping) return;
+            if (st.didJustFinish || (st.positionMillis || 0) >= endMs - 80) {
+                loopToStart();
+                return;
+            }
+            // Video / sistem kısa kesince isPlaying false kalabiliyor — toparla.
+            if (!st.isPlaying && !st.isBuffering && (st.positionMillis || 0) < endMs - 200) {
+                ensurePlaying();
             }
         });
+        // Status callback kaçırırsa periyodik kontrol (Android video loop).
+        resumeTimer = setInterval(() => { ensurePlaying(); }, 1200);
         return stop;
     } catch {
         return null;
@@ -1111,8 +1141,19 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
         if (!playMusic || !post?.musicUrl) return undefined;
         let cancel = false;
         quietVideoForMusic(player);
-        startPostMusic(post).then(() => { if (cancel) stopActivePostMusic(); });
-        return () => { cancel = true; stopActivePostMusic(); };
+        // Video replaceAsync ses odağını alınca müziği bozmasın diye biraz geciktir.
+        const kick = setTimeout(() => {
+            if (cancel) return;
+            quietVideoForMusic(player);
+            startPostMusic(post).then(() => { if (cancel) stopActivePostMusic(); });
+        }, 180);
+        const keepQuiet = setInterval(() => { if (!cancel) quietVideoForMusic(player); }, 1500);
+        return () => {
+            cancel = true;
+            clearTimeout(kick);
+            clearInterval(keepQuiet);
+            stopActivePostMusic();
+        };
     }, [playMusic, post?.id, post?.musicUrl, post?.musicStartTime, post?.musicEndTime]);
 
     const handlePress = () => {
@@ -24010,6 +24051,8 @@ function SubCategoryScreen({ route, navigation }) {
             return next;
         });
     };
+    // Histerezis: eşik altında kısa ölçüm / ref flicker müziği kesmesin.
+    // Yeni adaya geçmek için net daha görünür olmalı; mevcut kart hâlâ ekrandaysa tut.
     const pickAudiblePost = useCallback(() => {
         if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return;
         const jobs = [];
@@ -24023,17 +24066,34 @@ function SubCategoryScreen({ route, navigation }) {
                 });
             }));
         });
-        if (!jobs.length) { setAudiblePostId(prev => (prev ? null : prev)); return; }
+        // Ref remount anında liste boşalabiliyor — mevcut audible'ı silme.
+        if (!jobs.length) return;
         Promise.all(jobs).then(rows => {
-            const ok = rows.filter(r => r && (r.ratioPost >= 0.75 || r.ratioScreen >= 0.75)).sort((a, b) => a.y - b.y);
-            const next = ok[0]?.id || null;
-            setAudiblePostId(prev => (prev === next ? prev : next));
+            const scored = rows
+                .filter(Boolean)
+                .map(r => ({ ...r, score: Math.max(r.ratioPost, r.ratioScreen) }))
+                .sort((a, b) => b.score - a.score || a.y - b.y);
+            setAudiblePostId(prev => {
+                const cur = prev ? scored.find(r => r.id === prev) : null;
+                const best = scored[0];
+                // Mevcut kart hâlâ makul görünürse (yorum açılınca vs.) tut.
+                if (cur && cur.score >= 0.35) {
+                    if (best && best.id !== prev && best.score >= 0.75 && best.score > cur.score + 0.2) {
+                        return best.id;
+                    }
+                    return prev;
+                }
+                if (best && best.score >= 0.55) return best.id;
+                // Hiçbir şey görünmüyorsa (kaydırıp çıktı) temizle; aksi halde prev kalsın.
+                if (!best || best.score < 0.15) return null;
+                return prev;
+            });
         });
     }, [dataSaverMode, activeTab, mediaViewIdx, winH]);
     useEffect(() => {
         if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return undefined;
         pickAudiblePost();
-        const timer = setInterval(pickAudiblePost, 400);
+        const timer = setInterval(pickAudiblePost, 700);
         return () => clearInterval(timer);
     }, [pickAudiblePost, mediaPosts, dataSaverMode, activeTab, mediaViewIdx]);
     useEffect(() => {
@@ -24095,8 +24155,18 @@ function SubCategoryScreen({ route, navigation }) {
         if (!screenFocused || !viewedMusic?.musicUrl || musicDetail || mutedMusicIds.has(viewedMusic.id)) return undefined;
         let cancel = false;
         quietVideoForMusic(mediaViewPlayer);
-        startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
-        return () => { cancel = true; stopActivePostMusic(); };
+        const kick = setTimeout(() => {
+            if (cancel) return;
+            quietVideoForMusic(mediaViewPlayer);
+            startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
+        }, 220);
+        const keepQuiet = setInterval(() => { if (!cancel) quietVideoForMusic(mediaViewPlayer); }, 1500);
+        return () => {
+            cancel = true;
+            clearTimeout(kick);
+            clearInterval(keepQuiet);
+            stopActivePostMusic();
+        };
     }, [viewedMusicKey, musicDetail, mutedMusicIds, screenFocused]);
     // Kullanıcı isteği: skor girişinden bir maça bağlı (rivalId) paylaşılan medyaya tam ekranda
     // dokununca altında o maçın detayı (skor/takımlar) gösterilsin — postId bazında cache'lenir,
