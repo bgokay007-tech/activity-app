@@ -1,4 +1,4 @@
-﻿import { Component, useEffect, useState, useCallback, useRef, useMemo } from 'react';
+﻿import { Component, createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
@@ -10432,88 +10432,97 @@ function SlotActionSheet({ visible, title, actions, onClose }) {
     );
 }
 
-// Tam ekran alttan açılan OptionPickerModal yerine, alanın hemen altına doğru açılan
-// küçük dropdown — Takım Büyüklüğü/Yedek Sayısı gibi dar sütunlarda tam ekran modal
-// gereksiz büyük duruyordu (kullanıcı isteği).
-// Liste eskiden tetikleyicinin içinde `position:absolute` duruyordu. Android, ebeveynin
-// kutusunun DIŞINA taşan çocuğa dokunuşu iletmiyor — bu yüzden "liste dışında bir yere
-// basınca kapansın" için konan görünmez bantlar çiziliyor ama basılmıyordu ve kullanıcı
-// seçim yapmak zorunda kalıyordu. Liste artık saydam bir pencerede: dışarıya ya da
-// tetikleyiciye (liste kutusunun dışında kaldığı için) tekrar basınca kapanır, seçenek
-// seçmek zorunda bırakmaz. Her açılışta yeni key — iç içe Modal Android'de aynı host'u
-// yeniden açınca boş yarı saydam ekran bırakıyordu (bkz. genderCountModalKey).
+// İlan formu zaten bir <Modal>; içine ikinci Modal açmak Android'de dışarı-dokunuşu
+// yutmuyor / liste eski hali gibi kalıyordu. Liste CreateRivalModal köküne portal ile
+// çizilir; dışarı dokunuş form üzerindeki Pressable ile kapatır.
+const AnchoredMenuPortalContext = createContext(null);
+
 function AnchoredMenu({ visible, onClose, minWidth, children }) {
+    const portal = useContext(AnchoredMenuPortalContext);
     const markerRef = useRef(null);
-    const openedAt = useRef(0);
-    const sessionRef = useRef(0);
-    const wasVisible = useRef(false);
-    if (visible && !wasVisible.current) {
-        sessionRef.current += 1;
-        // Efektten önce: açılış parmağı yeni pencereye değip listeyi hemen kapatmasın.
-        openedAt.current = Date.now();
-    }
-    wasVisible.current = !!visible;
+    const hostRef = portal?.hostRef;
+    const setPortalNode = portal?.setPortalNode;
+    const menuW = Math.min(Math.max(minWidth || 132, 120), 156);
     const { width: screenW, height: screenH } = useWindowDimensions();
-    const [box, setBox] = useState(null);
+    const [fallbackBox, setFallbackBox] = useState(null);
+    // children her parent render'da yeni referans — effect deps'e koyma (sonsuz portal güncellemesi).
+    const childrenRef = useRef(children);
+    childrenRef.current = children;
 
     useEffect(() => {
-        if (!visible) { setBox(null); return; }
+        if (!visible || !setPortalNode) {
+            if (!visible && setPortalNode) setPortalNode(null);
+            return undefined;
+        }
         let cancelled = false;
         let tries = 0;
-        const measure = () => {
+        const place = () => {
             if (cancelled) return;
-            const node = markerRef.current;
-            if (!node?.measureInWindow) {
-                if (tries++ < 8) requestAnimationFrame(measure);
+            const marker = markerRef.current;
+            const host = hostRef?.current;
+            if (!marker?.measureInWindow || !host?.measureInWindow) {
+                if (tries++ < 10) requestAnimationFrame(place);
                 return;
             }
-            node.measureInWindow((x, y, width) => {
+            host.measureInWindow((hx, hy, hw, hh) => {
                 if (cancelled) return;
-                if (!width && tries++ < 8) { requestAnimationFrame(measure); return; }
-                setBox({ x, y, width });
+                marker.measureInWindow((mx, my) => {
+                    if (cancelled) return;
+                    let left = mx - hx;
+                    let top = my - hy + 14;
+                    if (left + menuW > hw - 8) left = Math.max(8, hw - 8 - menuW);
+                    if (left < 8) left = 8;
+                    const maxH = Math.min(280, Math.max(96, hh - top - 12));
+                    setPortalNode(
+                        <View
+                            onStartShouldSetResponder={() => true}
+                            style={{
+                                position: 'absolute', top, left, width: menuW, maxHeight: maxH,
+                                backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1,
+                                borderColor: colors.border, overflow: 'hidden', elevation: 20, zIndex: 120,
+                            }}
+                        >
+                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: maxH, flexGrow: 0 }}>
+                                {childrenRef.current}
+                            </ScrollView>
+                        </View>,
+                    );
+                });
             });
         };
+        place();
+        const retry = setTimeout(place, 50);
+        return () => { cancelled = true; clearTimeout(retry); setPortalNode(null); };
+    }, [visible, menuW, setPortalNode, hostRef]);
+
+    useEffect(() => {
+        if (!visible || setPortalNode) { setFallbackBox(null); return undefined; }
+        let cancelled = false;
+        const measure = () => {
+            markerRef.current?.measureInWindow?.((x, y) => { if (!cancelled) setFallbackBox({ x, y }); });
+        };
         measure();
-        const retry = setTimeout(measure, 60);
-        return () => { cancelled = true; clearTimeout(retry); };
-    }, [visible]);
-
-    // Açılış dokunuşu yeni pencereye sızıp listeyi anında kapatmasın diye kısa süre
-    // yok sayılır; sonraki dışarı/tetikleyici dokunuşu kapatır.
-    const requestClose = () => {
-        if (Date.now() - openedAt.current < 180) return;
-        onClose();
-    };
-
-    // Kullanıcı isteği: liste tetikleyici kadar (satırın 1/3'ü) geniş olmasın — sadece
-    // seçenek metnine yetecek kompakt genişlik; yazılar tek satırda sığsın.
-    const menuW = Math.min(Math.max(minWidth || 132, 120), 168);
-    let left = box ? box.x : 0;
-    if (box && left + menuW > screenW - 8) left = Math.max(8, screenW - 8 - menuW);
-    // Kullanıcı isteği: Mod/Format listesi tetikleyicinin hemen yapışık durmasın, bir tık aşağı.
-    const top = box ? box.y + 12 : 0;
-    const spaceBelow = box ? Math.max(96, screenH - top - 12) : 340;
-    const maxH = Math.min(340, spaceBelow);
+        const t = setTimeout(measure, 50);
+        return () => { cancelled = true; clearTimeout(t); };
+    }, [visible, setPortalNode]);
 
     return (
         <>
-            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position:'absolute', top:'100%', left:0, width:'100%', height:1, opacity:0 }} />
-            {visible && (
-                <Modal key={sessionRef.current} transparent animationType="none" visible statusBarTranslucent onRequestClose={requestClose}>
-                    {/* Tekler/Çiftler dışında herhangi bir yere (form alanı, tekrar Mod/Format
-                        butonu) dokununca kapansın — seçim zorunlu değil. */}
-                    <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.12)' }}>
-                        <Pressable onPress={requestClose} style={StyleSheet.absoluteFillObject} accessibilityRole="button" />
-                        {box && (
-                            <View
-                                onStartShouldSetResponder={() => true}
-                                style={{ position:'absolute', top, left, width: menuW, maxHeight: maxH, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, overflow:'hidden', elevation:16 }}
-                            >
-                                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: maxH, flexGrow:0 }}>
-                                    {children}
-                                </ScrollView>
-                            </View>
-                        )}
+            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', height: 1, opacity: 0 }} />
+            {visible && !setPortalNode && fallbackBox && (
+                <Modal transparent animationType="none" visible statusBarTranslucent onRequestClose={onClose}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.18)' }}>
+                        <Pressable onPress={onClose} style={StyleSheet.absoluteFillObject} />
+                        <View style={{
+                            position: 'absolute', top: fallbackBox.y + 14, left: Math.min(fallbackBox.x, screenW - menuW - 8),
+                            width: menuW, maxHeight: Math.min(280, screenH - fallbackBox.y - 24),
+                            backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+                            overflow: 'hidden', elevation: 20,
+                        }}>
+                            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="always" bounces={false}>
+                                {children}
+                            </ScrollView>
+                        </View>
                     </View>
                 </Modal>
             )}
@@ -14635,6 +14644,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // Fonksiyonel güncelleme değil: liste açıkken hem buton hem dışarı-dokunuşu aynı
     // anda state yazarsa (biri "tersine çevir", biri "kapat") liste yeniden açılıyordu.
     const toggleActivePopup = (key) => setActivePopup(activePopup === key ? null : key);
+    // Mod/Format listesi ScrollView dışında çizilsin (iç içe Modal Android'de dışarı tıklamayı yutuyor).
+    const anchoredHostRef = useRef(null);
+    const [anchoredPortalNode, setAnchoredPortalNode] = useState(null);
+    const anchoredPortalApi = useMemo(() => ({ hostRef: anchoredHostRef, setPortalNode: setAnchoredPortalNode }), []);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     // Android'de aynı ekranda birden fazla <Modal> iç içeyken (bu form zaten CreateRivalModal'ın
     // KENDİSİ bir Modal), bir alt-Modal kapatılıp TEKRAR açılınca native modal host'u bazen
@@ -15376,7 +15389,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={s.modalBox}>
+                    <AnchoredMenuPortalContext.Provider value={anchoredPortalApi}>
+                    <View ref={anchoredHostRef} collapsable={false} style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
                             <Text style={s.modalTitle}>{isMatchedEdit ? t.sc_0338((isVolleyball && volleyVenueShort(f.surface, t)) || t.sc_0197) : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
@@ -17012,7 +17026,21 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <Text style={s.submitBtnText}>{editItem ? (submitting ? t.savingText : t.saveBtn) : (submitting ? t.submittingBtn : t.createListingBtn)}</Text>
                             </TouchableOpacity>
                         </KeyboardAwareForm>
+                        {/* Mod/Format açıkken dışarı (liste dışı) dokunuş → kapat. Liste portal ile
+                            bu katmanın ÜSTÜNDE (zIndex 110) çizilir; seçenekler basılabilir kalır. */}
+                        {activePopup != null && (
+                            <Pressable
+                                onPress={() => { setActivePopup(null); setAnchoredPortalNode(null); }}
+                                style={[StyleSheet.absoluteFillObject, { zIndex: 100, backgroundColor: 'rgba(0,0,0,0.2)' }]}
+                            />
+                        )}
+                        {anchoredPortalNode ? (
+                            <View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, { zIndex: 110 }]}>
+                                {anchoredPortalNode}
+                            </View>
+                        ) : null}
                     </View>
+                    </AnchoredMenuPortalContext.Provider>
                 </KeyboardAvoidingView>
 
                 {(() => {
