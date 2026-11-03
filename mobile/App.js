@@ -46,8 +46,8 @@ function useAutoUpdate() {
                 if (!result.isAvailable || cancelled) return;
                 await Updates.fetchUpdateAsync();
                 if (cancelled) return;
-                // Gecikme yok: eski 1.5sn bekleme arka plana alınca iptal oluyor,
-                // kullanıcı "kapattım açtım aynı" görüyordu. Hemen uygula.
+                // Kullanıcı "kapattım açtım gelmedi" diye bilsin: önce haber ver, sonra yenile.
+                Alert.alert('Güncelleme', 'Yeni sürüm indirildi, uygulama yenileniyor…');
                 await Updates.reloadAsync();
             } catch (e) {
                 // sessiz

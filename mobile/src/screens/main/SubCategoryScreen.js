@@ -10435,56 +10435,115 @@ function SlotActionSheet({ visible, title, actions, onClose }) {
 // İlan formu zaten bir <Modal>; içine ikinci Modal açmak Android'de dışarı-dokunuşu
 // yutmuyor / liste eski hali gibi kalıyordu. Liste CreateRivalModal köküne portal ile
 // çizilir; dışarı dokunuş form üzerindeki Pressable ile kapatır.
-// Mod/Format listesi: butonun hemen altinda, pencere koordinatiyla hizali.
+// İlan formundaki Mod/Format listesi: AYRI Modal YOK (Android iç içe Modal
+// dışarı tıklamayı yutuyor). Host (modalBox) içine measureLayout ile portal.
+const AnchoredMenuHostContext = createContext(null);
+
 function AnchoredMenu({ visible, onClose, minWidth, children }) {
+    const host = useContext(AnchoredMenuHostContext);
     const markerRef = useRef(null);
     const { width: screenW, height: screenH } = useWindowDimensions();
-    const [box, setBox] = useState(null);
+    const [fallbackBox, setFallbackBox] = useState(null);
+    const childrenRef = useRef(children);
+    childrenRef.current = children;
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
 
     useEffect(() => {
-        if (!visible) { setBox(null); return undefined; }
+        if (!visible) {
+            setFallbackBox(null);
+            return undefined;
+        }
         let cancelled = false;
         const place = () => {
-            markerRef.current?.measureInWindow?.((x, y, w) => {
+            if (cancelled) return;
+            const marker = markerRef.current;
+            const box = host?.boxRef?.current;
+            if (host?.setMenu && marker && box && typeof marker.measureLayout === 'function') {
+                marker.measureLayout(
+                    box,
+                    (x, y, w, h) => {
+                        if (cancelled) return;
+                        const width = Math.min(Math.max(minWidth || 132, Math.round(w) || 124, 124), 168);
+                        let left = x;
+                        const top = y + h + 4;
+                        if (left + width > screenW - 16) left = Math.max(8, screenW - 16 - width);
+                        if (left < 8) left = 8;
+                        host.setMenu({
+                            left,
+                            top,
+                            width,
+                            maxH: Math.min(220, 280),
+                            onClose: () => onCloseRef.current?.(),
+                            children: childrenRef.current,
+                        });
+                    },
+                    () => {
+                        // measureLayout fail → window farkı
+                        marker.measureInWindow?.((mx, my, mw, mh) => {
+                            box.measureInWindow?.((bx, by, bw) => {
+                                if (cancelled) return;
+                                const width = Math.min(Math.max(minWidth || 132, Math.round(mw) || 124, 124), 168);
+                                let left = mx - bx;
+                                const top = my - by + (mh || 0) + 4;
+                                if (left + width > bw - 8) left = Math.max(8, bw - 8 - width);
+                                if (left < 8) left = 8;
+                                host.setMenu({
+                                    left, top, width, maxH: 220,
+                                    onClose: () => onCloseRef.current?.(),
+                                    children: childrenRef.current,
+                                });
+                            });
+                        });
+                    },
+                );
+                return;
+            }
+            // Host yok (başka ekran): klasik Modal — yine dışarı tıkla kapat
+            marker?.measureInWindow?.((x, y, w, h) => {
                 if (cancelled) return;
                 const width = Math.min(Math.max(minWidth || 132, Math.round(w) || 124, 124), 168);
                 let left = x;
-                let top = y + 6;
+                let top = y + (h || 0) + 4;
                 if (left + width > screenW - 8) left = Math.max(8, screenW - 8 - width);
                 if (left < 8) left = 8;
-                if (top < 8) top = 8;
-                setBox({ left, top, width, maxH: Math.min(240, Math.max(88, screenH - top - 20)) });
+                setFallbackBox({ left, top, width, maxH: Math.min(220, screenH - top - 20) });
             });
         };
         place();
-        const r1 = requestAnimationFrame(place);
-        const t1 = setTimeout(place, 32);
-        const t2 = setTimeout(place, 120);
-        return () => { cancelled = true; cancelAnimationFrame(r1); clearTimeout(t1); clearTimeout(t2); };
-    }, [visible, minWidth, screenW, screenH]);
+        const t1 = setTimeout(place, 16);
+        const t2 = setTimeout(place, 80);
+        return () => {
+            cancelled = true;
+            clearTimeout(t1);
+            clearTimeout(t2);
+            if (host?.clearMenu) host.clearMenu();
+        };
+    }, [visible, minWidth, screenW, screenH, host]);
 
     return (
         <>
-            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position: 'absolute', top: '100%', left: 0, right: 0, height: 1, opacity: 0 }} />
-            <Modal transparent animationType="none" visible={!!(visible && box)} statusBarTranslucent onRequestClose={onClose}>
-                <View style={{ flex: 1 }}>
-                    <Pressable onPress={onClose} style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.22)' }]} />
-                    {box ? (
+            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 }} />
+            {!host && visible && fallbackBox ? (
+                <Modal transparent animationType="none" visible statusBarTranslucent onRequestClose={onClose}>
+                    <View style={{ flex: 1 }}>
+                        <Pressable onPress={onClose} style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.22)' }]} />
                         <View
                             onStartShouldSetResponder={() => true}
                             style={{
-                                position: 'absolute', top: box.top, left: box.left, width: box.width, maxHeight: box.maxH,
+                                position: 'absolute', top: fallbackBox.top, left: fallbackBox.left,
+                                width: fallbackBox.width, maxHeight: fallbackBox.maxH,
                                 backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-                                overflow: 'hidden', elevation: 28, zIndex: 2,
+                                overflow: 'hidden', elevation: 28,
                             }}
                         >
-                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: box.maxH, flexGrow: 0 }}>
+                            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="always" bounces={false}>
                                 {children}
                             </ScrollView>
                         </View>
-                    ) : null}
-                </View>
-            </Modal>
+                    </View>
+                </Modal>
+            ) : null}
         </>
     );
 }
@@ -14603,6 +14662,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // Fonksiyonel güncelleme değil: liste açıkken hem buton hem dışarı-dokunuşu aynı
     // anda state yazarsa (biri "tersine çevir", biri "kapat") liste yeniden açılıyordu.
     const toggleActivePopup = (key) => setActivePopup(activePopup === key ? null : key);
+    const rivalBoxRef = useRef(null);
+    const [anchoredMenu, setAnchoredMenu] = useState(null);
+    const anchoredHostApi = useMemo(() => ({
+        boxRef: rivalBoxRef,
+        setMenu: (m) => setAnchoredMenu(m),
+        patchMenu: (partial) => setAnchoredMenu((prev) => (prev ? { ...prev, ...partial } : prev)),
+        clearMenu: () => setAnchoredMenu(null),
+    }), []);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     // Android'de aynı ekranda birden fazla <Modal> iç içeyken (bu form zaten CreateRivalModal'ın
     // KENDİSİ bir Modal), bir alt-Modal kapatılıp TEKRAR açılınca native modal host'u bazen
@@ -15342,9 +15409,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             // asla yanlışlıkla unmount olmasın diye.
             onRequestClose={() => { if (venueBooking.visible) { closeVenueBooking(); return; } onClose(); }}
             android_keyboardInputMode="adjustNothing">
+            <AnchoredMenuHostContext.Provider value={anchoredHostApi}>
             <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <View style={s.modalBox}>
+                {/* RN 0.81 Modal Android'de hep adjustResize — KAV padding çift boşluk yapıyordu
+                    (mesaj ↔ İlan Oluştur arası). Android'de KAV kapalı, iOS'ta padding. */}
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex:1, justifyContent:'flex-end' }}>
+                    <View ref={rivalBoxRef} collapsable={false} style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
                             <Text style={s.modalTitle}>{isMatchedEdit ? t.sc_0338((isVolleyball && volleyVenueShort(f.surface, t)) || t.sc_0197) : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
@@ -16980,6 +17050,36 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <Text style={s.submitBtnText}>{editItem ? (submitting ? t.savingText : t.saveBtn) : (submitting ? t.submittingBtn : t.createListingBtn)}</Text>
                             </TouchableOpacity>
                         </KeyboardAwareForm>
+                        {/* Liste açıkken boş/diğer alana dokunuş → seçmeden kapat (iç içe Modal yok). */}
+                        {anchoredMenu ? (
+                            <Pressable
+                                onPress={() => { anchoredMenu.onClose?.(); setAnchoredMenu(null); setActivePopup(null); setShowWinsNeededPicker(false); }}
+                                style={[StyleSheet.absoluteFillObject, { zIndex: 200, elevation: 200 }]}
+                            />
+                        ) : null}
+                        {anchoredMenu ? (
+                            <View
+                                onStartShouldSetResponder={() => true}
+                                style={{
+                                    position: 'absolute',
+                                    top: anchoredMenu.top,
+                                    left: anchoredMenu.left,
+                                    width: anchoredMenu.width,
+                                    maxHeight: anchoredMenu.maxH,
+                                    backgroundColor: colors.surface2,
+                                    borderRadius: 10,
+                                    borderWidth: 1,
+                                    borderColor: colors.border,
+                                    overflow: 'hidden',
+                                    zIndex: 210,
+                                    elevation: 210,
+                                }}
+                            >
+                                <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: anchoredMenu.maxH, flexGrow: 0 }}>
+                                    {anchoredMenu.children}
+                                </ScrollView>
+                            </View>
+                        ) : null}
                     </View>
                 </KeyboardAvoidingView>
 
@@ -17251,6 +17351,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     </View>
                 )}
             </View>
+            </AnchoredMenuHostContext.Provider>
         </Modal>
 
         <VenueBookingModal
