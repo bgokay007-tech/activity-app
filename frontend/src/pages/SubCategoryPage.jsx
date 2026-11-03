@@ -615,13 +615,45 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
         setShowCourts(true);
         try {
             const { data } = await api.get('/courts/search', { params: { name: courtNameQuery, sport: sub } });
-            setCourts(data);
+            setCourts(Array.isArray(data) ? data : []);
         } catch {
             setCourts([]);
         } finally {
             setIsSearching(false);
         }
     };
+
+    // Mobil VenueNameAutocomplete ile aynı: harf yazdıkça onaylı kort/tesis önerileri.
+    const courtTypeTimer = useRef(null);
+    useEffect(() => {
+        if (form.flexibleSchedule || courtFromDB) return undefined;
+        const q = (sub === 'tennis' ? courtNameQuery : form.courtName || '').trim();
+        if (q.length < 2) {
+            if (sub === 'tennis') { setCourts([]); setShowCourts(false); }
+            return undefined;
+        }
+        // Diğer branşlarda şehir yoksa isim araması yetersiz kalmasın diye yine de isimle ara.
+        clearTimeout(courtTypeTimer.current);
+        courtTypeTimer.current = setTimeout(async () => {
+            setIsSearching(true);
+            setShowCourts(true);
+            try {
+                const { data } = await api.get('/courts/search', {
+                    params: {
+                        name: q,
+                        sport: sub,
+                        ...(sub !== 'tennis' && form.location ? { city: form.location } : {}),
+                    },
+                });
+                setCourts(Array.isArray(data) ? data : []);
+            } catch {
+                setCourts([]);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+        return () => clearTimeout(courtTypeTimer.current);
+    }, [courtNameQuery, form.courtName, form.location, form.flexibleSchedule, courtFromDB, sub]);
 
     const selectCourt = (court) => {
         if (court.isBusinessVenue) {
@@ -1311,65 +1343,70 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     {/* Step 1: Court name search */}
                     <div>
                         <label className="text-gray-400 text-xs mb-1 block">🏟️ {t('rival.court_name')}</label>
-                        <div className="flex gap-2">
-                            <input
-                                value={courtNameQuery}
-                                onChange={e => {
-                                    setCourtNameQuery(e.target.value);
-                                    setCourtFromDB(false);
-                                    setForm(f => ({ ...f, courtName: e.target.value }));
-                                }}
-                                placeholder={t('rival.search_court')}
-                                className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
-                            />
-                            <select
-                                value={form.courtNumber}
-                                onChange={e => setForm(f => ({ ...f, courtNumber: e.target.value }))}
-                                className="w-24 bg-gray-800 text-white rounded-xl px-2 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-xs flex-shrink-0"
-                            >
-                                {COURT_NUMBERS.map(cn => (
-                                    <option key={cn.value} value={cn.value}>{cn.label}</option>
-                                ))}
-                            </select>
-                            <button type="button" onClick={handleCourtNameSearch} disabled={isSearching}
-                                className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white font-bold px-3 py-2 rounded-xl text-sm disabled:opacity-50 transition">
-                                {isSearching ? '...' : '🔍'}
-                            </button>
+                        <div className="relative">
+                            <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                    <input
+                                        value={courtNameQuery}
+                                        onChange={e => {
+                                            setCourtNameQuery(e.target.value);
+                                            setCourtFromDB(false);
+                                            setForm(f => ({ ...f, courtName: e.target.value }));
+                                        }}
+                                        placeholder={t('rival.search_court')}
+                                        autoComplete="off"
+                                        className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
+                                    />
+                                    {isSearching && (
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">…</span>
+                                    )}
+                                </div>
+                                <select
+                                    value={form.courtNumber}
+                                    onChange={e => setForm(f => ({ ...f, courtNumber: e.target.value }))}
+                                    className="w-24 bg-gray-800 text-white rounded-xl px-2 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-xs flex-shrink-0"
+                                >
+                                    {COURT_NUMBERS.map(cn => (
+                                        <option key={cn.value} value={cn.value}>{cn.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {/* Yazarken kayıtlı kortlar — mobil gibi dropdown */}
+                            {showCourts && !courtFromDB && (courts.length > 0 || (!isSearching && courtNameQuery.trim().length >= 2)) && (
+                                <div className="absolute z-40 left-0 right-0 top-full mt-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-xl">
+                                    {courts.length > 0 ? (
+                                        <div className="max-h-60 overflow-y-auto">
+                                            {courts.map(court => (
+                                                <button key={court.id} type="button" onClick={() => selectCourt(court)}
+                                                    className="w-full text-left px-4 py-3 hover:bg-gray-700 transition border-b border-gray-700/50 last:border-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <p className="text-white text-sm font-bold flex-1">{court.name}</p>
+                                                        {court.isBusinessVenue
+                                                            ? <span className="text-purple-300 text-[10px] font-bold bg-purple-500/10 px-1.5 py-0.5 rounded">{t('rival.venue_bookable') || 'Rezervasyon'}</span>
+                                                            : court.verified
+                                                                ? <span className="text-green-400 text-[10px] font-bold bg-green-500/10 px-1.5 py-0.5 rounded">{t('rival.verified')}</span>
+                                                                : <span className="text-yellow-500 text-[10px] bg-yellow-500/10 px-1.5 py-0.5 rounded">{t('rival.pending')}</span>
+                                                        }
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                                                        {court.city    && <span className="text-gray-400 text-xs">📍 {court.city}</span>}
+                                                        {court.district && <span className="text-gray-400 text-xs">{court.district}</span>}
+                                                        {court.address && <span className="text-gray-400 text-xs">🏠 {court.address}</span>}
+                                                        {court.surface && <span className="text-gray-400 text-xs">🎾 {court.surface}</span>}
+                                                        {court.indoor != null && <span className="text-gray-400 text-xs">{court.indoor ? `🏠 ${t('rival.indoor')}` : `☀️ ${t('rival.outdoor')}`}</span>}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-gray-500 text-xs text-center py-3 px-2">{t('rival.no_courts_found')}</p>
+                                    )}
+                                    <button type="button" onClick={() => setShowCourts(false)}
+                                        className="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition border-t border-gray-700">{t('websc.close')}</button>
+                                </div>
+                            )}
                         </div>
                     </div>
-
-                    {/* DB suggestions */}
-                    {showCourts && courts.length > 0 && (
-                        <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                            <p className="text-gray-500 text-xs px-3 py-2 border-b border-gray-700">
-                                🏟️ {t(courts.length > 1 ? 'rival.courts_found_plural' : 'rival.courts_found', { n: courts.length })}
-                            </p>
-                            <div className="max-h-60 overflow-y-auto">
-                                {courts.map(court => (
-                                    <button key={court.id} type="button" onClick={() => selectCourt(court)}
-                                        className="w-full text-left px-4 py-3 hover:bg-gray-700 transition border-b border-gray-700/50 last:border-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <p className="text-white text-sm font-bold flex-1">{court.name}</p>
-                                            {court.verified
-                                                ? <span className="text-green-400 text-[10px] font-bold bg-green-500/10 px-1.5 py-0.5 rounded">{t('rival.verified')}</span>
-                                                : <span className="text-yellow-500 text-[10px] bg-yellow-500/10 px-1.5 py-0.5 rounded">{t('rival.pending')}</span>
-                                            }
-                                        </div>
-                                        <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                                            {court.city    && <span className="text-gray-400 text-xs">📍 {court.city}</span>}
-                                            {court.address && <span className="text-gray-400 text-xs">🏠 {court.address}</span>}
-                                            {court.surface && <span className="text-gray-400 text-xs">🎾 {court.surface}</span>}
-                                            {court.indoor != null && <span className="text-gray-400 text-xs">{court.indoor ? `🏠 ${t('rival.indoor')}` : `☀️ ${t('rival.outdoor')}`}</span>}
-                                            {court.fee     && <span className="text-yellow-500 text-xs">💰 {court.feeAmount || 'Paid'}</span>}
-                                            {court.lights  && <span className="text-gray-400 text-xs">💡 {t('rival.lights')}</span>}
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
-                            <button type="button" onClick={() => setShowCourts(false)}
-                                className="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition">{t('websc.close')}</button>
-                        </div>
-                    )}
                     {/* Step 2: auto-filled banner OR manual city+address (only when search returned no results) */}
                     {courtFromDB ? (
                         <div className="bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-2.5 flex items-center gap-2">
@@ -1470,15 +1507,21 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
 
                 {form.location && (
                     <>
-                        <div>
+                        <div className="relative">
                             <label className="text-gray-400 text-xs mb-1 block">🏟️ {t('rival.court_name')}</label>
                             <div className="flex gap-2">
-                                <input
-                                    value={form.courtName}
-                                    onChange={e => setForm({ ...form, courtName: e.target.value })}
-                                    placeholder={t('websc.venue_example2')}
-                                    className="flex-1 bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
-                                />
+                                <div className="relative flex-1">
+                                    <input
+                                        value={form.courtName}
+                                        onChange={e => setForm({ ...form, courtName: e.target.value })}
+                                        placeholder={t('websc.venue_example2')}
+                                        autoComplete="off"
+                                        className="w-full bg-gray-800 text-white rounded-xl px-4 py-2.5 border border-gray-700 focus:outline-none focus:border-purple-500 text-sm"
+                                    />
+                                    {isSearching && (
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">…</span>
+                                    )}
+                                </div>
                                 <select
                                     value={form.courtNumber}
                                     onChange={e => setForm(f => ({ ...f, courtNumber: e.target.value }))}
@@ -1488,37 +1531,31 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                                         <option key={cn.value} value={cn.value}>{cn.label}</option>
                                     ))}
                                 </select>
-                                <button type="button" onClick={handleCitySearch} disabled={isSearching}
-                                    className="bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white font-bold px-3 py-2 rounded-xl text-sm disabled:opacity-50 whitespace-nowrap transition">
-                                    {isSearching ? '...' : '🔍'}
-                                </button>
                             </div>
+                            {showCourts && courts.length > 0 && (
+                                <div className="absolute z-40 left-0 right-0 top-full mt-1 bg-gray-800 rounded-xl border border-gray-700 overflow-hidden shadow-xl">
+                                    <div className="max-h-40 overflow-y-auto">
+                                        {courts.map(court => (
+                                            <button key={court.id} type="button" onClick={() => selectCourt(court)}
+                                                className="w-full text-left px-4 py-2.5 hover:bg-gray-700 transition border-b border-gray-700/50 last:border-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="text-white text-sm font-bold flex-1">{court.name}</p>
+                                                    {court.isBusinessVenue
+                                                        ? <span className="text-purple-300 text-[10px] font-bold">{t('rival.venue_bookable') || 'Rezervasyon'}</span>
+                                                        : court.verified && <span className="text-green-400 text-[10px]">{t('rival.verified')}</span>}
+                                                </div>
+                                                {court.address && <p className="text-gray-500 text-xs">{court.address}</p>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    <button type="button" onClick={() => setShowCourts(false)}
+                                        className="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition border-t border-gray-700">
+                                        {t('websc.close')}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </>
-                )}
-
-                {showCourts && courts.length > 0 && (
-                    <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                        <p className="text-gray-500 text-xs px-3 py-2 border-b border-gray-700">
-                            🏟️ {t('rival.courts_db')}
-                        </p>
-                        <div className="max-h-40 overflow-y-auto">
-                            {courts.map(court => (
-                                <button key={court.id} type="button" onClick={() => selectCourt(court)}
-                                    className="w-full text-left px-4 py-2.5 hover:bg-gray-700 transition border-b border-gray-700/50 last:border-0">
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-white text-sm font-bold flex-1">{court.name}</p>
-                                        {court.verified && <span className="text-green-400 text-[10px]">{t('rival.verified')}</span>}
-                                    </div>
-                                    {court.address && <p className="text-gray-500 text-xs">{court.address}</p>}
-                                </button>
-                            ))}
-                        </div>
-                        <button type="button" onClick={() => setShowCourts(false)}
-                            className="w-full py-2 text-gray-600 hover:text-gray-400 text-xs transition">
-                            ✕ Close
-                        </button>
-                    </div>
                 )}
                 </>
             ))}
@@ -4741,12 +4778,32 @@ function SubCategoryPage() {
                                         )}
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => { setShowRivalForm(!showRivalForm); setEditingRival(null); }}
-                                    className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}
-                                >
-                                    {showRivalForm ? `✕ ${t('common.cancel')}` : `+ ${t('rival.create_listing')}`}
-                                </button>
+                                <div className="flex items-center gap-2 flex-wrap justify-end">
+                                    {/* Mobildeki "Kort Rez." / salon ara — ilan oluşturun yanında */}
+                                    {['tennis', 'padel', 'pickleball', 'table_tennis', 'badminton', 'volleyball'].includes(sub) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/venues?branch=${encodeURIComponent(sub)}`)}
+                                            className="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-bold px-3 py-2 rounded-xl text-sm transition whitespace-nowrap"
+                                        >
+                                            {sub === 'volleyball'
+                                                ? (t('rival.hall_search') || 'Salon Ara')
+                                                : sub === 'table_tennis'
+                                                    ? (t('rival.venue_res_table_tennis') || 'Masa Tenisi Rezervasyonu')
+                                                    : sub === 'badminton'
+                                                        ? (t('rival.venue_res_badminton') || 'Badminton Rezervasyonu')
+                                                        : sub === 'pickleball'
+                                                            ? (t('rival.venue_res_pickleball') || 'Pickleball Rezervasyonu')
+                                                            : (t('rival.venue_res_create') || 'Kort Rezervasyonu')}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => { setShowRivalForm(!showRivalForm); setEditingRival(null); }}
+                                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}
+                                    >
+                                        {showRivalForm ? `✕ ${t('common.cancel')}` : `+ ${t('rival.create_listing')}`}
+                                    </button>
+                                </div>
                             </div>
 
                             {showRivalForm && (

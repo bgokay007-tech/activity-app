@@ -307,6 +307,12 @@
   "rival": {
     "find_rival": "Найти соперника",
     "create_listing": "Создать объявление",
+    "venue_res_create": "Бронь корта",
+    "venue_res_table_tennis": "Бронь настольного тенниса",
+    "venue_res_badminton": "Бронь бадминтона",
+    "venue_res_pickleball": "Бронь пиклбола",
+    "hall_search": "Поиск зала",
+    "venue_bookable": "Бронь",
     "no_rivals": "Соперников пока не найдено.",
     "be_first": "Станьте первым, кто разместит объявление →",
     "no_filter_match": "Нет объявлений, подходящих под ваш фильтр",

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 import Navbar from '../components/Navbar';
 
@@ -321,6 +321,8 @@ export default function VenuesPage() {
     const { t } = useTranslation();
 
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const branch = searchParams.get('branch') || '';
     const [city, setCity] = useState('');
     const [name, setName] = useState('');
     const [venues, setVenues] = useState([]);
@@ -335,13 +337,19 @@ export default function VenuesPage() {
         setLoading(true);
         setSearched(true);
         try {
-            const { data } = await api.get('/venues/search', { params: { city: city.trim() || undefined, name: name.trim() || undefined } });
+            const { data } = await api.get('/venues/search', {
+                params: {
+                    city: city.trim() || undefined,
+                    name: name.trim() || undefined,
+                    ...(branch ? { branch } : {}),
+                },
+            });
             setVenues(data.items || []);
         } catch (err) { console.error(err); setVenues([]); }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { search(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { search(); }, [branch]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleAddToCart = (venue, court, slot, date) => {
         if (isPastSlot(date, slot.start)) {

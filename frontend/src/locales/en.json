@@ -307,6 +307,12 @@
   "rival": {
     "find_rival": "Find a Rival",
     "create_listing": "Create Listing",
+    "venue_res_create": "Court Reservation",
+    "venue_res_table_tennis": "Table Tennis Reservation",
+    "venue_res_badminton": "Badminton Reservation",
+    "venue_res_pickleball": "Pickleball Reservation",
+    "hall_search": "Search Hall",
+    "venue_bookable": "Bookable",
     "no_rivals": "No rivals listed yet.",
     "be_first": "Be the first to post a listing →",
     "no_filter_match": "No listings match your filter",

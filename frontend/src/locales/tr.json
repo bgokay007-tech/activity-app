@@ -307,6 +307,12 @@
   "rival": {
     "find_rival": "Rakip Bul",
     "create_listing": "İlan Oluştur",
+    "venue_res_create": "Kort Rezervasyonu",
+    "venue_res_table_tennis": "Masa Tenisi Rezervasyonu",
+    "venue_res_badminton": "Badminton Rezervasyonu",
+    "venue_res_pickleball": "Pickleball Rezervasyonu",
+    "hall_search": "Salon Ara",
+    "venue_bookable": "Rezervasyon",
     "no_rivals": "Henüz rakip ilanı yok.",
     "be_first": "İlk ilanı sen oluştur →",
     "no_filter_match": "Filtreyle eşleşen ilan bulunamadı",
