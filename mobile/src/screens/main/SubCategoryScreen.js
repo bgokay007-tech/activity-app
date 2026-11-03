@@ -10435,104 +10435,56 @@ function SlotActionSheet({ visible, title, actions, onClose }) {
 // İlan formu zaten bir <Modal>; içine ikinci Modal açmak Android'de dışarı-dokunuşu
 // yutmuyor / liste eski hali gibi kalıyordu. Liste CreateRivalModal köküne portal ile
 // çizilir; dışarı dokunuş form üzerindeki Pressable ile kapatır.
-const AnchoredMenuPortalContext = createContext(null);
-
+// Mod/Format listesi: butonun hemen altinda, pencere koordinatiyla hizali.
 function AnchoredMenu({ visible, onClose, minWidth, children }) {
-    const portal = useContext(AnchoredMenuPortalContext);
     const markerRef = useRef(null);
-    const hostRef = portal?.hostRef;
-    const setPortalNode = portal?.setPortalNode;
-    // Dar liste: tetikleyiciden biraz geniş, ekranı kaplamasın.
-    const menuW = Math.min(Math.max(minWidth || 132, 124), 152);
     const { width: screenW, height: screenH } = useWindowDimensions();
-    const [fallbackBox, setFallbackBox] = useState(null);
-    // children her parent render'da yeni referans — effect deps'e koyma (sonsuz portal güncellemesi).
-    const childrenRef = useRef(children);
-    childrenRef.current = children;
+    const [box, setBox] = useState(null);
 
     useEffect(() => {
-        if (!visible || !setPortalNode) {
-            if (!visible && setPortalNode) setPortalNode(null);
-            return undefined;
-        }
+        if (!visible) { setBox(null); return undefined; }
         let cancelled = false;
-        let tries = 0;
         const place = () => {
-            if (cancelled) return;
-            const marker = markerRef.current;
-            const host = hostRef?.current;
-            if (!marker?.measureInWindow || !host?.measureInWindow) {
-                if (tries++ < 10) requestAnimationFrame(place);
-                return;
-            }
-            host.measureInWindow((hx, hy, hw, hh) => {
+            markerRef.current?.measureInWindow?.((x, y, w) => {
                 if (cancelled) return;
-                marker.measureInWindow((mx, my) => {
-                    if (cancelled) return;
-                    let left = mx - hx;
-                    // Kullanıcı: liste biraz aşağıda dursun.
-                    let top = my - hy + 18;
-                    if (left + menuW > hw - 8) left = Math.max(8, hw - 8 - menuW);
-                    if (left < 8) left = 8;
-                    if (top < 8) top = 8;
-                    const maxH = Math.min(260, Math.max(96, hh - top - 16));
-                    setPortalNode(
-                        <View
-                            onStartShouldSetResponder={() => true}
-                            style={{
-                                position: 'absolute', top, left, width: menuW, maxHeight: maxH,
-                                backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1,
-                                borderColor: colors.border, overflow: 'hidden',
-                                elevation: 120, zIndex: 120,
-                            }}
-                        >
-                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: maxH, flexGrow: 0 }}>
-                                {childrenRef.current}
-                            </ScrollView>
-                        </View>,
-                    );
-                });
+                const width = Math.min(Math.max(minWidth || 132, Math.round(w) || 124, 124), 168);
+                let left = x;
+                let top = y + 6;
+                if (left + width > screenW - 8) left = Math.max(8, screenW - 8 - width);
+                if (left < 8) left = 8;
+                if (top < 8) top = 8;
+                setBox({ left, top, width, maxH: Math.min(240, Math.max(88, screenH - top - 20)) });
             });
         };
         place();
-        const retry = setTimeout(place, 50);
-        return () => { cancelled = true; clearTimeout(retry); setPortalNode(null); };
-    }, [visible, menuW, setPortalNode, hostRef]);
-
-    useEffect(() => {
-        if (!visible || setPortalNode) { setFallbackBox(null); return undefined; }
-        let cancelled = false;
-        const measure = () => {
-            markerRef.current?.measureInWindow?.((x, y) => { if (!cancelled) setFallbackBox({ x, y }); });
-        };
-        measure();
-        const t = setTimeout(measure, 50);
-        return () => { cancelled = true; clearTimeout(t); };
-    }, [visible, setPortalNode]);
+        const r1 = requestAnimationFrame(place);
+        const t1 = setTimeout(place, 32);
+        const t2 = setTimeout(place, 120);
+        return () => { cancelled = true; cancelAnimationFrame(r1); clearTimeout(t1); clearTimeout(t2); };
+    }, [visible, minWidth, screenW, screenH]);
 
     return (
         <>
-            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', height: 1, opacity: 0 }} />
-            {visible && !setPortalNode && fallbackBox && (
-                <Modal transparent animationType="none" visible statusBarTranslucent onRequestClose={onClose}>
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' }}>
-                        <Pressable onPress={onClose} style={StyleSheet.absoluteFillObject} />
+            <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position: 'absolute', top: '100%', left: 0, right: 0, height: 1, opacity: 0 }} />
+            <Modal transparent animationType="none" visible={!!(visible && box)} statusBarTranslucent onRequestClose={onClose}>
+                <View style={{ flex: 1 }}>
+                    <Pressable onPress={onClose} style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.22)' }]} />
+                    {box ? (
                         <View
                             onStartShouldSetResponder={() => true}
                             style={{
-                                position: 'absolute', top: fallbackBox.y + 18, left: Math.min(Math.max(8, fallbackBox.x), screenW - menuW - 8),
-                                width: menuW, maxHeight: Math.min(260, screenH - fallbackBox.y - 28),
+                                position: 'absolute', top: box.top, left: box.left, width: box.width, maxHeight: box.maxH,
                                 backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-                                overflow: 'hidden', elevation: 24, zIndex: 2,
+                                overflow: 'hidden', elevation: 28, zIndex: 2,
                             }}
                         >
-                            <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="always" bounces={false}>
+                            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: box.maxH, flexGrow: 0 }}>
                                 {children}
                             </ScrollView>
                         </View>
-                    </View>
-                </Modal>
-            )}
+                    ) : null}
+                </View>
+            </Modal>
         </>
     );
 }
@@ -14651,10 +14603,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // Fonksiyonel güncelleme değil: liste açıkken hem buton hem dışarı-dokunuşu aynı
     // anda state yazarsa (biri "tersine çevir", biri "kapat") liste yeniden açılıyordu.
     const toggleActivePopup = (key) => setActivePopup(activePopup === key ? null : key);
-    // Mod/Format listesi ScrollView dışında çizilsin (iç içe Modal Android'de dışarı tıklamayı yutuyor).
-    const anchoredHostRef = useRef(null);
-    const [anchoredPortalNode, setAnchoredPortalNode] = useState(null);
-    const anchoredPortalApi = useMemo(() => ({ hostRef: anchoredHostRef, setPortalNode: setAnchoredPortalNode }), []);
     const [showGenderCountPicker, setShowGenderCountPicker] = useState(false);
     // Android'de aynı ekranda birden fazla <Modal> iç içeyken (bu form zaten CreateRivalModal'ın
     // KENDİSİ bir Modal), bir alt-Modal kapatılıp TEKRAR açılınca native modal host'u bazen
@@ -15394,9 +15342,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             // asla yanlışlıkla unmount olmasın diye.
             onRequestClose={() => { if (venueBooking.visible) { closeVenueBooking(); return; } onClose(); }}
             android_keyboardInputMode="adjustNothing">
-            <AnchoredMenuPortalContext.Provider value={anchoredPortalApi}>
-            <View ref={anchoredHostRef} collapsable={false} style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }} pointerEvents="box-none">
+            <View style={s.modalOverlay}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
                     <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
                             <Text style={s.modalTitle}>{isMatchedEdit ? t.sc_0338((isVolleyball && volleyVenueShort(f.surface, t)) || t.sc_0197) : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
@@ -17035,18 +16982,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                         </KeyboardAwareForm>
                     </View>
                 </KeyboardAvoidingView>
-                {/* Tam ekran dismiss: sheet + üst karartma. Android'de elevation şart. */}
-                {(activePopup != null || showWinsNeededPicker || anchoredPortalNode) ? (
-                    <Pressable
-                        onPress={() => { setActivePopup(null); setShowWinsNeededPicker(false); setAnchoredPortalNode(null); }}
-                        style={[StyleSheet.absoluteFillObject, { zIndex: 100, elevation: 100, backgroundColor: 'rgba(0,0,0,0.32)' }]}
-                    />
-                ) : null}
-                {anchoredPortalNode ? (
-                    <View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, { zIndex: 110, elevation: 110 }]}>
-                        {anchoredPortalNode}
-                    </View>
-                ) : null}
 
                 {(() => {
                     // Kullanıcı hangi boş DOUBLE slotunun ikonuna dokunduysa (bkz. doubleInviteFromSlotCreate),
@@ -17316,7 +17251,6 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     </View>
                 )}
             </View>
-            </AnchoredMenuPortalContext.Provider>
         </Modal>
 
         <VenueBookingModal
