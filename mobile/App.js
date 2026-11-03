@@ -37,20 +37,36 @@ try {
 // varsa indirip otomatik uyguluyoruz.
 function useAutoUpdate() {
     useEffect(() => {
-        // Preview APK'da __DEV__ false; yine de isEnabled yoksa çık.
-        if (!Updates.isEnabled) return;
         let cancelled = false;
+        let diagnosed = false;
+        const diag = (extra) => {
+            if (diagnosed || cancelled) return;
+            diagnosed = true;
+            const channel = Updates.channel ?? Updates.requestHeaders?.['expo-channel-name'] ?? '?';
+            Alert.alert(
+                'Paket durumu',
+                `OTA: ${Updates.isEnabled ? 'açık' : 'kapalı'}\nKanal: ${channel}\nRuntime: ${Updates.runtimeVersion || '?'}\n${extra}`,
+            );
+        };
         const checkAndApply = async () => {
+            // Dev client / __DEV__: OTA kapalı — Metro yoksa gömülü eski JS kalır.
+            if (!Updates.isEnabled) {
+                diag('OTA bu APK’da kapalı. Preview APK veya Metro gerekir.');
+                return;
+            }
             try {
                 const result = await Updates.checkForUpdateAsync();
-                if (!result.isAvailable || cancelled) return;
+                if (cancelled) return;
+                if (!result.isAvailable) {
+                    diag('Sunucuda bu runtime için yeni paket yok (veya zaten son paket).');
+                    return;
+                }
                 await Updates.fetchUpdateAsync();
                 if (cancelled) return;
-                // Kullanıcı "kapattım açtım gelmedi" diye bilsin: önce haber ver, sonra yenile.
                 Alert.alert('Güncelleme', 'Yeni sürüm indirildi, uygulama yenileniyor…');
                 await Updates.reloadAsync();
             } catch (e) {
-                // sessiz
+                diag(`Hata: ${e?.message || e}`);
             }
         };
         checkAndApply();
