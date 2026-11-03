@@ -14,6 +14,7 @@ Bu depoda çalışırken **önce** proje skill'ini oku ve uygula:
 - Form/klavye/öneri: `.claude/skills/klavye-form/SKILL.md` + `.cursor/rules/klavye-form.mdc`. Form = `KeyboardAwareForm`, KAV `react-native-keyboard-controller`'dan.
 - i18n dört dil (`en`/`tr`/`ru`/`de`): `.claude/skills/i18n-dort-dil/SKILL.md` + `.cursor/rules/i18n-dort-dil.mdc`.
 - Spor kopyalarken etiket uyarla (kort→masa, tenis ekipmanı→dal adı, haber RSS): `.cursor/rules/spor-ozel-etiket.mdc`.
+- Telefonda UI hiç yenilenmiyorsa kapat-aç teşhisi yok → yeni preview APK: `.cursor/rules/apk-ota.mdc`.
 
 Detaylı always-on kurallar: `.cursor/rules/*.mdc` (Cursor ile aynı kaynak).
 

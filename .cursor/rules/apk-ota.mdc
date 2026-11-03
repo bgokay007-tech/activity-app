@@ -1,0 +1,19 @@
+# APK / OTA (KAZINDI)
+
+Telefonda UI değişmiyorsa “kapat aç / uyarı / kanal” ile sonsuz teşhis **yapma**.
+
+## Sebep
+
+- **Preview APK** (`eas.json` → `preview`): OTA açık, `eas update --channel development` ile JS gelir.
+- **Dev client** (`development` profili) veya OTA’nın hiç uygulanmadığı eski kurulum: kapat-aç **yetmez**; gömülü JS kalır.
+- Runtime `appVersion` — APK `1.0.2` iken sadece `1.0.2` update’leri iner. Eşleşmezse sessizce hiçbir şey olmaz.
+
+## Ne yap
+
+1. Normal iş: `eas update` development (+ gerekiyorsa preview kanalı). Preview profili zaten `development` kanalına bağlı.
+2. Kullanıcı “hiçbir yenilik / uyarı yok” diyorsa: **yeni preview APK bas**  
+   `cd mobile && npx eas-cli build --profile preview --platform android --non-interactive`  
+   Bitince APK linkini ver; eski uygulamayı silip yenisini kursun.
+3. Native modül / `app.json` version artışı zaten yeni APK ister (`klavye-form` / `runtimeVersion`).
+
+Sürekli “Paket durumu” Alert’i veya runtime avı ile kullanıcıyı yorma.
