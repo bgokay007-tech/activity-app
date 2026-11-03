@@ -2,7 +2,7 @@
 import ScreenBackButton from '../../components/ScreenBackButton';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
-    View, Text, ScrollView, FlatList, TouchableOpacity, StyleSheet,
+    View, Text, ScrollView, FlatList, TouchableOpacity, Pressable, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
     Alert, Platform, Switch, Linking, Image,
     InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions, Keyboard,
@@ -10481,14 +10481,18 @@ function AnchoredMenu({ visible, onClose, minWidth, children }) {
     // Açılış dokunuşu yeni pencereye sızıp listeyi anında kapatmasın diye kısa süre
     // yok sayılır; sonraki dışarı/tetikleyici dokunuşu kapatır.
     const requestClose = () => {
-        if (Date.now() - openedAt.current < 220) return;
+        if (Date.now() - openedAt.current < 180) return;
         onClose();
     };
 
-    const menuW = box ? Math.max(minWidth || 0, box.width || 0) : 0;
+    // Kullanıcı isteği: liste tetikleyici kadar (satırın 1/3'ü) geniş olmasın — sadece
+    // seçenek metnine yetecek kompakt genişlik; yazılar tek satırda sığsın.
+    const menuW = Math.min(Math.max(minWidth || 132, 120), 168);
     let left = box ? box.x : 0;
     if (box && left + menuW > screenW - 8) left = Math.max(8, screenW - 8 - menuW);
-    const spaceBelow = box ? Math.max(96, screenH - box.y - 12) : 340;
+    // Kullanıcı isteği: Mod/Format listesi tetikleyicinin hemen yapışık durmasın, bir tık aşağı.
+    const top = box ? box.y + 12 : 0;
+    const spaceBelow = box ? Math.max(96, screenH - top - 12) : 340;
     const maxH = Math.min(340, spaceBelow);
 
     return (
@@ -10496,11 +10500,15 @@ function AnchoredMenu({ visible, onClose, minWidth, children }) {
             <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position:'absolute', top:'100%', left:0, width:'100%', height:1, opacity:0 }} />
             {visible && (
                 <Modal key={sessionRef.current} transparent animationType="none" visible statusBarTranslucent onRequestClose={requestClose}>
-                    <View style={{ flex:1 }}>
-                        {/* Saydam View Android'de dokunuşu yutuyor; 0.01 opaklık gözle görünmez, dokunuşu alır. */}
-                        <TouchableOpacity activeOpacity={1} onPress={requestClose} style={{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.01)' }} />
+                    {/* Tekler/Çiftler dışında herhangi bir yere (form alanı, tekrar Mod/Format
+                        butonu) dokununca kapansın — seçim zorunlu değil. */}
+                    <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.12)' }}>
+                        <Pressable onPress={requestClose} style={StyleSheet.absoluteFillObject} accessibilityRole="button" />
                         {box && (
-                            <View style={{ position:'absolute', top: box.y + 3, left, minWidth: menuW, maxHeight: maxH, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, overflow:'hidden', elevation:16, zIndex:2 }}>
+                            <View
+                                onStartShouldSetResponder={() => true}
+                                style={{ position:'absolute', top, left, width: menuW, maxHeight: maxH, backgroundColor: colors.surface2, borderRadius:10, borderWidth:1, borderColor: colors.border, overflow:'hidden', elevation:16 }}
+                            >
                                 <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: maxH, flexGrow:0 }}>
                                     {children}
                                 </ScrollView>
@@ -15510,7 +15518,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             {/* Voleybolün MiniDropdown'ıyla aynı görünüm — dikey liste, her seçenek kendi
                                                 satırında. Eski chip mantığı (tenis/padelde ikinciye dokununca BOTH'a
                                                 birleşme) hiç değişmeden, sadece her satır artık alt alta. */}
-                                            <AnchoredMenu visible={activePopup === 'mode'} onClose={() => setActivePopup(null)} minWidth={168}>
+                                            <AnchoredMenu visible={activePopup === 'mode'} onClose={() => setActivePopup(null)} minWidth={140}>
                                                     {((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map((mode, mi, arr) => {
                                                         const isActive = (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball')
                                                             ? (f.matchMode === mode || f.matchMode === 'BOTH')
@@ -15533,11 +15541,11 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                         };
                                                         return (
                                                             <TouchableOpacity key={mode} onPress={handleModePress}
-                                                                style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: mi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
-                                                                <Text style={{ color: isActive ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: isActive ? '800' : '600' }} numberOfLines={1}>
+                                                                style={{ minHeight:44, paddingVertical:10, paddingHorizontal:12, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: mi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border }}>
+                                                                <Text style={{ color: isActive ? '#fff' : colors.textSecondary, fontSize:14, fontWeight: isActive ? '800' : '600', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                                                     {noEmoji(mode==='PRACTICE' ? t.practiceMode : mode==='COMPETITIVE' ? t.competitiveMode : t.bothMode)}
                                                                 </Text>
-                                                                {isActive && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
+                                                                {isActive && <Text style={{ color: colors.purple, fontSize:14, marginLeft:6 }}>✓</Text>}
                                                             </TouchableOpacity>
                                                         );
                                                     })}
@@ -15549,7 +15557,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                     {f.matchType ? (f.matchType === 'DOUBLE' ? t.doubleFormat : t.singleFormat) : `${t.formatLabel} ${t.courtSurfaceSelectPlaceholder}`}
                                                 </Text>
                                             </TouchableOpacity>
-                                            <AnchoredMenu visible={activePopup === 'format'} onClose={() => setActivePopup(null)} minWidth={168}>
+                                            <AnchoredMenu visible={activePopup === 'format'} onClose={() => setActivePopup(null)} minWidth={132}>
                                                     {[{id:'SINGLE',label:t.singleFormat},{id:'DOUBLE',label:t.doubleFormat}].map((fmt, fi, arr) => (
                                                         <TouchableOpacity key={fmt.id} onPress={() => {
                                                             setActivePopup(null);
@@ -15590,9 +15598,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                             }));
                                                         }}
                                                             disabled={editHasParticipants}
-                                                            style={{ minHeight:48, paddingVertical:12, paddingHorizontal:14, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: fi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border, opacity: editHasParticipants ? 0.5 : 1 }}>
-                                                            <Text style={{ color: f.matchType===fmt.id ? '#fff' : colors.textSecondary, fontSize:15, fontWeight: f.matchType===fmt.id ? '800' : '600' }} numberOfLines={1}>{fmt.label}</Text>
-                                                            {f.matchType===fmt.id && <Text style={{ color: colors.purple, fontSize:15, marginLeft:8 }}>✓</Text>}
+                                                            style={{ minHeight:44, paddingVertical:10, paddingHorizontal:12, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderBottomWidth: fi < arr.length - 1 ? 1 : 0, borderBottomColor: colors.border, opacity: editHasParticipants ? 0.5 : 1 }}>
+                                                            <Text style={{ color: f.matchType===fmt.id ? '#fff' : colors.textSecondary, fontSize:14, fontWeight: f.matchType===fmt.id ? '800' : '600', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{fmt.label}</Text>
+                                                            {f.matchType===fmt.id && <Text style={{ color: colors.purple, fontSize:14, marginLeft:6 }}>✓</Text>}
                                                         </TouchableOpacity>
                                                     ))}
                                             </AnchoredMenu>
