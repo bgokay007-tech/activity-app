@@ -46,9 +46,9 @@ function useAutoUpdate() {
                 if (!result.isAvailable || cancelled) return;
                 await Updates.fetchUpdateAsync();
                 if (cancelled) return;
-                // Native soğuk açılış bazen indirmeyi uygalamadan bırakıyor —
-                // her yeni pakette kısa gecikmeyle zorla yenile.
-                setTimeout(() => { if (!cancelled) Updates.reloadAsync(); }, 1500);
+                // Gecikme yok: eski 1.5sn bekleme arka plana alınca iptal oluyor,
+                // kullanıcı "kapattım açtım aynı" görüyordu. Hemen uygula.
+                await Updates.reloadAsync();
             } catch (e) {
                 // sessiz
             }

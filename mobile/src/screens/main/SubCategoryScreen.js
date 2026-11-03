@@ -10442,7 +10442,8 @@ function AnchoredMenu({ visible, onClose, minWidth, children }) {
     const markerRef = useRef(null);
     const hostRef = portal?.hostRef;
     const setPortalNode = portal?.setPortalNode;
-    const menuW = Math.min(Math.max(minWidth || 132, 120), 156);
+    // Dar liste: tetikleyiciden biraz geniş, ekranı kaplamasın.
+    const menuW = Math.min(Math.max(minWidth || 132, 124), 152);
     const { width: screenW, height: screenH } = useWindowDimensions();
     const [fallbackBox, setFallbackBox] = useState(null);
     // children her parent render'da yeni referans — effect deps'e koyma (sonsuz portal güncellemesi).
@@ -10469,17 +10470,20 @@ function AnchoredMenu({ visible, onClose, minWidth, children }) {
                 marker.measureInWindow((mx, my) => {
                     if (cancelled) return;
                     let left = mx - hx;
-                    let top = my - hy + 14;
+                    // Kullanıcı: liste biraz aşağıda dursun.
+                    let top = my - hy + 18;
                     if (left + menuW > hw - 8) left = Math.max(8, hw - 8 - menuW);
                     if (left < 8) left = 8;
-                    const maxH = Math.min(280, Math.max(96, hh - top - 12));
+                    if (top < 8) top = 8;
+                    const maxH = Math.min(260, Math.max(96, hh - top - 16));
                     setPortalNode(
                         <View
                             onStartShouldSetResponder={() => true}
                             style={{
                                 position: 'absolute', top, left, width: menuW, maxHeight: maxH,
                                 backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1,
-                                borderColor: colors.border, overflow: 'hidden', elevation: 20, zIndex: 120,
+                                borderColor: colors.border, overflow: 'hidden',
+                                elevation: 120, zIndex: 120,
                             }}
                         >
                             <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always" bounces={false} style={{ maxHeight: maxH, flexGrow: 0 }}>
@@ -10511,14 +10515,17 @@ function AnchoredMenu({ visible, onClose, minWidth, children }) {
             <View ref={markerRef} collapsable={false} pointerEvents="none" style={{ position: 'absolute', top: '100%', left: 0, width: '100%', height: 1, opacity: 0 }} />
             {visible && !setPortalNode && fallbackBox && (
                 <Modal transparent animationType="none" visible statusBarTranslucent onRequestClose={onClose}>
-                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.18)' }}>
+                    <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.28)' }}>
                         <Pressable onPress={onClose} style={StyleSheet.absoluteFillObject} />
-                        <View style={{
-                            position: 'absolute', top: fallbackBox.y + 14, left: Math.min(fallbackBox.x, screenW - menuW - 8),
-                            width: menuW, maxHeight: Math.min(280, screenH - fallbackBox.y - 24),
-                            backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-                            overflow: 'hidden', elevation: 20,
-                        }}>
+                        <View
+                            onStartShouldSetResponder={() => true}
+                            style={{
+                                position: 'absolute', top: fallbackBox.y + 18, left: Math.min(Math.max(8, fallbackBox.x), screenW - menuW - 8),
+                                width: menuW, maxHeight: Math.min(260, screenH - fallbackBox.y - 28),
+                                backgroundColor: colors.surface2, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+                                overflow: 'hidden', elevation: 24, zIndex: 2,
+                            }}
+                        >
                             <ScrollView nestedScrollEnabled keyboardShouldPersistTaps="always" bounces={false}>
                                 {children}
                             </ScrollView>
@@ -15387,10 +15394,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             // asla yanlışlıkla unmount olmasın diye.
             onRequestClose={() => { if (venueBooking.visible) { closeVenueBooking(); return; } onClose(); }}
             android_keyboardInputMode="adjustNothing">
-            <View style={s.modalOverlay}>
-                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    <AnchoredMenuPortalContext.Provider value={anchoredPortalApi}>
-                    <View ref={anchoredHostRef} collapsable={false} style={s.modalBox}>
+            <AnchoredMenuPortalContext.Provider value={anchoredPortalApi}>
+            <View ref={anchoredHostRef} collapsable={false} style={s.modalOverlay}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }} pointerEvents="box-none">
+                    <View style={s.modalBox}>
                         <View style={[s.modalHeader, { marginBottom:3 }]}>
                             <Text style={s.modalTitle}>{isMatchedEdit ? t.sc_0338((isVolleyball && volleyVenueShort(f.surface, t)) || t.sc_0197) : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
@@ -17026,22 +17033,20 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <Text style={s.submitBtnText}>{editItem ? (submitting ? t.savingText : t.saveBtn) : (submitting ? t.submittingBtn : t.createListingBtn)}</Text>
                             </TouchableOpacity>
                         </KeyboardAwareForm>
-                        {/* Mod/Format açıkken dışarı (liste dışı) dokunuş → kapat. Liste portal ile
-                            bu katmanın ÜSTÜNDE (zIndex 110) çizilir; seçenekler basılabilir kalır. */}
-                        {activePopup != null && (
-                            <Pressable
-                                onPress={() => { setActivePopup(null); setAnchoredPortalNode(null); }}
-                                style={[StyleSheet.absoluteFillObject, { zIndex: 100, backgroundColor: 'rgba(0,0,0,0.2)' }]}
-                            />
-                        )}
-                        {anchoredPortalNode ? (
-                            <View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, { zIndex: 110 }]}>
-                                {anchoredPortalNode}
-                            </View>
-                        ) : null}
                     </View>
-                    </AnchoredMenuPortalContext.Provider>
                 </KeyboardAvoidingView>
+                {/* Tam ekran dismiss: sheet + üst karartma. Android'de elevation şart. */}
+                {(activePopup != null || showWinsNeededPicker || anchoredPortalNode) ? (
+                    <Pressable
+                        onPress={() => { setActivePopup(null); setShowWinsNeededPicker(false); setAnchoredPortalNode(null); }}
+                        style={[StyleSheet.absoluteFillObject, { zIndex: 100, elevation: 100, backgroundColor: 'rgba(0,0,0,0.32)' }]}
+                    />
+                ) : null}
+                {anchoredPortalNode ? (
+                    <View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, { zIndex: 110, elevation: 110 }]}>
+                        {anchoredPortalNode}
+                    </View>
+                ) : null}
 
                 {(() => {
                     // Kullanıcı hangi boş DOUBLE slotunun ikonuna dokunduysa (bkz. doubleInviteFromSlotCreate),
@@ -17311,6 +17316,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     </View>
                 )}
             </View>
+            </AnchoredMenuPortalContext.Provider>
         </Modal>
 
         <VenueBookingModal
