@@ -318,7 +318,9 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
     );
 }
 
-function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) {
+// mode="pick"  → ilan formuna slot seçimi (validate only)
+// mode="reserve" → mobil Kort Rez. gibi gerçek rezervasyon oluştur
+function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '', mode = 'pick' }) {
     const { t } = useTranslation();
     const [city, setCity] = useState('');
     const [name, setName] = useState(initialName);
@@ -343,10 +345,21 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) 
     const confirmSlot = async (venue, date, slot) => {
         setConfirming(true);
         try {
+            if (mode === 'reserve') {
+                const payMethod = (Array.isArray(venue.acceptedPayments) && venue.acceptedPayments.includes('CASH'))
+                    ? 'CASH'
+                    : (venue.acceptedPayments?.[0] || 'CASH');
+                await api.post(`/venues/${venue.id}/courts/${slot.courtId}/reserve`, {
+                    date, startTime: slot.startTime, endTime: slot.endTime, paymentMethod: payMethod,
+                });
+                alert(t('rival.venue_res_ok') || t('shell.sh_0092') || 'Reservation created');
+                onClose?.();
+                return;
+            }
             await api.post(`/venues/${venue.id}/courts/${slot.courtId}/validate-slot`, {
                 date, startTime: slot.startTime, endTime: slot.endTime, paymentMethod: 'CASH',
             });
-            onBooked({
+            onBooked?.({
                 venueId: venue.id, venueCourtId: slot.courtId,
                 venueLabel: `${venue.name} — ${slot.courtName}`,
                 city: venue.city, address: venue.address,
@@ -363,7 +376,11 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '' }) 
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-950 border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-white font-black text-lg">{t('websc.search_venue')}</h3>
+                    <h3 className="text-white font-black text-lg">
+                        {mode === 'reserve'
+                            ? (t('rival.venue_res_create') || t('websc.search_venue'))
+                            : t('websc.search_venue')}
+                    </h3>
                     <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
                 </div>
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -3525,6 +3542,7 @@ function SubCategoryPage() {
     const [newTextPost, setNewTextPost] = useState('');
     const [isPosting, setIsPosting] = useState(false);
     const [showRivalForm, setShowRivalForm] = useState(false);
+    const [showCourtResModal, setShowCourtResModal] = useState(false);
     const [editingRival, setEditingRival] = useState(null);
     const [flippedRivalIds, setFlippedRivalIds] = useState({});
     const [rivalCityFilter, setRivalCityFilter] = useState('');
@@ -4779,12 +4797,12 @@ function SubCategoryPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap justify-end">
-                                    {/* Mobildeki "Kort Rez." / salon ara — ilan oluşturun yanında */}
+                                    {/* Mobildeki Kort Rez. — aynı sayfada tesis ara + gerçek rezervasyon */}
                                     {['tennis', 'padel', 'pickleball', 'table_tennis', 'badminton', 'volleyball'].includes(sub) && (
                                         <button
                                             type="button"
-                                            onClick={() => navigate(`/venues?branch=${encodeURIComponent(sub)}`)}
-                                            className="bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-bold px-3 py-2 rounded-xl text-sm transition whitespace-nowrap"
+                                            onClick={() => setShowCourtResModal(true)}
+                                            className="bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-sm transition whitespace-nowrap"
                                         >
                                             {sub === 'volleyball'
                                                 ? (t('rival.hall_search') || 'Salon Ara')
@@ -4805,6 +4823,15 @@ function SubCategoryPage() {
                                     </button>
                                 </div>
                             </div>
+
+                            {showCourtResModal && (
+                                <VenueSearchModal
+                                    sub={sub}
+                                    config={config}
+                                    mode="reserve"
+                                    onClose={() => setShowCourtResModal(false)}
+                                />
+                            )}
 
                             {showRivalForm && (
                                 <RivalForm
