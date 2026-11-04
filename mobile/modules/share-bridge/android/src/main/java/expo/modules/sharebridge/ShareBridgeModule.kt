@@ -101,14 +101,16 @@ class ShareBridgeModule : Module() {
 
         if (!isPackageInstalled("com.whatsapp")) return false
 
+        // Durum: SADECE görsel. EXTRA_TEXT eklenince WA çoğu telefonda yazı durumu açıyor.
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
-            if (text.isNotBlank()) putExtra(Intent.EXTRA_TEXT, text)
+            clipData = android.content.ClipData.newUri(activity.contentResolver, "image", uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             setPackage("com.whatsapp")
-            // statusOnly ipucu — WA resmi Status action yok; yine SEND.
-            if (statusOnly) putExtra("sms_body", text)
+            if (!statusOnly && text.isNotBlank()) {
+                putExtra(Intent.EXTRA_TEXT, text)
+            }
         }
 
         return try {

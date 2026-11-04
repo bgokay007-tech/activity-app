@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useT from '../hooks/useT';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
-import { buildMatchSharePayload, matchShareMessage } from '../utils/matchShareCard';
+import { buildMatchSharePayload, matchShareMessage, BRAND_LETTER_COLORS } from '../utils/matchShareCard';
 import {
     shareToWhatsApp,
     shareToWhatsAppStatus,
@@ -22,107 +22,131 @@ import {
 const W = 1080;
 const H = 1920;
 
+/** Tam 9:16 opak kart — şeffaf çerçeve yok (IG Hikâye'de cam kutu gibi duruyordu). */
 function cardHtml(p) {
-    const setsHtml = (p.lines || []).map(l =>
-        `<div class="set">${escape(l)}</div>`).join('');
+    const brand = p.brand || 'AcTiViTy';
+    const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
+    const setPairs = (p.lines || []).map((line) => {
+        const m = String(line).match(/(\d+)\s*[-–]\s*(\d+)/);
+        return m ? [m[1], m[2]] : ['', ''];
+    });
+    const details = [
+        p.place ? `📍 ${p.place}` : '',
+        p.dateStr ? `📅 ${p.dateStr}` : '',
+        `${p.emoji || ''} ${p.sport || ''}`.trim(),
+    ].filter(Boolean);
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=${W}, initial-scale=1"/>
-<style>
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{width:${W}px;height:${H}px;background:linear-gradient(160deg,#12081f 0%,#1e0b3a 45%,#0a0a14 100%);
-    color:#fff;font-family:-apple-system,Segoe UI,Roboto,sans-serif;
-    display:flex;flex-direction:column;align-items:center;justify-content:space-between;
-    padding:120px 72px 100px;position:relative;overflow:hidden}
-  .glow{position:absolute;width:700px;height:700px;border-radius:50%;background:#9333ea33;filter:blur(80px);top:200px;left:190px}
-  .brand{font-size:54px;font-weight:900;letter-spacing:4px;color:#e9d5ff}
-  .sport{margin-top:28px;font-size:36px;font-weight:800;color:#e9d5ff}
-  .vsbox{width:100%;margin-top:80px;background:#ffffff10;border:2px solid #ffffff22;border-radius:40px;padding:56px 40px}
-  .names{display:flex;align-items:center;justify-content:space-between;gap:24px}
-  .side{flex:1;text-align:center}
-  .side .n{font-size:40px;font-weight:900;line-height:1.2}
-  .mid{font-size:72px;font-weight:900;color:#c084fc;min-width:160px;text-align:center}
-  .sets{margin-top:40px;display:flex;flex-wrap:wrap;gap:14px;justify-content:center}
-  .set{background:#9333ea33;border:1px solid #a78bfa66;border-radius:18px;padding:14px 22px;font-size:32px;font-weight:800}
-  .winner{margin-top:48px;text-align:center;font-size:38px;font-weight:900;color:#4ade80}
-  .meta{width:100%;margin-top:auto;text-align:center;color:#c4b5fd;font-size:28px;line-height:1.6}
-  .foot{margin-top:36px;font-size:24px;color:#ffffff66;font-weight:700;letter-spacing:1px}
-</style></head><body>
-<div class="glow"></div>
-<div style="text-align:center;z-index:1">
-  <div class="brand">AcTiViTy</div>
-  <div class="sport">${escape(p.emoji)} ${escape(p.sport)}</div>
-</div>
-<div class="vsbox" style="z-index:1">
-  <div class="names">
-    <div class="side"><div class="n">${escape(p.leftLabel)}</div></div>
-    <div class="mid">${p.leftSets}–${p.rightSets}</div>
-    <div class="side"><div class="n">${escape(p.rightLabel)}</div></div>
-  </div>
-  <div class="sets">${setsHtml}</div>
-  <div class="winner">🏆 ${escape(p.resultLabel)}</div>
-</div>
-<div class="meta" style="z-index:1">
-  ${p.place ? `<div>📍 ${escape(p.place)}</div>` : ''}
-  ${p.dateStr ? `<div>📅 ${escape(p.dateStr)}</div>` : ''}
-  <div class="foot">activity · match result</div>
-</div>
-<canvas id="c" width="${W}" height="${H}" style="display:none"></canvas>
+</head><body style="margin:0;background:#0B0C10">
+<canvas id="c" width="${W}" height="${H}"></canvas>
 <script>
 (function(){
   function go(){
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
-      var g=ctx.createLinearGradient(0,0,${W},${H});
-      g.addColorStop(0,'#12081f'); g.addColorStop(0.45,'#1e0b3a'); g.addColorStop(1,'#0a0a14');
-      ctx.fillStyle=g; ctx.fillRect(0,0,${W},${H});
-      ctx.fillStyle='rgba(147,51,234,0.2)';
-      ctx.beginPath(); ctx.arc(540,500,320,0,Math.PI*2); ctx.fill();
+      var W=${W}, H=${H};
+      ctx.fillStyle='#0B0C10';
+      ctx.fillRect(0,0,W,H);
+      var g=ctx.createRadialGradient(540,420,40,540,420,520);
+      g.addColorStop(0,'rgba(200,245,74,0.16)');
+      g.addColorStop(1,'rgba(11,12,16,0)');
+      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
       function text(str,x,y,size,color,align,weight){
-        ctx.fillStyle=color||'#fff';
+        ctx.fillStyle=color||'#F4F1EA';
         ctx.font=(weight||'900')+' '+size+'px sans-serif';
         ctx.textAlign=align||'center';
+        ctx.textBaseline='alphabetic';
         ctx.fillText(str,x,y);
       }
-      function roundRect(ctx,x,y,w,h,r){
+      function roundRect(x,y,w,h,r){
         ctx.beginPath();
         ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
         ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
       }
-      text('AcTiViTy',540,180,54,'#e9d5ff');
-      text(${JSON.stringify((p.emoji || '') + ' ' + (p.sport || ''))},540,250,36,'#e9d5ff','center','800');
-      roundRect(ctx,72,360,${W}-144,900,40);
-      ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=3; ctx.stroke();
-      text(${JSON.stringify(p.leftLabel || '')},270,520,34,'#fff','center','900');
-      text(${JSON.stringify(String(p.leftSets) + '–' + String(p.rightSets))},540,540,64,'#c084fc');
-      text(${JSON.stringify(p.rightLabel || '')},810,520,34,'#fff','center','900');
-      var lines=${JSON.stringify(p.lines || [])};
-      var y=640;
-      lines.forEach(function(l){ text(l,540,y,30,'#ddd'); y+=52; });
-      text('🏆 '+${JSON.stringify(p.resultLabel || '')},540,y+40,36,'#4ade80');
-      var my=1500;
-      ${p.place ? `text(${JSON.stringify('📍 ' + p.place)},540,my,28,'#c4b5fd'); my+=48;` : ''}
-      ${p.dateStr ? `text(${JSON.stringify('📅 ' + p.dateStr)},540,my,28,'#c4b5fd'); my+=48;` : ''}
-      // Görsel CTA — piksel olarak "indir" yazısı (tıklanabilir değil; tıklanabilir link
-      // native ADD_TO_STORY link_url extras ile gelir).
-      roundRect(ctx,270,1760,540,72,36);
-      ctx.fillStyle='rgba(147,51,234,0.85)'; ctx.fill();
-      text(${JSON.stringify(p.ctaLabel || 'AcTiViTy · Uygulamayı indir')},540,1808,26,'#fff','center','800');
+
+      var brand=${JSON.stringify(brand)};
+      var cols=${JSON.stringify(colorsArr)};
+      ctx.font='900 64px sans-serif';
+      ctx.textAlign='left';
+      var totalW=0;
+      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+4;
+      var bx=(W-totalW)/2;
+      for(var i=0;i<brand.length;i++){
+        ctx.fillStyle=cols[i%cols.length];
+        ctx.fillText(brand[i], bx, 150);
+        bx+=ctx.measureText(brand[i]).width+4;
+      }
+
+      roundRect(720, 100, 280, 52, 26);
+      ctx.fillStyle='#C8F54A'; ctx.fill();
+      text(${JSON.stringify(p.resultBadge||'MATCH RESULT')}, 860, 136, 22, '#0B0C10', 'center', '900');
+
+      text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, 230, 34, '#C8F54A', 'center', '800');
+
+      var name=${JSON.stringify(p.resultLabel||'')};
+      var won=${JSON.stringify(p.wonWord||'WON')};
+      ctx.font='900 48px sans-serif';
+      ctx.textAlign='left';
+      var nw=ctx.measureText(name+' ').width;
+      var ww=ctx.measureText(won).width;
+      var start=(W-nw-ww)/2;
+      ctx.fillStyle='#F4F1EA'; ctx.fillText(name+' ', start, 340);
+      ctx.fillStyle='#C8F54A'; ctx.fillText(won, start+nw, 340);
+
+      // Opak panel — stroke solid, alpha yok
+      roundRect(72, 400, W-144, 640, 28);
+      ctx.fillStyle='#16181F'; ctx.fill();
+      ctx.strokeStyle='#2A2D36'; ctx.lineWidth=3; ctx.stroke();
+
+      text(${JSON.stringify(p.colPlayer||'PLAYER')}, 200, 460, 22, '#78716C', 'left', '800');
+      var pairs=${JSON.stringify(setPairs)};
+      var setXs=[];
+      for(var s=0;s<Math.max(pairs.length,1);s++){
+        var sx=640+s*130;
+        setXs.push(sx);
+        text('SET '+(s+1), sx, 460, 22, '#78716C', 'center', '800');
+      }
+
+      function drawPlayerRow(y, label, elo, scores, highlight){
+        if(highlight){
+          roundRect(96, y-52, W-192, 120, 18);
+          ctx.fillStyle='#1C1F28'; ctx.fill();
+        }
+        text(label, 200, y, 36, '#F4F1EA', 'left', '900');
+        if(elo) text(elo, 200, y+42, 28, '#C8F54A', 'left', '800');
+        for(var i=0;i<scores.length;i++){
+          text(String(scores[i]), setXs[i]||(640+i*130), y+12, 44, '#F4F1EA', 'center', '900');
+        }
+      }
+
+      var L=pairs.map(function(p){return p[0];});
+      var R=pairs.map(function(p){return p[1];});
+      drawPlayerRow(560, ${JSON.stringify(p.leftLabel||'')}, ${JSON.stringify(p.leftElo||'')}, L, ${p.winnerSide==='left'});
+      drawPlayerRow(720, ${JSON.stringify(p.rightLabel||'')}, ${JSON.stringify(p.rightElo||'')}, R, ${p.winnerSide==='right'});
+
+      text(${JSON.stringify(String(p.leftSets)+' – '+String(p.rightSets))}, 540, 920, 68, '#C8F54A', 'center', '900');
+
+      var dy=1080;
+      var details=${JSON.stringify(details)};
+      details.forEach(function(d){
+        text(d, 540, dy, 36, '#A8A29A', 'center', '700');
+        dy+=56;
+      });
+
+      roundRect(200, 1720, 680, 88, 44);
+      ctx.fillStyle='#C8F54A'; ctx.fill();
+      text(${JSON.stringify(p.ctaLabel||'AcTiViTy · Uygulamayı indir')}, 540, 1778, 30, '#0B0C10', 'center', '900');
+
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(canvas.toDataURL('image/png'));
     }catch(e){
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ERR:'+String(e&&e.message||e));
     }
   }
-  setTimeout(go,80);
+  setTimeout(go,60);
 })();
 </script></body></html>`;
-}
-
-function escape(s) {
-    return String(s || '')
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
 }
 
 export default function MatchResultShareModal({ visible, match, onClose }) {
@@ -136,6 +160,9 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
         return {
             ...base,
             ctaLabel: t.shareMatchStoreCta || 'AcTiViTy · Uygulamayı indir',
+            wonWord: t.shareMatchWonWord || (lang === 'tr' ? 'KAZANDI' : lang === 'ru' ? 'ПОБЕДИЛ' : lang === 'de' ? 'GEWINNT' : 'WON'),
+            resultBadge: t.shareMatchResultBadge || (lang === 'tr' ? 'MAÇ SONUCU' : lang === 'ru' ? 'РЕЗУЛЬТАТ' : lang === 'de' ? 'ERGEBNIS' : 'MATCH RESULT'),
+            colPlayer: t.shareMatchColPlayer || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
         };
     }, [visible, match, t, lang]);
     const [busy, setBusy] = useState(false);
@@ -177,12 +204,12 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                 return;
             }
             if (action === 'wa_status') {
-                await shareToWhatsAppStatus({ filePath: path, message, t });
+                // Durum = sadece görsel (metin WA'yı yazı durumuna düşürüyordu)
+                await shareToWhatsAppStatus({ filePath: path, message: '', t });
                 onClose?.();
                 return;
             }
             if (action === 'ig_story') {
-                // Maç paylaşım linki + Play Store — IG link sticker / attribution için
                 await shareToInstagramStory({
                     filePath: path,
                     t,
@@ -207,7 +234,6 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
         setNeedCapture(true);
     };
 
-    // Dikey satırlar — ızgara alt sırayı kesiyordu / ScrollView yüksekliği yoktu.
     const targets = [
         { id: 'whatsapp', emoji: '💬', label: 'WhatsApp' },
         { id: 'wa_status', emoji: '🟢', label: t.shareMatchWaStatus || 'WhatsApp Status' },
@@ -235,20 +261,34 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                         <TouchableOpacity onPress={onClose} hitSlop={12}><Text style={s.close}>✕</Text></TouchableOpacity>
                     </View>
 
-                    {/* Kompakt önizleme — uzun kart seçenekleri ekranın altında kesmesin */}
                     <View style={s.preview}>
-                        <Text style={s.brand}>AcTiViTy</Text>
-                        <Text style={s.sport}>{payload.emoji} {payload.sport}</Text>
-                        <View style={s.vsRow}>
-                            <Text style={[s.side, { flex: 1 }]} numberOfLines={1}>{payload.leftLabel}</Text>
-                            <Text style={s.score}>{payload.leftSets}–{payload.rightSets}</Text>
-                            <Text style={[s.side, { flex: 1 }]} numberOfLines={1}>{payload.rightLabel}</Text>
+                        <View style={s.brandRow}>
+                            {(payload.brand || 'AcTiViTy').split('').map((ch, i) => (
+                                <Text key={i} style={{ color: BRAND_LETTER_COLORS[i % BRAND_LETTER_COLORS.length], fontWeight: '900', fontSize: 16 }}>
+                                    {ch}
+                                </Text>
+                            ))}
                         </View>
-                        <Text style={s.winner} numberOfLines={1}>🏆 {payload.resultLabel}</Text>
+                        <Text style={s.sport}>{payload.emoji} {payload.sport}</Text>
+                        <Text style={s.winnerLine} numberOfLines={1}>
+                            <Text style={{ color: '#F4F1EA' }}>{payload.resultLabel} </Text>
+                            <Text style={{ color: '#C8F54A' }}>{payload.wonWord}</Text>
+                        </Text>
+                        <View style={s.vsRow}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.side} numberOfLines={1}>{payload.leftLabel}</Text>
+                                {!!payload.leftElo && <Text style={s.elo}>{payload.leftElo}</Text>}
+                            </View>
+                            <Text style={s.score}>{payload.leftSets}–{payload.rightSets}</Text>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.side} numberOfLines={1}>{payload.rightLabel}</Text>
+                                {!!payload.rightElo && <Text style={s.elo}>{payload.rightElo}</Text>}
+                            </View>
+                        </View>
                     </View>
 
                     {busy ? (
-                        <ActivityIndicator color="#c084fc" style={{ marginVertical: 28 }} />
+                        <ActivityIndicator color="#C8F54A" style={{ marginVertical: 28 }} />
                     ) : (
                         <ScrollView
                             style={s.list}
@@ -293,9 +333,7 @@ const s = StyleSheet.create({
     backdropTap: { flex: 1 },
     sheet: {
         backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
-        // Önizleme küçük + liste kaydırılabilir → alt seçenekler (galeri vb.) kesilmez
-        maxHeight: '78%',
+        paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, maxHeight: '78%',
     },
     handle: {
         alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
@@ -306,14 +344,15 @@ const s = StyleSheet.create({
     close: { color: colors.textMuted, fontSize: 22 },
     preview: {
         borderRadius: 14, overflow: 'hidden', marginBottom: 12, paddingVertical: 12, paddingHorizontal: 14,
-        backgroundColor: '#1a0b2e', borderWidth: 1, borderColor: '#9333ea55',
+        backgroundColor: '#0B0C10', borderWidth: 1, borderColor: '#2A2D36',
     },
-    brand: { color: '#e9d5ff', fontSize: 14, fontWeight: '900', textAlign: 'center', letterSpacing: 2 },
-    sport: { color: '#c4b5fd', fontSize: 12, fontWeight: '800', textAlign: 'center', marginTop: 4, marginBottom: 8 },
+    brandRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 4 },
+    sport: { color: '#C8F54A', fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
+    winnerLine: { textAlign: 'center', fontSize: 15, fontWeight: '900', marginBottom: 10 },
     vsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    side: { color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center' },
-    score: { color: '#c084fc', fontSize: 22, fontWeight: '900', minWidth: 56, textAlign: 'center' },
-    winner: { color: '#4ade80', fontSize: 12, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+    side: { color: '#F4F1EA', fontSize: 12, fontWeight: '800', textAlign: 'center' },
+    elo: { color: '#C8F54A', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 2 },
+    score: { color: '#C8F54A', fontSize: 22, fontWeight: '900', minWidth: 56, textAlign: 'center' },
     list: { flexGrow: 0 },
     row: {
         flexDirection: 'row', alignItems: 'center', gap: 12,

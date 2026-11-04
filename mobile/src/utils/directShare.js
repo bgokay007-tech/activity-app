@@ -105,11 +105,11 @@ export async function shareToWhatsApp({ filePath, message }) {
     return 'sheet';
 }
 
-/** WhatsApp Durumu — native görsel SEND. */
+/** WhatsApp Durumu — sadece görsel (metin = yazı durumu; IG Hikâye gibi kart). */
 export async function shareToWhatsAppStatus({ filePath, message, t }) {
     if (!filePath) {
-        await shareToWhatsApp({ message });
-        return 'text';
+        Alert.alert('', t?.shareMatchFail || '');
+        return 'fail';
     }
     if (Platform.OS === 'android' && hasShareBridge()) {
         const uri = (await contentUriFor(filePath)) || (await mediaStoreUriFor(filePath));
@@ -117,12 +117,16 @@ export async function shareToWhatsAppStatus({ filePath, message, t }) {
             const ok = await nativeShareToWhatsAppStatus({
                 imageUri: uri,
                 mime: 'image/png',
-                text: message || '',
+                text: '', // bilerek boş
             });
             if (ok) return 'opened';
         }
     }
-    return shareToWhatsApp({ filePath, message });
+    // Metin deep link'e düşme — galeri + WA aç, kullanıcı Durum'a görseli seçsin
+    await saveToGallery(filePath);
+    await openUrl('whatsapp://');
+    Alert.alert('', t?.shareMatchWaStatusHint || t?.shareMatchAndroidHint || '');
+    return 'gallery_hint';
 }
 
 /**
