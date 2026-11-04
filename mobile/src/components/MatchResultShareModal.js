@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-    Share, Platform, Alert, Dimensions,
+    Alert, Dimensions, ScrollView,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useT from '../hooks/useT';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
 import { buildMatchSharePayload, matchShareMessage } from '../utils/matchShareCard';
+import {
+    shareToWhatsApp,
+    shareToWhatsAppStatus,
+    shareToInstagramStory,
+    shareViaSystemSheet,
+    ensureGallerySave,
+} from '../utils/directShare';
 
 const W = 1080;
 const H = 1920;
@@ -67,11 +73,8 @@ function cardHtml(p) {
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
-      var scale=1;
       ctx.fillStyle='#12081f';
       ctx.fillRect(0,0,${W},${H});
-      // html-to-canvas: draw via foreignObject is flaky on Android WebView —
-      // instead rasterize by painting the same layout in canvas 2d.
       var g=ctx.createLinearGradient(0,0,${W},${H});
       g.addColorStop(0,'#12081f'); g.addColorStop(0.45,'#1e0b3a'); g.addColorStop(1,'#0a0a14');
       ctx.fillStyle=g; ctx.fillRect(0,0,${W},${H});
@@ -85,7 +88,6 @@ function cardHtml(p) {
       }
       text('AcTiViTy',540,180,54,'#e9d5ff');
       text(${JSON.stringify((p.emoji || '') + ' ' + (p.sport || ''))},540,250,36,'#e9d5ff','center','800');
-      // card
       roundRect(ctx,72,360,${W}-144,900,40);
       ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fill();
       ctx.strokeStyle='rgba(255,255,255,0.15)'; ctx.lineWidth=3; ctx.stroke();
@@ -129,7 +131,7 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
     const payload = useMemo(() => (visible && match ? buildMatchSharePayload(match, t, lang) : null), [visible, match, t, lang]);
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
-    const pendingAction = useRef(null); // 'share' | 'save'
+    const pendingAction = useRef(null);
     const winW = Dimensions.get('window').width;
     const previewH = Math.min(420, Math.round(winW * 0.72 * (H / W)));
 
@@ -148,35 +150,38 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             Alert.alert(t.error, t.shareMatchFail);
             return;
         }
+        const action = pendingAction.current;
+        pendingAction.current = null;
         try {
             const b64 = dataUrl.replace(/^data:image\/png;base64,/, '');
             const path = `${FileSystem.cacheDirectory}activity-match-${payload.id}.png`;
             await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
-            const action = pendingAction.current;
-            pendingAction.current = null;
+            const message = matchShareMessage(payload, t);
+
             if (action === 'save') {
-                const perm = await MediaLibrary.requestPermissionsAsync();
-                if (!perm.granted) {
-                    Alert.alert(t.error, t.shareMatchGalleryDenied);
-                    return;
-                }
-                await MediaLibrary.saveToLibraryAsync(path);
-                Alert.alert('', t.shareMatchSaved);
+                const ok = await ensureGallerySave(path);
+                if (!ok) Alert.alert(t.error, t.shareMatchGalleryDenied);
+                else Alert.alert('', t.shareMatchSaved);
                 return;
             }
-            const message = matchShareMessage(payload, t);
-            if (Platform.OS === 'ios') {
-                await Share.share({ url: path, message });
-            } else {
-                // Android Share.share görseli çoğu cihazda eklemez — kartı galeriye koyup
-                // metin+linki paylaş; kullanıcı WhatsApp Durumu / IG Hikâye'de galeriden seçer.
-                try {
-                    const perm = await MediaLibrary.requestPermissionsAsync();
-                    if (perm.granted) await MediaLibrary.saveToLibraryAsync(path);
-                } catch { /* galeri yoksa sadece metin */ }
-                await Share.share({ message });
-                Alert.alert('', t.shareMatchAndroidHint);
+            if (action === 'whatsapp') {
+                await shareToWhatsApp({ filePath: path, message });
+                onClose?.();
+                return;
             }
+            if (action === 'wa_status') {
+                await shareToWhatsAppStatus({ filePath: path, message, t });
+                onClose?.();
+                return;
+            }
+            if (action === 'ig_story') {
+                await shareToInstagramStory({ filePath: path, t });
+                onClose?.();
+                return;
+            }
+            // more / generic
+            await shareViaSystemSheet({ filePath: path, message });
+            onClose?.();
         } catch {
             Alert.alert(t.error, t.shareMatchFail);
         } finally {
@@ -190,6 +195,14 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
         setBusy(true);
         setNeedCapture(true);
     };
+
+    const targets = [
+        { id: 'whatsapp', emoji: '💬', label: 'WhatsApp' },
+        { id: 'wa_status', emoji: '🟢', label: t.shareMatchWaStatus || t.media_ext_wa_status || 'WhatsApp Status' },
+        { id: 'ig_story', emoji: '📱', label: t.shareMatchIgStory || t.media_ext_ig_story || 'Instagram Story' },
+        { id: 'more', emoji: '⋯', label: t.shareMatchMore || t.media_ext_more || 'More' },
+        { id: 'save', emoji: '💾', label: t.shareMatchSaveBtnShort || t.shareMatchSaveBtn || 'Gallery' },
+    ];
 
     if (!payload) {
         return (
@@ -225,16 +238,23 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                         {!!payload.dateStr && <Text style={s.meta} numberOfLines={1}>📅 {payload.dateStr}</Text>}
                     </View>
 
-                    <TouchableOpacity style={[s.btn, s.btnPrimary]} onPress={() => start('share')} disabled={busy}>
-                        {busy && pendingAction.current === 'share'
-                            ? <ActivityIndicator color="#fff" />
-                            : <Text style={s.btnText}>{t.shareMatchShareBtn}</Text>}
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={() => start('save')} disabled={busy}>
-                        {busy && pendingAction.current === 'save'
-                            ? <ActivityIndicator color="#c084fc" />
-                            : <Text style={[s.btnText, { color: '#c084fc' }]}>{t.shareMatchSaveBtn}</Text>}
-                    </TouchableOpacity>
+                    {busy ? (
+                        <ActivityIndicator color="#c084fc" style={{ marginVertical: 18 }} />
+                    ) : (
+                        <ScrollView contentContainerStyle={s.grid} showsVerticalScrollIndicator={false}>
+                            {targets.map((it) => (
+                                <TouchableOpacity
+                                    key={it.id}
+                                    style={s.cell}
+                                    activeOpacity={0.8}
+                                    onPress={() => start(it.id)}
+                                >
+                                    <Text style={s.emoji}>{it.emoji}</Text>
+                                    <Text style={s.label} numberOfLines={2}>{it.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </ScrollView>
+                    )}
                 </View>
             </View>
             {needCapture && (
@@ -275,9 +295,14 @@ const s = StyleSheet.create({
     sets: { color: '#ddd', fontSize: 12, textAlign: 'center', marginTop: 10, fontWeight: '700' },
     winner: { color: '#4ade80', fontSize: 14, fontWeight: '900', textAlign: 'center', marginTop: 12 },
     meta: { color: '#c4b5fd', fontSize: 11, textAlign: 'center', marginTop: 4 },
-    btn: { borderRadius: 12, paddingVertical: 13, alignItems: 'center', marginBottom: 8 },
-    btnPrimary: { backgroundColor: colors.purple },
-    btnGhost: { backgroundColor: '#7c3aed22', borderWidth: 1, borderColor: '#7c3aed55' },
-    btnText: { color: '#fff', fontWeight: '800', fontSize: 14 },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 8 },
+    cell: {
+        width: '30%', minWidth: 96, flexGrow: 1, alignItems: 'center', gap: 6,
+        backgroundColor: colors.surface2 || '#222', borderRadius: 14,
+        paddingVertical: 14, paddingHorizontal: 6,
+        borderWidth: 1, borderColor: colors.border || '#333',
+    },
+    emoji: { fontSize: 26 },
+    label: { color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'center' },
     hidden: { position: 'absolute', width: 1, height: 1, opacity: 0, left: -20, top: -20 },
 });

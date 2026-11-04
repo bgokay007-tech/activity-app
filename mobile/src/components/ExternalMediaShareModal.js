@@ -10,6 +10,11 @@ import colors from '../theme/colors';
 import useT from '../hooks/useT';
 import { sharePost } from '../utils/share';
 import { BASE_URL } from '../services/api';
+import {
+    shareToWhatsApp,
+    shareToWhatsAppStatus,
+    shareToInstagramStory,
+} from '../utils/directShare';
 
 const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
 
@@ -110,14 +115,17 @@ export default function ExternalMediaShareModal({ visible, post, onClose, onShar
         },
         {
             id: 'whatsapp', emoji: '💬', label: 'WhatsApp',
-            go: () => openOrFallback(
-                `whatsapp://send?text=${encodeURIComponent(msg)}`,
-                () => Share.share({ message: msg, url }),
-            ),
+            go: async () => {
+                const file = await cacheMediaFile(post);
+                await shareToWhatsApp({ filePath: file?.path, message: msg });
+            },
         },
         {
             id: 'wa_status', emoji: '🟢', label: t.media_ext_wa_status || 'WhatsApp Status',
-            go: shareWithMediaHint,
+            go: async () => {
+                const file = await cacheMediaFile(post);
+                await shareToWhatsAppStatus({ filePath: file?.path, message: msg, t });
+            },
         },
         {
             id: 'telegram', emoji: '✈️', label: 'Telegram',
@@ -132,7 +140,10 @@ export default function ExternalMediaShareModal({ visible, post, onClose, onShar
         },
         {
             id: 'ig_story', emoji: '📱', label: t.media_ext_ig_story || 'Instagram Story',
-            go: shareWithMediaHint,
+            go: async () => {
+                const file = await cacheMediaFile(post);
+                await shareToInstagramStory({ filePath: file?.path, t });
+            },
         },
         {
             id: 'threads', emoji: '🧵', label: 'Threads',
