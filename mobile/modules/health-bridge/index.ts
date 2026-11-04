@@ -18,21 +18,33 @@ type HealthBridgeNativeModule = {
     getWorkoutSummary(startIso: string, endIso: string): Promise<WorkoutSummary>;
 };
 
-const nativeModule = requireNativeModule<HealthBridgeNativeModule>('HealthBridge');
+// Native modül APK'da yoksa / link bozuksa requireNativeModule SENKRON fırlatır —
+// SubCategoryScreen açılışta bu dosyayı import ettiği için uygulama hiç açılmazdı.
+// wear-bridge ile aynı: yoksa sessizce null, çağıran taraf MET tahmine düşer.
+let nativeModule: HealthBridgeNativeModule | null = null;
+try {
+    nativeModule = requireNativeModule<HealthBridgeNativeModule>('HealthBridge');
+} catch {
+    nativeModule = null;
+}
 
-// Health Connect (Android) kurulu mu / HealthKit (iOS) bu cihazda kullanılabilir mi.
+const emptySummary = (): WorkoutSummary => ({
+    avgHeartRate: null,
+    maxHeartRate: null,
+    activeCalories: null,
+});
+
 export function isHealthAvailable(): Promise<boolean> {
-    return nativeModule.isAvailable();
+    if (!nativeModule) return Promise.resolve(false);
+    return nativeModule.isAvailable().catch(() => false);
 }
 
-// Kalp atışı + aktif kalori okuma izni ister — kullanıcı reddederse false döner,
-// çağıran taraf tahmine düşer.
 export function requestHealthPermissions(): Promise<boolean> {
-    return nativeModule.requestPermissions();
+    if (!nativeModule) return Promise.resolve(false);
+    return nativeModule.requestPermissions().catch(() => false);
 }
 
-// [startIso, endIso) aralığında ortalama/maksimum nabız ve toplam aktif kaloriyi döner —
-// veri yoksa ilgili alanlar null kalır (tamamı null ise çağıran taraf tahmine düşer).
 export function getWorkoutSummary(startIso: string, endIso: string): Promise<WorkoutSummary> {
-    return nativeModule.getWorkoutSummary(startIso, endIso);
+    if (!nativeModule) return Promise.resolve(emptySummary());
+    return nativeModule.getWorkoutSummary(startIso, endIso).catch(() => emptySummary());
 }
