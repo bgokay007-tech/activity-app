@@ -16,4 +16,9 @@ Telefonda UI değişmiyorsa “kapat aç / uyarı / kanal” ile sonsuz teşhis 
    Bitince APK linkini ver; eski uygulamayı silip yenisini kursun.
 3. Native modül / `app.json` version artışı zaten yeni APK ister (`klavye-form` / `runtimeVersion`).
 
+## APK basmadan önce (şart)
+
+EAS, **çalışma dizinini** yükler — commit edilmemiş `mobile/` WIP (health-bridge, yarım ekran…) APK’ye girer ve açılışta çökertir.
+Build öncesi: `git status` ile `mobile/` temiz olmalı; değilse `git stash push -u -m "…" -- mobile/` sonra build, bitince `git stash pop`.
+
 Sürekli “Paket durumu” Alert’i veya runtime avı ile kullanıcıyı yorma.

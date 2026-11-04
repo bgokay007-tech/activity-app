@@ -2,7 +2,7 @@
   "expo": {
     "name": "Activity",
     "slug": "activity-app",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "scheme": "activityapp",
     "orientation": "portrait",
     "runtimeVersion": {
@@ -44,7 +44,7 @@
         "backgroundColor": "#0A0A0A"
       },
       "package": "com.activity.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "googleServicesFile": "./google-services.json",
       "softwareKeyboardLayoutMode": "pan",
       "permissions": [
