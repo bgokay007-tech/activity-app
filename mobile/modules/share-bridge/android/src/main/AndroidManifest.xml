@@ -1,5 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Instagram Hikaye / WhatsApp paket sorgusu (Android 11+ package visibility) -->
     <queries>
         <package android:name="com.instagram.android" />
         <package android:name="com.whatsapp" />
@@ -27,5 +26,10 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/share_bridge_paths" />
         </provider>
+
+        <activity
+            android:name=".ShareBridgeStatusProxyActivity"
+            android:exported="false"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
     </application>
 </manifest>

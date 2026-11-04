@@ -107,8 +107,8 @@ export async function shareToWhatsApp({ filePath, message }) {
 }
 
 /**
- * WhatsApp Durumu — native FileProvider + Status API; olmazsa WA SEND (Durum seçici).
- * MediaStore/izin diyalogu kullanma: Modal açıkken takılıp "etkisiz" hissediliyordu.
+ * WhatsApp Durumu — native: JPEG→MediaStore + Status proxy (startActivityForResult).
+ * Düz startActivity çoğu telefonda sadece WA ana ekranını açıyordu.
  */
 export async function shareToWhatsAppStatus({ filePath, message, t }) {
     if (!filePath) {
@@ -117,16 +117,13 @@ export async function shareToWhatsAppStatus({ filePath, message, t }) {
     }
     if (Platform.OS === 'android' && hasShareBridge()) {
         const abs = String(filePath).replace(/^file:\/\//, '');
-        const contentUri = await contentUriFor(filePath);
         const ok = await nativeShareToWhatsAppStatus({
             filePath: abs,
-            imageUri: contentUri || '',
             mime: 'image/png',
             text: '',
         });
         if (ok) return 'opened';
     }
-    // Son çare: galeri + WA aç (eski APK / bridge yok)
     await saveToGallery(filePath);
     const opened = await openUrl('whatsapp://');
     Alert.alert('', t?.shareMatchWaStatusHint || t?.shareMatchAndroidHint || '');
