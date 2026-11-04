@@ -150,6 +150,24 @@ function vbDateLabel(str) {
     return new Date(y, m - 1, d).toLocaleDateString(uiLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
 }
 function vbIsPastSlot(date, timeStr) { return new Date(`${date}T${timeStr}:00`).getTime() < Date.now(); }
+function vbToMins(t) {
+    const [h, m] = String(t || '0:0').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+}
+function vbToTime(mins) {
+    const h = Math.floor(((mins % (24 * 60)) + (24 * 60)) % (24 * 60) / 60);
+    const m = ((mins % 60) + 60) % 60;
+    return `${vbPad(h)}:${vbPad(m)}`;
+}
+// Esnek pencerede seçilebilir başlangıç saatleri (30 dk adım) — mobildeki mantık.
+function vbStartOptions(winStart, winEnd, step = 30) {
+    const a = vbToMins(winStart);
+    const b = vbToMins(winEnd);
+    const end = b <= a ? b + 24 * 60 : b;
+    const out = [];
+    for (let m = a; m < end; m += step) out.push(vbToTime(m));
+    return out;
+}
 const VB_SLOT_TYPE_KEY = { FULL_HOUR: 'slot_full_hour', HALF_HOUR: 'slot_half', NINETY_MIN: 'slot_90', VAR_DURATION: 'slot_flex', FLEXIBLE: 'slot_flex' };
 function slotTypeLabel(t, type) {
     const key = VB_SLOT_TYPE_KEY[type];
@@ -162,51 +180,78 @@ function uiLocale() {
 
 function VenueCourtColumn({ court, data, date, selected, onPick }) {
     const { t } = useTranslation();
-    const [varStart, setVarStart] = useState(null);
+    // Esnek: pencere + seçilen başlangıç saati (mobildeki customStart)
+    const [varSel, setVarSel] = useState(null); // { winStart, winEnd, customStart }
+    const colCls = 'w-full min-w-0 bg-gray-900 border border-gray-800 rounded-xl p-3 h-full';
     if (!data || data.loading) {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-gray-500 text-xs text-center py-6">{t('websc.loading')}</p></div>;
+        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-gray-500 text-xs text-center py-6">{t('websc.loading')}</p></div>;
     }
     if (data.error || !data.type) {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-red-400 text-xs text-center py-6">{t('websc.load_failed')}</p></div>;
+        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-red-400 text-xs text-center py-6">{t('websc.load_failed')}</p></div>;
     }
     if (data.type === 'NOT_YET_OPEN') {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || t('websc.not_open')}</p></div>;
+        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || t('websc.not_open')}</p></div>;
     }
     if (data.type === 'MAINTENANCE') {
-        return <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3"><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-orange-400 text-xs text-center py-6">{t('websc.maintenance_court')}</p></div>;
+        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-orange-400 text-xs text-center py-6">{t('websc.maintenance_court')}</p></div>;
     }
 
     if (data.type === 'VAR_DURATION' || data.type === 'FLEXIBLE') {
         const windows = data.windows || [];
         const DURATIONS = [60, 90, 120, 150, 180];
         return (
-            <div className="w-52 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <div className={colCls}>
                 <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({slotTypeLabel(t, data.type) || data.type})</span></p>
-                <div className="space-y-2 max-h-72 overflow-y-auto">
+                <div className="space-y-2">
                     {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('websc.no_window')}</p>}
                     {windows.map((w, i) => {
-                        const isSel = varStart?.start === w.start;
+                        const isSel = varSel?.winStart === w.start;
+                        const customStart = isSel ? (varSel.customStart || w.start) : w.start;
+                        const startM = vbToMins(customStart);
+                        const winEndM = vbToMins(w.end) <= vbToMins(w.start) ? vbToMins(w.end) + 24 * 60 : vbToMins(w.end);
+                        const starts = vbStartOptions(w.start, w.end, 30).filter(s => !vbIsPastSlot(date, s));
                         return (
                             <div key={i} className={`rounded-lg border p-2 ${isSel ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700'}`}>
-                                <button type="button" onClick={() => setVarStart(isSel ? null : w)} className="w-full text-left">
-                                    <p className="text-gray-300 text-xs font-bold">{w.start}–{w.end}</p>
+                                <button type="button"
+                                    onClick={() => setVarSel(isSel ? null : { winStart: w.start, winEnd: w.end, customStart: w.start })}
+                                    className="w-full text-left">
+                                    <p className="text-gray-300 text-xs font-bold">🕐 {w.start}–{w.end}</p>
                                     <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? t('websc.per_hour', { price: w.pricePerHour }) : t('websc.free')}</p>
                                 </button>
                                 {isSel && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                        {DURATIONS.filter(d => d <= w.durationMins).map(d => {
-                                            const endM = (parseInt(w.start.split(':')[0], 10) * 60 + parseInt(w.start.split(':')[1], 10)) + d;
-                                            const end = `${vbPad(Math.floor(endM / 60) % 24)}:${vbPad(endM % 60)}`;
-                                            const price = Math.round((w.pricePerHour || 0) * (d / 60));
-                                            const isPicked = selected?.courtId === court.id && selected?.startTime === w.start && selected?.endTime === end;
-                                            return (
-                                                <button key={d} type="button"
-                                                    onClick={() => onPick(court, { start: w.start, end, price, durationMins: d })}
-                                                    className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${isPicked ? 'bg-green-600/20 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
-                                                    {isPicked ? '✓ ' : ''}{d < 60 ? t('websc.mins_short', { n: d }) : t('websc.hours_short', { n: d / 60 })}
-                                                </button>
-                                            );
-                                        })}
+                                    <div className="mt-2 space-y-2">
+                                        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">{t('rival.start_time') || t('websc.start_time') || 'Start'}</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {starts.length === 0 && <p className="text-gray-500 text-[10px]">{t('websc.past')}</p>}
+                                            {starts.map(s => {
+                                                const on = customStart === s;
+                                                return (
+                                                    <button key={s} type="button"
+                                                        onClick={() => setVarSel(p => ({ ...p, customStart: s }))}
+                                                        className={`text-[11px] font-bold px-2 py-1 rounded-lg border transition ${on ? 'bg-purple-600/30 border-purple-500 text-purple-200' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                                        {s}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">{t('rival.duration') || t('websc.duration') || 'Duration'}</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {DURATIONS.filter(d => startM + d <= winEndM).map(d => {
+                                                const end = vbToTime(startM + d);
+                                                const price = Math.round((w.pricePerHour || 0) * (d / 60));
+                                                const isPicked = selected?.courtId === court.id && selected?.startTime === customStart && selected?.endTime === end;
+                                                const past = vbIsPastSlot(date, customStart);
+                                                return (
+                                                    <button key={d} type="button" disabled={past}
+                                                        onClick={() => onPick(court, { start: customStart, end, price, durationMins: d })}
+                                                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition text-left ${isPicked ? 'bg-green-600/20 border-green-600 text-green-400' : past ? 'opacity-40 cursor-not-allowed bg-gray-800 border-gray-800 text-gray-600' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                                        <span className="block">{isPicked ? '✓ ' : ''}{d < 60 ? t('websc.mins_short', { n: d }) : t('websc.hours_short', { n: d / 60 })}</span>
+                                                        <span className="block opacity-80 font-semibold">{customStart}–{end}</span>
+                                                        {price > 0 && <span className="block text-purple-300">{price}₺</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -220,9 +265,9 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
     // FULL_HOUR / HALF_HOUR / NINETY_MIN
     const slots = data.slots || [];
     return (
-        <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+        <div className={colCls}>
             <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({slotTypeLabel(t, data.type) || data.type})</span></p>
-            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+            <div className="space-y-1.5">
                 {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('websc.no_slot')}</p>}
                 {slots.map(s => {
                     const isPicked = selected?.courtId === court.id && selected?.startTime === s.start;
@@ -277,7 +322,7 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
 
     return (
         <div className="fixed inset-0 bg-black/80 z-[60] flex flex-col" onClick={onClose}>
-            <div className="bg-gray-950 flex-1 flex flex-col max-w-5xl w-full mx-auto my-0 sm:my-6 sm:rounded-2xl overflow-hidden border border-gray-800" onClick={e => e.stopPropagation()}>
+            <div className="bg-gray-950 flex-1 flex flex-col w-full max-w-[1400px] mx-auto my-0 sm:my-3 sm:rounded-2xl overflow-hidden border border-gray-800" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
                     <div className="min-w-0">
                         <h3 className="text-white font-black text-lg truncate">{venue.name}</h3>
@@ -295,8 +340,12 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
                     ))}
                 </div>
 
-                <div className="flex-1 overflow-x-auto overflow-y-hidden px-5 pb-3">
-                    <div className="flex gap-3 h-full">
+                {/* Sağ boşluğu doldur: auto-fill grid; saatler alta doğru aksın (dikey scroll panelde) */}
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-3">
+                    <div
+                        className="grid gap-3 items-start"
+                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}
+                    >
                         {(venue.courts || []).map(court => (
                             <VenueCourtColumn key={court.id} court={court} data={slotsByCourt[court.id]} date={date} selected={selected} onPick={pick} />
                         ))}

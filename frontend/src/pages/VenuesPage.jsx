@@ -101,10 +101,11 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     const { t } = useTranslation();
 
     const [varStart, setVarStart] = useState(null);
+    const colCls = 'w-full min-w-0 bg-gray-900 border border-gray-800 rounded-xl p-3 h-full';
 
     if (!data || data.loading) {
         return (
-            <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <div className={colCls}>
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
                 <p className="text-gray-500 text-xs text-center py-6">{t('shell.sh_0379')}</p>
             </div>
@@ -112,7 +113,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     }
     if (data.error || !data.type) {
         return (
-            <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <div className={colCls}>
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
                 <p className="text-red-400 text-xs text-center py-6">{t('shell.sh_0570')}</p>
             </div>
@@ -120,7 +121,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     }
     if (data.type === 'NOT_YET_OPEN') {
         return (
-            <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <div className={colCls}>
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
                 <p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || t('shell.sh_0237')}</p>
             </div>
@@ -128,7 +129,7 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     }
     if (data.type === 'MAINTENANCE') {
         return (
-            <div className="w-44 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <div className={colCls}>
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
                 <p className="text-orange-400 text-xs text-center py-6">{t('shell.sh_0571')}</p>
             </div>
@@ -138,34 +139,66 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     if (data.type === 'VAR_DURATION' || data.type === 'FLEXIBLE') {
         const windows = data.windows || [];
         const DURATIONS = [60, 90, 120, 150, 180];
+        const startOpts = (winStart, winEnd, step = 30) => {
+            const a = toMins(winStart);
+            let b = toMins(winEnd);
+            if (b <= a) b += 24 * 60;
+            const out = [];
+            for (let m = a; m < b; m += step) out.push(toTime(m));
+            return out;
+        };
         return (
-            <div className="w-52 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+            <div className={colCls}>
                 <p className="text-white font-bold text-sm mb-2">{court.name}</p>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
+                <p className="text-gray-600 text-[10px] mb-2">{SLOT_TYPE_LABEL(t)[data.type] || data.type}</p>
+                <div className="space-y-2">
                     {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('shell.sh_0572')}</p>}
                     {windows.map((w, i) => {
-                        const isSel = varStart?.start === w.start;
+                        const isSel = varStart?.winStart === w.start;
+                        const customStart = isSel ? (varStart.customStart || w.start) : w.start;
+                        const startM = toMins(customStart);
+                        const winEndM = toMins(w.end) <= toMins(w.start) ? toMins(w.end) + 24 * 60 : toMins(w.end);
+                        const starts = startOpts(w.start, w.end).filter(s => !isPastSlot(date, s));
                         return (
                             <div key={i} className={`rounded-lg border p-2 ${isSel ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700'}`}>
-                                <button onClick={() => setVarStart(isSel ? null : w)} className="w-full text-left">
-                                    <p className="text-gray-300 text-xs font-bold">{w.start}–{w.end}</p>
+                                <button type="button"
+                                    onClick={() => setVarStart(isSel ? null : { winStart: w.start, winEnd: w.end, customStart: w.start })}
+                                    className="w-full text-left">
+                                    <p className="text-gray-300 text-xs font-bold">🕐 {w.start}–{w.end}</p>
                                     <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? `${w.pricePerHour}₺/saat` : t('shell.sh_0003')}</p>
                                 </button>
                                 {isSel && (
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                        {DURATIONS.filter(d => d <= w.durationMins).map(d => {
-                                            const endM = toMins(w.start) + d;
-                                            const end = toTime(endM);
-                                            const price = w.pricePerHourByMethod ? Object.fromEntries(Object.entries(w.pricePerHourByMethod).map(([k, v]) => [k, Math.round(v * (d / 60))])) : undefined;
-                                            const inCart = cartKeys.has(`${court.id}_${w.start}`);
-                                            return (
-                                                <button key={d} disabled={inCart}
-                                                    onClick={() => onAddToCart(court, { start: w.start, end, price: price?.CASH ?? Math.round((w.pricePerHour || 0) * (d / 60)), priceByMethod: price })}
-                                                    className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition ${inCart ? 'bg-green-600/20 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
-                                                    {inCart ? '✓' : ''} {d < 60 ? `${d}dk` : `${d / 60}s`}
+                                    <div className="mt-2 space-y-2">
+                                        <p className="text-gray-400 text-[10px] font-bold">{t('rival.start_time') || 'Start'}</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {starts.map(s => (
+                                                <button key={s} type="button"
+                                                    onClick={() => setVarStart(p => ({ ...p, customStart: s }))}
+                                                    className={`text-[11px] font-bold px-2 py-1 rounded-lg border transition ${customStart === s ? 'bg-purple-600/30 border-purple-500 text-purple-200' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                                    {s}
                                                 </button>
-                                            );
-                                        })}
+                                            ))}
+                                        </div>
+                                        <p className="text-gray-400 text-[10px] font-bold">{t('rival.duration') || 'Duration'}</p>
+                                        <div className="flex flex-wrap gap-1">
+                                            {DURATIONS.filter(d => startM + d <= winEndM).map(d => {
+                                                const end = toTime(startM + d);
+                                                const priceByMethod = w.pricePerHourByMethod
+                                                    ? Object.fromEntries(Object.entries(w.pricePerHourByMethod).map(([k, v]) => [k, Math.round(v * (d / 60))]))
+                                                    : undefined;
+                                                const cash = priceByMethod?.CASH ?? Math.round((w.pricePerHour || 0) * (d / 60));
+                                                const inCart = cartKeys.has(`${court.id}_${customStart}`);
+                                                return (
+                                                    <button key={d} type="button" disabled={inCart}
+                                                        onClick={() => onAddToCart(court, { start: customStart, end, price: cash, priceByMethod })}
+                                                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition text-left ${inCart ? 'bg-green-600/20 border-green-600 text-green-400' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                                        <span className="block">{inCart ? '✓ ' : ''}{d < 60 ? `${d}dk` : `${d / 60}sa`}</span>
+                                                        <span className="block opacity-80">{customStart}–{end}</span>
+                                                        {cash > 0 && <span className="block text-purple-300">{cash}₺</span>}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -179,16 +212,14 @@ function CourtColumn({ court, data, date, cartKeys, onAddToCart }) {
     // FULL_HOUR / HALF_HOUR / NINETY_MIN
     const slots = data.slots || [];
     return (
-        <div className="w-40 shrink-0 bg-gray-900 border border-gray-800 rounded-xl p-3">
+        <div className={colCls}>
             <p className="text-white font-bold text-sm mb-1">{court.name}</p>
             <p className="text-gray-600 text-[10px] mb-2">{SLOT_TYPE_LABEL(t)[data.type] || data.type}</p>
-            <div className="space-y-1.5 max-h-80 overflow-y-auto">
+            <div className="space-y-1.5">
                 {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('shell.sh_0573')}</p>}
                 {slots.map(s => {
                     const key = `${court.id}_${s.start}`;
                     const inCart = cartKeys.has(key);
-                    // Dolu slotlar geçmiş olsa da "Dolu" görünmeye devam eder — sadece boş
-                    // ama saati geçmiş slotlar ayrıca "Geçmiş" olarak işaretlenir.
                     const isPast = s.free && !s.maintenance && isPastSlot(date, s.start);
                     const disabled = !s.free || s.maintenance || inCart || isPast;
                     return (
@@ -246,7 +277,7 @@ function VenueBookingPanel({ venue, onClose, cart, onAddToCart, onOpenCart }) {
 
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex flex-col" onClick={onClose}>
-            <div className="bg-gray-950 flex-1 flex flex-col max-w-5xl w-full mx-auto my-0 sm:my-6 sm:rounded-2xl overflow-hidden border border-gray-800" onClick={e => e.stopPropagation()}>
+            <div className="bg-gray-950 flex-1 flex flex-col w-full max-w-[1400px] mx-auto my-0 sm:my-3 sm:rounded-2xl overflow-hidden border border-gray-800" onClick={e => e.stopPropagation()}>
                 {/* Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
                     <div className="min-w-0">
@@ -282,9 +313,9 @@ function VenueBookingPanel({ venue, onClose, cart, onAddToCart, onOpenCart }) {
                     ))}
                 </div>
 
-                {/* Court columns */}
-                <div className="flex-1 overflow-x-auto overflow-y-hidden px-5 pb-5">
-                    <div className="flex gap-3 h-full">
+                {/* Kortlar: sağ boşluğu doldur, saatler alta aksın */}
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-5">
+                    <div className="grid gap-3 items-start" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
                         {(venue.courts || []).map(court => (
                             <CourtColumn key={court.id} court={court} data={slotsByCourt[court.id]} date={date}
                                 cartKeys={cartKeys}
