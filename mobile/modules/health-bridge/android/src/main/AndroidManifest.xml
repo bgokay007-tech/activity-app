@@ -1,9 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="expo.modules.healthbridge">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
-    <!-- activity-alias (ViewPermissionUsageActivity → MainActivity) kaldırıldı:
-         kütüphane manifest'inde app'in MainActivity'sine sabit FQCN ile alias,
-         bazı EAS/prebuild çıktılarında hedef Activity eşleşmeyince paket açılışta
-         çöküyordu. İzin rationale ekranı olmadan Health Connect okuma yine çalışır. -->
+    <!-- package= attr ve MainActivity activity-alias kaldirildi: EAS uyarisi + acilis cokmesi riski. -->
 </manifest>

@@ -34,4 +34,6 @@ dependencies {
     // uygulamanın genel minSdkVersion'ı (24, bkz. wear-bridge) bu modül için yeterli değil.
     implementation "androidx.health.connect:connect-client:1.1.0-rc03"
     implementation "androidx.activity:activity-ktx:1.9.0"
+    // runBlocking / suspendCancellableCoroutine — Promise AsyncFunction içinde suspend HC API.
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
 }
