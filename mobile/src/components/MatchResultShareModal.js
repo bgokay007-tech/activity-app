@@ -16,6 +16,7 @@ import {
     shareToInstagramStory,
     shareViaSystemSheet,
     ensureGallerySave,
+    PLAY_STORE_URL,
 } from '../utils/directShare';
 
 const W = 1080;
@@ -103,7 +104,11 @@ function cardHtml(p) {
       var my=1500;
       ${p.place ? `text(${JSON.stringify('📍 ' + p.place)},540,my,28,'#c4b5fd'); my+=48;` : ''}
       ${p.dateStr ? `text(${JSON.stringify('📅 ' + p.dateStr)},540,my,28,'#c4b5fd'); my+=48;` : ''}
-      text('activity · match result',540,1820,24,'rgba(255,255,255,0.4)','center','700');
+      // Görsel CTA — piksel olarak "indir" yazısı (tıklanabilir değil; tıklanabilir link
+      // native ADD_TO_STORY link_url extras ile gelir).
+      roundRect(ctx,270,1760,540,72,36);
+      ctx.fillStyle='rgba(147,51,234,0.85)'; ctx.fill();
+      text(${JSON.stringify(p.ctaLabel || 'AcTiViTy · Uygulamayı indir')},540,1808,26,'#fff','center','800');
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(canvas.toDataURL('image/png'));
     }catch(e){
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ERR:'+String(e&&e.message||e));
@@ -124,7 +129,15 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang) || 'tr';
     const insets = useSafeAreaInsets();
-    const payload = useMemo(() => (visible && match ? buildMatchSharePayload(match, t, lang) : null), [visible, match, t, lang]);
+    const payload = useMemo(() => {
+        if (!visible || !match) return null;
+        const base = buildMatchSharePayload(match, t, lang);
+        if (!base) return null;
+        return {
+            ...base,
+            ctaLabel: t.shareMatchStoreCta || 'AcTiViTy · Uygulamayı indir',
+        };
+    }, [visible, match, t, lang]);
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const pendingAction = useRef(null);
@@ -169,7 +182,12 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                 return;
             }
             if (action === 'ig_story') {
-                await shareToInstagramStory({ filePath: path, t });
+                // Maç paylaşım linki + Play Store — IG link sticker / attribution için
+                await shareToInstagramStory({
+                    filePath: path,
+                    t,
+                    linkUrl: payload.url || PLAY_STORE_URL,
+                });
                 onClose?.();
                 return;
             }

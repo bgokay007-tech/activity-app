@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Instagram Hikaye / WhatsApp paket sorgusu (Android 11+ package visibility) -->
+    <queries>
+        <package android:name="com.instagram.android" />
+        <package android:name="com.whatsapp" />
+        <intent>
+            <action android:name="com.instagram.share.ADD_TO_STORY" />
+        </intent>
+    </queries>
+</manifest>

@@ -1,0 +1,7 @@
+{
+  "name": "share-bridge",
+  "version": "0.1.0",
+  "description": "Instagram Hikaye / WhatsApp gorsel paylasim native intent koprusu",
+  "main": "index.ts",
+  "license": "UNLICENSED"
+}

@@ -1,73 +1,28 @@
 import { Linking, Platform, Share, Alert } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
+import Constants from 'expo-constants';
+import {
+    hasShareBridge,
+    nativeShareToInstagramStory,
+    nativeShareToWhatsApp,
+    nativeShareToWhatsAppStatus,
+} from '../../modules/share-bridge';
 
-/**
- * Android Intent URI ile uygulamayı doğrudan aç (görsel + metin).
- * U.android.intent.extra.STREAM → Uri tipi EXTRA_STREAM.
- * flags=1 → FLAG_GRANT_READ_URI_PERMISSION.
- */
-function androidSendIntent({ packageName, contentUri, mime = 'image/png', text = '' }) {
-    const parts = [
-        'intent:#Intent',
-        'action=android.intent.action.SEND',
-        `type=${mime}`,
-        'flags=1',
-    ];
-    if (packageName) parts.push(`package=${packageName}`);
-    if (contentUri) parts.push(`U.android.intent.extra.STREAM=${encodeURIComponent(contentUri)}`);
-    if (text) parts.push(`S.android.intent.extra.TEXT=${encodeURIComponent(text)}`);
-    parts.push('end');
-    return parts.join(';');
+const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.activity.app';
+
+function facebookAppId() {
+    return Constants.expoConfig?.extra?.facebookAppId
+        || Constants.manifest?.extra?.facebookAppId
+        || '';
 }
 
-/**
- * Instagram Hikâye — com.instagram.share.ADD_TO_STORY.
- * content URI encode edilmeden intent: path'e konur (encode edince IG ana sayfaya düşüyordu).
- * MediaStore content:// URI tercih edilir.
- */
-function androidStoryIntents(contentUri, sourceApp = 'com.activity.app') {
-    const type = 'image/png';
-    return [
-        // 1) setDataAndType tarzı (Meta dokümantasyonu)
-        [
-            `intent:${contentUri}`,
-            '#Intent',
-            'scheme=content',
-            'action=com.instagram.share.ADD_TO_STORY',
-            `type=${type}`,
-            'package=com.instagram.android',
-            'flags=1',
-            `S.source_application=${sourceApp}`,
-            'end',
-        ].join(';'),
-        // 2) action + EXTRA yok, data URI
-        [
-            `intent:${contentUri}`,
-            '#Intent',
-            'scheme=content',
-            'action=com.instagram.share.ADD_TO_STORY',
-            `type=${type}`,
-            'package=com.instagram.android',
-            'flags=1',
-            'end',
-        ].join(';'),
-        // 3) #Intent formunda data=
-        [
-            'intent:#Intent',
-            'action=com.instagram.share.ADD_TO_STORY',
-            `type=${type}`,
-            'package=com.instagram.android',
-            'flags=1',
-            `S.source_application=${sourceApp}`,
-            `S.android.intent.extra.STREAM=${contentUri}`,
-            'end',
-        ].join(';'),
-    ];
+function defaultLinkText(t) {
+    return t?.shareMatchStoreCta || 'AcTiViTy indir';
 }
 
 async function contentUriFor(filePath) {
-    if (Platform.OS !== 'android') return null;
+    if (Platform.OS !== 'android' || !filePath) return null;
     try {
         return await FileSystem.getContentUriAsync(filePath);
     } catch {
@@ -75,16 +30,13 @@ async function contentUriFor(filePath) {
     }
 }
 
-/** Galeriye yazıp MediaStore content:// URI al — IG Hikâye bunu daha iyi kabul ediyor. */
 async function mediaStoreUriFor(filePath) {
     if (Platform.OS !== 'android' || !filePath) return null;
     try {
         const perm = await MediaLibrary.requestPermissionsAsync();
         if (!perm.granted) return null;
         const asset = await MediaLibrary.createAssetAsync(filePath);
-        if (!asset?.uri) return null;
-        // asset.uri genelde content://media/external/images/...
-        return asset.uri;
+        return asset?.uri || null;
     } catch {
         return null;
     }
@@ -110,17 +62,38 @@ async function saveToGallery(filePath) {
     }
 }
 
-/** WhatsApp sohbet — görsel + metin. */
+function resolveLinkUrl(linkUrl) {
+    return linkUrl || PLAY_STORE_URL;
+}
+
+/** WhatsApp sohbet — native SEND (görsel); yoksa deep link. */
 export async function shareToWhatsApp({ filePath, message }) {
-    if (Platform.OS === 'android' && filePath) {
-        const uri = (await mediaStoreUriFor(filePath)) || (await contentUriFor(filePath));
+    if (Platform.OS === 'android' && filePath && hasShareBridge()) {
+        const uri = (await contentUriFor(filePath)) || (await mediaStoreUriFor(filePath));
         if (uri) {
-            const ok = await openUrl(androidSendIntent({
-                packageName: 'com.whatsapp',
-                contentUri: uri,
+            const ok = await nativeShareToWhatsApp({
+                imageUri: uri,
+                mime: 'image/png',
                 text: message || '',
-            }));
+            });
             if (ok) return 'opened';
+        }
+    }
+    if (Platform.OS === 'android' && filePath) {
+        // Eski APK: intent URI denemesi
+        const uri = await contentUriFor(filePath);
+        if (uri) {
+            const intent = [
+                'intent:#Intent',
+                'action=android.intent.action.SEND',
+                'type=image/png',
+                'package=com.whatsapp',
+                'flags=1',
+                `U.android.intent.extra.STREAM=${encodeURIComponent(uri)}`,
+                message ? `S.android.intent.extra.TEXT=${encodeURIComponent(message)}` : null,
+                'end',
+            ].filter(Boolean).join(';');
+            if (await openUrl(intent)) return 'opened';
         }
     }
     const textUrl = `whatsapp://send?text=${encodeURIComponent(message || '')}`;
@@ -132,84 +105,85 @@ export async function shareToWhatsApp({ filePath, message }) {
     return 'sheet';
 }
 
-/** WhatsApp Durumu — görseli WhatsApp'a SEND; Durum seçilebilir. */
+/** WhatsApp Durumu — native görsel SEND. */
 export async function shareToWhatsAppStatus({ filePath, message, t }) {
     if (!filePath) {
         await shareToWhatsApp({ message });
         return 'text';
     }
-    if (Platform.OS === 'android') {
-        const uri = (await mediaStoreUriFor(filePath)) || (await contentUriFor(filePath));
+    if (Platform.OS === 'android' && hasShareBridge()) {
+        const uri = (await contentUriFor(filePath)) || (await mediaStoreUriFor(filePath));
         if (uri) {
-            const ok = await openUrl(androidSendIntent({
-                packageName: 'com.whatsapp',
-                contentUri: uri,
+            const ok = await nativeShareToWhatsAppStatus({
+                imageUri: uri,
+                mime: 'image/png',
                 text: message || '',
-            }));
+            });
             if (ok) return 'opened';
         }
     }
-    await saveToGallery(filePath);
-    await openUrl('whatsapp://');
-    Alert.alert('', t?.shareMatchWaStatusHint || t?.shareMatchAndroidHint || '');
-    return 'gallery_hint';
+    return shareToWhatsApp({ filePath, message });
 }
 
 /**
- * Instagram Hikâye — sadece Hikâye composer (ADD_TO_STORY / story-camera).
- * Ana Instagram feed'ine düşmesin diye düz instagram:// veya package launch yok.
+ * Instagram Hikâye — native ADD_TO_STORY (tenisle gibi görsel seçili besteci).
+ * linkUrl: tıklanabilir sticker / attribution (Meta App ID + IG uygunsa).
+ * Ütopik değil ama Meta App ID + uygun IG hesabı şart; yoksa sadece görsel iner.
  */
-export async function shareToInstagramStory({ filePath, t }) {
-    if (Platform.OS === 'android' && filePath) {
-        // Önce galeriye yaz → MediaStore URI; IG Hikâye backgroundImage olarak bunu ister
-        const mediaUri = await mediaStoreUriFor(filePath);
-        const fileUri = mediaUri || (await contentUriFor(filePath));
-        if (fileUri) {
-            for (const intentUrl of androidStoryIntents(fileUri)) {
-                if (await openUrl(intentUrl)) return 'opened';
+export async function shareToInstagramStory({ filePath, t, linkUrl }) {
+    const resolvedLink = resolveLinkUrl(linkUrl);
+    const linkText = defaultLinkText(t);
+
+    if (Platform.OS === 'android' && filePath && hasShareBridge()) {
+        // Önce cache content URI (galeriye yazmadan); olmazsa MediaStore
+        let uri = await contentUriFor(filePath);
+        let ok = false;
+        const igParams = {
+            imageUri: '',
+            mime: 'image/png',
+            facebookAppId: facebookAppId() || '',
+            linkUrl: resolvedLink,
+            linkText,
+        };
+        if (uri) {
+            ok = await nativeShareToInstagramStory({ ...igParams, imageUri: uri });
+        }
+        if (!ok) {
+            uri = await mediaStoreUriFor(filePath);
+            if (uri) {
+                ok = await nativeShareToInstagramStory({ ...igParams, imageUri: uri });
             }
         }
-        // Intent düştüyse: hikâye kamerası (feed değil) + galeri ipucu
-        await saveToGallery(filePath);
-        if (await openUrl('instagram://story-camera')) {
-            Alert.alert('', t?.shareMatchIgHint || '');
-            return 'camera';
-        }
-        Alert.alert('', t?.shareMatchIgHint || t?.shareMatchAndroidHint || '');
-        return 'gallery_hint';
+        if (ok) return 'opened';
     }
 
-    if (Platform.OS === 'ios') {
-        if (filePath) await saveToGallery(filePath);
-        // Hikâye paylaşım scheme — yoksa story-camera (yine hikâye, feed değil)
-        if (await openUrl('instagram-stories://share')) return 'ios_stories';
-        if (await openUrl('instagram://story-camera')) {
-            Alert.alert('', t?.shareMatchIgHint || '');
-            return 'camera';
-        }
-        Alert.alert('', t?.shareMatchIgHint || t?.shareMatchAndroidHint || '');
-        return 'gallery_hint';
-    }
-
+    // Native yok / düştü — galeri + hikâye kamerası (eski APK OTA yolu)
     if (filePath) await saveToGallery(filePath);
     if (await openUrl('instagram://story-camera')) {
         Alert.alert('', t?.shareMatchIgHint || '');
         return 'camera';
     }
-    Alert.alert('', t?.shareMatchIgHint || '');
+    Alert.alert('', t?.shareMatchIgHint || t?.shareMatchAndroidHint || '');
     return 'gallery_hint';
 }
 
-/** Sistem paylaşım sayfası — mümkünse görselli. */
 export async function shareViaSystemSheet({ filePath, message }) {
     if (Platform.OS === 'ios' && filePath) {
         await Share.share({ url: filePath, message: message || undefined });
         return;
     }
     if (Platform.OS === 'android' && filePath) {
-        const uri = (await mediaStoreUriFor(filePath)) || (await contentUriFor(filePath));
+        const uri = await contentUriFor(filePath);
         if (uri) {
-            const url = androidSendIntent({ contentUri: uri, text: message || '' });
+            const url = [
+                'intent:#Intent',
+                'action=android.intent.action.SEND',
+                'type=image/png',
+                'flags=1',
+                `U.android.intent.extra.STREAM=${encodeURIComponent(uri)}`,
+                message ? `S.android.intent.extra.TEXT=${encodeURIComponent(message)}` : null,
+                'end',
+            ].filter(Boolean).join(';');
             if (await openUrl(url)) return;
         }
         await saveToGallery(filePath);
@@ -220,3 +194,5 @@ export async function shareViaSystemSheet({ filePath, message }) {
 export async function ensureGallerySave(filePath) {
     return saveToGallery(filePath);
 }
+
+export { PLAY_STORE_URL };
