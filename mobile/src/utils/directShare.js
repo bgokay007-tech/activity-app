@@ -107,9 +107,8 @@ export async function shareToWhatsApp({ filePath, message }) {
 }
 
 /**
- * WhatsApp Durumu — resmi Status API (native). MediaStore URI tercih:
- * cache content:// bazı WA sürümlerinde grant sonrası okunmuyor → false → eski
- * "galeriden seç" uyarısı.
+ * WhatsApp Durumu — native FileProvider + Status API; olmazsa WA SEND (Durum seçici).
+ * MediaStore/izin diyalogu kullanma: Modal açıkken takılıp "etkisiz" hissediliyordu.
  */
 export async function shareToWhatsAppStatus({ filePath, message, t }) {
     if (!filePath) {
@@ -117,22 +116,21 @@ export async function shareToWhatsAppStatus({ filePath, message, t }) {
         return 'fail';
     }
     if (Platform.OS === 'android' && hasShareBridge()) {
-        // Önce MediaStore (WA Status API bunu daha iyi kabul ediyor)
-        const mediaUri = await mediaStoreUriFor(filePath);
-        const cacheUri = mediaUri ? null : await contentUriFor(filePath);
-        for (const uri of [mediaUri, cacheUri].filter(Boolean)) {
-            const ok = await nativeShareToWhatsAppStatus({
-                imageUri: uri,
-                mime: 'image/png',
-                text: '',
-            });
-            if (ok) return 'opened';
-        }
+        const abs = String(filePath).replace(/^file:\/\//, '');
+        const contentUri = await contentUriFor(filePath);
+        const ok = await nativeShareToWhatsAppStatus({
+            filePath: abs,
+            imageUri: contentUri || '',
+            mime: 'image/png',
+            text: '',
+        });
+        if (ok) return 'opened';
     }
+    // Son çare: galeri + WA aç (eski APK / bridge yok)
     await saveToGallery(filePath);
-    await openUrl('whatsapp://');
+    const opened = await openUrl('whatsapp://');
     Alert.alert('', t?.shareMatchWaStatusHint || t?.shareMatchAndroidHint || '');
-    return 'gallery_hint';
+    return opened ? 'gallery_hint' : 'fail';
 }
 
 /**

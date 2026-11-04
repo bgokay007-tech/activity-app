@@ -16,4 +16,16 @@
             <data android:mimeType="image/*" />
         </intent>
     </queries>
+
+    <application>
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.sharebridge.provider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/share_bridge_paths" />
+        </provider>
+    </application>
 </manifest>

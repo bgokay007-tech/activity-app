@@ -244,9 +244,10 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                 return;
             }
             if (action === 'wa_status') {
-                // Durum = sadece görsel (metin WA'yı yazı durumuna düşürüyordu)
-                await shareToWhatsAppStatus({ filePath: path, message: '', t });
+                // Modal'ı önce kapat — Status intent / izin diyalogu arkada kalmasın
                 onClose?.();
+                await new Promise((r) => setTimeout(r, 350));
+                await shareToWhatsAppStatus({ filePath: path, message: '', t });
                 return;
             }
             if (action === 'ig_story') {
