@@ -12,9 +12,10 @@ import {
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.activity.app';
 
 function facebookAppId() {
+    // Meta App ID — IG Hikâye source_application / link sticker (genelde public).
     return Constants.expoConfig?.extra?.facebookAppId
         || Constants.manifest?.extra?.facebookAppId
-        || '';
+        || '1411973897673084';
 }
 
 function defaultLinkText(t) {
