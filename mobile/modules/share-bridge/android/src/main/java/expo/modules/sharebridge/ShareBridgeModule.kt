@@ -1,47 +1,34 @@
 package expo.modules.sharebridge
 
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
-import expo.modules.kotlin.functions.Coroutine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Tenisle tarzı doğrudan Hikâye: com.instagram.share.ADD_TO_STORY + content URI +
- * grantUriPermission. JS Linking.openURL(intent:...) bunu yapamıyor — IG ana sayfaya
- * düşüp "galeriden seç" uyarısı çıkıyordu.
- *
- * source_application: Meta 2023'ten beri Facebook App ID ister. Yoksa paket adı
- * denenir; IG yine açılmazsa false döner, JS fallback'e düşer.
- *
- * linkUrl / linkText: Hikâye link sticker / attribution (hesap + Meta App uygunsa).
- * Fotoğrafın üstüne basılı CTA tıklanabilir DEĞİL — o sadece piksel; tıklanabilir
- * link için bu extras gerekir.
+ * Instagram: ADD_TO_STORY. WhatsApp Durum: resmi Share to Status API
+ * (https://wa.me/status + share_type=SHARE_TO_STATUS) — düz ACTION_SEND sohbet
+ * seçicisine düşüp JS tarafında "galeriden seç" fallback'ine yol açıyordu.
  */
 class ShareBridgeModule : Module() {
     override fun definition() = ModuleDefinition {
         Name("ShareBridge")
 
         AsyncFunction("shareToInstagramStory") Coroutine { params: Map<String, String> ->
-            withContext(Dispatchers.Main) {
-                shareInstagramStory(params)
-            }
+            withContext(Dispatchers.Main) { shareInstagramStory(params) }
         }
 
         AsyncFunction("shareToWhatsApp") Coroutine { params: Map<String, String> ->
-            withContext(Dispatchers.Main) {
-                shareWhatsApp(params, statusOnly = false)
-            }
+            withContext(Dispatchers.Main) { shareWhatsAppChat(params) }
         }
 
         AsyncFunction("shareToWhatsAppStatus") Coroutine { params: Map<String, String> ->
-            withContext(Dispatchers.Main) {
-                // WA ayrı Status intent sunmuyor — görselli SEND; kullanıcı Durum seçebilir.
-                shareWhatsApp(params, statusOnly = true)
-            }
+            withContext(Dispatchers.Main) { shareWhatsAppStatus(params) }
         }
 
         AsyncFunction("isInstagramInstalled") {
@@ -49,7 +36,7 @@ class ShareBridgeModule : Module() {
         }
 
         AsyncFunction("isWhatsAppInstalled") {
-            isPackageInstalled("com.whatsapp")
+            isPackageInstalled("com.whatsapp") || isPackageInstalled("com.whatsapp.w4b")
         }
     }
 
@@ -69,7 +56,6 @@ class ShareBridgeModule : Module() {
             setDataAndType(uri, mime)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             putExtra("source_application", sourceApp)
-            // Attribution / tıklanabilir link (IG + Meta App izin verirse Hikâye'de çıkar)
             if (linkUrl != null) {
                 putExtra("content_url", linkUrl)
                 putExtra("link_url", linkUrl)
@@ -92,33 +78,90 @@ class ShareBridgeModule : Module() {
         }
     }
 
-    private fun shareWhatsApp(params: Map<String, String>, statusOnly: Boolean): Boolean {
+    /** Sohbet / kişi seçici — ACTION_SEND + görsel (+ isteğe bağlı metin). */
+    private fun shareWhatsAppChat(params: Map<String, String>): Boolean {
         val activity = appContext.currentActivity ?: return false
-        val rawUri = params["imageUri"]?.takeIf { it.isNotBlank() } ?: return false
-        val uri = Uri.parse(rawUri)
+        val uri = parseUri(params) ?: return false
         val mime = params["mime"]?.takeIf { it.isNotBlank() } ?: "image/png"
         val text = params["text"] ?: ""
+        val pkg = whatsAppPackage() ?: return false
 
-        if (!isPackageInstalled("com.whatsapp")) return false
-
-        // Durum: SADECE görsel. EXTRA_TEXT eklenince WA çoğu telefonda yazı durumu açıyor.
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = mime
             putExtra(Intent.EXTRA_STREAM, uri)
-            clipData = android.content.ClipData.newUri(activity.contentResolver, "image", uri)
+            clipData = ClipData.newUri(activity.contentResolver, "image", uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            setPackage("com.whatsapp")
-            if (!statusOnly && text.isNotBlank()) {
-                putExtra(Intent.EXTRA_TEXT, text)
-            }
+            setPackage(pkg)
+            if (text.isNotBlank()) putExtra(Intent.EXTRA_TEXT, text)
+        }
+        return launchGranted(activity, pkg, uri, intent)
+    }
+
+    /**
+     * Resmi WhatsApp Share to Status API — görsel Durum bestecisinde seçili açılır.
+     * https://faq.whatsapp.com/669870872481343
+     *
+     * resolveActivity null olsa bile startActivity dene: bazı WA sürümlerinde
+     * wa.me/status filtresi PM'de görünmez ama intent çalışır. Aksi halde JS
+     * "galeriden seç" fallback'ine düşüyordu.
+     */
+    private fun shareWhatsAppStatus(params: Map<String, String>): Boolean {
+        val activity = appContext.currentActivity ?: return false
+        val uri = parseUri(params) ?: return false
+        val pkg = whatsAppPackage() ?: return false
+
+        try {
+            activity.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (_: Exception) {
+            // MediaStore URI'lerde grant gereksiz / reddedilebilir — ClipData yeter
+        }
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = Uri.parse("https://wa.me/status")
+            setPackage(pkg)
+            putExtra("source_app_package_name", activity.packageName)
+            putExtra("share_type", "SHARE_TO_STATUS")
+            putExtra(Intent.EXTRA_STREAM, uri)
+            // Skor kartı arka plan olarak dolsun (9:16)
+            clipData = ClipData.newUri(activity.contentResolver, "image", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
         return try {
-            activity.grantUriPermission(
-                "com.whatsapp",
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION,
-            )
+            activity.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            // Paketli intent düştüyse packagesiz dene (chooser / WA resolve)
+            try {
+                intent.setPackage(null)
+                activity.startActivity(intent)
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private fun parseUri(params: Map<String, String>): Uri? {
+        val raw = params["imageUri"]?.takeIf { it.isNotBlank() } ?: return null
+        return Uri.parse(raw)
+    }
+
+    private fun whatsAppPackage(): String? = when {
+        isPackageInstalled("com.whatsapp") -> "com.whatsapp"
+        isPackageInstalled("com.whatsapp.w4b") -> "com.whatsapp.w4b"
+        else -> null
+    }
+
+    private fun launchGranted(
+        activity: android.app.Activity,
+        pkg: String,
+        uri: Uri,
+        intent: Intent,
+    ): Boolean {
+        return try {
+            activity.grantUriPermission(pkg, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (intent.resolveActivity(activity.packageManager) == null) return false
             activity.startActivity(intent)
             true

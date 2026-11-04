@@ -22,7 +22,11 @@ import {
 const W = 1080;
 const H = 1920;
 
-/** Tam 9:16 opak kart — şeffaf çerçeve yok (IG Hikâye'de cam kutu gibi duruyordu). */
+/**
+ * Tam 9:16 opak kart.
+ * TOP_SAFE (~280px): IG kullanıcı adı / müzik / X ile çakışmasın diye boş.
+ * Çift isimleri " & " ile alt satıra kırılır.
+ */
 function cardHtml(p) {
     const brand = p.brand || 'AcTiViTy';
     const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
@@ -46,10 +50,11 @@ function cardHtml(p) {
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
       var W=${W}, H=${H};
+      var TOP=300; // IG chrome altı — marka/rozet buradan başlar
       ctx.fillStyle='#0B0C10';
       ctx.fillRect(0,0,W,H);
-      var g=ctx.createRadialGradient(540,420,40,540,420,520);
-      g.addColorStop(0,'rgba(200,245,74,0.16)');
+      var g=ctx.createRadialGradient(540,TOP+200,40,540,TOP+200,520);
+      g.addColorStop(0,'rgba(200,245,74,0.14)');
       g.addColorStop(1,'rgba(11,12,16,0)');
       ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
 
@@ -65,74 +70,109 @@ function cardHtml(p) {
         ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
         ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
       }
+      // Çift/uzun isim: " & " ile satır kır; yoksa kelime kaydır
+      function nameLines(label, maxW, size){
+        ctx.font='900 '+size+'px sans-serif';
+        var raw=String(label||'');
+        if(raw.indexOf(' & ')>=0){
+          return raw.split(' & ').map(function(p,i,a){ return i<a.length-1 ? p+' &' : p; });
+        }
+        if(ctx.measureText(raw).width<=maxW) return [raw];
+        var words=raw.split(/\\s+/), lines=[], cur='';
+        words.forEach(function(w){
+          var t=cur ? cur+' '+w : w;
+          if(ctx.measureText(t).width<=maxW) cur=t;
+          else { if(cur) lines.push(cur); cur=w; }
+        });
+        if(cur) lines.push(cur);
+        return lines.length?lines:[raw];
+      }
 
       var brand=${JSON.stringify(brand)};
       var cols=${JSON.stringify(colorsArr)};
-      ctx.font='900 64px sans-serif';
+      ctx.font='900 58px sans-serif';
       ctx.textAlign='left';
       var totalW=0;
-      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+4;
+      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+3;
       var bx=(W-totalW)/2;
       for(var i=0;i<brand.length;i++){
         ctx.fillStyle=cols[i%cols.length];
-        ctx.fillText(brand[i], bx, 150);
-        bx+=ctx.measureText(brand[i]).width+4;
+        ctx.fillText(brand[i], bx, TOP);
+        bx+=ctx.measureText(brand[i]).width+3;
       }
 
-      roundRect(720, 100, 280, 52, 26);
+      // Rozet — markanın sağında değil, altında ortada (IG sağ ikonlarla çakışmasın)
+      var badge=${JSON.stringify(p.resultBadge||'MATCH RESULT')};
+      ctx.font='900 22px sans-serif';
+      var bw=Math.max(260, ctx.measureText(badge).width+48);
+      roundRect((W-bw)/2, TOP+28, bw, 48, 24);
       ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(${JSON.stringify(p.resultBadge||'MATCH RESULT')}, 860, 136, 22, '#0B0C10', 'center', '900');
+      text(badge, W/2, TOP+60, 22, '#0B0C10', 'center', '900');
 
-      text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, 230, 34, '#C8F54A', 'center', '800');
+      text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, TOP+120, 32, '#C8F54A', 'center', '800');
 
+      // Kazanan: isim satırları + KAZANDI
       var name=${JSON.stringify(p.resultLabel||'')};
       var won=${JSON.stringify(p.wonWord||'WON')};
-      ctx.font='900 48px sans-serif';
-      ctx.textAlign='left';
-      var nw=ctx.measureText(name+' ').width;
-      var ww=ctx.measureText(won).width;
-      var start=(W-nw-ww)/2;
-      ctx.fillStyle='#F4F1EA'; ctx.fillText(name+' ', start, 340);
-      ctx.fillStyle='#C8F54A'; ctx.fillText(won, start+nw, 340);
+      var nLines=nameLines(name, 900, 44);
+      var ny=TOP+190;
+      nLines.forEach(function(ln){ text(ln, 540, ny, 44, '#F4F1EA', 'center', '900'); ny+=52; });
+      text(won, 540, ny+8, 44, '#C8F54A', 'center', '900');
+      ny+=70;
 
-      // Opak panel — stroke solid, alpha yok
-      roundRect(72, 400, W-144, 640, 28);
+      var panelTop=ny;
+      var pairs=${JSON.stringify(setPairs)};
+      var leftLabel=${JSON.stringify(p.leftLabel||'')};
+      var rightLabel=${JSON.stringify(p.rightLabel||'')};
+      var leftElo=${JSON.stringify(p.leftElo||'')};
+      var rightElo=${JSON.stringify(p.rightElo||'')};
+      var leftWrap=nameLines(leftLabel, 420, 32);
+      var rightWrap=nameLines(rightLabel, 420, 32);
+      var rowH=Math.max(110, 36+leftWrap.length*36+ (leftElo?34:0));
+      var rowH2=Math.max(110, 36+rightWrap.length*36+ (rightElo?34:0));
+      var panelH=80+rowH+rowH2+100;
+
+      roundRect(72, panelTop, W-144, panelH, 28);
       ctx.fillStyle='#16181F'; ctx.fill();
       ctx.strokeStyle='#2A2D36'; ctx.lineWidth=3; ctx.stroke();
 
-      text(${JSON.stringify(p.colPlayer||'PLAYER')}, 200, 460, 22, '#78716C', 'left', '800');
-      var pairs=${JSON.stringify(setPairs)};
+      text(${JSON.stringify(p.colPlayer||'PLAYER')}, 200, panelTop+40, 22, '#78716C', 'left', '800');
       var setXs=[];
       for(var s=0;s<Math.max(pairs.length,1);s++){
         var sx=640+s*130;
         setXs.push(sx);
-        text('SET '+(s+1), sx, 460, 22, '#78716C', 'center', '800');
+        text('SET '+(s+1), sx, panelTop+40, 22, '#78716C', 'center', '800');
       }
 
-      function drawPlayerRow(y, label, elo, scores, highlight){
+      function drawPlayerRow(y, lines, elo, scores, highlight, h){
         if(highlight){
-          roundRect(96, y-52, W-192, 120, 18);
+          roundRect(96, y-40, W-192, h, 18);
           ctx.fillStyle='#1C1F28'; ctx.fill();
         }
-        text(label, 200, y, 36, '#F4F1EA', 'left', '900');
-        if(elo) text(elo, 200, y+42, 28, '#C8F54A', 'left', '800');
+        var ty=y;
+        lines.forEach(function(ln){ text(ln, 200, ty, 32, '#F4F1EA', 'left', '900'); ty+=36; });
+        if(elo) text(elo, 200, ty+4, 26, '#C8F54A', 'left', '800');
+        var midY=y+Math.min(20, (h/2)-10);
         for(var i=0;i<scores.length;i++){
-          text(String(scores[i]), setXs[i]||(640+i*130), y+12, 44, '#F4F1EA', 'center', '900');
+          text(String(scores[i]), setXs[i]||(640+i*130), midY, 42, '#F4F1EA', 'center', '900');
         }
       }
 
       var L=pairs.map(function(p){return p[0];});
       var R=pairs.map(function(p){return p[1];});
-      drawPlayerRow(560, ${JSON.stringify(p.leftLabel||'')}, ${JSON.stringify(p.leftElo||'')}, L, ${p.winnerSide==='left'});
-      drawPlayerRow(720, ${JSON.stringify(p.rightLabel||'')}, ${JSON.stringify(p.rightElo||'')}, R, ${p.winnerSide==='right'});
+      var y1=panelTop+100;
+      drawPlayerRow(y1, leftWrap, leftElo, L, ${p.winnerSide==='left'}, rowH);
+      var y2=y1+rowH+16;
+      drawPlayerRow(y2, rightWrap, rightElo, R, ${p.winnerSide==='right'}, rowH2);
 
-      text(${JSON.stringify(String(p.leftSets)+' – '+String(p.rightSets))}, 540, 920, 68, '#C8F54A', 'center', '900');
+      var scoreY=panelTop+panelH+70;
+      text(${JSON.stringify(String(p.leftSets)+' – '+String(p.rightSets))}, 540, scoreY, 64, '#C8F54A', 'center', '900');
 
-      var dy=1080;
+      var dy=scoreY+70;
       var details=${JSON.stringify(details)};
       details.forEach(function(d){
-        text(d, 540, dy, 36, '#A8A29A', 'center', '700');
-        dy+=56;
+        text(d, 540, dy, 34, '#A8A29A', 'center', '700');
+        dy+=52;
       });
 
       roundRect(200, 1720, 680, 88, 44);

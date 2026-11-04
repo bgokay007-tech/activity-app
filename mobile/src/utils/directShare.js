@@ -106,24 +106,29 @@ export async function shareToWhatsApp({ filePath, message }) {
     return 'sheet';
 }
 
-/** WhatsApp Durumu — sadece görsel (metin = yazı durumu; IG Hikâye gibi kart). */
+/**
+ * WhatsApp Durumu — resmi Status API (native). MediaStore URI tercih:
+ * cache content:// bazı WA sürümlerinde grant sonrası okunmuyor → false → eski
+ * "galeriden seç" uyarısı.
+ */
 export async function shareToWhatsAppStatus({ filePath, message, t }) {
     if (!filePath) {
         Alert.alert('', t?.shareMatchFail || '');
         return 'fail';
     }
     if (Platform.OS === 'android' && hasShareBridge()) {
-        const uri = (await contentUriFor(filePath)) || (await mediaStoreUriFor(filePath));
-        if (uri) {
+        // Önce MediaStore (WA Status API bunu daha iyi kabul ediyor)
+        const mediaUri = await mediaStoreUriFor(filePath);
+        const cacheUri = mediaUri ? null : await contentUriFor(filePath);
+        for (const uri of [mediaUri, cacheUri].filter(Boolean)) {
             const ok = await nativeShareToWhatsAppStatus({
                 imageUri: uri,
                 mime: 'image/png',
-                text: '', // bilerek boş
+                text: '',
             });
             if (ok) return 'opened';
         }
     }
-    // Metin deep link'e düşme — galeri + WA aç, kullanıcı Durum'a görseli seçsin
     await saveToGallery(filePath);
     await openUrl('whatsapp://');
     Alert.alert('', t?.shareMatchWaStatusHint || t?.shareMatchAndroidHint || '');
