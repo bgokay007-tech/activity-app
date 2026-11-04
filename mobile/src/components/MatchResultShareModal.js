@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-    Alert, Dimensions, ScrollView,
+    Alert, ScrollView,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -33,10 +33,9 @@ function cardHtml(p) {
     display:flex;flex-direction:column;align-items:center;justify-content:space-between;
     padding:120px 72px 100px;position:relative;overflow:hidden}
   .glow{position:absolute;width:700px;height:700px;border-radius:50%;background:#9333ea33;filter:blur(80px);top:200px;left:190px}
-  .brand{font-size:54px;font-weight:900;letter-spacing:4px;
-    background:linear-gradient(90deg,#c084fc,#f0abfc,#a78bfa);-webkit-background-clip:text;color:transparent}
+  .brand{font-size:54px;font-weight:900;letter-spacing:4px;color:#e9d5ff}
   .sport{margin-top:28px;font-size:36px;font-weight:800;color:#e9d5ff}
-  .vsbox{width:100%;margin-top:80px;background:#ffffff10;border:2px solid #ffffff22;border-radius:40px;padding:56px 40px;backdrop-filter:blur(8px)}
+  .vsbox{width:100%;margin-top:80px;background:#ffffff10;border:2px solid #ffffff22;border-radius:40px;padding:56px 40px}
   .names{display:flex;align-items:center;justify-content:space-between;gap:24px}
   .side{flex:1;text-align:center}
   .side .n{font-size:40px;font-weight:900;line-height:1.2}
@@ -73,8 +72,6 @@ function cardHtml(p) {
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
-      ctx.fillStyle='#12081f';
-      ctx.fillRect(0,0,${W},${H});
       var g=ctx.createLinearGradient(0,0,${W},${H});
       g.addColorStop(0,'#12081f'); g.addColorStop(0.45,'#1e0b3a'); g.addColorStop(1,'#0a0a14');
       ctx.fillStyle=g; ctx.fillRect(0,0,${W},${H});
@@ -85,6 +82,11 @@ function cardHtml(p) {
         ctx.font=(weight||'900')+' '+size+'px sans-serif';
         ctx.textAlign=align||'center';
         ctx.fillText(str,x,y);
+      }
+      function roundRect(ctx,x,y,w,h,r){
+        ctx.beginPath();
+        ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+        ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
       }
       text('AcTiViTy',540,180,54,'#e9d5ff');
       text(${JSON.stringify((p.emoji || '') + ' ' + (p.sport || ''))},540,250,36,'#e9d5ff','center','800');
@@ -102,16 +104,10 @@ function cardHtml(p) {
       ${p.place ? `text(${JSON.stringify('📍 ' + p.place)},540,my,28,'#c4b5fd'); my+=48;` : ''}
       ${p.dateStr ? `text(${JSON.stringify('📅 ' + p.dateStr)},540,my,28,'#c4b5fd'); my+=48;` : ''}
       text('activity · match result',540,1820,24,'rgba(255,255,255,0.4)','center','700');
-      var data=canvas.toDataURL('image/png');
-      if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(data);
+      if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(canvas.toDataURL('image/png'));
     }catch(e){
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ERR:'+String(e&&e.message||e));
     }
-  }
-  function roundRect(ctx,x,y,w,h,r){
-    ctx.beginPath();
-    ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
-    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
   }
   setTimeout(go,80);
 })();
@@ -132,8 +128,6 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const pendingAction = useRef(null);
-    const winW = Dimensions.get('window').width;
-    const previewH = Math.min(420, Math.round(winW * 0.72 * (H / W)));
 
     useEffect(() => {
         if (!visible) {
@@ -179,7 +173,6 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                 onClose?.();
                 return;
             }
-            // more / generic
             await shareViaSystemSheet({ filePath: path, message });
             onClose?.();
         } catch {
@@ -196,12 +189,13 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
         setNeedCapture(true);
     };
 
+    // Dikey satırlar — ızgara alt sırayı kesiyordu / ScrollView yüksekliği yoktu.
     const targets = [
         { id: 'whatsapp', emoji: '💬', label: 'WhatsApp' },
-        { id: 'wa_status', emoji: '🟢', label: t.shareMatchWaStatus || t.media_ext_wa_status || 'WhatsApp Status' },
-        { id: 'ig_story', emoji: '📱', label: t.shareMatchIgStory || t.media_ext_ig_story || 'Instagram Story' },
-        { id: 'more', emoji: '⋯', label: t.shareMatchMore || t.media_ext_more || 'More' },
-        { id: 'save', emoji: '💾', label: t.shareMatchSaveBtnShort || t.shareMatchSaveBtn || 'Gallery' },
+        { id: 'wa_status', emoji: '🟢', label: t.shareMatchWaStatus || 'WhatsApp Status' },
+        { id: 'ig_story', emoji: '📱', label: t.shareMatchIgStory || 'Instagram Story' },
+        { id: 'save', emoji: '📥', label: t.shareMatchSaveBtn || 'Save to gallery' },
+        { id: 'more', emoji: '⋯', label: t.shareMatchMore || 'More apps' },
     ];
 
     if (!payload) {
@@ -214,43 +208,47 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={[s.overlay, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]}>
+            <View style={[s.overlay, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+                <TouchableOpacity style={s.backdropTap} activeOpacity={1} onPress={onClose} />
                 <View style={s.sheet}>
+                    <View style={s.handle} />
                     <View style={s.header}>
                         <Text style={s.title}>{t.shareMatchTitle}</Text>
                         <TouchableOpacity onPress={onClose} hitSlop={12}><Text style={s.close}>✕</Text></TouchableOpacity>
                     </View>
-                    <Text style={s.hint}>{t.shareMatchHint}</Text>
 
-                    <View style={[s.preview, { height: previewH }]}>
+                    {/* Kompakt önizleme — uzun kart seçenekleri ekranın altında kesmesin */}
+                    <View style={s.preview}>
                         <Text style={s.brand}>AcTiViTy</Text>
                         <Text style={s.sport}>{payload.emoji} {payload.sport}</Text>
                         <View style={s.vsRow}>
-                            <Text style={[s.side, { flex: 1 }]} numberOfLines={2}>{payload.leftLabel}</Text>
+                            <Text style={[s.side, { flex: 1 }]} numberOfLines={1}>{payload.leftLabel}</Text>
                             <Text style={s.score}>{payload.leftSets}–{payload.rightSets}</Text>
-                            <Text style={[s.side, { flex: 1 }]} numberOfLines={2}>{payload.rightLabel}</Text>
+                            <Text style={[s.side, { flex: 1 }]} numberOfLines={1}>{payload.rightLabel}</Text>
                         </View>
-                        {payload.lines.length > 0 && (
-                            <Text style={s.sets} numberOfLines={2}>{payload.lines.join('  ·  ')}</Text>
-                        )}
-                        <Text style={s.winner}>🏆 {payload.resultLabel}</Text>
-                        {!!payload.place && <Text style={s.meta} numberOfLines={1}>📍 {payload.place}</Text>}
-                        {!!payload.dateStr && <Text style={s.meta} numberOfLines={1}>📅 {payload.dateStr}</Text>}
+                        <Text style={s.winner} numberOfLines={1}>🏆 {payload.resultLabel}</Text>
                     </View>
 
                     {busy ? (
-                        <ActivityIndicator color="#c084fc" style={{ marginVertical: 18 }} />
+                        <ActivityIndicator color="#c084fc" style={{ marginVertical: 28 }} />
                     ) : (
-                        <ScrollView contentContainerStyle={s.grid} showsVerticalScrollIndicator={false}>
+                        <ScrollView
+                            style={s.list}
+                            contentContainerStyle={{ paddingBottom: 8 }}
+                            showsVerticalScrollIndicator
+                            bounces={false}
+                            keyboardShouldPersistTaps="handled"
+                        >
                             {targets.map((it) => (
                                 <TouchableOpacity
                                     key={it.id}
-                                    style={s.cell}
-                                    activeOpacity={0.8}
+                                    style={s.row}
+                                    activeOpacity={0.75}
                                     onPress={() => start(it.id)}
                                 >
                                     <Text style={s.emoji}>{it.emoji}</Text>
-                                    <Text style={s.label} numberOfLines={2}>{it.label}</Text>
+                                    <Text style={s.rowLabel}>{it.label}</Text>
+                                    <Text style={s.chev}>›</Text>
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
@@ -274,35 +272,39 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
 
 const s = StyleSheet.create({
     overlay: { flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' },
+    backdropTap: { flex: 1 },
     sheet: {
         backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        padding: 18, maxHeight: '92%',
+        paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10,
+        // Önizleme küçük + liste kaydırılabilir → alt seçenekler (galeri vb.) kesilmez
+        maxHeight: '78%',
     },
-    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+    handle: {
+        alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
+        backgroundColor: '#ffffff33', marginBottom: 10,
+    },
+    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
     title: { color: '#fff', fontSize: 17, fontWeight: '900', flex: 1 },
     close: { color: colors.textMuted, fontSize: 22 },
-    hint: { color: colors.textMuted, fontSize: 12, marginBottom: 12, lineHeight: 17 },
     preview: {
-        borderRadius: 18, overflow: 'hidden', marginBottom: 14, padding: 16,
+        borderRadius: 14, overflow: 'hidden', marginBottom: 12, paddingVertical: 12, paddingHorizontal: 14,
         backgroundColor: '#1a0b2e', borderWidth: 1, borderColor: '#9333ea55',
-        justifyContent: 'center',
     },
-    brand: { color: '#e9d5ff', fontSize: 18, fontWeight: '900', textAlign: 'center', letterSpacing: 2 },
-    sport: { color: '#c4b5fd', fontSize: 13, fontWeight: '800', textAlign: 'center', marginTop: 6, marginBottom: 14 },
-    vsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    side: { color: '#fff', fontSize: 13, fontWeight: '800', textAlign: 'center' },
-    score: { color: '#c084fc', fontSize: 28, fontWeight: '900', minWidth: 64, textAlign: 'center' },
-    sets: { color: '#ddd', fontSize: 12, textAlign: 'center', marginTop: 10, fontWeight: '700' },
-    winner: { color: '#4ade80', fontSize: 14, fontWeight: '900', textAlign: 'center', marginTop: 12 },
-    meta: { color: '#c4b5fd', fontSize: 11, textAlign: 'center', marginTop: 4 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 8 },
-    cell: {
-        width: '30%', minWidth: 96, flexGrow: 1, alignItems: 'center', gap: 6,
-        backgroundColor: colors.surface2 || '#222', borderRadius: 14,
-        paddingVertical: 14, paddingHorizontal: 6,
-        borderWidth: 1, borderColor: colors.border || '#333',
+    brand: { color: '#e9d5ff', fontSize: 14, fontWeight: '900', textAlign: 'center', letterSpacing: 2 },
+    sport: { color: '#c4b5fd', fontSize: 12, fontWeight: '800', textAlign: 'center', marginTop: 4, marginBottom: 8 },
+    vsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    side: { color: '#fff', fontSize: 12, fontWeight: '800', textAlign: 'center' },
+    score: { color: '#c084fc', fontSize: 22, fontWeight: '900', minWidth: 56, textAlign: 'center' },
+    winner: { color: '#4ade80', fontSize: 12, fontWeight: '900', textAlign: 'center', marginTop: 8 },
+    list: { flexGrow: 0 },
+    row: {
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        backgroundColor: colors.surface2 || '#222',
+        borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14,
+        marginBottom: 8, borderWidth: 1, borderColor: colors.border || '#333',
     },
-    emoji: { fontSize: 26 },
-    label: { color: '#fff', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+    emoji: { fontSize: 22, width: 28, textAlign: 'center' },
+    rowLabel: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1 },
+    chev: { color: colors.textMuted, fontSize: 22, fontWeight: '600' },
     hidden: { position: 'absolute', width: 1, height: 1, opacity: 0, left: -20, top: -20 },
 });
