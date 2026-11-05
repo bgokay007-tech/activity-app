@@ -183,6 +183,38 @@ async function resolveDeepLinkAndNavigate(url, isBusiness) {
                 screen: 'SubCategory',
                 params: { category: data.category, sub: data.subCategory, initialTab: 'tournaments', openMatchTournamentId: id, openMatchId: null },
             });
+        } else if (kind === 'equipment') {
+            const { data } = await api.get(`/equipment/${id}`);
+            if (!navigationRef.isReady()) return;
+            goToAppScreen(isBusiness, 'HomeTab', {
+                screen: 'SubCategory',
+                params: { category: data.category, sub: data.subCategory, initialTab: 'equipment', openEquipmentId: id },
+            });
+        } else if (kind === 'coach' || kind === 'course') {
+            const { data } = await api.get(`/coaches/${id}`);
+            if (!navigationRef.isReady()) return;
+            goToAppScreen(isBusiness, 'HomeTab', {
+                screen: 'SubCategory',
+                params: {
+                    category: data.category,
+                    sub: data.subCategory,
+                    initialTab: 'coaches',
+                    initialCoachSubTab: kind === 'course' ? 'courses' : 'listings',
+                    openCoachId: id,
+                },
+            });
+        } else if (kind === 'club') {
+            const { data } = await api.get(`/clubs/${id}`);
+            if (!navigationRef.isReady()) return;
+            goToAppScreen(isBusiness, 'HomeTab', {
+                screen: 'SubCategory',
+                params: {
+                    category: data.category,
+                    sub: data.subCategory,
+                    initialTab: 'coaches',
+                    initialCoachSubTab: 'clubs',
+                },
+            });
         }
     } catch { /* ilan/turnuva bulunamadı veya oturum hazır değil — sessizce yut */ }
 }

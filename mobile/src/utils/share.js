@@ -1,71 +1,42 @@
 import { Share } from 'react-native';
 import { shellT } from '../i18n/packs/shell';
 import { BASE_URL } from '../services/api';
+import { tryOpenEntityShare } from './entityShareBridge';
+import { buildEntitySharePayload } from './entityShareCard';
 
 const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
 
-export async function shareRival(rival, t) {
-    const url = `${SHARE_HOST}/share/rival/${rival.id}`;
-    const place = rival.courtName || rival.location;
-    // Kullanıcı isteği: voleybolde "Oyuncu Ara" ve "Rakip Ara" sekmelerinin etiketleri diğer
-    // dallara göre TERS (bkz. tabLabel/sub==='volleyball' — "rivals" sekmesi orada "Oyuncu Ara",
-    // "player_wanted" sekmesi "Rakip Ara" olarak gösteriliyor). Paylaşım metni de buna uysun:
-    // voleybolde matchType PLAYER_WANTED DEĞİLSE (yani "Oyuncu Ara" sekmesinden açılan bir kadro
-    // ilanıysa) "Oyuncu arıyorum", PLAYER_WANTED ise (Rakip Ara) "Rakip arıyorum" yazsın. Diğer
-    // dallarda eskisi gibi hep "Rakip arıyorum".
-    const isVolleyballPlayerAd = rival.subCategory === 'volleyball' && rival.matchType !== 'PLAYER_WANTED';
-    const intro = isVolleyballPlayerAd
-        ? (t?.sharePlayerWantedIntro || shellT('sh_0310'))
-        : (t?.shareRivalIntro || shellT('sh_0322'));
-    const parts = [intro];
-    if (place) parts.push(`📍 ${place}`);
-    if (rival.matchDate) parts.push(`📅 ${new Date(rival.matchDate).toLocaleDateString('tr-TR')}${rival.matchTime ? ' ' + rival.matchTime : ''}`);
-    if (rival.duration) parts.push(`⏱ ${rival.duration} ${t?.timeMinSuffix || 'dk'}`);
-
-    // Onaylanmış katılımcılar — takımlar (kim rakip 1/2) henüz kesin belli olmadığı için
-    // (bkz. RivalCard'daki aynı gerekçe) kaçıncı sırada kabul edildikleri (Katılımcı 1/2/3)
-    // olarak gösterilir, "Rakip 1"/"Rakip 2" gibi kesin bir koltuğa atanmış gibi değil.
-    const nameOf = (p) => p?.fullName || p?.username || '';
-    const label = (n) => t?.cardParticipantLabel ? t.cardParticipantLabel(n) : shellT('sh_0655', n);
-    const confirmed = [];
-    if (rival.matchType === 'DOUBLE') {
-        // Kullanıcı isteği: ilanı açan kişi de zaten oynayacak oyunculardan biri — paylaşım
-        // metnindeki listede o da görünmeli, önceden sadece partner/rakiplere bakılıp
-        // rival.sender hiç eklenmiyordu.
-        const partner = Array.isArray(rival.senderTeam) ? rival.senderTeam[0] : null;
-        const slots = [rival.sender, partner, rival.participants?.[0], rival.participants?.[1]].filter(p => p?.id);
-        slots.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
-    } else {
-        // Takım sporları (voleybol vb.): ilanı açan kişi + kurucunun takım arkadaşları + rakip
-        // tarafa atananlar + henüz bir tarafa atanmamış ama katılımı kabul edilmiş oyuncular —
-        // kullanıcı isteği: "katılan oyuncular varsa paylaşımda da gözüksün" (önceden sadece
-        // rival.participants gösteriliyordu, ilan sahibi de dahil hiç eklenmiyordu).
-        const teamPlayers = [
-            rival.sender,
-            ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
-            ...(Array.isArray(rival.participants) ? rival.participants : []),
-            ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
-        ].filter(p => p?.id);
-        teamPlayers.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
-    }
-    if (confirmed.length > 0) parts.push(`👥 ${confirmed.join(', ')}`);
-
-    parts.push(url);
+async function shareTextFallback(payload) {
+    if (!payload) return;
     try {
-        await Share.share({ message: parts.join('\n'), url });
-    } catch { /* kullanıcı paylaşımı iptal etti */ }
+        await Share.share({ message: payload.message, url: payload.url });
+    } catch { /* iptal */ }
+}
+
+export async function shareRival(rival, t) {
+    if (tryOpenEntityShare('rival', rival)) return;
+    await shareTextFallback(buildEntitySharePayload('rival', rival, t));
 }
 
 export async function shareTournament(tournament, t) {
-    const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
-    const place = tournament.location || tournament.city;
-    const parts = [`${t?.shareTournamentIntro || shellT('sh_0663')} 🏆 ${tournament.name || ''}`.trim()];
-    if (place) parts.push(`📍 ${place}`);
-    if (tournament.eventDate) parts.push(`📅 ${new Date(tournament.eventDate).toLocaleDateString('tr-TR')}${tournament.eventTime ? ' ' + tournament.eventTime : ''}`);
-    parts.push(url);
-    try {
-        await Share.share({ message: parts.join('\n'), url });
-    } catch { /* kullanıcı paylaşımı iptal etti */ }
+    if (tryOpenEntityShare('tournament', tournament)) return;
+    await shareTextFallback(buildEntitySharePayload('tournament', tournament, t));
+}
+
+export async function shareEquipment(eq, t) {
+    if (tryOpenEntityShare('equipment', eq)) return;
+    await shareTextFallback(buildEntitySharePayload('equipment', eq, t));
+}
+
+export async function shareCoach(listing, t, { asCourse = false } = {}) {
+    const kind = asCourse ? 'course' : 'coach';
+    if (tryOpenEntityShare(kind, listing)) return;
+    await shareTextFallback(buildEntitySharePayload(kind, listing, t));
+}
+
+export async function shareClub(club, t) {
+    if (tryOpenEntityShare('club', club)) return;
+    await shareTextFallback(buildEntitySharePayload('club', club, t));
 }
 
 export async function shareMatchResult(match, t) {

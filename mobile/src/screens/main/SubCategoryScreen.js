@@ -58,7 +58,9 @@ import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import TrailsTab from './TrailsTab';
 import { RUN_ACTIVITY_TYPES, RUN_TRAIL_SUBS } from '../../constants/runActivityTypes';
-import { shareRival, shareTournament } from '../../utils/share';
+import { shareRival, shareTournament, shareEquipment, shareCoach, shareClub } from '../../utils/share';
+import { registerEntityShareOpener } from '../../utils/entityShareBridge';
+import EntityShareModal from '../../components/EntityShareModal';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import { sportFacilityLabels, sportEquipmentTabLabel } from '../../utils/sportFacilityLabels';
@@ -24118,6 +24120,9 @@ function SubCategoryScreen({ route, navigation }) {
     const [mutedMusicIds, setMutedMusicIds] = useState(() => new Set());
     // Medya / reels → uygulama dışı paylaşım sayfası; oradan isteğe bağlı arkadaşa DM.
     const [mediaExtShare, setMediaExtShare] = useState(null);
+    const [entityShareReq, setEntityShareReq] = useState(null); // { kind, item }
+
+    useEffect(() => registerEntityShareOpener((req) => setEntityShareReq(req)), []);
     const [mediaFriendShare, setMediaFriendShare] = useState(null);
     const [savePostTarget, setSavePostTarget] = useState(null);
     const toggleMutePostMusic = (postId) => {
@@ -28777,6 +28782,11 @@ function SubCategoryScreen({ route, navigation }) {
                                             {selectedEquipment?.description ? <Text style={{ color:colors.textSecondary, fontSize:13, marginBottom:8 }}>{selectedEquipment.description}</Text> : null}
                                             {selectedEquipment?.location ? <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:4 }}>📍 {selectedEquipment.location}</Text> : null}
                                             <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:8 }}>👤 {selectedEquipment?.user?.fullName || selectedEquipment?.user?.username}</Text>
+                                            <TouchableOpacity
+                                                onPress={() => shareEquipment(selectedEquipment, t)}
+                                                style={{ alignSelf:'flex-start', marginBottom:10, paddingHorizontal:12, paddingVertical:7, borderRadius:8, backgroundColor:'#c084fc25', borderWidth:1, borderColor:'#c084fc60' }}>
+                                                <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'800' }}>{t.shareBtn || t.sc_0086}</Text>
+                                            </TouchableOpacity>
 
                                             {selectedEquipment?.status === 'SOLD' && (
                                                 <View style={{ backgroundColor:'#6b728020', borderRadius:8, paddingVertical:6, alignItems:'center', marginBottom:10 }}>
@@ -29178,6 +29188,11 @@ function SubCategoryScreen({ route, navigation }) {
                                                     </Text>
                                                 ) : null}
                                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8 }}>
+                                                    <TouchableOpacity
+                                                        onPress={() => shareClub(cl, t)}
+                                                        style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#c084fc25', borderWidth:1, borderColor:'#c084fc60' }}>
+                                                        <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{t.shareBtn || t.sc_0086}</Text>
+                                                    </TouchableOpacity>
                                                     {cl.userId !== myId && (
                                                         <TouchableOpacity
                                                             onPress={() => openChatWithClub(cl)}
@@ -29394,13 +29409,20 @@ function SubCategoryScreen({ route, navigation }) {
                                             {c.includedEquipment && <Text style={{ color:colors.textMuted, fontSize:11 }}>{t.sc_0950} {c.includedEquipment}</Text>}
                                             {c.description && <Text style={{ color:colors.textSecondary, fontSize:12, marginTop:4 }} numberOfLines={2}>{c.description}</Text>}
                                             {Array.isArray(c.achievements) && c.achievements.length > 0 && <Text style={{ color:'#fbbf24', fontSize:11, marginTop:4 }} numberOfLines={2}>🏆 {c.achievements.join(' · ')}</Text>}
-                                            {c.userId !== myId && (
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:6 }}>
                                                 <TouchableOpacity
-                                                    onPress={() => setCoachDetailListing(c)}
-                                                    style={{ marginTop:6, paddingVertical:7, borderRadius:8, backgroundColor: cfg.color, alignItems:'center' }}>
-                                                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>{t.sc_0951}</Text>
+                                                    onPress={() => shareCoach(c, t, { asCourse: coachSubTab === 'courses' })}
+                                                    style={{ paddingHorizontal:9, paddingVertical:5, borderRadius:8, backgroundColor:'#c084fc25', borderWidth:1, borderColor:'#c084fc60' }}>
+                                                    <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'700' }}>{t.shareBtn || t.sc_0086}</Text>
                                                 </TouchableOpacity>
-                                            )}
+                                                {c.userId !== myId && (
+                                                    <TouchableOpacity
+                                                        onPress={() => setCoachDetailListing(c)}
+                                                        style={{ flex:1, paddingVertical:7, borderRadius:8, backgroundColor: cfg.color, alignItems:'center', minWidth:120 }}>
+                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'800' }}>{t.sc_0951}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                             {c.userId !== myId ? (
                                                 <TouchableOpacity
                                                     onPress={() => reportListing('coaches', c.id)}
@@ -33072,6 +33094,12 @@ function SubCategoryScreen({ route, navigation }) {
                 post={mediaExtShare}
                 onClose={() => setMediaExtShare(null)}
                 onShareToFriend={(p) => setMediaFriendShare(p)}
+            />
+            <EntityShareModal
+                visible={!!entityShareReq}
+                kind={entityShareReq?.kind}
+                item={entityShareReq?.item}
+                onClose={() => setEntityShareReq(null)}
             />
             <SharePostToFriendModal
                 visible={!!mediaFriendShare}

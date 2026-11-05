@@ -297,3 +297,120 @@ export const getPostSharePage = async (req, res, next) => {
         }));
     } catch (e) { next(e); }
 };
+
+export const getEquipmentSharePage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const eq = await prisma.equipmentListing.findUnique({
+            where: { id },
+            select: {
+                title: true, price: true, condition: true, location: true, city: true,
+                description: true, subCategory: true, status: true,
+            },
+        });
+        const pageUrl = `${BACKEND_URL}/share/equipment/${id}`;
+        if (!eq || eq.status === 'REMOVED') {
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            return res.status(404).send(renderSharePage({
+                title: 'Ekipman bulunamadı', description: 'Bu ekipman ilanı artık mevcut değil.',
+                pageUrl, notFound: true,
+            }));
+        }
+        const sub = subCategoryLabel(eq.subCategory);
+        const title = eq.title || `${sub} ekipman`;
+        const descParts = [
+            eq.price > 0 ? `${eq.price} ₺` : null,
+            eq.condition === 'NEW' ? 'Sıfır' : 'İkinci el',
+            eq.location || eq.city ? `📍 ${eq.location || eq.city}` : null,
+            (eq.description || '').trim().slice(0, 120) || null,
+        ].filter(Boolean);
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderSharePage({
+            title,
+            description: descParts.join(' • '),
+            deepLink: `activityapp://equipment/${id}`,
+            pageUrl,
+        }));
+    } catch (e) { next(e); }
+};
+
+async function coachOrCourseSharePage(req, res, next, asCourse) {
+    try {
+        const { id } = req.params;
+        const c = await prisma.coachListing.findUnique({
+            where: { id },
+            select: {
+                personalFullName: true, credentialLevel: true, certName: true,
+                priceIndividual: true, priceGroup: true, individual: true, group: true,
+                city: true, cities: true, location: true, description: true,
+                subCategory: true, status: true, profileOnly: true,
+                user: { select: { fullName: true, username: true } },
+            },
+        });
+        const kind = asCourse ? 'course' : 'coach';
+        const pageUrl = `${BACKEND_URL}/share/${kind}/${id}`;
+        if (!c || c.status === 'REMOVED' || c.profileOnly) {
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            return res.status(404).send(renderSharePage({
+                title: asCourse ? 'Kurs bulunamadı' : 'Antrenör bulunamadı',
+                description: 'Bu ilan artık mevcut değil.',
+                pageUrl, notFound: true,
+            }));
+        }
+        const sub = subCategoryLabel(c.subCategory);
+        const name = c.personalFullName || c.user?.fullName || c.user?.username || c.credentialLevel || sub;
+        const cities = Array.isArray(c.cities) ? c.cities.join(', ') : (c.city || '');
+        const descParts = [
+            c.credentialLevel,
+            c.certName,
+            c.individual && c.priceIndividual > 0 ? `Bireysel ${c.priceIndividual}₺` : null,
+            c.group && c.priceGroup > 0 ? `Grup ${c.priceGroup}₺` : null,
+            cities || c.location ? `📍 ${[cities, c.location].filter(Boolean).join(' / ')}` : null,
+            (c.description || '').trim().slice(0, 100) || null,
+        ].filter(Boolean);
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderSharePage({
+            title: `${asCourse ? 'Kurs' : 'Antrenör'} · ${name}`,
+            description: descParts.join(' • '),
+            deepLink: `activityapp://${kind}/${id}`,
+            pageUrl,
+        }));
+    } catch (e) { next(e); }
+}
+
+export const getCoachSharePage = (req, res, next) => coachOrCourseSharePage(req, res, next, false);
+export const getCourseSharePage = (req, res, next) => coachOrCourseSharePage(req, res, next, true);
+
+export const getClubSharePage = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const cl = await prisma.clubListing.findUnique({
+            where: { id },
+            select: {
+                name: true, description: true, location: true, city: true, cities: true,
+                membershipFee: true, website: true, subCategory: true, status: true,
+            },
+        });
+        const pageUrl = `${BACKEND_URL}/share/club/${id}`;
+        if (!cl || cl.status === 'REMOVED' || cl.status === 'REJECTED') {
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            return res.status(404).send(renderSharePage({
+                title: 'Kulüp bulunamadı', description: 'Bu kulüp ilanı artık mevcut değil.',
+                pageUrl, notFound: true,
+            }));
+        }
+        const cities = Array.isArray(cl.cities) ? cl.cities.join(', ') : (cl.city || '');
+        const descParts = [
+            cities || cl.location ? `📍 ${[cities, cl.location].filter(Boolean).join(' / ')}` : null,
+            cl.membershipFee > 0 ? `${cl.membershipFee}₺ / ay` : null,
+            (cl.description || '').trim().slice(0, 120) || null,
+        ].filter(Boolean);
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderSharePage({
+            title: cl.name || 'Kulüp',
+            description: descParts.join(' • '),
+            deepLink: `activityapp://club/${id}`,
+            pageUrl,
+        }));
+    } catch (e) { next(e); }
+};
