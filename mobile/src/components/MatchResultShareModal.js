@@ -251,12 +251,14 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                 return;
             }
             if (action === 'ig_story') {
+                // Modal üstte kalırsa ADD_TO_STORY görseli düşürebiliyor — WA Durum gibi önce kapat
+                onClose?.();
+                await new Promise((r) => setTimeout(r, 350));
                 await shareToInstagramStory({
                     filePath: path,
                     t,
                     linkUrl: payload.url || PLAY_STORE_URL,
                 });
-                onClose?.();
                 return;
             }
             await shareViaSystemSheet({ filePath: path, message });

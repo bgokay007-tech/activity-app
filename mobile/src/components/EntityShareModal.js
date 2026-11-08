@@ -22,8 +22,28 @@ import {
 const W = 1080;
 const H = 1920;
 
-/** 9:16 hikâye/durum kartı — IG üst chrome için TOP boşluk. */
-function cardHtml(p) {
+/** Kapak URL → data URL (CORS’suz canvas; Cloudinary fotoğrafı karta gömülsün). */
+async function coverToDataUrl(remoteUrl) {
+    if (!remoteUrl || typeof remoteUrl !== 'string') return null;
+    if (remoteUrl.startsWith('data:')) return remoteUrl;
+    try {
+        const dest = `${FileSystem.cacheDirectory}entity-share-cover-${Date.now()}.img`;
+        const dl = await FileSystem.downloadAsync(remoteUrl, dest);
+        if (!dl?.uri || (dl.status != null && dl.status !== 200)) return null;
+        const b64 = await FileSystem.readAsStringAsync(dl.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+        const mime = remoteUrl.includes('.png') || remoteUrl.includes('image/png')
+            ? 'image/png'
+            : 'image/jpeg';
+        return `data:${mime};base64,${b64}`;
+    } catch {
+        return null;
+    }
+}
+
+/** 9:16 hikâye/durum kartı — IG üst chrome için TOP boşluk; coverDataUrl varsa ürün/foto. */
+function cardHtml(p, coverDataUrl) {
     const brand = p.brand || 'AcTiViTy';
     const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
@@ -32,11 +52,11 @@ function cardHtml(p) {
 <canvas id="c" width="${W}" height="${H}"></canvas>
 <script>
 (function(){
-  function go(){
+  function go(coverImg){
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
-      var W=${W}, H=${H}, TOP=300;
+      var W=${W}, H=${H}, TOP=260;
       ctx.fillStyle='#0B0C10'; ctx.fillRect(0,0,W,H);
       var g=ctx.createRadialGradient(540,TOP+180,40,540,TOP+180,520);
       g.addColorStop(0,'rgba(200,245,74,0.14)');
@@ -88,19 +108,39 @@ function cardHtml(p) {
 
       text(${JSON.stringify(p.sport||'')}, 540, TOP+120, 32, '#C8F54A', 'center', '800');
 
-      var titleLines=wrap(${JSON.stringify(p.title||'')}, 920, 44);
-      var ny=TOP+190;
-      titleLines.forEach(function(ln){ text(ln, 540, ny, 44, '#F4F1EA', 'center', '900'); ny+=52; });
+      var titleLines=wrap(${JSON.stringify(p.title||'')}, 920, 42);
+      var ny=TOP+180;
+      titleLines.slice(0,3).forEach(function(ln){ text(ln, 540, ny, 42, '#F4F1EA', 'center', '900'); ny+=50; });
+
+      var priceLabel=${JSON.stringify(p.priceLabel||'')};
+      if(priceLabel){ text(priceLabel, 540, ny+18, 56, '#C8F54A', 'center', '900'); ny+=70; }
+
+      if(coverImg){
+        var iw=880, ih=520, ix=(W-iw)/2, iy=ny+10;
+        ctx.save();
+        roundRect(ix, iy, iw, ih, 28);
+        ctx.clip();
+        var s=Math.max(iw/coverImg.width, ih/coverImg.height);
+        var dw=coverImg.width*s, dh=coverImg.height*s;
+        ctx.drawImage(coverImg, ix+(iw-dw)/2, iy+(ih-dh)/2, dw, dh);
+        ctx.restore();
+        ctx.strokeStyle='#2A2D36'; ctx.lineWidth=3;
+        roundRect(ix, iy, iw, ih, 28); ctx.stroke();
+        ny=iy+ih+40;
+      } else {
+        ny+=24;
+      }
 
       var lines=${JSON.stringify(p.lines||[])};
-      ny+=30;
-      roundRect(72, ny-40, W-144, Math.max(200, 40+lines.length*52+40), 28);
+      // Fiyat zaten büyük yazıldıysa satırdan düş
+      if(priceLabel) lines=lines.filter(function(ln){ return ln.indexOf(priceLabel)<0; });
+      roundRect(72, ny-36, W-144, Math.max(160, 36+lines.length*48+36), 28);
       ctx.fillStyle='#16181F'; ctx.fill();
       ctx.strokeStyle='#2A2D36'; ctx.lineWidth=3; ctx.stroke();
       lines.forEach(function(ln){
-        var wl=wrap(ln, 880, 30);
-        wl.forEach(function(w){ text(w, 540, ny, 30, '#A8A29A', 'center', '700'); ny+=40; });
-        ny+=8;
+        var wl=wrap(ln, 880, 28);
+        wl.forEach(function(w){ text(w, 540, ny, 28, '#A8A29A', 'center', '700'); ny+=38; });
+        ny+=6;
       });
 
       roundRect(200, 1720, 680, 88, 44);
@@ -112,7 +152,15 @@ function cardHtml(p) {
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ERR:'+String(e&&e.message||e));
     }
   }
-  setTimeout(go,60);
+  var coverData=${JSON.stringify(coverDataUrl||'')};
+  if(coverData){
+    var img=new Image();
+    img.onload=function(){ go(img); };
+    img.onerror=function(){ go(null); };
+    img.src=coverData;
+  } else {
+    setTimeout(function(){ go(null); }, 60);
+  }
 })();
 </script></body></html>`;
 }
@@ -143,29 +191,54 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
 
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
+    const [captureHtml, setCaptureHtml] = useState(null);
     const pendingAction = useRef(null);
     const pngPath = useRef(null);
+    const coverDataRef = useRef(null);
 
     useEffect(() => {
         if (!visible) {
             setNeedCapture(false);
+            setCaptureHtml(null);
             setBusy(false);
             pendingAction.current = null;
             pngPath.current = null;
+            coverDataRef.current = null;
         }
     }, [visible]);
 
-    const ensurePng = () => new Promise((resolve, reject) => {
-        if (pngPath.current) {
-            resolve(pngPath.current);
-            return;
+    // Kapak fotoğrafını önceden indir — paylaşımda eksik kart olmasın
+    useEffect(() => {
+        if (!visible || !payload?.coverUrl) {
+            coverDataRef.current = null;
+            return undefined;
         }
-        pendingAction.current = { type: 'capture', resolve, reject };
-        setNeedCapture(true);
-    });
+        let cancelled = false;
+        coverDataRef.current = null;
+        (async () => {
+            const data = await coverToDataUrl(payload.coverUrl);
+            if (!cancelled) coverDataRef.current = data;
+        })();
+        return () => { cancelled = true; };
+    }, [visible, payload?.id, payload?.coverUrl]);
+
+    const ensurePng = async () => {
+        if (pngPath.current) return pngPath.current;
+        // Kapak indirmesi bitmediyse kısa bekle
+        if (payload?.coverUrl && !coverDataRef.current) {
+            const data = await coverToDataUrl(payload.coverUrl);
+            coverDataRef.current = data;
+        }
+        return new Promise((resolve, reject) => {
+            pendingAction.current = { type: 'capture', resolve, reject };
+            setCaptureHtml(cardHtml(payload, coverDataRef.current));
+            setNeedCapture(true);
+        });
+    };
 
     const onPng = async (dataUrl) => {
         setNeedCapture(false);
+        setCaptureHtml(null);
         const pending = pendingAction.current;
         pendingAction.current = null;
         if (!dataUrl || dataUrl.startsWith('ERR:')) {
@@ -212,12 +285,14 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             return;
         }
         if (action === 'ig_story') {
+            // Modal üstte kalırsa ADD_TO_STORY çoğu telefonda görseli düşürüyor
+            onClose?.();
+            await new Promise((r) => setTimeout(r, 350));
             await shareToInstagramStory({
                 filePath: path,
                 t,
                 linkUrl: url || PLAY_STORE_URL,
             });
-            onClose?.();
             return;
         }
         if (action === 'more') {
@@ -324,7 +399,10 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
                         <Text style={s.badge}>{payload.badge}</Text>
                         <Text style={s.sport}>{payload.sport}</Text>
                         <Text style={s.cardTitle} numberOfLines={2}>{payload.title}</Text>
-                        {(payload.lines || []).slice(0, 3).map((ln, i) => (
+                        {!!payload.priceLabel && (
+                            <Text style={s.pricePrev}>{payload.priceLabel}</Text>
+                        )}
+                        {(payload.lines || []).slice(0, 4).map((ln, i) => (
                             <Text key={i} style={s.line} numberOfLines={1}>{ln}</Text>
                         ))}
                     </View>
@@ -357,11 +435,11 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
                     )}
                 </View>
             </View>
-            {needCapture && (
+            {needCapture && captureHtml && (
                 <View style={s.hidden} pointerEvents="none">
                     <WebView
                         originWhitelist={['*']}
-                        source={{ html: cardHtml(payload) }}
+                        source={{ html: captureHtml }}
                         onMessage={(e) => onPng(e.nativeEvent?.data)}
                         javaScriptEnabled
                         style={{ width: 1, height: 1, opacity: 0 }}
@@ -396,7 +474,8 @@ const s = StyleSheet.create({
         fontSize: 11, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginBottom: 6,
     },
     sport: { color: '#C8F54A', fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
-    cardTitle: { color: '#F4F1EA', fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    cardTitle: { color: '#F4F1EA', fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
+    pricePrev: { color: '#C8F54A', fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
     line: { color: '#A8A29A', fontSize: 12, textAlign: 'center', marginBottom: 2 },
     list: { flexGrow: 0 },
     row: {

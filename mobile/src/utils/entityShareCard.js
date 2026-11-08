@@ -128,6 +128,11 @@ function buildTournament(tournament, t, lang) {
     };
 }
 
+function firstEquipmentImage(images) {
+    if (!Array.isArray(images)) return null;
+    return images.find((img) => typeof img === 'string' && img && !img.includes('/video/upload/')) || null;
+}
+
 function buildEquipment(eq, t, lang) {
     const { sport, emoji } = sportMeta(eq.subCategory, lang);
     const url = `${SHARE_HOST}/share/equipment/${eq.id}`;
@@ -137,19 +142,23 @@ function buildEquipment(eq, t, lang) {
     const cond = eq.condition === 'NEW'
         ? (t?.sc_0901 || 'New')
         : (t?.sc_0902 || 'Used');
+    const seller = eq.user?.fullName || eq.user?.username || '';
+    const place = [eq.location, eq.city].filter(Boolean).join(' · ');
     const lines = [
         `💰 ${price}`,
         `🏷️ ${cond}`,
     ];
-    if (eq.location || eq.city) lines.push(`📍 ${eq.location || eq.city}`);
-    if (eq.description) lines.push(String(eq.description).trim().slice(0, 120));
-    const coverUrl = Array.isArray(eq.images) && eq.images[0] ? eq.images[0] : null;
+    if (place) lines.push(`📍 ${place}`);
+    if (seller) lines.push(`👤 ${seller}`);
+    if (eq.description) lines.push(String(eq.description).trim().slice(0, 140));
+    const coverUrl = firstEquipmentImage(eq.images);
     const message = [`${intro}: ${eq.title}`, ...lines, url].filter(Boolean).join('\n');
     return {
         kind: 'equipment',
         id: eq.id,
         url,
         title: eq.title || intro,
+        priceLabel: price,
         badge,
         emoji: '📦',
         sport: `${emoji} ${sport}`.trim(),

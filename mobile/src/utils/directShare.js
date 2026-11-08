@@ -131,32 +131,36 @@ export async function shareToWhatsAppStatus({ filePath, message, t }) {
 }
 
 /**
- * Instagram Hikâye — native ADD_TO_STORY (tenisle gibi görsel seçili besteci).
- * linkUrl: tıklanabilir sticker / attribution (Meta App ID + IG uygunsa).
- * Ütopik değil ama Meta App ID + uygun IG hesabı şart; yoksa sadece görsel iner.
+ * Instagram Hikâye — native ADD_TO_STORY (görsel seçili besteci).
+ * Native FileProvider + filePath gerekir; content:// imageUri Kotlin tarafında yok sayılıyordu
+ * (sadece Instagram açılıp görsel gelmiyordu). WA Durum ile aynı filePath yolu.
  */
 export async function shareToInstagramStory({ filePath, t, linkUrl }) {
     const resolvedLink = resolveLinkUrl(linkUrl);
     const linkText = defaultLinkText(t);
 
     if (Platform.OS === 'android' && filePath && hasShareBridge()) {
-        // Önce cache content URI (galeriye yazmadan); olmazsa MediaStore
-        let uri = await contentUriFor(filePath);
-        let ok = false;
+        const abs = String(filePath).replace(/^file:\/\//, '');
         const igParams = {
-            imageUri: '',
+            filePath: abs,
+            imageUri: abs.startsWith('/') ? `file://${abs}` : String(filePath),
             mime: 'image/png',
             facebookAppId: facebookAppId() || '',
             linkUrl: resolvedLink,
             linkText,
         };
-        if (uri) {
-            ok = await nativeShareToInstagramStory({ ...igParams, imageUri: uri });
+        let ok = await nativeShareToInstagramStory(igParams);
+        // Eski deneme: content URI (yeni APK filePath ile çalışır; yedek)
+        if (!ok) {
+            const uri = await contentUriFor(filePath);
+            if (uri?.startsWith('file:')) {
+                ok = await nativeShareToInstagramStory({ ...igParams, imageUri: uri, filePath: '' });
+            }
         }
         if (!ok) {
-            uri = await mediaStoreUriFor(filePath);
-            if (uri) {
-                ok = await nativeShareToInstagramStory({ ...igParams, imageUri: uri });
+            const mediaUri = await mediaStoreUriFor(filePath);
+            if (mediaUri?.startsWith('file:')) {
+                ok = await nativeShareToInstagramStory({ ...igParams, imageUri: mediaUri, filePath: '' });
             }
         }
         if (ok) return 'opened';

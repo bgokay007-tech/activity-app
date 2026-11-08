@@ -2,7 +2,8 @@ import { requireNativeModule } from 'expo-modules-core';
 
 type ShareBridgeNative = {
     shareToInstagramStory(params: {
-        imageUri: string;
+        imageUri?: string;
+        filePath?: string;
         mime?: string;
         facebookAppId?: string;
         linkUrl?: string;
@@ -36,7 +37,8 @@ export function hasShareBridge(): boolean {
 }
 
 export async function nativeShareToInstagramStory(params: {
-    imageUri: string;
+    imageUri?: string;
+    filePath?: string;
     mime?: string;
     facebookAppId?: string;
     linkUrl?: string;
