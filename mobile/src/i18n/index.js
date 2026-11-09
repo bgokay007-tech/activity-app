@@ -2048,12 +2048,12 @@ const en = {
     feedHintPast: 'Activities whose time has passed are listed here',
     nearbyTitle: '🗺️ Nearby activities',
     todayLabel: 'Today',
-    mapLoadingEvents: 'Loading events for the selected date...',
+    mapLoadingEvents: 'Loading nearby activities...',
     mapLoadingLocation: 'Getting your location...',
     retryBtn: 'Try again',
     buyTicketShort: '🎟️ Tickets',
-    mapLocatedCount: (n) => `${n} activities with a location — tap a pin to open`,
-    mapNoneLocated: 'No activity with a location was found',
+    mapLocatedCount: (n) => `${n} nearby activities on the map — tap a pin to open`,
+    mapNoneLocated: 'No nearby activity with a location was found',
 
     // Calendar
     calMonths: ['January','February','March','April','May','June','July','August','September','October','November','December'],
@@ -4789,12 +4789,12 @@ const tr = {
     feedHintPast: 'Süresi geçen aktiviteler burada listelenir',
     nearbyTitle: '🗺️ Yakındaki Aktiviteler',
     todayLabel: 'Bugün',
-    mapLoadingEvents: 'Seçilen tarih için etkinlikler yükleniyor...',
+    mapLoadingEvents: 'Yakındaki aktiviteler yükleniyor...',
     mapLoadingLocation: 'Konumunuz alınıyor...',
     retryBtn: 'Tekrar Dene',
     buyTicketShort: '🎟️ Bilet Al',
-    mapLocatedCount: (n) => `${n} aktivite konum bilgisiyle haritada — bir işaretçiye dokunup açın`,
-    mapNoneLocated: 'Konum bilgisi olan bir aktivite bulunamadı',
+    mapLocatedCount: (n) => `${n} yakındaki aktivite haritada — bir işaretçiye dokunup açın`,
+    mapNoneLocated: 'Yakında konum bilgisi olan aktivite bulunamadı',
 
     // Calendar
     calMonths: ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'],
@@ -7514,12 +7514,12 @@ const ru = {
     feedHintPast: 'Здесь активности, время которых уже прошло',
     nearbyTitle: '🗺️ Активности рядом',
     todayLabel: 'Сегодня',
-    mapLoadingEvents: 'Загрузка событий на выбранную дату...',
+    mapLoadingEvents: 'Загрузка активностей рядом...',
     mapLoadingLocation: 'Определяем ваше местоположение...',
     retryBtn: 'Повторить',
     buyTicketShort: '🎟️ Билеты',
-    mapLocatedCount: (n) => `${n} активностей с местоположением — нажмите на метку`,
-    mapNoneLocated: 'Нет активностей с указанным местоположением',
+    mapLocatedCount: (n) => `${n} активностей рядом на карте — нажмите на метку`,
+    mapNoneLocated: 'Рядом нет активностей с местоположением',
 
     // Calendar
     calMonths: ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
@@ -10238,12 +10238,12 @@ const de = {
     feedHintPast: 'Aktivitäten, deren Zeit vorbei ist, erscheinen hier',
     nearbyTitle: '🗺️ Aktivitäten in der Nähe',
     todayLabel: 'Heute',
-    mapLoadingEvents: 'Events für das gewählte Datum werden geladen...',
+    mapLoadingEvents: 'Aktivitäten in der Nähe werden geladen...',
     mapLoadingLocation: 'Standort wird ermittelt...',
     retryBtn: 'Erneut versuchen',
     buyTicketShort: '🎟️ Tickets',
-    mapLocatedCount: (n) => `${n} Aktivitäten mit Standort — tippe auf eine Markierung`,
-    mapNoneLocated: 'Keine Aktivität mit Standort gefunden',
+    mapLocatedCount: (n) => `${n} Aktivitäten in der Nähe — tippe auf eine Markierung`,
+    mapNoneLocated: 'Keine Aktivität mit Standort in der Nähe gefunden',
 
     // Calendar
     calMonths: ['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'],

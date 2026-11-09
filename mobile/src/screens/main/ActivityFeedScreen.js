@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import api from '../../services/api';
 import RainbowLogo from '../../components/RainbowLogo';
-import CalendarPickerModal from '../../components/CalendarPickerModal';
 import SupportModal from '../../components/SupportModal';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
@@ -29,6 +28,14 @@ const MONTHS_TR = ['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','A
 
 function pad(n) { return String(n).padStart(2, '0'); }
 function toDateStr(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+/** Yaklaşık km mesafe (harita yakını filtrelemek için). */
+function approxKm(a, b) {
+    if (!a || !b) return Infinity;
+    const dLat = (a.latitude - b.latitude) * 111;
+    const dLng = (a.longitude - b.longitude) * 111 * Math.cos((b.latitude * Math.PI) / 180);
+    return Math.hypot(dLat, dLng);
+}
+const MAP_NEAR_KM = 80;
 function sunFirstDays(t) {
     const d = t?.calDays;
     if (!Array.isArray(d) || d.length !== 7) return DAYS_TR;
@@ -599,8 +606,6 @@ export default function ActivityFeedScreen({ navigation }) {
     const [mapMyLocation, setMapMyLocation] = useState(null);
     const [mapLoading, setMapLoading] = useState(false);
     const [mapError, setMapError] = useState(null);
-    const [mapDate, setMapDate] = useState(new Date()); // varsayılan: bugün, değiştirilebilir
-    const [showMapDateModal, setShowMapDateModal] = useState(false);
     const [mapDataLoading, setMapDataLoading] = useState(false);
     const [mapDataItems, setMapDataItems] = useState([]);
     const [mapDataConcerts, setMapDataConcerts] = useState([]);
@@ -631,22 +636,74 @@ export default function ActivityFeedScreen({ navigation }) {
                 setMapLoading(false);
             }
         }
-        fetchMapData(mapDate);
+        fetchMapData(loc);
     };
 
-    // Haritada seçilen tarih için ilanları/etkinlikleri çeker — ana akıştaki
-    // filtrelerden (spor/il seçimi) bağımsız, sadece o güne göre ve tüm branşları kapsar.
-    // Konser/tiyatro araması herhangi bir konum/ülke kısıtı OLMADAN yapılır — kullanıcı
-    // Türkiye'deyken de yurt dışındaki etkinlikleri haritada görüp gezinebilsin diye;
-    // harita sadece başlangıçta kullanıcının konumunu merkez alır, veriyi kısıtlamaz.
-    const fetchMapData = async (dateObj) => {
+    // Ana ekran filtreleriyle aynı mantık: tarih/saat/şehir/dal yoksa açık arama;
+    // varsa ona göre. Konser/tiyatro kullanıcının lat/lng + yarıçapıyla çekilir
+    // (dünya listesi Atlas Okyanusu zoom'una düşmesin). Sinema vizyon listesinde
+    // salon koordinatı yok — haritada pin yok.
+    const fetchMapData = async (locOverride) => {
         setMapDataLoading(true);
-        const dStr = toDateStr(dateObj);
+        const me = locOverride || mapMyLocation;
+        const c = city;
+        const dist = district;
+        const df = dateFrom;
+        const dt = dateTo;
+        const tf = timeFrom;
+        const tt = timeTo;
+        const cats = selCats;
+        const subs = selSubs;
+        const catsOk = cats.length === 0 || cats.includes('ARTS');
+        const noSubFilter = subs.length === 0;
+        const wantConcert = catsOk && (noSubFilter || subs.includes('music'));
+        const wantTheater = catsOk && (noSubFilter || subs.includes('theater'));
+
+        const eventPromise = (async () => {
+            try {
+                const catKeys = cats.length > 0 ? cats : [''];
+                const subKeys = subs.length > 0 ? subs : [''];
+                const pairs = catKeys.flatMap((cat) => subKeys.map((sub) => ({ cat, sub })));
+                const results = await Promise.all(
+                    pairs.map(({ cat, sub }) => {
+                        const params = {};
+                        if (cat) params.category = cat;
+                        if (sub) params.subCategory = sub;
+                        if (c) params.city = c;
+                        if (dist) params.district = dist;
+                        if (df) params.dateFrom = df;
+                        if (dt) params.dateTo = dt;
+                        if (tf) params.timeFrom = tf;
+                        if (tt) params.timeTo = tt;
+                        return api.get('/rivals', { params }).then((r) => r.data).catch(() => []);
+                    })
+                );
+                const seen = new Set();
+                return results.flat().filter((item) => {
+                    if (!item?.id || seen.has(item.id)) return false;
+                    seen.add(item.id);
+                    return true;
+                });
+            } catch { return []; }
+        })();
+
+        const geoParams = {
+            city: c || undefined,
+            dateFrom: df || undefined,
+            dateTo: dt || undefined,
+            ...(me ? { lat: me.latitude, lng: me.longitude, radius: MAP_NEAR_KM } : {}),
+        };
+
+        const concertPromise = wantConcert
+            ? api.get('/concerts/search', { params: geoParams }).then((r) => r.data?.concerts || []).catch(() => [])
+            : Promise.resolve([]);
+        const theaterPromise = wantTheater
+            ? api.get('/theater/search', { params: geoParams }).then((r) => r.data?.plays || []).catch(() => [])
+            : Promise.resolve([]);
+
         try {
             const [rivalsRes, concertsRes, playsRes] = await Promise.all([
-                api.get('/rivals', { params: { date: dStr } }).then(r => r.data).catch(() => []),
-                api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.concerts || []).catch(() => []),
-                api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.plays || []).catch(() => []),
+                eventPromise, concertPromise, theaterPromise,
             ]);
             setMapDataItems(Array.isArray(rivalsRes) ? rivalsRes : []);
             setMapDataConcerts(Array.isArray(concertsRes) ? concertsRes : []);
@@ -656,12 +713,6 @@ export default function ActivityFeedScreen({ navigation }) {
         } finally {
             setMapDataLoading(false);
         }
-    };
-
-    const changeMapDate = (date) => {
-        setMapDate(date);
-        setShowMapDateModal(false);
-        fetchMapData(date);
     };
 
 
@@ -1012,12 +1063,19 @@ export default function ActivityFeedScreen({ navigation }) {
                             <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
                         </ScreenBackButton>
                         <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>{t.nearbyTitle}</Text>
-                        <TouchableOpacity onPress={() => setShowMapDateModal(true)}
-                            style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 9, borderWidth: 1, borderColor: colors.border }}>
-                            <Text style={{ color: colors.purple, fontSize: 12, fontWeight: '700' }}>
-                                📅 {toDateStr(mapDate) === toDateStr(new Date()) ? t.todayLabel : `${mapDate.getDate()} ${(t.calMonths || MONTHS_TR)[mapDate.getMonth()]}`}
-                            </Text>
-                        </TouchableOpacity>
+                        {(dateFrom || dateTo || timeFrom || timeTo || city || selCats.length > 0 || selSubs.length > 0) ? (
+                            <View style={{ maxWidth: '42%', backgroundColor: colors.surface2, borderRadius: 8, paddingVertical: 5, paddingHorizontal: 8, borderWidth: 1, borderColor: colors.border }}>
+                                <Text style={{ color: colors.purple, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                    {[
+                                        dateLabel,
+                                        timeLabel,
+                                        city,
+                                        selCats.length ? selCats.map((k) => { const c = categories.find((x) => x.key === k); return c ? catName(c, t) : k; }).join(',') : null,
+                                        selSubs.length ? selSubs.map((k) => getSubCategoryLabel(k, lang) || k).join(',') : null,
+                                    ].filter(Boolean).join(' · ')}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
                     {mapDataLoading && (
                         <View style={{ paddingVertical: 6, alignItems: 'center', backgroundColor: colors.purple + '15' }}>
@@ -1044,33 +1102,27 @@ export default function ActivityFeedScreen({ navigation }) {
                             if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
                             return { latitude, longitude };
                         };
+                        const nearOf = (coord) => approxKm(coord, mapMyLocation) <= MAP_NEAR_KM;
+                        // Sadece kullanıcının yakını (~80 km) — uzak pinler Atlas zoom'una çekmesin.
                         const mapItems = mapDataItems
                             .map((it) => ({ it, coord: toCoord(it.courtLat, it.courtLng) }))
-                            .filter((x) => x.coord);
+                            .filter((x) => x.coord && nearOf(x.coord));
                         const mapConcerts = mapDataConcerts
                             .map((c) => ({ c, coord: toCoord(c.venueLat, c.venueLng) }))
-                            .filter((x) => x.coord);
+                            .filter((x) => x.coord && nearOf(x.coord));
                         const mapPlays = mapDataPlays
                             .map((p) => ({ p, coord: toCoord(p.venueLat, p.venueLng) }))
-                            .filter((x) => x.coord);
+                            .filter((x) => x.coord && nearOf(x.coord));
                         const totalCount = mapItems.length + mapConcerts.length + mapPlays.length;
-                        const allMarkerCoords = [
+                        const nearCoords = [
                             ...mapItems.map((x) => x.coord),
                             ...mapConcerts.map((x) => x.coord),
                             ...mapPlays.map((x) => x.coord),
                         ];
-                        // İlk bakışta yakın pinler (~110 km); yoksa tümü — dünya zoom'una düşmesin.
-                        const nearCoords = allMarkerCoords.filter((c) =>
-                            Math.abs(c.latitude - mapMyLocation.latitude) <= 1
-                            && Math.abs(c.longitude - mapMyLocation.longitude) <= 1
-                        );
-                        const fitCoords = nearCoords.length > 0
-                            ? [mapMyLocation, ...nearCoords]
-                            : (allMarkerCoords.length > 0 ? [mapMyLocation, ...allMarkerCoords] : [mapMyLocation]);
-                        const fitMarkers = () => {
-                            if (!activityMapRef.current || fitCoords.length < 2) return;
+                        const fitNearby = () => {
+                            if (!activityMapRef.current || nearCoords.length === 0) return;
                             try {
-                                activityMapRef.current.fitToCoordinates(fitCoords, {
+                                activityMapRef.current.fitToCoordinates([mapMyLocation, ...nearCoords], {
                                     edgePadding: { top: 72, right: 40, bottom: 100, left: 40 },
                                     animated: false,
                                 });
@@ -1086,11 +1138,10 @@ export default function ActivityFeedScreen({ navigation }) {
                                     initialRegion={{
                                         latitude: mapMyLocation.latitude,
                                         longitude: mapMyLocation.longitude,
-                                        latitudeDelta: 0.08,
-                                        longitudeDelta: 0.08,
+                                        latitudeDelta: 0.18,
+                                        longitudeDelta: 0.18,
                                     }}
-                                    onMapReady={fitMarkers}
-                                    onLayout={fitMarkers}
+                                    onMapReady={fitNearby}
                                     showsUserLocation
                                     showsMyLocationButton
                                 >
@@ -1155,12 +1206,6 @@ export default function ActivityFeedScreen({ navigation }) {
                 </View>
             </Modal>
 
-            <CalendarPickerModal
-                visible={showMapDateModal}
-                value={mapDate}
-                onSelect={changeMapDate}
-                onClose={() => setShowMapDateModal(false)}
-            />
         </View>
     );
 }
