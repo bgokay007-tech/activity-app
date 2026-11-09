@@ -111,82 +111,78 @@ function cardHtml(p, bgDataUrl) {
 
       var brand=${JSON.stringify(brand)};
       var cols=${JSON.stringify(colorsArr)};
-      ctx.font='900 52px sans-serif'; ctx.textAlign='left';
+      // Uygulama adı — hikâyede ilk okunan marka
+      ctx.font='900 68px sans-serif'; ctx.textAlign='left';
       var totalW=0;
-      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+2;
+      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+3;
       var bx=(W-totalW)/2;
       for(var i=0;i<brand.length;i++){
         ctx.fillStyle=cols[i%cols.length];
         ctx.fillText(brand[i], bx, TOP);
-        bx+=ctx.measureText(brand[i]).width+2;
+        bx+=ctx.measureText(brand[i]).width+3;
       }
 
       var badge=${JSON.stringify(p.resultBadge||'MATCH RESULT')};
-      ctx.font='900 20px sans-serif';
-      var bw=Math.max(240, ctx.measureText(badge).width+44);
-      roundRect((W-bw)/2, TOP+18, bw, 42, 21);
+      ctx.font='900 22px sans-serif';
+      var bw=Math.max(260, ctx.measureText(badge).width+48);
+      roundRect((W-bw)/2, TOP+22, bw, 46, 23);
       ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(badge, W/2, TOP+46, 20, '#0B0C10', 'center', '900');
+      text(badge, W/2, TOP+52, 22, '#0B0C10', 'center', '900');
 
-      text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, TOP+100, 28, '#C8F54A', 'center', '800');
-      var formatLine=${JSON.stringify(p.formatLine||'')};
-      if(formatLine) text(formatLine, 540, TOP+138, 24, '#A8A29A', 'center', '700');
+      // Spor satırı yeterli — Tekler/Toprak kazananın üstünde tekrarlanmaz (altta zemin + oyuncu listesi var)
+      text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, TOP+110, 32, '#C8F54A', 'center', '800');
 
       var name=${JSON.stringify(p.resultLabel||'')};
       var won=${JSON.stringify(p.wonWord||'WON')};
-      var nLines=nameLines(name, 900, 40);
-      var ny=TOP+(formatLine?170:150);
-      nLines.forEach(function(ln){ text(ln, 540, ny, 40, '#F4F1EA', 'center', '900'); ny+=46; });
-      text(won, 540, ny+4, 36, '#C8F54A', 'center', '900');
-      ny+=54;
+      var nLines=nameLines(name, 940, 52);
+      var ny=TOP+168;
+      nLines.forEach(function(ln){ text(ln, 540, ny, 52, '#F4F1EA', 'center', '900'); ny+=58; });
+      text(won, 540, ny+6, 44, '#C8F54A', 'center', '900');
+      ny+=62;
 
-      // Skor tablosu
+      // Skor tablosu — OYUN sütunu yok (set skorları + SET toplamı yeterli)
       var pairs=${JSON.stringify(setPairs)};
       var leftLabel=${JSON.stringify(p.leftLabel||'')};
       var rightLabel=${JSON.stringify(p.rightLabel||'')};
       var leftElo=${JSON.stringify(p.leftElo||'')};
       var rightElo=${JSON.stringify(p.rightElo||'')};
-      var leftWrap=nameLines(leftLabel, 380, 28);
-      var rightWrap=nameLines(rightLabel, 380, 28);
-      var rowH=Math.max(88, 28+leftWrap.length*32+(leftElo?28:0));
-      var rowH2=Math.max(88, 28+rightWrap.length*32+(rightElo?28:0));
-      var panelH=64+rowH+rowH2+70;
+      var leftWrap=nameLines(leftLabel, 420, 32);
+      var rightWrap=nameLines(rightLabel, 420, 32);
+      var rowH=Math.max(96, 32+leftWrap.length*36+(leftElo?30:0));
+      var rowH2=Math.max(96, 32+rightWrap.length*36+(rightElo?30:0));
+      var panelH=68+rowH+rowH2+70;
       panel(56, ny, W-112, panelH);
 
-      text(${JSON.stringify(p.colPlayer||'PLAYER')}, 180, ny+36, 18, '#78716C', 'left', '800');
+      text(${JSON.stringify(p.colPlayer||'PLAYER')}, 180, ny+38, 20, '#78716C', 'left', '800');
       var setXs=[];
       for(var s=0;s<Math.max(pairs.length,1);s++){
-        var sx=560+s*110;
+        var sx=580+s*120;
         setXs.push(sx);
-        text('S'+(s+1), sx, ny+36, 18, '#78716C', 'center', '800');
+        text('S'+(s+1), sx, ny+38, 20, '#78716C', 'center', '800');
       }
-      text(${JSON.stringify(p.colSets||'SETS')}, 920, ny+36, 18, '#78716C', 'center', '800');
-      if(${JSON.stringify(p.leftGames != null)}) {
-        text(${JSON.stringify(p.colGames||'GAMES')}, 1010, ny+36, 16, '#78716C', 'center', '800');
-      }
+      text(${JSON.stringify(p.colSets||'SETS')}, 960, ny+38, 20, '#78716C', 'center', '800');
 
-      function drawPlayerRow(y, lines, elo, scores, setsWon, gamesWon, highlight, h){
+      function drawPlayerRow(y, lines, elo, scores, setsWon, highlight, h){
         if(highlight){
-          roundRect(72, y-32, W-144, h, 16);
+          roundRect(72, y-34, W-144, h, 16);
           ctx.fillStyle='rgba(200,245,74,0.12)'; ctx.fill();
         }
         var ty=y;
-        lines.forEach(function(ln){ text(ln, 180, ty, 28, '#F4F1EA', 'left', '900'); ty+=32; });
-        if(elo) text(elo, 180, ty+2, 22, '#C8F54A', 'left', '800');
-        var midY=y+Math.min(16, (h/2)-8);
+        lines.forEach(function(ln){ text(ln, 180, ty, 32, '#F4F1EA', 'left', '900'); ty+=36; });
+        if(elo) text(elo, 180, ty+2, 24, '#C8F54A', 'left', '800');
+        var midY=y+Math.min(18, (h/2)-8);
         for(var i=0;i<scores.length;i++){
-          text(String(scores[i]), setXs[i]||(560+i*110), midY, 34, '#F4F1EA', 'center', '900');
+          text(String(scores[i]), setXs[i]||(580+i*120), midY, 38, '#F4F1EA', 'center', '900');
         }
-        text(String(setsWon), 920, midY, 34, '#C8F54A', 'center', '900');
-        if(gamesWon!=null) text(String(gamesWon), 1010, midY, 26, '#A8A29A', 'center', '800');
+        text(String(setsWon), 960, midY, 38, '#C8F54A', 'center', '900');
       }
 
       var L=pairs.map(function(p){return p[0];});
       var R=pairs.map(function(p){return p[1];});
-      var y1=ny+78;
-      drawPlayerRow(y1, leftWrap, leftElo, L, ${JSON.stringify(p.leftSets)}, ${JSON.stringify(p.leftGames)}, ${p.winnerSide==='left'}, rowH);
+      var y1=ny+82;
+      drawPlayerRow(y1, leftWrap, leftElo, L, ${JSON.stringify(p.leftSets)}, ${p.winnerSide==='left'}, rowH);
       var y2=y1+rowH+10;
-      drawPlayerRow(y2, rightWrap, rightElo, R, ${JSON.stringify(p.rightSets)}, ${JSON.stringify(p.rightGames)}, ${p.winnerSide==='right'}, rowH2);
+      drawPlayerRow(y2, rightWrap, rightElo, R, ${JSON.stringify(p.rightSets)}, ${p.winnerSide==='right'}, rowH2);
 
       ny = ny + panelH + 28;
 
@@ -197,13 +193,13 @@ function cardHtml(p, bgDataUrl) {
       if(${JSON.stringify(!!p.surface)}) metaBits.push(${JSON.stringify('🏟 '+(p.surface||''))});
       if(${JSON.stringify(!!p.place)}) metaBits.push(${JSON.stringify('📍 '+(p.place||''))});
       if(metaBits.length){
-        panel(56, ny, W-112, 56 + Math.ceil(metaBits.length/2)*40);
-        var mx=80, my=ny+40;
+        panel(56, ny, W-112, 60 + Math.ceil(metaBits.length/2)*44);
+        var mx=80, my=ny+44;
         metaBits.forEach(function(m,idx){
-          text(m, mx, my, 24, '#E7E5E4', 'left', '700');
-          if(idx%2===1){ mx=80; my+=40; } else { mx=560; }
+          text(m, mx, my, 28, '#E7E5E4', 'left', '700');
+          if(idx%2===1){ mx=80; my+=44; } else { mx=560; }
         });
-        ny += 56 + Math.ceil(metaBits.length/2)*40 + 20;
+        ny += 60 + Math.ceil(metaBits.length/2)*44 + 20;
       }
 
       // İstatistik panelleri (2 sütun)
@@ -219,12 +215,12 @@ function cardHtml(p, bgDataUrl) {
         if(pi%2===0){ px=56; if(pi>0) py += rowMaxH + 16; rowMaxH=0; }
         else { px=56+colW+20; }
         panel(px, py, colW, th);
-        text(pn.title||'', px+20, py+34, 22, pn.accent||'#C8F54A', 'left', '900');
-        var ty2=py+70;
+        text(pn.title||'', px+20, py+36, 24, pn.accent||'#C8F54A', 'left', '900');
+        var ty2=py+74;
         tiles.forEach(function(tile){
-          text(tile.label||'', px+20, ty2, 18, '#A8A29A', 'left', '700');
-          text(tile.value||'', px+colW-20, ty2, 24, '#F4F1EA', 'right', '900');
-          ty2+=46;
+          text(tile.label||'', px+20, ty2, 20, '#A8A29A', 'left', '700');
+          text(tile.value||'', px+colW-20, ty2, 28, '#F4F1EA', 'right', '900');
+          ty2+=48;
         });
         rowMaxH=Math.max(rowMaxH, th);
       }
@@ -247,11 +243,11 @@ function cardHtml(p, bgDataUrl) {
       }
 
       var src=${JSON.stringify((stats && stats.workoutSource) || '')};
-      if(src) text(src, 540, 1688, 20, '#A8A29A', 'center', '700');
+      if(src) text(src, 540, 1688, 22, '#A8A29A', 'center', '700');
 
-      roundRect(200, 1720, 680, 88, 44);
+      roundRect(180, 1715, 720, 92, 46);
       ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(${JSON.stringify(p.ctaLabel||'AcTiViTy · Download')}, 540, 1778, 28, '#0B0C10', 'center', '900');
+      text(${JSON.stringify(p.ctaLabel||'AcTiViTy · Download')}, 540, 1776, 30, '#0B0C10', 'center', '900');
 
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(canvas.toDataURL('image/png'));
     }catch(e){
@@ -287,7 +283,6 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             resultBadge: t.shareMatchResultBadge || (lang === 'tr' ? 'MAÇ SONUCU' : lang === 'ru' ? 'РЕЗУЛЬТАТ' : lang === 'de' ? 'ERGEBNIS' : 'MATCH RESULT'),
             colPlayer: t.shareMatchColPlayer || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             colSets: t.shareMatchColSets || 'SETS',
-            colGames: t.shareMatchColGames || 'GAMES',
         };
     }, [visible, match, t, lang]);
     const [busy, setBusy] = useState(false);
