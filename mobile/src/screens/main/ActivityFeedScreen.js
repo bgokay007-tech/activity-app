@@ -605,6 +605,12 @@ export default function ActivityFeedScreen({ navigation }) {
     const [mapDataItems, setMapDataItems] = useState([]);
     const [mapDataConcerts, setMapDataConcerts] = useState([]);
     const [mapDataPlays, setMapDataPlays] = useState([]);
+    // Android (react-native-maps): Marker'lar MapView mount olduktan sonra state ile
+    // eklenince native tarafta görünmüyor. Veri geldikten sonra MapView'i yeniden
+    // mount etmek için key; ilk fetch bitmeden haritayı açma.
+    const [mapMountKey, setMapMountKey] = useState(0);
+    const [mapHasFetched, setMapHasFetched] = useState(false);
+    const activityMapRef = useRef(null);
 
     const openActivityMap = async () => {
         setShowActivityMap(true);
@@ -642,9 +648,11 @@ export default function ActivityFeedScreen({ navigation }) {
                 api.get('/concerts/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.concerts || []).catch(() => []),
                 api.get('/theater/search', { params: { dateFrom: dStr, dateTo: dStr } }).then(r => r.data?.plays || []).catch(() => []),
             ]);
-            setMapDataItems(rivalsRes);
-            setMapDataConcerts(concertsRes);
-            setMapDataPlays(playsRes);
+            setMapDataItems(Array.isArray(rivalsRes) ? rivalsRes : []);
+            setMapDataConcerts(Array.isArray(concertsRes) ? concertsRes : []);
+            setMapDataPlays(Array.isArray(playsRes) ? playsRes : []);
+            setMapHasFetched(true);
+            setMapMountKey((k) => k + 1);
         } finally {
             setMapDataLoading(false);
         }
@@ -1028,14 +1036,51 @@ export default function ActivityFeedScreen({ navigation }) {
                                 <Text style={{ color: '#fff', fontWeight: '700' }}>{t.retryBtn}</Text>
                             </TouchableOpacity>
                         </View>
-                    ) : mapMyLocation ? (() => {
-                        const mapItems = mapDataItems.filter(it => it.courtLat != null && it.courtLng != null);
-                        const mapConcerts = mapDataConcerts.filter(c => c.venueLat != null && c.venueLng != null);
-                        const mapPlays = mapDataPlays.filter(p => p.venueLat != null && p.venueLng != null);
+                    ) : mapMyLocation && mapHasFetched ? (() => {
+                        const toCoord = (lat, lng) => {
+                            const latitude = Number(lat);
+                            const longitude = Number(lng);
+                            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+                            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+                            return { latitude, longitude };
+                        };
+                        const mapItems = mapDataItems
+                            .map((it) => ({ it, coord: toCoord(it.courtLat, it.courtLng) }))
+                            .filter((x) => x.coord);
+                        const mapConcerts = mapDataConcerts
+                            .map((c) => ({ c, coord: toCoord(c.venueLat, c.venueLng) }))
+                            .filter((x) => x.coord);
+                        const mapPlays = mapDataPlays
+                            .map((p) => ({ p, coord: toCoord(p.venueLat, p.venueLng) }))
+                            .filter((x) => x.coord);
                         const totalCount = mapItems.length + mapConcerts.length + mapPlays.length;
+                        const allMarkerCoords = [
+                            ...mapItems.map((x) => x.coord),
+                            ...mapConcerts.map((x) => x.coord),
+                            ...mapPlays.map((x) => x.coord),
+                        ];
+                        // İlk bakışta yakın pinler (~110 km); yoksa tümü — dünya zoom'una düşmesin.
+                        const nearCoords = allMarkerCoords.filter((c) =>
+                            Math.abs(c.latitude - mapMyLocation.latitude) <= 1
+                            && Math.abs(c.longitude - mapMyLocation.longitude) <= 1
+                        );
+                        const fitCoords = nearCoords.length > 0
+                            ? [mapMyLocation, ...nearCoords]
+                            : (allMarkerCoords.length > 0 ? [mapMyLocation, ...allMarkerCoords] : [mapMyLocation]);
+                        const fitMarkers = () => {
+                            if (!activityMapRef.current || fitCoords.length < 2) return;
+                            try {
+                                activityMapRef.current.fitToCoordinates(fitCoords, {
+                                    edgePadding: { top: 72, right: 40, bottom: 100, left: 40 },
+                                    animated: false,
+                                });
+                            } catch { /* native map henüz hazır değilse yoksay */ }
+                        };
                         return (
                             <>
                                 <MapView
+                                    key={`activity-map-${mapMountKey}`}
+                                    ref={activityMapRef}
                                     provider={PROVIDER_DEFAULT}
                                     style={{ flex: 1 }}
                                     initialRegion={{
@@ -1044,18 +1089,21 @@ export default function ActivityFeedScreen({ navigation }) {
                                         latitudeDelta: 0.08,
                                         longitudeDelta: 0.08,
                                     }}
+                                    onMapReady={fitMarkers}
+                                    onLayout={fitMarkers}
                                     showsUserLocation
                                     showsMyLocationButton
                                 >
-                                    {mapItems.map(it => {
+                                    {mapItems.map(({ it, coord }) => {
                                         const catMeta = CAT_MAP[it.category] || { color: colors.purple };
                                         return (
                                             <Marker
                                                 key={`rival-${it.id}`}
-                                                coordinate={{ latitude: it.courtLat, longitude: it.courtLng }}
+                                                coordinate={coord}
                                                 pinColor={catMeta.color}
                                                 title={`${getSubCategoryLabel(it.subCategory, lang)} · ${it.sender?.fullName || it.sender?.username || ''}`}
                                                 description={it.courtName || it.location || ''}
+                                                tracksViewChanges={false}
                                                 onCalloutPress={() => {
                                                     setShowActivityMap(false);
                                                     navigation.navigate('HomeTab', {
@@ -1066,23 +1114,25 @@ export default function ActivityFeedScreen({ navigation }) {
                                             />
                                         );
                                     })}
-                                    {mapConcerts.map(c => (
+                                    {mapConcerts.map(({ c, coord }) => (
                                         <Marker
                                             key={`concert-${c.id}`}
-                                            coordinate={{ latitude: c.venueLat, longitude: c.venueLng }}
+                                            coordinate={coord}
                                             pinColor="#ec4899"
                                             title={`🎵 ${c.name}`}
                                             description={c.venueName || c.city || ''}
+                                            tracksViewChanges={false}
                                             onCalloutPress={() => c.ticketUrl && Linking.openURL(c.ticketUrl)}
                                         />
                                     ))}
-                                    {mapPlays.map(p => (
+                                    {mapPlays.map(({ p, coord }) => (
                                         <Marker
                                             key={`play-${p.id}`}
-                                            coordinate={{ latitude: p.venueLat, longitude: p.venueLng }}
+                                            coordinate={coord}
                                             pinColor="#f59e0b"
                                             title={`🎭 ${p.name}`}
                                             description={p.venueName || p.city || ''}
+                                            tracksViewChanges={false}
                                             onCalloutPress={() => p.ticketUrl && Linking.openURL(p.ticketUrl)}
                                         />
                                     ))}
@@ -1096,7 +1146,12 @@ export default function ActivityFeedScreen({ navigation }) {
                                 </View>
                             </>
                         );
-                    })() : null}
+                    })() : (
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                            <ActivityIndicator color={colors.purple} />
+                            <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: 8 }}>{t.mapLoadingEvents}</Text>
+                        </View>
+                    )}
                 </View>
             </Modal>
 
