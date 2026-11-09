@@ -12626,40 +12626,38 @@ class ArchiveDetailErrorBoundary extends Component {
 }
 
 function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview }) {
-    // Kullanıcı raporu: sheet "maxHeight:'88%'" (içeriğe göre boyutlanan, KESİN olmayan bir
-    // üst sınır) kullanıyordu — içindeki tek çocuk ScrollView'ın flex:1'i bu yüzden belirsiz
-    // bir referans yüksekliğe göre çözümleniyordu (Yoga/Android'de flex:1, KESİN yükseklikli
-    // bir ata gerektirir). Az içerikte (tenis, 2 oyuncu) bu belirsizlik "küçük ama kaydırılabilir"
-    // bir sheet'e, çok içerikte (voleybol, 12'ye kadar oyuncu) ise dejenere/sıfıra yakın bir
-    // yüksekliğe ve TAMAMEN boş görünüme yol açabiliyordu. Artık ekran yüksekliğinin %88'i
-    // KESİN bir sayı olarak veriliyor — flex:1 artık belirsizlik olmadan doğru çözümleniyor.
-        const t = useT();
-const { height: screenHeight } = useWindowDimensions();
-    // Kullanıcı raporu: en altta duran İtiraz Et/Oyuncuları Değerlendir butonları telefonun
-    // alt dokunmatik gezinme çubuğuyla (Android gesture/nav bar) çakışıp tıklanamıyordu — bkz.
-    // ekran-güvenli-alan kuralı, her yeni bottom-sheet insets.bottom kullanmalı.
+    // Kullanıcı isteği: arşiv maç detayı bottom-sheet (%88) değil, tam ekran kullansın —
+    // skor/istatistik/oyuncu listesi için alan yetmiyordu. Üst/alt insets ile notch ve
+    // Android nav bar çakışmasın (ekran-güvenli-alan).
+    const t = useT();
     const insets = useSafeAreaInsets();
     return (
-        <Modal visible={!!match} animationType="slide" transparent onRequestClose={onClose}>
-            {/* Kullanıcı raporu: bu belirli maçta içerik hiç görünmeyip sadece saydam siyah
-                arka plan kalıyordu — nedeni kesin doğrulanamadı (cihazda tekrar üretilemedi)
-                ama arka plana dokununca kapatılabilsin diye (önceden sadece ✕ ile kapanıyordu,
-                içerik hiç render olmazsa ✕'e de erişilemiyordu) TouchableOpacity'e çevrildi. */}
-            <TouchableOpacity activeOpacity={1} onPress={onClose} style={{ flex:1, backgroundColor:'#000000cc', justifyContent:'flex-end' }}>
-                <View onStartShouldSetResponder={() => true} style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:18, height: Math.round(screenHeight * 0.88), maxHeight: Math.round(screenHeight * 0.88) }}>
-                    <ScrollView style={{ flex:1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }}>
-                        <View style={{ flexDirection:'row', alignItems:'center', marginBottom:14 }}>
-                            <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>{t.sc_0306}</Text>
-                            <TouchableOpacity onPress={onClose}><Text style={{ color: colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
-                        </View>
-                        {match && (
-                            <ArchiveDetailErrorBoundary matchId={match.id} t={t}>
-                                <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onRatePlayer={onRatePlayer} onRefereeReview={onRefereeReview} />
-                            </ArchiveDetailErrorBoundary>
-                        )}
-                    </ScrollView>
+        <Modal visible={!!match} animationType="slide" presentationStyle="fullScreen" onRequestClose={onClose}>
+            <View style={{
+                flex: 1,
+                backgroundColor: colors.surface,
+                paddingTop: insets.top + 8,
+                paddingHorizontal: 18,
+            }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }}>{t.sc_0306}</Text>
+                    <TouchableOpacity onPress={onClose} hitSlop={12}>
+                        <Text style={{ color: colors.textMuted, fontSize: 22 }}>✕</Text>
+                    </TouchableOpacity>
                 </View>
-            </TouchableOpacity>
+                <ScrollView
+                    style={{ flex: 1 }}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 24 }}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {match && (
+                        <ArchiveDetailErrorBoundary matchId={match.id} t={t}>
+                            <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onRatePlayer={onRatePlayer} onRefereeReview={onRefereeReview} />
+                        </ArchiveDetailErrorBoundary>
+                    )}
+                </ScrollView>
+            </View>
         </Modal>
     );
 }
