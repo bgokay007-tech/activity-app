@@ -71,7 +71,7 @@ export async function backfillTravelRouteProvinces({ take = 300 } = {}) {
     return { checked: rows.length, updated };
 }
 
-function buildRouteTextOr(term, provinceNames) {
+function buildRouteTextOr(term, provinceNames = []) {
     const or = [
         { title: { contains: term, mode: 'insensitive' } },
         { startPlace: { contains: term, mode: 'insensitive' } },
@@ -80,7 +80,6 @@ function buildRouteTextOr(term, provinceNames) {
     ];
     for (const name of provinceNames) {
         or.push({ provinces: { has: name } });
-        // Metin eşleşmesi kaçırılan yaygın yazımlar
         if (name !== term) {
             or.push({ title: { contains: name, mode: 'insensitive' } });
             or.push({ startPlace: { contains: name, mode: 'insensitive' } });
@@ -88,6 +87,50 @@ function buildRouteTextOr(term, provinceNames) {
         }
     }
     return or;
+}
+
+/** Konum filtresi: il GPS (provinces) + metin (başlangıç/bitiş/başlık). */
+function buildPlaceOr(place, provinceHint) {
+    const term = String(place || '').trim();
+    const hint = String(provinceHint || '').trim();
+    const provinceNames = [
+        ...findProvincesForQuery(hint || term),
+        ...(hint ? findProvincesForQuery(hint) : []),
+    ].filter((v, i, a) => a.indexOf(v) === i);
+    const or = [];
+    for (const name of provinceNames) {
+        or.push({ provinces: { has: name } });
+        or.push({ startPlace: { contains: name, mode: 'insensitive' } });
+        or.push({ endPlace: { contains: name, mode: 'insensitive' } });
+        or.push({ title: { contains: name, mode: 'insensitive' } });
+    }
+    if (term.length >= 2) {
+        // "Kaş, Antalya" → hem tam metin hem virgülden önceki ilçe
+        const district = term.includes(',') ? term.split(',')[0].trim() : term;
+        or.push({ startPlace: { contains: term, mode: 'insensitive' } });
+        or.push({ endPlace: { contains: term, mode: 'insensitive' } });
+        or.push({ title: { contains: term, mode: 'insensitive' } });
+        if (district !== term && district.length >= 2) {
+            or.push({ startPlace: { contains: district, mode: 'insensitive' } });
+            or.push({ endPlace: { contains: district, mode: 'insensitive' } });
+            or.push({ title: { contains: district, mode: 'insensitive' } });
+        }
+    }
+    return { or, provinceNames };
+}
+
+async function applyRouteSearchFilters(where, { q, place, province }) {
+    const and = [];
+    if (q && String(q).trim().length >= 2) {
+        and.push({ OR: buildRouteTextOr(String(q).trim(), []) });
+    }
+    if ((place && String(place).trim().length >= 2) || (province && String(province).trim().length >= 2)) {
+        const { or, provinceNames } = buildPlaceOr(place, province);
+        if (provinceNames.length) await backfillTravelRouteProvinces();
+        if (or.length) and.push({ OR: or });
+    }
+    if (and.length === 1) Object.assign(where, and[0]);
+    else if (and.length > 1) where.AND = and;
 }
 
 const shapeListRoute = (r, from) => {
@@ -99,7 +142,7 @@ const shapeListRoute = (r, from) => {
 
 export const getRoutes = async (req, res, next) => {
     try {
-        const { q, sort, mine, source, difficulty } = req.query;
+        const { q, place, province, sort, mine, source, difficulty } = req.query;
         const minRating = parseFloat(req.query.minRating);
         const lat = parseFloat(req.query.lat), lng = parseFloat(req.query.lng);
         const from = Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
@@ -108,13 +151,7 @@ export const getRoutes = async (req, res, next) => {
         if (source === 'OSM' || source === 'USER') where.source = source;
         if (['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) where.difficulty = difficulty;
         if (Number.isFinite(minRating) && minRating > 0) where.ratingAvg = { gte: minRating };
-        if (q && String(q).trim().length >= 2) {
-            const term = String(q).trim();
-            const provinceNames = findProvincesForQuery(term);
-            // İl aramasında GPS illeri dolu olsun (Likya → Antalya vb.)
-            if (provinceNames.length) await backfillTravelRouteProvinces();
-            where.OR = buildRouteTextOr(term, provinceNames);
-        }
+        await applyRouteSearchFilters(where, { q, place, province });
 
         // Yakınlık DB'de hesaplanmıyor — rota sayısı az, başlangıç noktası olanlar JS'te sıralanır.
         if (sort === 'near') {
@@ -143,19 +180,15 @@ const MAP_COLORS = [
 /** Liste filtreleriyle aynı; harita için sadeleştirilmiş path + renk. */
 export const getRoutesMap = async (req, res, next) => {
     try {
-        const { q, mine, source, difficulty } = req.query;
+        const { q, place, province, mine, source, difficulty } = req.query;
         const minRating = parseFloat(req.query.minRating);
         const where = {};
         if (mine === 'true') where.userId = req.userId;
         if (source === 'OSM' || source === 'USER') where.source = source;
         if (['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) where.difficulty = difficulty;
         if (Number.isFinite(minRating) && minRating > 0) where.ratingAvg = { gte: minRating };
-        if (q && String(q).trim().length >= 2) {
-            const term = String(q).trim();
-            const provinceNames = findProvincesForQuery(term);
-            if (provinceNames.length) await backfillTravelRouteProvinces();
-            where.OR = buildRouteTextOr(term, provinceNames);
-        } else {
+        await applyRouteSearchFilters(where, { q, place, province });
+        if (!q && !place && !province) {
             await backfillTravelRouteProvinces({ take: 80 }).catch(() => {});
         }
         const rows = await prisma.travelRoute.findMany({

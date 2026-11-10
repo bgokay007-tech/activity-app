@@ -14,11 +14,12 @@ import * as Location from 'expo-location';
 import { formatTripDate } from '../../utils/travelMedia';
 import { listOfflineRoutes } from '../../utils/travelOffline';
 import KeyboardSafeModal from '../../components/KeyboardSafeModal';
+import CityAutocomplete from '../../components/CityAutocomplete';
 import TravelRouteCard from '../../components/TravelRouteCard';
 import { travelListName, travelListIcon } from '../../components/TravelSaveToListModal';
 
 const ACCENT = '#0ea5e9';
-const DEFAULT_FILTERS = { q: '', sort: 'new', difficulty: null, minRating: 0 };
+const DEFAULT_FILTERS = { q: '', place: '', placeProvince: '', sort: 'new', difficulty: null, minRating: 0 };
 
 /** Üst üste binen rotaları ayırmak için hafif yan kaydırma (~12–40 m). */
 function offsetCoords(pts, index) {
@@ -51,6 +52,8 @@ function RoutesMapModal({ visible, filters, scope, onClose, onOpenRoute }) {
             try {
                 const params = {
                     q: filters.q.trim() || undefined,
+                    place: filters.place.trim() || undefined,
+                    province: filters.placeProvince.trim() || undefined,
                     difficulty: filters.difficulty || undefined,
                     minRating: filters.minRating || undefined,
                     mine: scope === 'mine' ? 'true' : undefined,
@@ -218,7 +221,7 @@ function FilterModal({ visible, value, sorts, onApply, onClose }) {
                 <Text style={s.modalTitle}>🔎 {t.tvFilterSearch}</Text>
                 <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
             </View>
-            <ScrollView style={{ maxHeight: 460 }} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ maxHeight: 460 }} keyboardShouldPersistTaps="always" nestedScrollEnabled>
                 <Text style={s.fLabel}>{t.tvSearchWord}</Text>
                 <TextInput
                     style={[s.search, { marginTop: 0 }]}
@@ -229,6 +232,31 @@ function FilterModal({ visible, value, sorts, onApply, onClose }) {
                     returnKeyType="search"
                     onSubmitEditing={() => onApply(f)}
                 />
+                <Text style={s.fLabel}>{t.tvSearchLocation}</Text>
+                <View style={{ zIndex: 20, marginBottom: f.place ? 4 : 8 }}>
+                    <CityAutocomplete
+                        value={f.place}
+                        onChangeText={(place) => set({ place, placeProvince: '' })}
+                        onSelect={(city) => set({
+                            place: city.district ? `${city.district}, ${city.province}` : city.province,
+                            placeProvince: city.province || '',
+                        })}
+                        placeholder={t.tvPlacePh}
+                        inputStyle={{
+                            backgroundColor: colors.surface,
+                            borderColor: colors.border,
+                            borderRadius: 12,
+                            paddingHorizontal: 12,
+                            paddingVertical: 10,
+                            fontSize: 14,
+                        }}
+                    />
+                </View>
+                {f.place ? (
+                    <TouchableOpacity onPress={() => set({ place: '', placeProvince: '' })} style={{ alignSelf: 'flex-start', marginBottom: 4 }}>
+                        <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{t.tvClearLocation}</Text>
+                    </TouchableOpacity>
+                ) : null}
                 <Text style={s.fLabel}>{t.tvSortBy}</Text>
                 <View style={s.chipRow}>
                     {sorts.map(([k, label]) => <Chip key={k} active={f.sort === k} label={label} onPress={() => set({ sort: k })} />)}
@@ -292,11 +320,19 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
             if (sc === 'offline') {
                 const list = await listOfflineRoutes();
                 const term = f.q.trim().toLocaleLowerCase();
-                setRoutes(term ? list.filter(r => `${r.title} ${r.startPlace}`.toLocaleLowerCase().includes(term)) : list);
+                const place = (f.placeProvince || f.place).trim().toLocaleLowerCase();
+                setRoutes(list.filter((r) => {
+                    const hay = `${r.title} ${r.startPlace} ${r.endPlace || ''}`.toLocaleLowerCase();
+                    if (term && !hay.includes(term)) return false;
+                    if (place && !hay.includes(place) && !(r.provinces || []).some((p) => String(p).toLocaleLowerCase().includes(place))) return false;
+                    return true;
+                }));
                 return;
             }
             const params = {
                 q: f.q.trim() || undefined,
+                place: f.place.trim() || undefined,
+                province: f.placeProvince.trim() || undefined,
                 sort: f.sort,
                 difficulty: f.difficulty || undefined,
                 minRating: f.minRating || undefined,
@@ -342,8 +378,8 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
         }
     };
 
-    const activeFilterCount = (filters.q.trim() ? 1 : 0) + (filters.sort !== 'new' ? 1 : 0)
-        + (filters.difficulty ? 1 : 0) + (filters.minRating ? 1 : 0);
+    const activeFilterCount = (filters.q.trim() ? 1 : 0) + (filters.place.trim() ? 1 : 0)
+        + (filters.sort !== 'new' ? 1 : 0) + (filters.difficulty ? 1 : 0) + (filters.minRating ? 1 : 0);
 
     const loadTrips = useCallback(async (scope = tripScope, from = fromQ, to = toQ) => {
         try {
@@ -464,7 +500,11 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                             <TouchableOpacity style={s.filterBtn} onPress={() => setFilterOpen(true)} activeOpacity={0.85}>
                                 <Text style={s.filterBtnText}>🔎 {t.tvFilterSearch}{activeFilterCount ? ` (${activeFilterCount})` : ''}</Text>
                                 <Text style={s.filterSummary} numberOfLines={1}>
-                                    {filters.q.trim() ? `“${filters.q.trim()}” · ` : ''}{sortLabel}
+                                    {[
+                                        filters.q.trim() ? `“${filters.q.trim()}”` : null,
+                                        filters.place.trim() ? `📍 ${filters.place.trim()}` : null,
+                                        sortLabel,
+                                    ].filter(Boolean).join(' · ')}
                                 </Text>
                             </TouchableOpacity>
                         ) : null}
