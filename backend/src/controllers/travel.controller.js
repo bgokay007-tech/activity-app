@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
 import { createNotification } from './notification.controller.js';
 import { normalizePath, simplifyPath, pathLengthKm, toGpx, haversineM } from '../utils/geoPath.js';
+import { findProvincesForQuery, provincesFromPath, provinceAt } from '../utils/trProvinces.js';
 import { runOsmImportOnce } from '../services/osmTravelImport.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
@@ -39,12 +40,55 @@ const ROUTE_LIST_SELECT = {
     id: true, userId: true, title: true, startPlace: true, endPlace: true, stops: true,
     distanceKm: true, durationText: true, difficulty: true, media: true,
     ratingAvg: true, ratingCount: true, completedCount: true, createdAt: true,
-    startLat: true, startLng: true, source: true, sourceUrl: true,
+    startLat: true, startLng: true, source: true, sourceUrl: true, provinces: true,
     user: { select: USER_SELECT },
     _count: { select: { comments: true } },
 };
 
 const hasPath = (p) => Array.isArray(p) && p.some(s => Array.isArray(s) && s.length >= 2);
+
+const provincesForRoute = (path, startLat, startLng) => {
+    const fromPath = provincesFromPath(path);
+    if (fromPath.length) return fromPath;
+    const one = provinceAt(startLat, startLng);
+    return one ? [one] : [];
+};
+
+/** Boş provinces alanlarını GPS'ten doldur (ilk aramada / haritada). */
+export async function backfillTravelRouteProvinces({ take = 300 } = {}) {
+    const rows = await prisma.travelRoute.findMany({
+        where: { provinces: { isEmpty: true } },
+        select: { id: true, path: true, startLat: true, startLng: true },
+        take,
+    });
+    let updated = 0;
+    for (const r of rows) {
+        const provinces = provincesForRoute(r.path, r.startLat, r.startLng);
+        if (!provinces.length) continue;
+        await prisma.travelRoute.update({ where: { id: r.id }, data: { provinces } });
+        updated++;
+    }
+    return { checked: rows.length, updated };
+}
+
+function buildRouteTextOr(term, provinceNames) {
+    const or = [
+        { title: { contains: term, mode: 'insensitive' } },
+        { startPlace: { contains: term, mode: 'insensitive' } },
+        { endPlace: { contains: term, mode: 'insensitive' } },
+        { experience: { contains: term, mode: 'insensitive' } },
+    ];
+    for (const name of provinceNames) {
+        or.push({ provinces: { has: name } });
+        // Metin eşleşmesi kaçırılan yaygın yazımlar
+        if (name !== term) {
+            or.push({ title: { contains: name, mode: 'insensitive' } });
+            or.push({ startPlace: { contains: name, mode: 'insensitive' } });
+            or.push({ endPlace: { contains: name, mode: 'insensitive' } });
+        }
+    }
+    return or;
+}
 
 const shapeListRoute = (r, from) => {
     const { _count, ...rest } = r;
@@ -66,12 +110,10 @@ export const getRoutes = async (req, res, next) => {
         if (Number.isFinite(minRating) && minRating > 0) where.ratingAvg = { gte: minRating };
         if (q && String(q).trim().length >= 2) {
             const term = String(q).trim();
-            where.OR = [
-                { title: { contains: term, mode: 'insensitive' } },
-                { startPlace: { contains: term, mode: 'insensitive' } },
-                { endPlace: { contains: term, mode: 'insensitive' } },
-                { experience: { contains: term, mode: 'insensitive' } },
-            ];
+            const provinceNames = findProvincesForQuery(term);
+            // İl aramasında GPS illeri dolu olsun (Likya → Antalya vb.)
+            if (provinceNames.length) await backfillTravelRouteProvinces();
+            where.OR = buildRouteTextOr(term, provinceNames);
         }
 
         // Yakınlık DB'de hesaplanmıyor — rota sayısı az, başlangıç noktası olanlar JS'te sıralanır.
@@ -90,6 +132,54 @@ export const getRoutes = async (req, res, next) => {
             : [{ createdAt: 'desc' }];
         const routes = await prisma.travelRoute.findMany({ where, orderBy, take: 100, select: ROUTE_LIST_SELECT });
         res.json(routes.map(r => shapeListRoute(r, from)));
+    } catch (err) { next(err); }
+};
+
+const MAP_COLORS = [
+    '#0ea5e9', '#ef4444', '#22c55e', '#f59e0b', '#a855f7', '#ec4899',
+    '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#e11d48', '#06b6d4',
+];
+
+/** Liste filtreleriyle aynı; harita için sadeleştirilmiş path + renk. */
+export const getRoutesMap = async (req, res, next) => {
+    try {
+        const { q, mine, source, difficulty } = req.query;
+        const minRating = parseFloat(req.query.minRating);
+        const where = {};
+        if (mine === 'true') where.userId = req.userId;
+        if (source === 'OSM' || source === 'USER') where.source = source;
+        if (['EASY', 'MEDIUM', 'HARD'].includes(difficulty)) where.difficulty = difficulty;
+        if (Number.isFinite(minRating) && minRating > 0) where.ratingAvg = { gte: minRating };
+        if (q && String(q).trim().length >= 2) {
+            const term = String(q).trim();
+            const provinceNames = findProvincesForQuery(term);
+            if (provinceNames.length) await backfillTravelRouteProvinces();
+            where.OR = buildRouteTextOr(term, provinceNames);
+        } else {
+            await backfillTravelRouteProvinces({ take: 80 }).catch(() => {});
+        }
+        const rows = await prisma.travelRoute.findMany({
+            where,
+            orderBy: [{ createdAt: 'desc' }],
+            take: 60,
+            select: { id: true, title: true, path: true, startLat: true, startLng: true, provinces: true },
+        });
+        const routes = rows
+            .map((r, i) => {
+                const segs = simplifyPath(normalizePath(r.path), 800);
+                if (!hasPath(segs)) return null;
+                return {
+                    id: r.id,
+                    title: r.title,
+                    color: MAP_COLORS[i % MAP_COLORS.length],
+                    provinces: r.provinces || [],
+                    path: segs,
+                    startLat: r.startLat ?? segs[0][0].lat,
+                    startLng: r.startLng ?? segs[0][0].lng,
+                };
+            })
+            .filter(Boolean);
+        res.json({ routes });
     } catch (err) { next(err); }
 };
 
@@ -126,7 +216,12 @@ export const createRoute = async (req, res, next) => {
         let dist = distanceKm != null && distanceKm !== '' ? parseFloat(distanceKm) : null;
         const segs = simplifyPath(normalizePath(req.body.path));
         const gps = hasPath(segs)
-            ? { path: segs, startLat: segs[0][0].lat, startLng: segs[0][0].lng }
+            ? {
+                path: segs,
+                startLat: segs[0][0].lat,
+                startLng: segs[0][0].lng,
+                provinces: provincesForRoute(segs, segs[0][0].lat, segs[0][0].lng),
+            }
             : {};
         if (!(Number.isFinite(dist) && dist > 0) && gps.path) dist = pathLengthKm(segs);
         const route = await prisma.travelRoute.create({

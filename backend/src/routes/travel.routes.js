@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import {
-    getRoutes, getRoute, createRoute, addRouteMedia, deleteRoute, reviewRoute, getRouteGpx,
+    getRoutes, getRoutesMap, getRoute, createRoute, addRouteMedia, deleteRoute, reviewRoute, getRouteGpx,
     addComment, deleteComment,
     getLists, createList, renameList, deleteList, getList, addListItem, removeListItem,
     getMyVerification, submitVerification,
@@ -13,6 +13,7 @@ const router = Router();
 router.get('/routes/:id/gpx',       getRouteGpx);
 router.use(authenticate);
 
+router.get('/routes/map',           getRoutesMap);
 router.get('/routes',               getRoutes);
 router.post('/routes',              createRoute);
 router.post('/routes/:id/media',    addRouteMedia);

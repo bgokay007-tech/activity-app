@@ -188,7 +188,11 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startDemoBotResponderJob();
         startCancelPenaltyWarningJob();
         startCoachApprovalExpiryJob();
-        // Açılışı bekletmesin — OSM'den hazır rotalar arka planda dolar.
-        setTimeout(() => { seedOsmTravelRoutesIfEmpty(); }, 15000);
+        // Açılışı bekletmesin — OSM'den hazır rotalar arka planda dolar; iller path'ten yazılır.
+        setTimeout(() => {
+            seedOsmTravelRoutesIfEmpty()
+                .then(() => import('./controllers/travel.controller.js').then(m => m.backfillTravelRouteProvinces()))
+                .catch((e) => console.error('[travelProvinces]', e.message));
+        }, 15000);
     });
 });

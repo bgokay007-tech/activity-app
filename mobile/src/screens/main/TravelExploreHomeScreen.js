@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView,
-    TextInput, RefreshControl, Alert,
+    TextInput, RefreshControl, Alert, Modal, Platform,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import MapView, { Polyline, Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import api from '../../services/api';
 import colors from '../../theme/colors';
 import useT from '../../hooks/useT';
@@ -18,6 +19,178 @@ import { travelListName, travelListIcon } from '../../components/TravelSaveToLis
 
 const ACCENT = '#0ea5e9';
 const DEFAULT_FILTERS = { q: '', sort: 'new', difficulty: null, minRating: 0 };
+
+/** Üst üste binen rotaları ayırmak için hafif yan kaydırma (~12–40 m). */
+function offsetCoords(pts, index) {
+    if (!pts?.length) return pts;
+    const slot = (index % 7) - 3;
+    if (slot === 0) return pts;
+    const meters = slot * 14;
+    const mid = pts[Math.floor(pts.length / 2)] || pts[0];
+    const latRad = (mid.latitude * Math.PI) / 180;
+    const dLat = meters / 111320;
+    const dLng = meters / (111320 * Math.max(0.2, Math.cos(latRad)));
+    return pts.map((p) => ({
+        latitude: p.latitude + dLat,
+        longitude: p.longitude + dLng,
+    }));
+}
+
+function RoutesMapModal({ visible, filters, scope, onClose, onOpenRoute }) {
+    const t = useT();
+    const mapRef = useRef(null);
+    const [loading, setLoading] = useState(true);
+    const [rows, setRows] = useState([]);
+    const [mountKey, setMountKey] = useState(0);
+
+    useEffect(() => {
+        if (!visible) return;
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            try {
+                const params = {
+                    q: filters.q.trim() || undefined,
+                    difficulty: filters.difficulty || undefined,
+                    minRating: filters.minRating || undefined,
+                    mine: scope === 'mine' ? 'true' : undefined,
+                    source: scope === 'osm' ? 'OSM' : undefined,
+                };
+                const { data } = await api.get('/travel/routes/map', { params });
+                if (!cancelled) {
+                    setRows(Array.isArray(data?.routes) ? data.routes : []);
+                    setMountKey((k) => k + 1);
+                }
+            } catch {
+                if (!cancelled) setRows([]);
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [visible, filters, scope]);
+
+    const fitAll = () => {
+        const coords = [];
+        for (const r of rows) {
+            for (const seg of r.path || []) {
+                for (const p of seg) coords.push({ latitude: p.lat, longitude: p.lng });
+            }
+        }
+        if (coords.length < 2 || !mapRef.current) return;
+        try {
+            mapRef.current.fitToCoordinates(coords, {
+                edgePadding: { top: 60, right: 40, bottom: 120, left: 40 },
+                animated: false,
+            });
+        } catch { /* native map henüz hazır değil */ }
+    };
+
+    const initial = (() => {
+        const first = rows[0]?.path?.[0]?.[0];
+        if (!first) return { latitude: 39.0, longitude: 35.0, latitudeDelta: 8, longitudeDelta: 8 };
+        return { latitude: first.lat, longitude: first.lng, latitudeDelta: 1.2, longitudeDelta: 1.2 };
+    })();
+
+    return (
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: colors.bg }}>
+                <View style={{
+                    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12,
+                    paddingTop: Platform.OS === 'ios' ? 56 : 24, paddingBottom: 10,
+                    borderBottomWidth: 1, borderBottomColor: colors.border,
+                }}>
+                    <ScreenBackButton onPress={onClose} style={{ marginRight: 10, padding: 1 }}>
+                        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '300' }}>←</Text>
+                    </ScreenBackButton>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }} numberOfLines={1}>
+                        {t.tvRoutesMapTitle}
+                    </Text>
+                </View>
+                {loading ? (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                        <ActivityIndicator color={ACCENT} />
+                        <Text style={{ color: colors.textMuted, marginTop: 8 }}>{t.tvRoutesMapLoading}</Text>
+                    </View>
+                ) : rows.length === 0 ? (
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                        <Text style={{ color: colors.textMuted, textAlign: 'center' }}>{t.tvRoutesMapEmpty}</Text>
+                    </View>
+                ) : (
+                    <>
+                        <MapView
+                            key={`routes-map-${mountKey}`}
+                            ref={mapRef}
+                            provider={PROVIDER_DEFAULT}
+                            style={{ flex: 1 }}
+                            initialRegion={initial}
+                            onMapReady={fitAll}
+                            showsUserLocation
+                        >
+                            {rows.map((r, ri) => (r.path || []).map((seg, si) => {
+                                const raw = seg.map((p) => ({ latitude: p.lat, longitude: p.lng }));
+                                const coords = offsetCoords(raw, ri);
+                                return (
+                                    <Polyline
+                                        key={`${r.id}-${si}`}
+                                        coordinates={coords}
+                                        strokeColor={r.color || ACCENT}
+                                        strokeWidth={4}
+                                        tappable
+                                        onPress={() => { onClose(); onOpenRoute(r.id); }}
+                                    />
+                                );
+                            }))}
+                            {rows.map((r, ri) => {
+                                const p = r.path?.[0]?.[0];
+                                if (!p) return null;
+                                const c = offsetCoords([{ latitude: p.lat, longitude: p.lng }], ri)[0];
+                                return (
+                                    <Marker
+                                        key={`m-${r.id}`}
+                                        coordinate={c}
+                                        pinColor={r.color || ACCENT}
+                                        title={r.title}
+                                        tracksViewChanges={false}
+                                        onCalloutPress={() => { onClose(); onOpenRoute(r.id); }}
+                                    />
+                                );
+                            })}
+                        </MapView>
+                        <View style={{
+                            position: 'absolute', left: 12, right: 12, bottom: 16,
+                            backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1,
+                            borderColor: colors.border, maxHeight: 140, paddingVertical: 6,
+                        }}>
+                            <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center', marginBottom: 4 }}>
+                                {t.tvRoutesMapHint}
+                            </Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8, gap: 8 }}>
+                                {rows.map((r) => (
+                                    <TouchableOpacity
+                                        key={r.id}
+                                        onPress={() => { onClose(); onOpenRoute(r.id); }}
+                                        style={{
+                                            flexDirection: 'row', alignItems: 'center', gap: 6,
+                                            backgroundColor: colors.surface2, borderRadius: 10,
+                                            paddingHorizontal: 10, paddingVertical: 7,
+                                            borderWidth: 1, borderColor: r.color || colors.border,
+                                        }}
+                                    >
+                                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: r.color || ACCENT }} />
+                                        <Text style={{ color: colors.text, fontSize: 12, fontWeight: '800', maxWidth: 140 }} numberOfLines={1}>
+                                            {r.title}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    </>
+                )}
+            </View>
+        </Modal>
+    );
+}
 
 async function getHere() {
     try {
@@ -95,6 +268,7 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
     const [scope, setScope] = useState('all');
     const [filters, setFilters] = useState(DEFAULT_FILTERS);
     const [filterOpen, setFilterOpen] = useState(false);
+    const [mapOpen, setMapOpen] = useState(false);
     const [myLists, setMyLists] = useState([]);
     const [newListName, setNewListName] = useState('');
     const [loadingRoutes, setLoadingRoutes] = useState(true);
@@ -268,9 +442,16 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
             >
                 {tab === 'explore' ? (
                     <>
-                        <TouchableOpacity style={s.primaryBtn} onPress={() => navigation.navigate('TravelRouteCreate')}>
-                            <Text style={s.primaryBtnText}>{t.tvCreateRoute}</Text>
-                        </TouchableOpacity>
+                        <View style={s.createRow}>
+                            <TouchableOpacity style={[s.primaryBtn, { flex: 1, marginTop: 0 }]} onPress={() => navigation.navigate('TravelRouteCreate')}>
+                                <Text style={s.primaryBtnText}>{t.tvCreateRoute}</Text>
+                            </TouchableOpacity>
+                            {scope !== 'lists' && scope !== 'offline' ? (
+                                <TouchableOpacity style={s.mapBtn} onPress={() => setMapOpen(true)} activeOpacity={0.85}>
+                                    <Text style={s.mapBtnText}>{t.tvRoutesMap}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.scopeRow}>
                             {[['all', t.tvScopeAll], ['osm', t.tvReadyRoutes], ['mine', t.tvMine], ['lists', t.tvMyLists], ['offline', t.tvDownloaded]].map(([k, label]) => (
                                 <TouchableOpacity key={k} style={[s.chip, scope === k && s.chipActive]} onPress={() => changeScope(k)}>
@@ -365,6 +546,13 @@ export default function TravelExploreHomeScreen({ navigation, route }) {
                 )}
             </ScrollView>
             <FilterModal visible={filterOpen} value={filters} sorts={SORTS} onApply={applyFilters} onClose={() => setFilterOpen(false)} />
+            <RoutesMapModal
+                visible={mapOpen}
+                filters={filters}
+                scope={scope}
+                onClose={() => setMapOpen(false)}
+                onOpenRoute={(routeId) => navigation.navigate('TravelRouteDetail', { routeId })}
+            />
         </View>
     );
 }
@@ -395,6 +583,12 @@ const s = StyleSheet.create({
     tabTextActive: { color: ACCENT },
     primaryBtn: travelStyles.primaryBtn,
     primaryBtnText: travelStyles.primaryBtnText,
+    createRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 },
+    mapBtn: {
+        backgroundColor: colors.surface, borderColor: ACCENT, borderWidth: 1.5,
+        borderRadius: 14, paddingHorizontal: 14, paddingVertical: 13, alignItems: 'center', justifyContent: 'center',
+    },
+    mapBtnText: { color: ACCENT, fontWeight: '900', fontSize: 14 },
     search:    { ...travelStyles.input, marginTop: 12 },
     chipRow:   { flexDirection: 'row', gap: 8, marginTop: 12, flexWrap: 'wrap' },
     chip:      travelStyles.chip,

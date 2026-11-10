@@ -2323,6 +2323,9 @@ model TravelRoute {
   // GPS izi — parçalı: [[{lat,lng}, ...], ...]. OSM rotaları kopuk way'lerden oluştuğu için
   // tek çizgi yapılırsa boşluklar düz çizgiyle birleşip yanlış güzergah çiziyordu.
   path        Json     @default("[]")
+  // GPS izinin geçtiği Türkiye illeri — il adı aramasında Likya/Antalya gibi
+  // metinde geçmeyen ama sınırlardan geçen rotalar listelensin diye.
+  provinces   String[] @default([])
   startLat    Float?
   startLng    Float?
   source      String   @default("USER") // USER | OSM

@@ -1,5 +1,6 @@
 ﻿import prisma from '../config/prisma.js';
 import { haversineM, simplifyPath, pathLengthKm } from '../utils/geoPath.js';
+import { provincesFromPath } from '../utils/trProvinces.js';
 
 // Overpass sık sık "too busy" dönüyor — liste için sadece ek kaynak; geometri OSM API'den.
 const OVERPASS_MIRRORS = [
@@ -253,6 +254,7 @@ export async function buildOsmRoute(id) {
         path: segs,
         startLat: first.lat,
         startLng: first.lng,
+        provinces: provincesFromPath(segs),
         source: 'OSM',
         sourceUrl: tags.website || `https://www.openstreetmap.org/relation/${id}`,
         stops: tags.via ? String(tags.via).split(/[;,]/).map(s => s.trim()).filter(Boolean).slice(0, 20) : [],
