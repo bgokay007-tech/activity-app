@@ -10,6 +10,7 @@ import { useSelector } from 'react-redux';
 import useT from '../hooks/useT';
 import colors from '../theme/colors';
 import { buildEntitySharePayload, BRAND_LETTER_COLORS } from '../utils/entityShareCard';
+import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
     shareToWhatsAppStatus,
@@ -42,8 +43,11 @@ async function coverToDataUrl(remoteUrl) {
     }
 }
 
-/** 9:16 hikâye/durum kartı — IG üst chrome için TOP boşluk; coverDataUrl varsa ürün/foto. */
-function cardHtml(p, coverDataUrl) {
+/**
+ * 9:16 hikâye kartı — spor/zemin arka planı (toprak/sert/salon/plaj/padel) +
+ * yarı saydam overlay; marka ve başlık büyük.
+ */
+function cardHtml(p, coverDataUrl, bgDataUrl) {
     const brand = p.brand || 'AcTiViTy';
     const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
@@ -52,16 +56,26 @@ function cardHtml(p, coverDataUrl) {
 <canvas id="c" width="${W}" height="${H}"></canvas>
 <script>
 (function(){
-  function go(coverImg){
+  function paint(coverImg, bgImg){
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
-      var W=${W}, H=${H}, TOP=260;
-      ctx.fillStyle='#0B0C10'; ctx.fillRect(0,0,W,H);
-      var g=ctx.createRadialGradient(540,TOP+180,40,540,TOP+180,520);
-      g.addColorStop(0,'rgba(200,245,74,0.14)');
-      g.addColorStop(1,'rgba(11,12,16,0)');
-      ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+      var W=${W}, H=${H}, TOP=240;
+
+      if(bgImg){
+        var bs=Math.max(W/bgImg.width, H/bgImg.height);
+        var bdw=bgImg.width*bs, bdh=bgImg.height*bs;
+        ctx.drawImage(bgImg, (W-bdw)/2, (H-bdh)/2, bdw, bdh);
+      } else {
+        ctx.fillStyle='#0B0C10'; ctx.fillRect(0,0,W,H);
+      }
+      ctx.fillStyle='rgba(8,10,14,0.72)';
+      ctx.fillRect(0,0,W,H);
+      var vg=ctx.createLinearGradient(0,0,0,H);
+      vg.addColorStop(0,'rgba(8,10,14,0.55)');
+      vg.addColorStop(0.4,'rgba(8,10,14,0.35)');
+      vg.addColorStop(1,'rgba(8,10,14,0.82)');
+      ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
 
       function text(str,x,y,size,color,align,weight){
         ctx.fillStyle=color||'#F4F1EA';
@@ -89,34 +103,34 @@ function cardHtml(p, coverDataUrl) {
 
       var brand=${JSON.stringify(brand)};
       var cols=${JSON.stringify(colorsArr)};
-      ctx.font='900 58px sans-serif'; ctx.textAlign='left';
+      ctx.font='900 72px sans-serif'; ctx.textAlign='left';
       var totalW=0;
-      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+3;
+      for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+4;
       var bx=(W-totalW)/2;
       for(var i=0;i<brand.length;i++){
         ctx.fillStyle=cols[i%cols.length];
         ctx.fillText(brand[i], bx, TOP);
-        bx+=ctx.measureText(brand[i]).width+3;
+        bx+=ctx.measureText(brand[i]).width+4;
       }
 
       var badge=${JSON.stringify(p.badge||'')};
-      ctx.font='900 22px sans-serif';
-      var bw=Math.max(240, ctx.measureText(badge).width+48);
-      roundRect((W-bw)/2, TOP+28, bw, 48, 24);
+      ctx.font='900 26px sans-serif';
+      var bw=Math.max(280, ctx.measureText(badge).width+56);
+      roundRect((W-bw)/2, TOP+26, bw, 54, 27);
       ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(badge, W/2, TOP+60, 22, '#0B0C10', 'center', '900');
+      text(badge, W/2, TOP+62, 26, '#0B0C10', 'center', '900');
 
-      text(${JSON.stringify(p.sport||'')}, 540, TOP+120, 32, '#C8F54A', 'center', '800');
+      text(${JSON.stringify(p.sport||'')}, 540, TOP+128, 36, '#C8F54A', 'center', '800');
 
-      var titleLines=wrap(${JSON.stringify(p.title||'')}, 920, 42);
-      var ny=TOP+180;
-      titleLines.slice(0,3).forEach(function(ln){ text(ln, 540, ny, 42, '#F4F1EA', 'center', '900'); ny+=50; });
+      var titleLines=wrap(${JSON.stringify(p.title||'')}, 940, 48);
+      var ny=TOP+196;
+      titleLines.slice(0,3).forEach(function(ln){ text(ln, 540, ny, 48, '#F4F1EA', 'center', '900'); ny+=56; });
 
       var priceLabel=${JSON.stringify(p.priceLabel||'')};
-      if(priceLabel){ text(priceLabel, 540, ny+18, 56, '#C8F54A', 'center', '900'); ny+=70; }
+      if(priceLabel){ text(priceLabel, 540, ny+20, 64, '#C8F54A', 'center', '900'); ny+=80; }
 
       if(coverImg){
-        var iw=880, ih=520, ix=(W-iw)/2, iy=ny+10;
+        var iw=880, ih=480, ix=(W-iw)/2, iy=ny+12;
         ctx.save();
         roundRect(ix, iy, iw, ih, 28);
         ctx.clip();
@@ -124,43 +138,49 @@ function cardHtml(p, coverDataUrl) {
         var dw=coverImg.width*s, dh=coverImg.height*s;
         ctx.drawImage(coverImg, ix+(iw-dw)/2, iy+(ih-dh)/2, dw, dh);
         ctx.restore();
-        ctx.strokeStyle='#2A2D36'; ctx.lineWidth=3;
+        ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=3;
         roundRect(ix, iy, iw, ih, 28); ctx.stroke();
-        ny=iy+ih+40;
+        ny=iy+ih+44;
       } else {
-        ny+=24;
+        ny+=28;
       }
 
       var lines=${JSON.stringify(p.lines||[])};
-      // Fiyat zaten büyük yazıldıysa satırdan düş
       if(priceLabel) lines=lines.filter(function(ln){ return ln.indexOf(priceLabel)<0; });
-      roundRect(72, ny-36, W-144, Math.max(160, 36+lines.length*48+36), 28);
-      ctx.fillStyle='#16181F'; ctx.fill();
-      ctx.strokeStyle='#2A2D36'; ctx.lineWidth=3; ctx.stroke();
+      roundRect(56, ny-40, W-112, Math.max(180, 44+lines.length*54+44), 28);
+      ctx.fillStyle='rgba(22,24,31,0.78)'; ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.stroke();
       lines.forEach(function(ln){
-        var wl=wrap(ln, 880, 28);
-        wl.forEach(function(w){ text(w, 540, ny, 28, '#A8A29A', 'center', '700'); ny+=38; });
-        ny+=6;
+        var wl=wrap(ln, 900, 34);
+        wl.forEach(function(w){ text(w, 540, ny, 34, '#E7E5E4', 'center', '700'); ny+=44; });
+        ny+=8;
       });
 
-      roundRect(200, 1720, 680, 88, 44);
+      roundRect(180, 1715, 720, 92, 46);
       ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(${JSON.stringify(p.ctaLabel||'AcTiViTy')}, 540, 1778, 30, '#0B0C10', 'center', '900');
+      text(${JSON.stringify(p.ctaLabel||'AcTiViTy')}, 540, 1776, 32, '#0B0C10', 'center', '900');
 
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(canvas.toDataURL('image/png'));
     }catch(e){
       if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ERR:'+String(e&&e.message||e));
     }
   }
+
   var coverData=${JSON.stringify(coverDataUrl||'')};
-  if(coverData){
+  var bgData=${JSON.stringify(bgDataUrl||'')};
+  var coverImg=null, bgImg=null, pending=0;
+  function maybeGo(){ if(pending===0) paint(coverImg, bgImg); }
+  function load(src, assign){
+    if(!src) return;
+    pending++;
     var img=new Image();
-    img.onload=function(){ go(img); };
-    img.onerror=function(){ go(null); };
-    img.src=coverData;
-  } else {
-    setTimeout(function(){ go(null); }, 60);
+    img.onload=function(){ assign(img); pending--; maybeGo(); };
+    img.onerror=function(){ pending--; maybeGo(); };
+    img.src=src;
   }
+  load(coverData, function(i){ coverImg=i; });
+  load(bgData, function(i){ bgImg=i; });
+  if(pending===0) setTimeout(function(){ paint(null,null); }, 60);
 })();
 </script></body></html>`;
 }
@@ -195,6 +215,7 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
     const pendingAction = useRef(null);
     const pngPath = useRef(null);
     const coverDataRef = useRef(null);
+    const bgDataRef = useRef(null);
 
     useEffect(() => {
         if (!visible) {
@@ -204,34 +225,45 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             pendingAction.current = null;
             pngPath.current = null;
             coverDataRef.current = null;
+            bgDataRef.current = null;
         }
     }, [visible]);
 
-    // Kapak fotoğrafını önceden indir — paylaşımda eksik kart olmasın
+    // Kapak + spor/zemin arka planını önceden indir
     useEffect(() => {
-        if (!visible || !payload?.coverUrl) {
+        if (!visible || !payload) {
             coverDataRef.current = null;
+            bgDataRef.current = null;
             return undefined;
         }
         let cancelled = false;
         coverDataRef.current = null;
+        bgDataRef.current = null;
+        pngPath.current = null;
         (async () => {
-            const data = await coverToDataUrl(payload.coverUrl);
-            if (!cancelled) coverDataRef.current = data;
+            const [cover, bg] = await Promise.all([
+                payload.coverUrl ? coverToDataUrl(payload.coverUrl) : Promise.resolve(null),
+                shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw),
+            ]);
+            if (!cancelled) {
+                coverDataRef.current = cover;
+                bgDataRef.current = bg;
+            }
         })();
         return () => { cancelled = true; };
-    }, [visible, payload?.id, payload?.coverUrl]);
+    }, [visible, payload?.id, payload?.coverUrl, payload?.subCategory, payload?.surfaceRaw]);
 
     const ensurePng = async () => {
         if (pngPath.current) return pngPath.current;
-        // Kapak indirmesi bitmediyse kısa bekle
         if (payload?.coverUrl && !coverDataRef.current) {
-            const data = await coverToDataUrl(payload.coverUrl);
-            coverDataRef.current = data;
+            coverDataRef.current = await coverToDataUrl(payload.coverUrl);
+        }
+        if (!bgDataRef.current && payload?.subCategory) {
+            bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
         }
         return new Promise((resolve, reject) => {
             pendingAction.current = { type: 'capture', resolve, reject };
-            setCaptureHtml(cardHtml(payload, coverDataRef.current));
+            setCaptureHtml(cardHtml(payload, coverDataRef.current, bgDataRef.current));
             setNeedCapture(true);
         });
     };
@@ -391,7 +423,7 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
                     <View style={s.preview}>
                         <View style={s.brandRow}>
                             {(payload.brand || 'AcTiViTy').split('').map((ch, i) => (
-                                <Text key={i} style={{ color: BRAND_LETTER_COLORS[i % BRAND_LETTER_COLORS.length], fontWeight: '900', fontSize: 16 }}>
+                                <Text key={i} style={{ color: BRAND_LETTER_COLORS[i % BRAND_LETTER_COLORS.length], fontWeight: '900', fontSize: 22 }}>
                                     {ch}
                                 </Text>
                             ))}
@@ -474,9 +506,9 @@ const s = StyleSheet.create({
         fontSize: 11, fontWeight: '900', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 10, marginBottom: 6,
     },
     sport: { color: '#C8F54A', fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
-    cardTitle: { color: '#F4F1EA', fontSize: 15, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
-    pricePrev: { color: '#C8F54A', fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
-    line: { color: '#A8A29A', fontSize: 12, textAlign: 'center', marginBottom: 2 },
+    cardTitle: { color: '#F4F1EA', fontSize: 17, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
+    pricePrev: { color: '#C8F54A', fontSize: 20, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    line: { color: '#A8A29A', fontSize: 13, textAlign: 'center', marginBottom: 2 },
     list: { flexGrow: 0 },
     row: {
         flexDirection: 'row', alignItems: 'center', gap: 12,

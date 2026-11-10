@@ -29,6 +29,21 @@ function nameOf(p) {
     return p?.fullName || p?.username || p?.manualName || '';
 }
 
+function surfaceLabel(item, t) {
+    const sf = item?.surface;
+    if (!sf) return '';
+    const key = `surface${String(sf).toUpperCase()}`;
+    return t?.[key] || String(sf);
+}
+
+function shareMeta(item, extra = {}) {
+    return {
+        subCategory: item?.subCategory || null,
+        surfaceRaw: item?.surface || null,
+        ...extra,
+    };
+}
+
 /**
  * Ortak kart payload — EntityShareModal canvas + metin paylaşımı.
  * { kind, id, url, title, badge, emoji, sport, lines[], message, ctaLabel, brand, brandColors, coverUrl? }
@@ -56,6 +71,8 @@ function buildRival(rival, t, lang) {
         : (t?.shareRivalIntro || 'Looking for a rival');
     const badge = t?.shareEntityBadgeRival || (lang === 'tr' ? 'MAÇ İLANI' : lang === 'ru' ? 'ОБЪЯВЛЕНИЕ' : lang === 'de' ? 'ANZEIGE' : 'MATCH AD');
     const lines = [];
+    const surface = surfaceLabel(rival, t);
+    if (surface) lines.push(`🏟 ${surface}`);
     if (place) lines.push(`📍 ${place}`);
     if (rival.matchDate) {
         lines.push(`📅 ${fmtDate(rival.matchDate, lang)}${rival.matchTime ? ` · ${rival.matchTime}` : ''}`);
@@ -86,12 +103,13 @@ function buildRival(rival, t, lang) {
         title: intro,
         badge,
         emoji,
-        sport,
+        sport: `${emoji} ${sport}`.trim(),
         lines,
         message,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
-        brand: 'AcTiViTy',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
+        ...shareMeta(rival),
     };
 }
 
@@ -123,8 +141,9 @@ function buildTournament(tournament, t, lang) {
         lines: [intro, ...lines],
         message,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
-        brand: 'AcTiViTy',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
+        ...shareMeta(tournament),
     };
 }
 
@@ -166,8 +185,9 @@ function buildEquipment(eq, t, lang) {
         message,
         coverUrl,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
-        brand: 'AcTiViTy',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
+        ...shareMeta(eq),
     };
 }
 
@@ -204,8 +224,9 @@ function buildCoach(c, t, lang, asCourse) {
         message,
         coverUrl: c.profilePhotoUrl || null,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
-        brand: 'AcTiViTy',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
+        ...shareMeta(c),
     };
 }
 
@@ -234,8 +255,9 @@ function buildClub(cl, t, lang) {
         message,
         coverUrl: cl.photoUrl || null,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
-        brand: 'AcTiViTy',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
+        ...shareMeta(cl),
     };
 }
 
