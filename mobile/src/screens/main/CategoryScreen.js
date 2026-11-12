@@ -2,7 +2,7 @@
 import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
-    Platform, InteractionManager,
+    Platform, InteractionManager, useWindowDimensions,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
@@ -144,12 +144,42 @@ function parseIdList(raw) {
     }
 }
 
+/** Satır başına 3 spor; 4. alta. Kart ~2.45'te bir → 3.'nün ucu peek, az sağa kaydırınca tam. */
+function SportTilesHScroll({ viewportW, items, renderTile, perRow = 3 }) {
+    const rows = [];
+    for (let i = 0; i < items.length; i += perRow) rows.push(items.slice(i, i + perRow));
+    if (!rows.length) return null;
+    const cardW = Math.floor(viewportW / 2.45);
+    return (
+        <View style={sp.groupRows}>
+            {rows.map((row, ri) => (
+                <ScrollView
+                    key={`sr-${ri}`}
+                    horizontal
+                    nestedScrollEnabled
+                    showsHorizontalScrollIndicator={false}
+                    decelerationRate="fast"
+                    bounces
+                    overScrollMode="always"
+                    contentContainerStyle={sp.groupRowPad}
+                >
+                    {row.map((sub) => (
+                        <View key={sub.id} style={{ width: cardW, paddingRight: 8 }}>
+                            {renderTile(sub)}
+                        </View>
+                    ))}
+                </ScrollView>
+            ))}
+        </View>
+    );
+}
+
 function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant }) {
     const photo = SUB_PHOTOS[sub.id] || null;
     const tint = SUB_TINT[sub.id] || '#1C1F28';
     return (
         <TouchableOpacity
-            style={[variant === 'col' ? sp.tileCol : sp.tile, count === 0 && sp.tileQuiet]}
+            style={[variant === 'peek' ? sp.tilePeek : sp.tile, count === 0 && sp.tileQuiet]}
             onPress={onOpen}
             onPressIn={onPressIn}
             delayPressIn={0}
@@ -196,11 +226,12 @@ function CategoryScreen({ route, navigation }) {
     const [involvedSubIds, setInvolvedSubIds] = useState([]);
     const [intent, setIntent] = useState(null);
     const [todayCounts, setTodayCounts] = useState({});
-    // Kullanıcı isteği: spor grupları dikey; sağdaki ok ▼=açık (default), ◀=kapalı (altındaki
-    // dallar gizlenir). Yatay kaydırma kaldırıldı.
+    // Gruplar dikey + ▼/◀; açıkken satırda 3 dal, maç ilanı gibi hafif sağ peek kaydırma.
     const [expandedGroups, setExpandedGroups] = useState(() =>
         Object.fromEntries(SPORT_GROUPS.map(g => [g.id, true]))
     );
+    const { width: winW } = useWindowDimensions();
+    const sportPageW = winW - 32; // sp.list paddingHorizontal × 2
     const myId = useSelector(s => s.auth.user?.id);
 
     // Sanat/sosyal/oyun: alfabetik; açık ilanı olan öne, profilindeki Aktivitelerim daha da öne.
@@ -567,9 +598,11 @@ function CategoryScreen({ route, navigation }) {
                                         <Text style={sp.groupChevron}>{expanded ? '▼' : '◀'}</Text>
                                     </TouchableOpacity>
                                     {expanded ? (
-                                        <View style={sp.groupCol}>
-                                            {items.map(sub => renderTile(sub, 'col'))}
-                                        </View>
+                                        <SportTilesHScroll
+                                            viewportW={sportPageW}
+                                            items={items}
+                                            renderTile={(sub) => renderTile(sub, 'peek')}
+                                        />
                                     ) : null}
                                 </View>
                             );
@@ -708,10 +741,11 @@ const sp = StyleSheet.create({
     groupChevron: { color: colors.textMuted, fontSize: 14, fontWeight: '700', marginLeft: 'auto', paddingLeft: 8 },
     groupIconEmoji: { fontSize: 17 },
     groupIconImg: { width: 20, height: 20 },
-    groupCol: { gap: 12 },
+    groupRows: { gap: 10 },
+    groupRowPad: { paddingRight: 2 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
     tile: { width: '47.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
-    tileCol: { width: '100%', height: 148, borderRadius: 22, overflow: 'hidden' },
+    tilePeek: { width: '100%', height: 128, borderRadius: 18, overflow: 'hidden' },
     tileQuiet: { opacity: 0.78 },
     tileImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
     tileShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,12,16,0.28)' },
@@ -723,8 +757,8 @@ const sp = StyleSheet.create({
     },
     starBtn: { position: 'absolute', top: 6, right: 6, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
     star: { color: 'rgba(255,255,255,0.88)', fontSize: 18 },
-    tileName: { position: 'absolute', left: 10, right: 10, bottom: 28, color: '#fff', fontSize: 15, fontWeight: '700' },
-    tileMeta: { position: 'absolute', left: 10, right: 10, bottom: 10, color: colors.purple, fontSize: 11, fontWeight: '600' },
+    tileName: { position: 'absolute', left: 8, right: 8, bottom: 26, color: '#fff', fontSize: 13, fontWeight: '700' },
+    tileMeta: { position: 'absolute', left: 8, right: 8, bottom: 8, color: colors.purple, fontSize: 10, fontWeight: '600' },
     empty: { color: colors.textSecondary, fontSize: 14, fontWeight: '500', textAlign: 'center', marginTop: 32 },
 });
 
