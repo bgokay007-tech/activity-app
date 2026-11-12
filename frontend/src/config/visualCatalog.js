@@ -40,7 +40,7 @@ export function photoForSub(subId, category) {
 // ids sırası = ilan sayısı eşitken popülerlik (soldan sağa).
 export const SPORT_GROUPS = [
     { id: 'racket',  key: 'sport_group_racket',  ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball'] },
-    { id: 'team',    key: 'sport_group_team',    ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball'] },
+    { id: 'team',    key: 'sport_group_team',    ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball'] },
     { id: 'outdoor', key: 'sport_group_outdoor', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio',  key: 'sport_group_studio',  ids: ['wellness', 'fitness_gym', 'ice_skating'] },
     { id: 'motor',   key: 'sport_group_motor',   ids: ['motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting'] },
@@ -53,7 +53,7 @@ export const COURT_SUBS = new Set([
 
 export const SUB_TINT = {
     tennis: '#166534', padel: '#3f6212', badminton: '#115e59', table_tennis: '#1e3a8a', pickleball: '#4d7c0f', foot_tennis: '#365314',
-    football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412',
+    football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c',
     running: '#854d0e', walking: '#57534e', hiking: '#3f6212', camping: '#44403c', climbing: '#9a3412',
     sup_kano: '#0e7490', archery: '#7f1d1d', equestrian: '#78350f', golf: '#166534',
     wellness: '#6b21a8', fitness_gym: '#334155', ice_skating: '#1e3a5f',
@@ -77,6 +77,7 @@ export const SUB_MAP = {
         { id: 'foot_tennis',      en: 'Foot Tennis',        tr: 'Ayak Tenisi',           ru: 'Футбольный теннис',         de: 'Fußtennis',               emoji: '🦶' },
         { id: 'sup_kano',         en: 'SUP & Canoe',        tr: 'SUP & Kano',            ru: 'SUP и каноэ',               de: 'SUP & Kanu',              emoji: '🛶' },
         { id: 'handball',         en: 'Handball',           tr: 'Hentbol',               ru: 'Гандбол',                   de: 'Handball',                emoji: '🤾' },
+        { id: 'dodgeball',        en: 'Dodgeball',          tr: 'Yakar Top',             ru: 'Доджбол',                   de: 'Dodgeball',               emoji: '🟠' },
         { id: 'badminton',        en: 'Badminton',          tr: 'Badminton',             ru: 'Бадминтон',                 de: 'Badminton',               emoji: '🏸' },
         { id: 'shooting_hunting', en: 'Shooting & Hunting', tr: 'Atıcılık & Avcılık',    ru: 'Стрельба и охота',          de: 'Schießen & Jagen',        emoji: '🔫' },
         { id: 'equestrian',       en: 'Equestrian',         tr: 'Binicilik',             ru: 'Конный спорт',              de: 'Reiten',                  emoji: '🐎' },

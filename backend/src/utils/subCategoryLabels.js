@@ -6,7 +6,7 @@ const SUB_NAMES_TR = {
     tennis: 'Tenis', padel: 'Padel', pickleball: 'Pickleball', volleyball: 'Voleybol', football: 'Futbol', basketball: 'Basketbol',
     running: 'Koşu', wellness: 'Yoga / Pilates / Reformer', table_tennis: 'Masa Tenisi', climbing: 'Tırmanış',
     archery: 'Okçuluk', walking: 'Yürüyüş', foot_tennis: 'Ayak Tenisi', sup_kano: 'SUP & Kano',
-    handball: 'Hentbol', badminton: 'Badminton', shooting_hunting: 'Atıcılık & Avcılık', equestrian: 'Binicilik',
+    handball: 'Hentbol', dodgeball: 'Yakar Top', badminton: 'Badminton', shooting_hunting: 'Atıcılık & Avcılık', equestrian: 'Binicilik',
     golf: 'Golf', fitness_gym: 'Fitness & Spor Salonu', skiing_snowboard: 'Kayak & Snowboard',
     ice_skating: 'Buz Pateni', hiking: 'Doğa Yürüyüşü', camping: 'Kamp', motorcycle: 'Motosiklet',
     extreme_sports: 'Ekstrem Sporlar', paintball: 'Paintball', airsoft: 'Airsoft', swimming: 'Yüzme',

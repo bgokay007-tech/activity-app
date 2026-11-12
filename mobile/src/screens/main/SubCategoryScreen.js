@@ -345,6 +345,7 @@ const SUB_CONFIG = {
     extreme_sports: { name:'Extreme Sports', nameTR:'Ekstrem Sporlar', nameRu:'Экстремальные виды спорта',     nameDe:'Extremsport',                emoji:'🪂', color:'#e11d48' },
     fitness_gym:    { name:'Fitness & Gym',  nameTR:'Fitness & Spor Salonu', nameRu:'Фитнес и тренажёрный зал', nameDe:'Fitness & Fitnessstudio', emoji:'🏋️', color:'#f97316' },
     foot_tennis:    { name:'Foot Tennis',    nameTR:'Ayak Tenisi',     nameRu:'Футтеннис',                     nameDe:'Fußtennis',                  emoji:'🦶', color:'#0891b2' },
+    dodgeball:      { name:'Dodgeball',      nameTR:'Yakar Top',       nameRu:'Доджбол',                       nameDe:'Dodgeball',                  emoji:'🟠', color:'#ea580c' },
     paintball:      { name:'Paintball',      nameTR:'Paintball',       nameRu:'Пейнтбол',                      nameDe:'Paintball',                  emoji:'🔫', color:'#7c3aed' },
     sup_kano:       { name:'SUP & Canoe',    nameTR:'SUP & Kano',      nameRu:'SUP и каноэ',                   nameDe:'SUP & Kanu',                 emoji:'🛶', color:'#0284c7' },
     running:        { name:'Running',        nameTR:'Koşu',            nameRu:'Бег',                           nameDe:'Laufen',                     emoji:'🏃', color:'#16a34a' },
@@ -441,7 +442,7 @@ function feeByMethodHint(byMethod, t) {
 // yapısı yok, sadece Etkinlik (rivals), Destek (coaches), Ekipman, Medya, Yazılar,
 // Bilet Al, Haberler, Arşiv.
 const SIMPLE_TAB_SUBS = new Set([
-    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
+    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'dodgeball', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
     'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf',
 ]);
 
@@ -459,7 +460,7 @@ const TICKET_ENABLED_EXTRA_SUBS = new Set(['boxing', 'martial_arts', 'ice_hockey
 // söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
 const SIMPLIFIED_FEE_SUBS = new Set([
-    'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball',
+    'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball', 'dodgeball',
     'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf', 'travel_explore',
 ]);
 
@@ -508,6 +509,9 @@ function getTabs(sub, category) {
     // gösteriyordu) kaldırıldı.
     if (sub === 'foot_tennis')
         return ['rivals', 'media', 'posts', 'archive'];
+    // Yakar Top: bilet envanteri yok (Ticketmaster/SeatGeek doğrulanmadı) — tickets sekmesi yok.
+    if (sub === 'dodgeball')
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'news', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (sub === 'football')
@@ -31498,6 +31502,11 @@ function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
                                                 <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{t.sc_1109}</Text>
                                             </View>
+                                            {Array.isArray(eq.images) && eq.images.length > 1 && (
+                                                <View style={{ position:'absolute', bottom:52, left:6, backgroundColor:'#000000aa', borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>📷 {eq.images.length}</Text>
+                                                </View>
+                                            )}
                                             <View style={{ padding:5 }}>
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{eq.title}</Text>
                                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : t.sc_0903}</Text>

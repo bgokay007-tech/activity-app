@@ -8,7 +8,7 @@ const SUB_EMOJI = {
     football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', volleyball:'🏐',
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     table_tennis:'🏓', climbing:'🧗', archery:'🏹', walking:'🚶', foot_tennis:'🦶',
-    sup_kano:'🛶', handball:'🤾', badminton:'🏸', shooting_hunting:'🔫', equestrian:'🐎',
+    sup_kano:'🛶', handball:'🤾', dodgeball:'🟠', badminton:'🏸', shooting_hunting:'🔫', equestrian:'🐎',
     golf:'⛳', fitness_gym:'🏋️', skiing_snowboard:'⛷️', ice_skating:'⛸️', hiking:'🥾',
     camping:'🏕️', motorcycle:'🏍️', extreme_sports:'🪂', paintball:'🎯', airsoft:'🪖',
     music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
