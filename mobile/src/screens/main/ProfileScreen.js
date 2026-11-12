@@ -35,7 +35,9 @@ import MatchResultShareModal from '../../components/MatchResultShareModal';
 import StoryMessageBar from '../../components/StoryMessageBar';
 import SportAnalysisModal from '../../components/SportAnalysisModal';
 import { sharePost } from '../../utils/share';
+import EntityShareModal from '../../components/EntityShareModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
 // UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
 const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
@@ -444,6 +446,18 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
     // tenis/padel dalında bile "Tekli -★ / Çiftler -★" ve altında bir "Değerlendir"
     // butonu görünsün.
     const [assessGate, setAssessGate] = useState(null); // { ratingType }
+    // Yaklaşan maç varken spor kartındaki "Yaklaşan" butonu yanıp sönsün — tarih geçince dursun.
+    const upcomingBlink = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        const shouldBlink = visible && isOwnProfile && (item?.upcomingCount || 0) > 0;
+        if (!shouldBlink) { upcomingBlink.setValue(1); return undefined; }
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(upcomingBlink, { toValue: 0.28, duration: 550, useNativeDriver: true }),
+            Animated.timing(upcomingBlink, { toValue: 1, duration: 550, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [visible, isOwnProfile, item?.upcomingCount, upcomingBlink]);
 
     useEffect(() => {
         if (!visible) {
@@ -653,7 +667,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Sol: Yaklaşan / Arşiv / Takma Ad */}
                                 <View style={fc.actionCol}>
                                     <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
-                                        <Text style={[fc.actionTxt, { color: '#4ade80' }]}>⏰ {lang==='tr' ? 'Yaklaşan Maçlar' : lang==='ru' ? 'Предстоящие матчи' : lang==='de' ? 'Bevorstehende Spiele' : 'Upcoming'}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}</Text>
+                                        <Animated.Text style={[fc.actionTxt, { color: '#4ade80', opacity: upcomingBlink }]}>
+                                            {t.myUpcomingBtn}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
+                                        </Animated.Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={onArchive} style={fc.actionBtn}>
                                         <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {t.profileSportArchive}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
@@ -1823,11 +1839,15 @@ export default function ProfileScreen({ route, navigation }) {
 
     // Match modals
     const [showMyUpcoming, setShowMyUpcoming] = useState(false);
+    const [upcomingHubTab, setUpcomingHubTab] = useState('upcoming'); // upcoming | archive — aynı buton içinde
     const [showMyArchive, setShowMyArchive] = useState(false);
     const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
     const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
     const [archivePane, setArchivePane] = useState(null); // null = başlıklar, sonra matches|tournaments|media|equipment
     const [shareArchiveMatch, setShareArchiveMatch] = useState(null);
+    // Global entityShareBridge'e yazmıyoruz — SubCategory opener'ını ezmesin;
+    // profildeki yaklaşan maç paylaşımı doğrudan bu modalı açar.
+    const [entityShareReq, setEntityShareReq] = useState(null);
     const [archiveEquipment, setArchiveEquipment] = useState([]);
     const [loadingArchiveEquipment, setLoadingArchiveEquipment] = useState(false);
     const [myUpcoming, setMyUpcoming] = useState([]);
@@ -1836,6 +1856,9 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingUpcoming, setLoadingUpcoming] = useState(false);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [loadingTournamentHistory, setLoadingTournamentHistory] = useState(false);
+    // Saat gelince sayaç/yanıp sönme bitsin — profil açıkken her sn yenile.
+    const [upcomingNowMs, setUpcomingNowMs] = useState(Date.now());
+    const upcomingHubBlink = useRef(new Animated.Value(1)).current;
     const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
     const [archiveModalMatches, setArchiveModalMatches] = useState([]);
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
@@ -1871,7 +1894,21 @@ export default function ProfileScreen({ route, navigation }) {
 
     const openMyUpcoming = (subCategory = null) => {
         setUpcomingSub(subCategory);
+        setUpcomingHubTab('upcoming');
         setShowMyUpcoming(true);
+        setLoadingUpcoming(true);
+        api.get('/rivals/my-upcoming')
+            .then(res => setMyUpcoming(Array.isArray(res.data) ? res.data : []))
+            .catch(() => {})
+            .finally(() => setLoadingUpcoming(false));
+        // Aynı pencerede Arşiv sekmesi için geçmişi de hazırla — tarih geçince oraya düşer.
+        if (myHistory.length === 0) {
+            setLoadingHistory(true);
+            api.get('/rivals/my-history')
+                .then(res => setMyHistory(Array.isArray(res.data) ? res.data : []))
+                .catch(() => {})
+                .finally(() => setLoadingHistory(false));
+        }
     };
 
     const openMyArchive = async (subCategory = null) => {
@@ -1902,6 +1939,41 @@ export default function ProfileScreen({ route, navigation }) {
         }
         await Promise.all(loads);
     };
+
+    // Profil odaklanınca yaklaşan/arşiv tazelensin — tab yanıp sönmesiyle aynı kaynak.
+    useFocusEffect(useCallback(() => {
+        if (!isOwnProfile) return undefined;
+        let alive = true;
+        api.get('/rivals/my-upcoming')
+            .then(res => { if (alive) setMyUpcoming(Array.isArray(res.data) ? res.data : []); })
+            .catch(() => {});
+        api.get('/rivals/my-history')
+            .then(res => { if (alive) setMyHistory(Array.isArray(res.data) ? res.data : []); })
+            .catch(() => {});
+        return () => { alive = false; };
+    }, [isOwnProfile]));
+
+    const activeUpcomingList = (myUpcoming || []).filter(m => !matchHasStarted(m, new Date(upcomingNowMs)));
+    const activeUpcomingCount = activeUpcomingList.length;
+
+    useEffect(() => {
+        if (!isOwnProfile) return undefined;
+        const id = setInterval(() => setUpcomingNowMs(Date.now()), 1000);
+        return () => clearInterval(id);
+    }, [isOwnProfile]);
+
+    useEffect(() => {
+        if (!isOwnProfile || activeUpcomingCount <= 0) {
+            upcomingHubBlink.setValue(1);
+            return undefined;
+        }
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(upcomingHubBlink, { toValue: 0.28, duration: 550, useNativeDriver: true }),
+            Animated.timing(upcomingHubBlink, { toValue: 1, duration: 550, useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [isOwnProfile, activeUpcomingCount, upcomingHubBlink]);
 
     useEffect(() => {
         if (!selectedArchiveTournament) { setArchiveModalMatches([]); return; }
@@ -2986,7 +3058,7 @@ export default function ProfileScreen({ route, navigation }) {
                     {interests.length > 0 ? (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 3, paddingVertical: 1 }}>
                             {[...interests].sort((a, b) => (a.hidden ? 1 : 0) - (b.hidden ? 1 : 0)).map(i => {
-                                const upcomingCount = myUpcoming.filter(m => m.subCategory === i.subCategory).length;
+                                const upcomingCount = activeUpcomingList.filter(m => m.subCategory === i.subCategory).length;
                                 const reservationCount = isOwnProfile ? myReservations.filter(r => isReservActive(r) && reservationMatchesSport(r, i.subCategory)).length : 0;
                                 return (
                                     <View key={i.id} style={{ position: 'relative' }}>
@@ -3072,6 +3144,19 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
+                {/* Yaklaşan Aktivitelerim — rezervasyonların üstünde; sayaç + tarih geçene kadar yanıp söner.
+                    İçinde Yaklaşan / Arşiv sekmeleri; süre bitince kayıt arşive düşer. */}
+                {isOwnProfile && (
+                    <TouchableOpacity
+                        style={[ap.reservBtn, activeUpcomingCount > 0 && { borderColor: '#4ade8060' }]}
+                        onPress={() => openMyUpcoming(null)}
+                        activeOpacity={0.75}
+                    >
+                        <Animated.Text style={[ap.reservBtnText, { color: '#4ade80', opacity: upcomingHubBlink }]}>
+                            {t.myUpcomingActivitiesBtn}{` (${activeUpcomingCount})`}
+                        </Animated.Text>
+                    </TouchableOpacity>
+                )}
                 {/* Rezervasyonlarım — maçlar aynı ekranın içinde sekme olarak var, ayrı buton yok */}
                 {isOwnProfile && (
                     <TouchableOpacity
@@ -3187,6 +3272,12 @@ export default function ProfileScreen({ route, navigation }) {
                                                     💬 {m.message}
                                                 </Text>
                                             ) : null}
+                                            <TouchableOpacity
+                                                onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
+                                                style={{ marginTop:8, alignSelf:'flex-start', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
+                                            >
+                                                <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     );
                                 });
@@ -4349,6 +4440,12 @@ export default function ProfileScreen({ route, navigation }) {
                 visible={!!shareArchiveMatch}
                 match={shareArchiveMatch}
                 onClose={() => setShareArchiveMatch(null)}
+            />
+            <EntityShareModal
+                visible={!!entityShareReq}
+                kind={entityShareReq?.kind}
+                item={entityShareReq?.item}
+                onClose={() => setEntityShareReq(null)}
             />
 
             {/* ── Profile Info Modal ── */}

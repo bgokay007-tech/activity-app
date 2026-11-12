@@ -119,7 +119,7 @@ export const getRivalSharePage = async (req, res, next) => {
             select: {
                 category: true, subCategory: true, courtName: true, location: true,
                 matchDate: true, matchTime: true, matchType: true, matchMode: true,
-                participants: true, senderTeam: true,
+                status: true, participants: true, senderTeam: true,
                 sender: { select: { fullName: true, username: true } },
             },
         });
@@ -137,7 +137,11 @@ export const getRivalSharePage = async (req, res, next) => {
         const sub = subCategoryLabel(rival.subCategory);
         const place = rival.courtName || rival.location;
         const dateStr = formatDate(rival.matchDate);
-        const title = `${sub} Rakip Arıyor${place ? ' · ' + place : ''}`;
+        // MATCHED = yaklaşan maç paylaşımı; OPEN = rakip arama ilanı
+        const isUpcoming = rival.status === 'MATCHED';
+        const title = isUpcoming
+            ? `${sub} Yaklaşan Maç${place ? ' · ' + place : ''}`
+            : `${sub} Rakip Arıyor${place ? ' · ' + place : ''}`;
         const descParts = [];
         if (dateStr) descParts.push(`📅 ${dateStr}${rival.matchTime ? ' ' + rival.matchTime : ''}`);
         if (place) descParts.push(`📍 ${place}`);

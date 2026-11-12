@@ -65,11 +65,17 @@ function buildRival(rival, t, lang) {
     const { sport, emoji } = sportMeta(rival.subCategory, lang);
     const url = `${SHARE_HOST}/share/rival/${rival.id}`;
     const place = rival.courtName || rival.location || rival.city || '';
-    const isVolleyballPlayerAd = rival.subCategory === 'volleyball' && rival.matchType !== 'PLAYER_WANTED';
-    const intro = isVolleyballPlayerAd
-        ? (t?.sharePlayerWantedIntro || 'Looking for players')
-        : (t?.shareRivalIntro || 'Looking for a rival');
-    const badge = t?.shareEntityBadgeRival || (lang === 'tr' ? 'MAÇ İLANI' : lang === 'ru' ? 'ОБЪЯВЛЕНИЕ' : lang === 'de' ? 'ANZEIGE' : 'MATCH AD');
+    // MATCHED = Yaklaşan Maçlar — ilan (OPEN) ile aynı kart/paylaşım akışı, metinler farklı.
+    const isUpcoming = String(rival.status || '').toUpperCase() === 'MATCHED';
+    const isVolleyballPlayerAd = !isUpcoming && rival.subCategory === 'volleyball' && rival.matchType !== 'PLAYER_WANTED';
+    const intro = isUpcoming
+        ? (t?.shareUpcomingMatchIntro || 'Upcoming match')
+        : isVolleyballPlayerAd
+            ? (t?.sharePlayerWantedIntro || 'Looking for players')
+            : (t?.shareRivalIntro || 'Looking for a rival');
+    const badge = isUpcoming
+        ? (t?.shareEntityBadgeUpcoming || (lang === 'tr' ? 'YAKLAŞAN MAÇ' : lang === 'ru' ? 'ПРЕДСТОЯЩИЙ' : lang === 'de' ? 'NÄCHSTES MATCH' : 'UPCOMING'))
+        : (t?.shareEntityBadgeRival || (lang === 'tr' ? 'MAÇ İLANI' : lang === 'ru' ? 'ОБЪЯВЛЕНИЕ' : lang === 'de' ? 'ANZEIGE' : 'MATCH AD'));
     const lines = [];
     const surface = surfaceLabel(rival, t);
     if (surface) lines.push(`🏟 ${surface}`);

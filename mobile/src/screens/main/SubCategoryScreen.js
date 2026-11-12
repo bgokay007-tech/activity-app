@@ -9801,6 +9801,14 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                         flex:1 olan butonlar hâlâ bozuktu). Kökten çözüm: bu satırdaki HİÇBİR butonda
                         artık flex:1 yok, hepsi İptal/Gelmedi gibi kendi içeriğine göre boyutlanıyor. */}
                     <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginTop:8, marginBottom:20, alignItems:'flex-start' }}>
+                        {/* Kullanıcı isteği: yaklaşan maç da açık ilan gibi diğer platformlarda
+                            (WhatsApp/Instagram/sistem paylaşımı) paylaşılsın — aynı EntityShareModal
+                            + shareRival akışı; MATCHED için kart metni "Yaklaşan Maç". */}
+                        <TouchableOpacity
+                            style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: cfg.color+'50', backgroundColor: cfg.color+'18', alignItems:'center' }}
+                            onPress={() => shareRival({ ...match, status: match.status || 'MATCHED' }, t)}>
+                            <Text style={{ color: cfg.color, fontSize:13, fontWeight:'700' }}>{t.shareBtn || t.sc_0086}</Text>
+                        </TouchableOpacity>
                         {/* Maçı Başlat — kullanıcı isteği: İptal/Gelmedi ile aynı satıra taşındı,
                             önceden kendi başına tam genişlik bir satırdı, gereksiz yer kaplıyordu.
                             Koşulu aynı: maç saati gelince (skor kilidi açılmadan çok önce), kamera
