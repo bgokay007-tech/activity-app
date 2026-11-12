@@ -99,3 +99,15 @@ export function sportEquipmentTabLabel(sub, sportDisplayName, lang, t) {
     }
     return t.equipmentTab;
 }
+
+/** Paylaşım rozeti — "EKİPMAN" değil "Tenis Ekipmanı" / "Padel Equipment" vb. */
+export function sportEquipmentShareBadge(sub, sportDisplayName, lang, t) {
+    const name = sportDisplayName || sub || '';
+    if (t?.shareEntityBadgeEquipmentSport) {
+        try { return t.shareEntityBadgeEquipmentSport(name); } catch { /* */ }
+    }
+    if (lang === 'tr') return `${name} Ekipmanı`;
+    if (lang === 'ru') return `${name} снаряжение`;
+    if (lang === 'de') return `${name}-Ausrüstung`;
+    return `${name} Equipment`;
+}

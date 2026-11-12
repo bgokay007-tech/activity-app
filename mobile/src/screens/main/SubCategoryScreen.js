@@ -24766,6 +24766,9 @@ function SubCategoryScreen({ route, navigation }) {
     const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
     const [showEquipmentFilter, setShowEquipmentFilter] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
+    // Ekipman detay galerisi — tüm resimler; dokununca tam ekran
+    const [eqGalleryIdx, setEqGalleryIdx] = useState(0);
+    const [eqFullscreen, setEqFullscreen] = useState(false);
     const [equipmentViewStatus, setEquipmentViewStatus] = useState('ACTIVE'); // 'ACTIVE' | 'SOLD'
     const [equipmentOffers, setEquipmentOffers] = useState([]);
     const [loadingEquipmentOffers, setLoadingEquipmentOffers] = useState(false);
@@ -26587,6 +26590,8 @@ function SubCategoryScreen({ route, navigation }) {
         api.get(`/equipment/${openEquipmentId}`)
             .then(({ data }) => {
                 setEquipmentViewStatus(data.status === 'SOLD' ? 'SOLD' : 'ACTIVE');
+                setEqGalleryIdx(0);
+                setEqFullscreen(false);
                 setSelectedEquipment(data);
                 navigation.setParams({ openEquipmentId: undefined });
             })
@@ -29008,7 +29013,7 @@ function SubCategoryScreen({ route, navigation }) {
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {filteredEquipment.map(eq => (
-                                        <TouchableOpacity key={eq.id} onPress={() => setSelectedEquipment(eq)}
+                                        <TouchableOpacity key={eq.id} onPress={() => { setEqGalleryIdx(0); setEqFullscreen(false); setSelectedEquipment(eq); }}
                                             style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
                                             {eq.images?.[0] ? (
                                                 <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />
@@ -29020,6 +29025,11 @@ function SubCategoryScreen({ route, navigation }) {
                                             <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0 }}>
                                                 <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? t.sc_0901 : t.sc_0902}</Text>
                                             </View>
+                                            {Array.isArray(eq.images) && eq.images.length > 1 && (
+                                                <View style={{ position:'absolute', bottom:52, right:6, backgroundColor:'#000000aa', borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
+                                                    <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>📷 {eq.images.length}</Text>
+                                                </View>
+                                            )}
                                             {eq.status === 'RESERVED' && (
                                                 <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#f59e0b', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
                                                     <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>⏳</Text>
@@ -29066,7 +29076,10 @@ function SubCategoryScreen({ route, navigation }) {
                                                 style={{ marginBottom: 10 }}
                                             />
 
-                                            {/* Medya seçici */}
+                                            {/* Medya seçici — 1+ resim; 1. kapak, 2. paylaşım arka planı */}
+                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
+                                                {t.equipMediaOrderHint || 'En az 1 fotoğraf. 1. seçilen kapak, 2. seçilen paylaşım arka planı olur (en fazla 5).'}
+                                            </Text>
                                             {equipmentMedia.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:10 }}>
                                                     {equipmentMedia.map((m, idx) => (
@@ -29078,6 +29091,11 @@ function SubCategoryScreen({ route, navigation }) {
                                                                   </View>
                                                                 : <Image source={{ uri:m.uri }} style={{ width:90, height:90, borderRadius:8 }} resizeMode="cover" />
                                                             }
+                                                            <View style={{ position:'absolute', left:4, bottom:4, backgroundColor:'#000000aa', borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
+                                                                <Text style={{ color:'#C8F54A', fontSize:9, fontWeight:'900' }}>
+                                                                    {idx === 0 ? (t.equipMediaCoverTag || '1·Kapak') : idx === 1 ? (t.equipMediaBgTag || '2·Arka plan') : String(idx + 1)}
+                                                                </Text>
+                                                            </View>
                                                             <TouchableOpacity
                                                                 onPress={() => setEquipmentMedia(prev => prev.filter((_,i) => i !== idx))}
                                                                 style={{ position:'absolute', top:-6, right:-6, backgroundColor:'#ef4444', borderRadius:10, width:20, height:20, justifyContent:'center', alignItems:'center' }}>
@@ -29113,23 +29131,67 @@ function SubCategoryScreen({ route, navigation }) {
                             </Modal>
 
                             {/* İlan detay Modal */}
-                            <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => setSelectedEquipment(null)}>
+                            <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => { setSelectedEquipment(null); setEqFullscreen(false); setEqGalleryIdx(0); }}>
                                 <View style={{ flex:1, backgroundColor:'#00000090', justifyContent:'flex-end' }}>
                                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, padding:17, paddingBottom: 17 + Math.max(insets.bottom, 16), maxHeight:'85%' }}>
                                         <ScrollView showsVerticalScrollIndicator={false}>
-                                            {selectedEquipment?.images?.length > 0 && (
-                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:12 }}>
-                                                    {(selectedEquipment.images||[]).map((img,idx) => {
-                                                        const isVideo = typeof img === 'string' && img.includes('/video/upload/');
-                                                        return isVideo
-                                                            ? <View key={idx} style={{ width:220, height:160, borderRadius:10, marginRight:8, backgroundColor:'#1e293b', borderWidth:1, borderColor:colors.border, justifyContent:'center', alignItems:'center' }}>
-                                                                <Text style={{ fontSize:40 }}>🎬</Text>
-                                                                <Text style={{ color:colors.textMuted, fontSize:12, marginTop:4 }}>{t.sc_0911}</Text>
-                                                              </View>
-                                                            : <Image key={idx} source={{ uri:img }} style={{ width:220, height:160, borderRadius:10, marginRight:8 }} resizeMode="cover" />;
-                                                    })}
-                                                </ScrollView>
-                                            )}
+                                            {selectedEquipment?.images?.length > 0 && (() => {
+                                                const imgs = selectedEquipment.images || [];
+                                                const slideW = Math.max(280, winW - 34);
+                                                return (
+                                                    <View style={{ marginBottom:12 }}>
+                                                        <ScrollView
+                                                            horizontal
+                                                            pagingEnabled
+                                                            showsHorizontalScrollIndicator={false}
+                                                            decelerationRate="fast"
+                                                            snapToInterval={slideW + 8}
+                                                            snapToAlignment="start"
+                                                            onMomentumScrollEnd={(e) => {
+                                                                const x = e.nativeEvent.contentOffset.x;
+                                                                const i = Math.round(x / (slideW + 8));
+                                                                if (i >= 0 && i < imgs.length) setEqGalleryIdx(i);
+                                                            }}
+                                                        >
+                                                            {imgs.map((img, idx) => {
+                                                                const isVideo = typeof img === 'string' && img.includes('/video/upload/');
+                                                                return (
+                                                                    <TouchableOpacity
+                                                                        key={idx}
+                                                                        activeOpacity={0.9}
+                                                                        onPress={() => { setEqGalleryIdx(idx); setEqFullscreen(true); }}
+                                                                        style={{ width: slideW, height: 210, borderRadius: 12, marginRight: 8, overflow: 'hidden', backgroundColor: '#1e293b' }}
+                                                                    >
+                                                                        {isVideo ? (
+                                                                            <View style={{ flex:1, justifyContent:'center', alignItems:'center' }}>
+                                                                                <Text style={{ fontSize:40 }}>🎬</Text>
+                                                                                <Text style={{ color:colors.textMuted, fontSize:12, marginTop:4 }}>{t.sc_0911}</Text>
+                                                                            </View>
+                                                                        ) : (
+                                                                            <Image source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                                                                        )}
+                                                                    </TouchableOpacity>
+                                                                );
+                                                            })}
+                                                        </ScrollView>
+                                                        {imgs.length > 1 && (
+                                                            <View style={{ flexDirection:'row', justifyContent:'center', alignItems:'center', gap:5, marginTop:8 }}>
+                                                                {imgs.map((_, i) => (
+                                                                    <View key={i} style={{ width: i === eqGalleryIdx ? 16 : 6, height:6, borderRadius:3, backgroundColor: i === eqGalleryIdx ? cfg.color : '#ffffff33' }} />
+                                                                ))}
+                                                                <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', marginLeft:6 }}>
+                                                                    {eqGalleryIdx + 1}/{imgs.length}
+                                                                </Text>
+                                                            </View>
+                                                        )}
+                                                        {imgs.length > 1 && (
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, textAlign:'center', marginTop:4 }}>
+                                                                {t.equipGallerySwipeHint || 'Kaydır · dokunarak büyüt'}
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                );
+                                            })()}
                                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:6 }}>
                                                 <View style={{ backgroundColor: selectedEquipment?.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:5, paddingVertical:0 }}>
                                                     <Text style={{ color:'#fff', fontSize:11, fontWeight:'800' }}>{selectedEquipment?.condition==='NEW' ? t.sc_0901 : t.sc_0914}</Text>
@@ -29370,10 +29432,49 @@ function SubCategoryScreen({ route, navigation }) {
                                                 </>
                                             )}
                                         </ScrollView>
-                                        <TouchableOpacity onPress={() => { setSelectedEquipment(null); setShowOfferForm(false); }} style={{ marginTop:12, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                        <TouchableOpacity onPress={() => { setSelectedEquipment(null); setShowOfferForm(false); setEqFullscreen(false); setEqGalleryIdx(0); }} style={{ marginTop:12, paddingVertical:7, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                             <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0923}</Text>
                                         </TouchableOpacity>
                                     </View>
+                                </View>
+                            </Modal>
+
+                            {/* Ekipman fotoğrafı tam ekran — tüm resimler kaydırılabilir */}
+                            <Modal visible={eqFullscreen && !!selectedEquipment} transparent animationType="fade" onRequestClose={() => setEqFullscreen(false)}>
+                                <View style={{ flex:1, backgroundColor:'#000000ee', justifyContent:'center' }}>
+                                    <TouchableOpacity onPress={() => setEqFullscreen(false)} style={{ position:'absolute', top: Math.max(insets.top, 12) + 8, right:16, zIndex:10, width:36, height:36, borderRadius:18, backgroundColor:'#ffffff22', alignItems:'center', justifyContent:'center' }}>
+                                        <Text style={{ color:'#fff', fontSize:18, fontWeight:'900' }}>✕</Text>
+                                    </TouchableOpacity>
+                                    {selectedEquipment?.images?.length > 0 && (
+                                        <>
+                                            <ScrollView
+                                                horizontal
+                                                pagingEnabled
+                                                showsHorizontalScrollIndicator={false}
+                                                contentOffset={{ x: eqGalleryIdx * winW, y: 0 }}
+                                                onMomentumScrollEnd={(e) => {
+                                                    const i = Math.round(e.nativeEvent.contentOffset.x / winW);
+                                                    if (i >= 0) setEqGalleryIdx(i);
+                                                }}
+                                            >
+                                                {(selectedEquipment.images || []).map((img, idx) => {
+                                                    const isVideo = typeof img === 'string' && img.includes('/video/upload/');
+                                                    return (
+                                                        <View key={idx} style={{ width: winW, height: winH * 0.7, justifyContent:'center', alignItems:'center' }}>
+                                                            {isVideo ? (
+                                                                <Text style={{ color:'#fff', fontSize:18 }}>🎬 {t.sc_0911}</Text>
+                                                            ) : (
+                                                                <Image source={{ uri: img }} style={{ width: winW - 24, height: '100%' }} resizeMode="contain" />
+                                                            )}
+                                                        </View>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                            <Text style={{ color:'#fff', textAlign:'center', fontWeight:'800', marginTop:12 }}>
+                                                {eqGalleryIdx + 1}/{(selectedEquipment.images || []).length}
+                                            </Text>
+                                        </>
+                                    )}
                                 </View>
                             </Modal>
 
@@ -31385,7 +31486,7 @@ function SubCategoryScreen({ route, navigation }) {
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, paddingVertical:5 }}>
                                     {archiveEquipment.map(eq => (
-                                        <TouchableOpacity key={eq.id} onPress={() => setSelectedEquipment(eq)}
+                                        <TouchableOpacity key={eq.id} onPress={() => { setEqGalleryIdx(0); setEqFullscreen(false); setSelectedEquipment(eq); }}
                                             style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
                                             {eq.images?.[0] ? (
                                                 <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />

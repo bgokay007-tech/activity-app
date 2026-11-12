@@ -1,4 +1,5 @@
 import { getSubCategoryLabel } from './subCategoryLabels';
+import { sportEquipmentShareBadge } from './sportFacilityLabels';
 import { BASE_URL } from '../services/api';
 import { BRAND_LETTER_COLORS } from './matchShareCard';
 
@@ -153,16 +154,20 @@ function buildTournament(tournament, t, lang) {
     };
 }
 
-function firstEquipmentImage(images) {
-    if (!Array.isArray(images)) return null;
-    return images.find((img) => typeof img === 'string' && img && !img.includes('/video/upload/')) || null;
+/** Fotoğraf URL'leri (video hariç) — seçim sırası korunur. */
+function equipmentPhotoUrls(images) {
+    if (!Array.isArray(images)) return [];
+    return images.filter((img) => typeof img === 'string' && img && !img.includes('/video/upload/'));
 }
 
 function buildEquipment(eq, t, lang) {
     const { sport, emoji } = sportMeta(eq.subCategory, lang);
     const url = `${SHARE_HOST}/share/equipment/${eq.id}`;
-    const badge = t?.shareEntityBadgeEquipment || (lang === 'tr' ? 'EKİPMAN' : lang === 'ru' ? 'СНАРЯЖЕНИЕ' : lang === 'de' ? 'AUSRÜSTUNG' : 'EQUIPMENT');
-    const intro = t?.shareEquipmentIntro || (lang === 'tr' ? 'Satılık ekipman' : 'Equipment for sale');
+    // Spor-özel rozet: "EKİPMAN" değil "Tenis Ekipmanı"
+    const badge = sportEquipmentShareBadge(eq.subCategory, sport, lang, t);
+    const intro = t?.shareEquipmentIntroSport
+        ? t.shareEquipmentIntroSport(sport)
+        : (t?.shareEquipmentIntro || (lang === 'tr' ? `Satılık ${sport} ekipmanı` : `${sport} equipment for sale`));
     const price = eq.price > 0 ? `${eq.price} ₺` : (t?.sc_0903 || '—');
     const cond = eq.condition === 'NEW'
         ? (t?.sc_0901 || 'New')
@@ -176,7 +181,10 @@ function buildEquipment(eq, t, lang) {
     if (place) lines.push(`📍 ${place}`);
     if (seller) lines.push(`👤 ${seller}`);
     if (eq.description) lines.push(String(eq.description).trim().slice(0, 140));
-    const coverUrl = firstEquipmentImage(eq.images);
+    // 1. seçilen foto = kapak (normal resim); 2. seçilen = paylaşım arka planı
+    const photos = equipmentPhotoUrls(eq.images);
+    const coverUrl = photos[0] || null;
+    const bgUrl = photos[1] || null;
     const message = [`${intro}: ${eq.title}`, ...lines, url].filter(Boolean).join('\n');
     return {
         kind: 'equipment',
@@ -190,6 +198,7 @@ function buildEquipment(eq, t, lang) {
         lines,
         message,
         coverUrl,
+        bgUrl,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
         brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,

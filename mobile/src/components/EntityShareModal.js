@@ -229,7 +229,7 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
         }
     }, [visible]);
 
-    // Kapak + spor/zemin arka planını önceden indir
+    // Kapak + arka plan: ekipmanda 2. foto varsa o arka plan; yoksa spor/zemin görseli
     useEffect(() => {
         if (!visible || !payload) {
             coverDataRef.current = null;
@@ -241,9 +241,17 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
         bgDataRef.current = null;
         pngPath.current = null;
         (async () => {
+            const resolveBg = async () => {
+                // Kullanıcı isteği: ekipman paylaşımında 1. resim kapak, 2. resim arka plan
+                if (payload.bgUrl) {
+                    const custom = await coverToDataUrl(payload.bgUrl);
+                    if (custom) return custom;
+                }
+                return shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
+            };
             const [cover, bg] = await Promise.all([
                 payload.coverUrl ? coverToDataUrl(payload.coverUrl) : Promise.resolve(null),
-                shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw),
+                resolveBg(),
             ]);
             if (!cancelled) {
                 coverDataRef.current = cover;
@@ -251,15 +259,20 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             }
         })();
         return () => { cancelled = true; };
-    }, [visible, payload?.id, payload?.coverUrl, payload?.subCategory, payload?.surfaceRaw]);
+    }, [visible, payload?.id, payload?.coverUrl, payload?.bgUrl, payload?.subCategory, payload?.surfaceRaw]);
 
     const ensurePng = async () => {
         if (pngPath.current) return pngPath.current;
         if (payload?.coverUrl && !coverDataRef.current) {
             coverDataRef.current = await coverToDataUrl(payload.coverUrl);
         }
-        if (!bgDataRef.current && payload?.subCategory) {
-            bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
+        if (!bgDataRef.current) {
+            if (payload?.bgUrl) {
+                bgDataRef.current = await coverToDataUrl(payload.bgUrl);
+            }
+            if (!bgDataRef.current && payload?.subCategory) {
+                bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
+            }
         }
         return new Promise((resolve, reject) => {
             pendingAction.current = { type: 'capture', resolve, reject };

@@ -11,7 +11,7 @@ Kullanıcı “aynısını X’e uygula” (tenis→masa tenisi/badminton vb.) d
 ## Uyarlanması gerekenler
 
 1. **Rezervasyon butonu** — `Kort Rez.` değil; `Masa Tenisi Rezervasyonu` / `Badminton Rezervasyonu`
-2. **Ekipman sekmesi** — `Tenis Ekipmanları` değil; `{Dal} Ekipmanları`
+2. **Ekipman sekmesi / paylaşım rozeti** — `Tenis Ekipmanları` / `Tenis Ekipmanı` değil kör kopya; `{Dal} Ekipmanları` / `{Dal} Ekipmanı` (`sportEquipmentTabLabel` / `sportEquipmentShareBadge`)
 3. **Tesis adı** — masa tenisinde **masa**, badmintonda **badminton kortu**, voleybolda **salon**
 4. **Haberler** — o sporun RSS/Google News sorgusu (tenis feed’ine düşmesin); TR=yerel, EN=global
 
