@@ -1,4 +1,4 @@
-﻿import { Component, createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { Component, createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
