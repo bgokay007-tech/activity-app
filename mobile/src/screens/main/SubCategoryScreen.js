@@ -1147,7 +1147,13 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
         const kick = setTimeout(() => {
             if (cancel) return;
             quietVideoForMusic(player);
-            startPostMusic(post).then(() => { if (cancel) stopActivePostMusic(); });
+            // İptal sonrası stopActivePostMusic() YASAK: gen'i artırıp yeni başlayan
+            // müziği de öldürüyordu (yukarı kaydırınca ses gelmiyordu).
+            startPostMusic(post).then((stop) => {
+                if (!cancel || !stop) return;
+                try { stop(); } catch { /* */ }
+                if (stopFeedPostMusic === stop) stopFeedPostMusic = null;
+            });
         }, 180);
         const keepQuiet = setInterval(() => { if (!cancel) quietVideoForMusic(player); }, 1500);
         return () => {
@@ -24131,10 +24137,16 @@ function SubCategoryScreen({ route, navigation }) {
             return next;
         });
     };
-    // Histerezis: eşik altında kısa ölçüm / ref flicker müziği kesmesin.
-    // Yeni adaya geçmek için net daha görünür olmalı; mevcut kart hâlâ ekrandaysa tut.
+    // Fotoğrafın ≥%75'i ekranda → müzik; altına inince dur. Küçük histerezis (OFF=%55)
+    // kaydırma titremesini keser; OFF altında null → playMusic false olur, tekrar %75'e
+    // gelince effect müziği yeniden başlatır (önceki "prev tut" bug'u restart'ı engelliyordu).
+    const audiblePickGen = useRef(0);
     const pickAudiblePost = useCallback(() => {
-        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return;
+        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) {
+            setAudiblePostId(null);
+            return;
+        }
+        const gen = ++audiblePickGen.current;
         const jobs = [];
         mediaCardRefs.current.forEach((node, id) => {
             if (!node?.measureInWindow) return;
@@ -24142,31 +24154,31 @@ function SubCategoryScreen({ route, navigation }) {
                 node.measureInWindow((x, y, w, h) => {
                     if (!h) { resolve(null); return; }
                     const vis = Math.max(0, Math.min(y + h, winH) - Math.max(y, 0));
-                    resolve({ id, y, ratioPost: vis / h, ratioScreen: vis / winH });
+                    // Sadece fotoğrafın kendi görünür oranı — ekran kaplama ile şişirme.
+                    resolve({ id, y, ratioPost: vis / h });
                 });
             }));
         });
         // Ref remount anında liste boşalabiliyor — mevcut audible'ı silme.
         if (!jobs.length) return;
+        const MUSIC_ON = 0.75;
+        const MUSIC_OFF = 0.55;
         Promise.all(jobs).then(rows => {
+            if (gen !== audiblePickGen.current) return;
             const scored = rows
                 .filter(Boolean)
-                .map(r => ({ ...r, score: Math.max(r.ratioPost, r.ratioScreen) }))
-                .sort((a, b) => b.score - a.score || a.y - b.y);
+                .sort((a, b) => b.ratioPost - a.ratioPost || a.y - b.y);
             setAudiblePostId(prev => {
                 const cur = prev ? scored.find(r => r.id === prev) : null;
                 const best = scored[0];
-                // Mevcut kart hâlâ makul görünürse (yorum açılınca vs.) tut.
-                if (cur && cur.score >= 0.35) {
-                    if (best && best.id !== prev && best.score >= 0.75 && best.score > cur.score + 0.2) {
+                if (cur && cur.ratioPost >= MUSIC_OFF) {
+                    if (best && best.id !== prev && best.ratioPost >= MUSIC_ON && best.ratioPost > cur.ratioPost + 0.1) {
                         return best.id;
                     }
                     return prev;
                 }
-                if (best && best.score >= 0.55) return best.id;
-                // Hiçbir şey görünmüyorsa (kaydırıp çıktı) temizle; aksi halde prev kalsın.
-                if (!best || best.score < 0.15) return null;
-                return prev;
+                if (best && best.ratioPost >= MUSIC_ON) return best.id;
+                return null;
             });
         });
     }, [dataSaverMode, activeTab, mediaViewIdx, winH]);
@@ -24238,7 +24250,11 @@ function SubCategoryScreen({ route, navigation }) {
         const kick = setTimeout(() => {
             if (cancel) return;
             quietVideoForMusic(mediaViewPlayer);
-            startPostMusic(viewedMusic).then(() => { if (cancel) stopActivePostMusic(); });
+            startPostMusic(viewedMusic).then((stop) => {
+                if (!cancel || !stop) return;
+                try { stop(); } catch { /* */ }
+                if (stopFeedPostMusic === stop) stopFeedPostMusic = null;
+            });
         }, 220);
         const keepQuiet = setInterval(() => { if (!cancel) quietVideoForMusic(mediaViewPlayer); }, 1500);
         return () => {
