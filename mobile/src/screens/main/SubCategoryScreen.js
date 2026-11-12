@@ -25749,10 +25749,19 @@ function SubCategoryScreen({ route, navigation }) {
             });
 
             if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
+                const pendingList = Array.isArray(pendingRes.data) ? pendingRes.data : [];
                 const found = openRivals.find(r => r.id === highlightRivalId)
-                    || upcomingList.find(r => r.id === highlightRivalId);
+                    || upcomingList.find(r => r.id === highlightRivalId)
+                    // SCORE_ENTRY_REQUIRED / skor onayı bildirimleri — maç autoComplete sonrası
+                    // sadece "Skor Bekleyen" / "Skor Onay Bekleyen" listesinde; openRivals ve
+                    // upcoming'de yok. Burada aranmazsa tenis ekranı açılıp maç hiç gelmiyordu.
+                    || pendingList.find(r => r.id === highlightRivalId);
                 if (found) {
                     autoOpenHandledRef.current = highlightRivalId;
+                    if (pendingList.some(r => r.id === highlightRivalId)) {
+                        if (found.scoreStatus === 'PENDING') setScoreConfirmExpanded(true);
+                        else setPendingScoreExpanded(true);
+                    }
                     // Kullanıcı raporu: bildirimden gelip otomatik açılan ilan detayında üstteki
                     // bilgi rozetleri (cinsiyet/derece/iptal cezası vb.) bazen bir anda "kayıyordu"
                     // — sadece bildirimden gelince, direkt karta dokununca hiç olmuyordu. Ekran
@@ -27798,11 +27807,16 @@ function SubCategoryScreen({ route, navigation }) {
     // Skor Bekleyen Maçlar varsayılan kapalı — ama bildirimle (highlightRivalId) doğrudan
     // skor bekleyen bir maça yönlendirildiyse bölüm kapalı kalırsa kart hiç render olmuyor,
     // autoOpen tetiklenemiyor. Bu durumda ilgili bölüm otomatik açılır.
+    // pendingScore listesi load() ile GECİKMELİ geldiği için sadece highlightRivalId'ye
+    // bağlanmak yetmiyor — ilk efekt boş listede çalışıp kaçırıyordu (kullanıcı raporu:
+    // "skor girilmesi gereken maçınız var" bildirimine tıklayınca tenis ekranı açılıp
+    // maç gelmiyor / donuyor). Boolean bağımlılık: dizi referansı her render yenilenmesin.
+    const highlightInPendingScore = !!(highlightRivalId && pendingScoreAll.some(m => m.id === highlightRivalId));
+    const highlightInScoreConfirm = !!(highlightRivalId && scoreConfirmPendingMatches.some(m => m.id === highlightRivalId));
     useEffect(() => {
-        if (!highlightRivalId) return;
-        if (pendingScoreAll.some(m => m.id === highlightRivalId)) setPendingScoreExpanded(true);
-        if (scoreConfirmPendingMatches.some(m => m.id === highlightRivalId)) setScoreConfirmExpanded(true);
-    }, [highlightRivalId]);
+        if (highlightInPendingScore) setPendingScoreExpanded(true);
+        if (highlightInScoreConfirm) setScoreConfirmExpanded(true);
+    }, [highlightInPendingScore, highlightInScoreConfirm]);
     // Skor Onaylanması Bekleyen Maçlar — varsayılan kapalı, AMA benim onayımı bekleyen bir maç
     // varsa (kullanıcı isteği: "dikkat çeken birşey olsun") otomatik açılır.
     useEffect(() => {

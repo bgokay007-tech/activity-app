@@ -492,6 +492,10 @@ export default function NotificationsScreen({ navigation }) {
             } else {
                 goToSub('rivals');
             }
+        } else if (type === 'SCORE_ENTRY_REQUIRED') {
+            // Maç "Skor Bekleyen" bölümünde — rivals sekmesi + highlightRivalId ile açılır
+            // (SubCategoryScreen load + expand efekti pendingScore listesini de tarar).
+            goToSub('rivals');
         } else if (type === 'MATCH_CONFIRMED') {
             goToSub('rivals');
         } else if (type === 'JOIN_LATE_ACCEPT') {

@@ -118,6 +118,8 @@ function navigateFromNotif(data, isBusiness) {
         else if (type?.startsWith('TOURNAMENT') || type === 'CANCELLATION_REQUEST') initialTab = 'tournaments';
         else if (type === 'MATCH_CONFIRMED') initialTab = 'rivals';
         else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') initialTab = 'archive';
+        // Skor girilmesi gereken maç — rivals'taki "Skor Bekleyen" bölümü (pendingScore).
+        else if (type === 'SCORE_ENTRY_REQUIRED') initialTab = 'rivals';
         // "Oyuncuları Değerlendir" bildirimi — maç zaten Arşiv'e kaldırıldığı için Açık
         // İlanlar'a değil, o maçın Arşiv detayına gitmeli (kullanıcı raporu: OS bildirim
         // tepsisinden tıklanınca yanlışlıkla Açık İlanlar açılıyordu — NotificationsScreen'deki
