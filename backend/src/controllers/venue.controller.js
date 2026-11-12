@@ -1084,6 +1084,85 @@ export const makeReservation = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+// İlan oluşturan kişi gün/saati belirleyip Pro+ tesiste "uygulama dışında (telefon/işletme)
+// zaten rezervasyonum var" demişse: slot çakışması kontrolü YAPILMAZ (işletme takviminde
+// manuel kayıt zaten duruyor olabilir veya henüz yok), CONFIRMED + isExternal kaydı açılır
+// ve işletmeye bilgi bildirimi gider. Ödeme onayı cron'u bu kayıtlara dokunmaz.
+export const reportExternalReservation = async (req, res, next) => {
+    try {
+        const { id, courtId } = req.params;
+        const { date, startTime, endTime, notes } = req.body;
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id } });
+        if (!venue || venue.status !== 'APPROVED') return res.status(404).json({ message: 'Tesis bulunamadı' });
+
+        if (!await isProVenueOwner(venue.userId))
+            return res.status(403).json({ message: 'Bu tesis uygulama içinden rezervasyon almıyor. Varsa telefon numarasından işletmeyi arayarak rezervasyon yapabilirsiniz.' });
+
+        const isBlocked = await prisma.venueBlock.findUnique({
+            where: { venueId_userId: { venueId: id, userId: req.userId } },
+        });
+        if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
+
+        const policyBlock = await assertNotVenuePolicyBlocked(venue, req.userId);
+        if (policyBlock) return res.status(policyBlock.status).json({ message: policyBlock.message });
+
+        if (!date || !startTime || !endTime) return res.status(400).json({ message: 'Tarih, başlangıç ve bitiş saati zorunludur' });
+        if (isPastDateTime(date, startTime)) return res.status(400).json({ message: 'Geçmiş bir tarih/saate rezervasyon yapılamaz' });
+
+        const court = await prisma.venueCourt.findUnique({ where: { id: courtId } });
+        if (!court || court.venueId !== id) return res.status(404).json({ message: 'Kort bulunamadı' });
+
+        // Aynı kullanıcının aynı kort/tarih/saat için zaten açık bir kaydı varsa yenisini açma —
+        // ilan yeniden denemelerinde çift satır oluşmasın.
+        const existing = await prisma.courtReservation.findFirst({
+            where: {
+                venueId: id, courtId, userId: req.userId, date, startTime, endTime,
+                status: { not: 'CANCELLED' },
+            },
+        });
+        if (existing) {
+            if (!existing.isExternal) {
+                await prisma.courtReservation.update({
+                    where: { id: existing.id },
+                    data: {
+                        isExternal: true,
+                        paymentConfirmStatus: 'CONFIRMED',
+                        notes: notes || existing.notes || 'Uygulama dışı rezervasyon (ilan)',
+                    },
+                });
+                const userReuse = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+                createNotification(venue.userId, 'RESERVATION', '📋 Uygulama Dışı Rezervasyon',
+                    `${userReuse?.username || 'Bir kullanıcı'}, ${venue.name} — ${court.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} saatinde uygulama dışında rezervasyonu olduğunu belirtti (ilan oluşturuyor). Lütfen takviminizi kontrol edin.`,
+                    { reservationId: existing.id, category: 'SPORTS', subCategory: venue.branch, isExternal: true }
+                ).catch(() => {});
+                emitToUser(venue.userId, 'notification', {});
+            }
+            return res.status(200).json({ reservation: { ...existing, isExternal: true } });
+        }
+
+        const reservation = await prisma.courtReservation.create({
+            data: {
+                venueId: id, courtId, userId: req.userId, date, startTime, endTime,
+                paymentMethod: 'CASH', status: 'CONFIRMED', isExternal: true,
+                // Ödeme-onayı cron'u CASH+PENDING'e bakıyor — uygulama dışı kayıtta
+                // işletmeden "ödeme alındı mı" sormaya gerek yok.
+                paymentConfirmStatus: 'CONFIRMED',
+                notes: notes || 'Uygulama dışı rezervasyon (ilan)',
+            },
+        });
+
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        createNotification(venue.userId, 'RESERVATION', '📋 Uygulama Dışı Rezervasyon',
+            `${user?.username || 'Bir kullanıcı'}, ${venue.name} — ${court.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} saatinde uygulama dışında rezervasyonu olduğunu belirtti (ilan oluşturuyor). Lütfen takviminizi kontrol edin.`,
+            { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch, isExternal: true }
+        ).catch(() => {});
+        emitToUser(venue.userId, 'notification', {});
+
+        res.status(201).json({ reservation });
+    } catch (error) { next(error); }
+};
+
 // İşletmecinin, uygulamayı kullanmayan (telefonla arayan) bir müşteri için doğrudan takvimden
 // oluşturduğu manuel rezervasyon — her zaman CONFIRMED, gerçek User hesabı olmadan `manualName`
 // ile saklanır.
@@ -1265,7 +1344,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = open; t + 60 <= close; t += 60) {
                         if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, isExternal: !!rs[0]?.isExternal, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
@@ -1277,13 +1356,13 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const midnight = endT > 1440;
                         if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
-                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, isExternal: !!rs[0]?.isExternal, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 90, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, isExternal: !!rs[0]?.isExternal, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 90, rs[0]?.paymentMethod || 'CASH') });
                     }
                 } else {
                     // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
@@ -1294,7 +1373,7 @@ export const getOwnerSchedule = async (req, res, next) => {
                     let cur = open;
                     for (const { s, e, r } of courtRes) {
                         if (s > cur) slots.push({ start: toTime(cur), end: toTime(s), status: 'FREE', user: null, reservationId: null, paymentMethod: null, past: isPastMin(cur), price: 0 });
-                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, manualName: r.manualName || null, reservationId: r.id, cancelRequested: r.cancelRequested || false, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, price: null });
+                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, manualName: r.manualName || null, reservationId: r.id, cancelRequested: r.cancelRequested || false, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, isExternal: !!r.isExternal, price: null });
                         cur = Math.max(cur, e);
                     }
                     if (cur < close) slots.push({ start: toTime(cur), end: toTime(close), status: 'FREE', user: null, reservationId: null, paymentMethod: null, past: isPastMin(cur), price: 0 });

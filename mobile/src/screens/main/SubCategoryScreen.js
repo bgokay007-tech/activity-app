@@ -11525,7 +11525,7 @@ function isPastSlot(dateStr, timeStr) {
     return new Date(`${dateStr}T${timeStr}:00`).getTime() < Date.now();
 }
 
-function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservationId, initialDate, initialStartTime, initialEndTime, onClose, onBooked }) {
+function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservationId, initialDate, initialStartTime, initialEndTime, listingDuration, onClose, onBooked }) {
     const insets = useSafeAreaInsets();
     const t = useT();
     const todayStr = () => {
@@ -11569,6 +11569,10 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     // ekranının üstünde sabit yer kaplamıyor — "Önemli" butonuna basınca ayrı bir modalde
     // toplu gösteriliyor, kapatınca (geri) aynı takvim ekranına dönülüyor.
     const [showVenueInfo, setShowVenueInfo] = useState(false);
+    // Pro+ takvimde "uygulama dışında / işletmeden zaten rezervasyonum var" — slot seçmeden
+    // sadece kort seçip devam; ilan submit'te external-reserve + işletmeye bildirim.
+    const [externalMode, setExternalMode] = useState(false);
+    const [externalCourtId, setExternalCourtId] = useState(null);
 
     // Tesis verisi yükle
     // "Değiştir" ile tekrar açıldığında önceki seçilen tarih/kort/saat gridde hazır işaretli
@@ -11601,6 +11605,7 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
     useEffect(() => {
         if (!visible || !venueId) return;
         setVenue(null); setCourtsSlots({}); setSelSlot(null); setSelDate(initialDate || todayStr());
+        setExternalMode(false); setExternalCourtId(initialCourtId || null);
         initialAppliedRef.current = false;
         setLoadingV(true);
         api.get(`/venues/${venueId}`)
@@ -11782,10 +11787,43 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
         for (const m of acceptedMethods) totalPriceByMethod[m] = totalForMethod(m);
         const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
         const courtObj = { name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId, id: courtId, city: venue?.city, totalPrice: courtTotalPrice, totalPriceByMethod, surface: activeCourt?.surface || null, indoor: effectiveIndoor };
-        onBooked?.(courtObj, selDate, slot.start, endTime, payMethod);
+        onBooked?.(courtObj, selDate, slot.start, endTime, payMethod, { isExternal: false });
         // Kullanıcı isteği: eskiden burada sadece "booked" işaretlenip ayrı bir "Kaldığın
         // yerden devam et" butonuna basmak gerekiyordu — iki defa onay gereksizdi. Artık
         // seçim aktarılır aktarılmaz modal doğrudan kapanıp kaldığı yere (CreateRivalModal) döner.
+        onClose?.();
+    };
+
+    // Uygulama dışı rezervasyon: slot/ödeme yok — ilandaki gün+saat + seçilen kort yeterli.
+    const confirmExternalBooking = () => {
+        if (!externalCourtId) {
+            Alert.alert('', t.externalResNeedCourt);
+            return;
+        }
+        const startTime = initialStartTime || null;
+        if (!startTime || !/^\d{2}:\d{2}$/.test(startTime)) {
+            Alert.alert('', t.externalResNeedTime);
+            return;
+        }
+        const durMins = parseInt(listingDuration, 10) > 0
+            ? parseInt(listingDuration, 10)
+            : (initialEndTime && /^\d{2}:\d{2}$/.test(initialEndTime)
+                ? Math.max(30, toM(initialEndTime) - toM(startTime) || 60)
+                : 60);
+        const endTime = initialEndTime && /^\d{2}:\d{2}$/.test(initialEndTime) && toM(initialEndTime) > toM(startTime)
+            ? initialEndTime
+            : addMins(startTime, durMins);
+        const activeCourt = venue?.courts?.find(c => c.id === externalCourtId);
+        const effectiveIndoor = activeCourt?.indoor ?? venue?.courtIndoorDefault ?? false;
+        const estTotal = venue?.pricePerSlot
+            ? Math.round((durMins / 60) * venue.pricePerSlot)
+            : 0;
+        const courtObj = {
+            name: activeCourt?.name || '', venueName: venue?.name || '', venueId, courtId: externalCourtId,
+            id: externalCourtId, city: venue?.city, totalPrice: estTotal, totalPriceByMethod: estTotal > 0 ? { CASH: estTotal } : null,
+            surface: activeCourt?.surface || null, indoor: effectiveIndoor,
+        };
+        onBooked?.(courtObj, selDate, startTime, endTime, 'CASH', { isExternal: true });
         onClose?.();
     };
 
@@ -12067,6 +12105,41 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                         </TouchableOpacity>
                     </View>
 
+                    {/* Uygulama dışı rezervasyon — takvim dolu görünse bile sadece kort seçip devam */}
+                    {!loadingV && venue && (
+                        <TouchableOpacity
+                            onPress={() => {
+                                setExternalMode(m => {
+                                    const next = !m;
+                                    if (next) {
+                                        setSelSlot(null);
+                                        if (!externalCourtId && initialCourtId) setExternalCourtId(initialCourtId);
+                                    }
+                                    return next;
+                                });
+                            }}
+                            style={{
+                                marginHorizontal: 8, marginTop: 4, marginBottom: 2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8,
+                                flexDirection: 'row', alignItems: 'center', gap: 8,
+                                backgroundColor: externalMode ? '#0ea5e920' : '#ffffff08',
+                                borderWidth: 1, borderColor: externalMode ? '#38bdf8' : '#ffffff20',
+                            }}
+                            activeOpacity={0.8}
+                        >
+                            <View style={{
+                                width: 18, height: 18, borderRadius: 4, borderWidth: 2,
+                                borderColor: externalMode ? '#38bdf8' : '#6b7280',
+                                alignItems: 'center', justifyContent: 'center', backgroundColor: externalMode ? '#0ea5e9' : 'transparent',
+                            }}>
+                                {externalMode ? <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900', lineHeight: 12 }}>✓</Text> : null}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: externalMode ? '#7dd3fc' : '#e5e7eb', fontSize: 12, fontWeight: '800' }}>{t.externalResToggle}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }}>{t.externalResHint}</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+
                     {loadingV && <ActivityIndicator color="#22c55e" style={{ marginVertical: 28 }} />}
 
                     {!loadingV && venue && (
@@ -12110,6 +12183,42 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     </ScrollView>
                                 </View>
 
+                                {externalMode ? (
+                                    <ScrollView style={{ flex:1 }} contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 160 }}>
+                                        <Text style={{ color: '#7dd3fc', fontSize: 12, fontWeight: '700' }}>{t.externalResPickCourt}</Text>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                            {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => {
+                                                const sel = externalCourtId === c.id;
+                                                return (
+                                                    <TouchableOpacity key={c.id} onPress={() => setExternalCourtId(c.id)}
+                                                        style={{
+                                                            paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+                                                            backgroundColor: sel ? '#0ea5e9' : '#ffffff10',
+                                                            borderWidth: 1, borderColor: sel ? '#38bdf8' : '#ffffff25',
+                                                            minWidth: '46%',
+                                                        }}>
+                                                        <Text style={{ color: sel ? '#fff' : '#e5e7eb', fontWeight: '800', fontSize: 13 }}>{c.name}</Text>
+                                                        {(c.surface || c.indoor != null) && (
+                                                            <Text style={{ color: sel ? '#e0f2fe' : '#9ca3af', fontSize: 10, marginTop: 3 }}>
+                                                                {[c.surface, c.indoor == null ? null : (c.indoor ? t.indoor : t.outdoor)].filter(Boolean).join(' · ')}
+                                                            </Text>
+                                                        )}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                        <View style={{ backgroundColor: '#0ea5e915', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#38bdf850' }}>
+                                            <Text style={{ color: '#e5e7eb', fontSize: 12, fontWeight: '700' }}>
+                                                📅 {fmtDate(selDate)}
+                                                {initialStartTime ? ` · ${initialStartTime}${initialEndTime ? `–${initialEndTime}` : (listingDuration ? ` (+${listingDuration} dk)` : '')}` : ''}
+                                            </Text>
+                                            {!initialStartTime && (
+                                                <Text style={{ color: '#fbbf24', fontSize: 11, marginTop: 6 }}>{t.externalResNeedTime}</Text>
+                                            )}
+                                        </View>
+                                    </ScrollView>
+                                ) : (
+                                <>
                                 {/* Legend */}
                                 <View style={[vb.legend, { paddingHorizontal:3, marginBottom:1 }]}>
                                     <View style={vb.legendItem}>
@@ -12132,6 +12241,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     style={{ flex:1, borderBottomWidth:1, borderBottomColor:'#ffffff10' }}>
                                     {[...(venue.courts || [])].sort((a, b) => a.name.localeCompare(b.name, 'tr', { numeric: true })).map(c => renderCourtCol(c))}
                                 </ScrollView>
+                                </>
+                                )}
                             </View>
 
                             {/* Seçim + Ödeme + Rezervasyon — position:'absolute' ile dış View'ın (position:
@@ -12142,6 +12253,23 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                 paddingBottom:insets.bottom uyguluyor, ikisi üst üste binerse
                                 panel dibe değil, tekrar bir miktar yukarıda kalırdı. */}
                             <View style={{ position:'absolute', left:0, right:0, bottom:0, backgroundColor: colors.bg }}>
+                            {externalMode ? (
+                                <View style={{ paddingHorizontal: 10, paddingVertical: 8, gap: 6 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center' }}>
+                                        {externalCourtId
+                                            ? t.externalResSelected((venue.courts || []).find(c => c.id === externalCourtId)?.name || '')
+                                            : t.externalResPickCourt}
+                                    </Text>
+                                    <TouchableOpacity
+                                        onPress={confirmExternalBooking}
+                                        disabled={!externalCourtId || !initialStartTime}
+                                        style={{ backgroundColor: (externalCourtId && initialStartTime) ? '#0ea5e9' : '#374151', borderRadius: 10, paddingVertical: 11, alignItems: 'center' }}>
+                                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.externalResContinue}</Text>
+                                    </TouchableOpacity>
+                                    <Text style={{ color: colors.textMuted, fontSize: 11, textAlign: 'center' }}>{t.externalResNotifyNote}</Text>
+                                </View>
+                            ) : (
+                            <>
                             {!selSlot && (
                                 <Text style={[vb.emptyTxt, { textAlign:'center', paddingVertical:3 }]}>{t.sc_0282}</Text>
                             )}
@@ -12248,6 +12376,8 @@ function VenueBookingModal({ visible, venueId, initialCourtId, excludeReservatio
                                     </ScrollView>
                                 );
                             })()}
+                            </>
+                            )}
                             </View>
                         </View>
                     )}
@@ -14275,6 +14405,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         venueReservationId: null,
         reservationEndTime: null,
         venuePayMethod: 'CASH',
+        // Pro+ takvimde "uygulama dışı rezervasyonum var" işaretlendiyse true — submit
+        // normal /reserve yerine /external-reserve çağırır (işletmeye bildirim).
+        venueExternalReservation: false,
         refereeRequested: false,
         refereePayment: '',
         refereeFeeIncluded: false, // true = hakem ücreti hizmetlere/kort fiyatına dahil, ayrı ücret istenmiyor
@@ -14855,7 +14988,15 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 }));
                 return;
             }
-            setVenueBooking({ visible: true, venueId: court.venueId, initialCourtId: court.courtId });
+            // Takvim açılırken ilandaki gün/saat aktarılsın — "uygulama dışı rezervasyonum
+            // var" yolunda sadece kort seçilir; saat formdan gelir.
+            const initialDate = f.matchDate
+                ? `${f.matchDate.getFullYear()}-${String(f.matchDate.getMonth()+1).padStart(2,'0')}-${String(f.matchDate.getDate()).padStart(2,'0')}`
+                : null;
+            setVenueBooking({
+                visible: true, venueId: court.venueId, initialCourtId: court.courtId,
+                initialDate, initialStartTime: f.matchTime || null, initialEndTime: f.reservationEndTime || null,
+            });
             set('courtResults', []);
             return;
         }
@@ -14898,6 +15039,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     courtResults: p.courtResults, reservationId: p.reservationId,
                     venueReservationId: p.venueReservationId, venueId: p.venueId,
                     venueCourtId: p.venueCourtId, courtReserved: p.courtReserved,
+                    venueExternalReservation: p.venueExternalReservation,
                     courtFeePerPerson: p.courtFeePerPerson, manualCourtName: p.manualCourtName,
                     showManualCourt: p.showManualCourt,
                 };
@@ -14911,7 +15053,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     };
 
     const deselectCourt = () => {
-        setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false }));
+        setF(p => ({ ...p, selectedCourt: null, courtSearchText: '', courtResults: [], reservationId: null, venueId: null, venueCourtId: null, courtReserved: false, venueExternalReservation: false }));
     };
 
     const cancelCourt = async () => {
@@ -15018,7 +15160,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             let venueReservationId = f.venueReservationId || null;
             const pickedNewSlot = !!(f.venueId && f.venueCourtId && !venueReservationId);
             if (pickedNewSlot) {
-                const sameCourt = orig.reservationId && orig.venueId === f.venueId && orig.venueCourtId === f.venueCourtId;
+                const sameCourt = !f.venueExternalReservation && orig.reservationId && orig.venueId === f.venueId && orig.venueCourtId === f.venueCourtId;
                 let reservationGone = false;
                 if (sameCourt) {
                     try {
@@ -15039,10 +15181,13 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 }
                 if (!sameCourt || reservationGone) {
                     try {
-                        const resResp = await api.post(`/venues/${f.venueId}/courts/${f.venueCourtId}/reserve`, {
-                            date: matchDateStr, startTime: f.matchTime || undefined,
-                            endTime: f.reservationEndTime || undefined, paymentMethod: f.venuePayMethod || 'CASH',
-                        });
+                        const resPath = f.venueExternalReservation
+                            ? `/venues/${f.venueId}/courts/${f.venueCourtId}/external-reserve`
+                            : `/venues/${f.venueId}/courts/${f.venueCourtId}/reserve`;
+                        const resBody = f.venueExternalReservation
+                            ? { date: matchDateStr, startTime: f.matchTime || undefined, endTime: f.reservationEndTime || undefined }
+                            : { date: matchDateStr, startTime: f.matchTime || undefined, endTime: f.reservationEndTime || undefined, paymentMethod: f.venuePayMethod || 'CASH' };
+                        const resResp = await api.post(resPath, resBody);
                         venueReservationId = resResp.data?.reservation?.id || null;
                     } catch (e) {
                         setSubmitting(false);
@@ -15235,14 +15380,19 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         // rezervasyonlarla karışmasın diye venueReservationId boşsa) burada, ilan
         // oluşturulmadan hemen önce rezerve edilir — böylece ilan yarım kalırsa kort
         // boşta kalır, kimse gereksiz yere bloke etmez.
+        // venueExternalReservation: uygulama dışı (telefon/işletme) rezervasyon — slot
+        // çakışması yok, işletmeye "uygulama dışı rezervasyon" bildirimi gider.
         let venueReservationId = f.venueReservationId || undefined;
         const reservingNow = !!(f.venueId && f.venueCourtId && !venueReservationId);
         if (reservingNow) {
             try {
-                const resResp = await api.post(`/venues/${f.venueId}/courts/${f.venueCourtId}/reserve`, {
-                    date: matchDateStr, startTime: f.matchTime || undefined,
-                    endTime: f.reservationEndTime || undefined, paymentMethod: f.venuePayMethod || 'CASH',
-                });
+                const resPath = f.venueExternalReservation
+                    ? `/venues/${f.venueId}/courts/${f.venueCourtId}/external-reserve`
+                    : `/venues/${f.venueId}/courts/${f.venueCourtId}/reserve`;
+                const resBody = f.venueExternalReservation
+                    ? { date: matchDateStr, startTime: f.matchTime || undefined, endTime: f.reservationEndTime || undefined }
+                    : { date: matchDateStr, startTime: f.matchTime || undefined, endTime: f.reservationEndTime || undefined, paymentMethod: f.venuePayMethod || 'CASH' };
+                const resResp = await api.post(resPath, resBody);
                 venueReservationId = resResp.data?.reservation?.id || undefined;
             } catch (e) {
                 setSubmitting(false);
@@ -16313,6 +16463,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 reservationId: r.id,
                                                                 venueReservationId: r.id,
                                                                 venuePayMethod: r.paymentMethod || 'CASH',
+                                                                venueExternalReservation: false,
                                                                 courtReserved: true,
                                                                 manualCity: venue?.city || '',
                                                                 surface: court?.surface || p.surface,
@@ -17368,10 +17519,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             initialDate={venueBooking.initialDate}
             initialStartTime={venueBooking.initialStartTime}
             initialEndTime={venueBooking.initialEndTime}
+            listingDuration={f.duration}
             onClose={closeVenueBooking}
-            onBooked={(court, date, startTime, endTime, payMethod) => {
+            onBooked={(court, date, startTime, endTime, payMethod, meta) => {
                 const toMin = (tm) => { const [h, m] = tm.split(':').map(Number); return h * 60 + m; };
                 const durMins = (startTime && endTime) ? toMin(endTime) - toMin(startTime) : 0;
+                const isExternal = !!meta?.isExternal;
                 setF(p => ({
                     ...p,
                     selectedCourt: court,
@@ -17386,6 +17539,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     reservationId: null,
                     venueReservationId: null,
                     venuePayMethod: payMethod || 'CASH',
+                    venueExternalReservation: isExternal,
                     courtReserved: true,
                     courtFeePerPerson: court.totalPrice > 0
                         ? String(Math.round(court.totalPrice / (p.matchType === 'DOUBLE' ? 4 : 2)))

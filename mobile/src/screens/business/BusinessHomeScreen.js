@@ -1446,6 +1446,11 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                                     {isPaid ? PAID_LABEL : SLOT_STATUS_LABEL[st]}
                                                                 </Text>
                                                             ) : null}
+                                                            {!!slot.isExternal && (
+                                                                <Text style={{ color: '#7dd3fc', fontSize: 9, marginTop: 1, fontWeight: '800', width: '100%' }} numberOfLines={1}>
+                                                                    📋 Uygulama dışı
+                                                                </Text>
+                                                            )}
                                                             {(slot.user || slot.manualName) && isPaid && (
                                                                 <Text style={{ color: PAID_COLOR, fontSize: 9, marginTop: 1, fontWeight: '800', width: '100%' }} numberOfLines={1}>
                                                                     💰 Ödeme Alındı

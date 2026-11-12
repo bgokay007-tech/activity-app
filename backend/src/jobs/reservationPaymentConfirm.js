@@ -12,6 +12,9 @@ export async function processReservationPaymentConfirms() {
         const candidates = await prisma.courtReservation.findMany({
             where: {
                 status: 'CONFIRMED',
+                // Uygulama dışı (telefon/işletme) bildirilen rezervasyonlarda ödeme
+                // onayı sormaya gerek yok — işletme zaten kendi kanalından hallettiyse.
+                isExternal: false,
                 paymentMethod: { in: ['CASH', 'EFT'] },
                 paymentConfirmStatus: 'PENDING',
             },

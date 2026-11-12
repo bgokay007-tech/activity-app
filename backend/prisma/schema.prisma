@@ -2094,6 +2094,9 @@ model CourtReservation {
   paymentPromptSent    Boolean @default(false)    // "ödeme onayı bekleniyor" bildirimi bir kez gönderilsin diye
   // Kullanıcı tarih/saat değiştirdikçe artar — profilde spor dalı iptal/değiştirme oranı için
   rescheduleCount      Int     @default(0)
+  // İlan oluştururken "uygulama dışında (telefon/işletme) zaten rezerve ettim" yolu —
+  // slot çakışması kontrolü yapılmaz; işletmeye bilgi bildirimi gider, takvimde görünür.
+  isExternal           Boolean @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
