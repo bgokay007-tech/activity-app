@@ -254,6 +254,60 @@ function buildShareStats(match, t) {
     };
 }
 
+/**
+ * Paylaşan kişinin bu daldaki digimon özeti — skor kartında ön/arka iki yüz yan yana.
+ * wins/losses UserInterest'ten; tournamentWins achievements (placement===1) sayacı.
+ */
+export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0, t, lang = 'tr') {
+    if (!user?.id || !subCategory) return null;
+    const interests = Array.isArray(user.interests) ? user.interests : [];
+    const interest = interests.find(i => i?.subCategory === subCategory) || null;
+    const wins = Number(interest?.wins) || 0;
+    const losses = Number(interest?.losses) || 0;
+    const totalMatches = wins + losses;
+    const titles = Math.max(0, Number(tournamentWins) || 0);
+
+    let elo = '';
+    const singles = interest?.singlesDisplayRating ?? interest?.singlesRating;
+    const doubles = interest?.doublesDisplayRating ?? interest?.doublesRating;
+    if (singles != null && Number.isFinite(Number(singles))) {
+        elo = formatElo(Number(singles));
+    } else if (interest?.skillRating != null && Number.isFinite(Number(interest.skillRating)) && Number(interest.skillRating) > 0) {
+        elo = formatElo(Number(interest.skillRating));
+    } else if (doubles != null && Number.isFinite(Number(doubles))) {
+        elo = formatElo(Number(doubles));
+    }
+
+    const name = user.fullName || user.username || '';
+    const alias = interest?.alias || '';
+    const sport = getSubCategoryLabel(subCategory, lang) || subCategory || '';
+    const emoji = SUB_EMOJI[subCategory] || '🏅';
+    const level = interest?.level || '';
+
+    return {
+        name,
+        username: user.username || '',
+        alias,
+        avatarUrl: user.avatar || null,
+        emoji,
+        sport,
+        elo,
+        level,
+        totalMatches,
+        wins,
+        losses,
+        titles,
+        labels: {
+            front: t?.shareMatchSharerFront || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
+            back: t?.shareMatchSharerBack || (lang === 'tr' ? 'İSTATİSTİK' : lang === 'ru' ? 'СТАТИСТИКА' : lang === 'de' ? 'STATISTIK' : 'STATS'),
+            matches: t?.shareMatchSharerMatches || (lang === 'tr' ? 'Maç' : lang === 'ru' ? 'Матчи' : lang === 'de' ? 'Spiele' : 'Matches'),
+            wins: t?.shareMatchSharerWins || t?.wins || (lang === 'tr' ? 'Galibiyet' : lang === 'ru' ? 'Победы' : lang === 'de' ? 'Siege' : 'Wins'),
+            losses: t?.shareMatchSharerLosses || t?.losses || (lang === 'tr' ? 'Yenilgi' : lang === 'ru' ? 'Поражения' : lang === 'de' ? 'Niederlagen' : 'Losses'),
+            titles: t?.shareMatchSharerTitles || (lang === 'tr' ? 'Şampiyonluk' : lang === 'ru' ? 'Титулы' : lang === 'de' ? 'Titel' : 'Titles'),
+        },
+    };
+}
+
 /** Maç → hikâye kartı / paylaşım metni için ortak özet. */
 export function buildMatchSharePayload(match, t, lang = 'tr') {
     if (!match?.id) return null;

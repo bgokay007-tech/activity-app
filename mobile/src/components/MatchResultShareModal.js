@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useT from '../hooks/useT';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
-import { buildMatchSharePayload, matchShareMessage, BRAND_LETTER_COLORS } from '../utils/matchShareCard';
+import { buildMatchSharePayload, buildSharerDigimonPayload, matchShareMessage, BRAND_LETTER_COLORS } from '../utils/matchShareCard';
 import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
@@ -19,16 +19,39 @@ import {
     ensureGallerySave,
     PLAY_STORE_URL,
 } from '../utils/directShare';
+import api, { BASE_URL } from '../services/api';
 
 const W = 1080;
 const H = 1920;
+const ASSET_HOST = BASE_URL.replace(/\/api\/?$/, '');
+
+/** Uzak avatar → canvas Image için data URL (WebView CORS'u bypass). */
+async function avatarToDataUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    try {
+        let abs = url;
+        if (abs.startsWith('/')) abs = `${ASSET_HOST}${abs}`;
+        const dest = `${FileSystem.cacheDirectory}share-avatar-${Date.now()}.jpg`;
+        const dl = await FileSystem.downloadAsync(abs, dest);
+        if (!dl?.uri) return null;
+        const b64 = await FileSystem.readAsStringAsync(dl.uri, {
+            encoding: FileSystem.EncodingType.Base64,
+        });
+        const lower = String(abs).toLowerCase();
+        const mime = lower.includes('.png') ? 'image/png' : 'image/jpeg';
+        return `data:${mime};base64,${b64}`;
+    } catch {
+        return null;
+    }
+}
 
 /**
  * 9:16 skor kartı — spor/zemin arka planı + yarı saydam koyu overlay,
  * skor tablosu + canlı takip istatistikleri + saat/sağlık workout paneli.
  * IG üst chrome için TOP boşluk.
+ * Meta ile "Uygulamayı indir" arasında paylaşanın digimon ön/arka kartı.
  */
-function cardHtml(p, bgDataUrl) {
+function cardHtml(p, bgDataUrl, avatarDataUrl) {
     const brand = p.brand || 'AcTiViTy';
     const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
     const setPairs = (p.lines || []).map((line) => {
@@ -42,7 +65,7 @@ function cardHtml(p, bgDataUrl) {
 <canvas id="c" width="${W}" height="${H}"></canvas>
 <script>
 (function(){
-  function go(bgImg){
+  function go(bgImg, avImg){
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
@@ -202,9 +225,81 @@ function cardHtml(p, bgDataUrl) {
         ny += 60 + Math.ceil(metaBits.length/2)*44 + 20;
       }
 
-      // İstatistik panelleri (2 sütun)
+      // Paylaşanın digimon kartı — tarih/saat/konum ile "Uygulamayı indir" arasındaki boşlukta,
+      // önlü-arkalı iki yüz yan yana (profil digimon kartı gibi).
+      var sharer=${JSON.stringify(p.sharerCard || null)};
+      var CTA_Y=1715;
+      if(sharer){
+        var cardH=268;
+        var gap=22;
+        var digCardW=(W-112-gap)/2;
+        var digTop=ny;
+
+        function digimonShell(x,y,w,h,accent){
+          roundRect(x,y,w,h,20);
+          ctx.fillStyle='rgba(18,20,28,0.92)'; ctx.fill();
+          ctx.strokeStyle=accent||'rgba(200,245,74,0.55)'; ctx.lineWidth=3; ctx.stroke();
+          roundRect(x+10,y+10,w-20,h-20,14);
+          ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.5; ctx.stroke();
+        }
+
+        // Sol = ön yüz (kimlik)
+        var fx=56, fy=digTop;
+        digimonShell(fx,fy,digCardW,cardH,'#C8F54A');
+        text(sharer.labels.front||'PLAYER', fx+digCardW/2, fy+42, 18, '#C8F54A', 'center', '900');
+        var ax=fx+digCardW/2, ay=fy+118, ar=48;
+        ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
+        ctx.fillStyle='#1C1F2A'; ctx.fill();
+        ctx.strokeStyle='#C8F54A'; ctx.lineWidth=3; ctx.stroke();
+        if(avImg){
+          ctx.save();
+          ctx.beginPath(); ctx.arc(ax,ay,ar-3,0,Math.PI*2); ctx.closePath(); ctx.clip();
+          var as=Math.max((ar*2)/(avImg.width||1),(ar*2)/(avImg.height||1));
+          var aw=(avImg.width||1)*as, ah=(avImg.height||1)*as;
+          ctx.drawImage(avImg, ax-aw/2, ay-ah/2, aw, ah);
+          ctx.restore();
+        } else {
+          var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
+          text(ini, ax, ay+16, 42, '#F4F1EA', 'center', '900');
+        }
+        var dispName=sharer.alias||sharer.name||sharer.username||'';
+        text(dispName, fx+digCardW/2, fy+190, 26, '#F4F1EA', 'center', '900');
+        text((sharer.emoji||'')+' '+(sharer.sport||''), fx+digCardW/2, fy+224, 20, '#A8A29A', 'center', '700');
+        if(sharer.elo) text(sharer.elo, fx+digCardW/2, fy+252, 22, '#C8F54A', 'center', '900');
+
+        // Sağ = arka yüz (istatistik: toplam maç / G / M / şampiyonluk)
+        var bx=56+digCardW+gap;
+        digimonShell(bx,fy,digCardW,cardH,'#A855F7');
+        text(sharer.labels.back||'STATS', bx+digCardW/2, fy+42, 18, '#C084FC', 'center', '900');
+        var digTiles=[
+          { label:sharer.labels.matches||'Matches', value:String(sharer.totalMatches||0), color:'#38BDF8' },
+          { label:sharer.labels.wins||'Wins', value:String(sharer.wins||0), color:'#4ADE80' },
+          { label:sharer.labels.losses||'Losses', value:String(sharer.losses||0), color:'#F87171' },
+        ];
+        if((sharer.titles||0)>0){
+          digTiles.push({ label:sharer.labels.titles||'Titles', value:String(sharer.titles), color:'#FACC15' });
+        }
+        var digCols=digTiles.length<=3 ? digTiles.length : 2;
+        var digTw=(digCardW-40-(digCols-1)*12)/digCols;
+        var digTh=digTiles.length<=3 ? 150 : 88;
+        digTiles.forEach(function(tile,i){
+          var col=i%digCols, row=Math.floor(i/digCols);
+          var tx=bx+20+col*(digTw+12);
+          var ty=fy+64+row*(digTh+12);
+          roundRect(tx,ty,digTw,digTh,14);
+          ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
+          text(tile.value, tx+digTw/2, ty+digTh/2+4, digTiles.length<=3?44:32, tile.color, 'center', '900');
+          text(tile.label, tx+digTw/2, ty+digTh-18, 16, '#A8A29A', 'center', '700');
+        });
+        ny = digTop + cardH + 20;
+      }
+
+      // Canlı takip istatistik panelleri — digimon ile CTA arasında kalan alana sığdır
       var panels=${JSON.stringify((stats && stats.panels) || [])};
+      var roomForStats = CTA_Y - 36 - ny;
       var maxPanels = panels.length > 4 ? 4 : panels.length;
+      if(roomForStats < 140) maxPanels = 0;
+      else if(roomForStats < 280) maxPanels = Math.min(maxPanels, 2);
       var colW = (W-112-20)/2;
       var px = 56, py = ny;
       var rowMaxH = 0;
@@ -214,6 +309,7 @@ function cardHtml(p, bgDataUrl) {
         var th = 48 + tiles.length*46 + 16;
         if(pi%2===0){ px=56; if(pi>0) py += rowMaxH + 16; rowMaxH=0; }
         else { px=56+colW+20; }
+        if(py+th > CTA_Y-36) break;
         panel(px, py, colW, th);
         text(pn.title||'', px+20, py+36, 24, pn.accent||'#C8F54A', 'left', '900');
         var ty2=py+74;
@@ -226,9 +322,9 @@ function cardHtml(p, bgDataUrl) {
       }
       if(maxPanels>0) ny = py + rowMaxH + 24;
 
-      // Highlights
+      // Highlights — sadece sığarsa
       var highs=${JSON.stringify((stats && stats.highlights) || [])};
-      if(highs.length){
+      if(highs.length && ny+50 < CTA_Y-36){
         var hx=56;
         highs.forEach(function(h){
           ctx.font='800 20px sans-serif';
@@ -245,7 +341,7 @@ function cardHtml(p, bgDataUrl) {
       var src=${JSON.stringify((stats && stats.workoutSource) || '')};
       if(src) text(src, 540, 1688, 22, '#A8A29A', 'center', '700');
 
-      roundRect(180, 1715, 720, 92, 46);
+      roundRect(180, CTA_Y, 720, 92, 46);
       ctx.fillStyle='#C8F54A'; ctx.fill();
       text(${JSON.stringify(p.ctaLabel||'AcTiViTy · Download')}, 540, 1776, 30, '#0B0C10', 'center', '900');
 
@@ -255,14 +351,26 @@ function cardHtml(p, bgDataUrl) {
     }
   }
 
+  function withAvatar(bgImg){
+    var avData=${JSON.stringify(avatarDataUrl||'')};
+    if(avData){
+      var av=new Image();
+      av.onload=function(){ go(bgImg, av); };
+      av.onerror=function(){ go(bgImg, null); };
+      av.src=avData;
+    } else {
+      go(bgImg, null);
+    }
+  }
+
   var bgData=${JSON.stringify(bgDataUrl||'')};
   if(bgData){
     var img=new Image();
-    img.onload=function(){ go(img); };
-    img.onerror=function(){ go(null); };
+    img.onload=function(){ withAvatar(img); };
+    img.onerror=function(){ withAvatar(null); };
     img.src=bgData;
   } else {
-    setTimeout(function(){ go(null); }, 60);
+    setTimeout(function(){ withAvatar(null); }, 60);
   }
 })();
 </script></body></html>`;
@@ -271,25 +379,31 @@ function cardHtml(p, bgDataUrl) {
 export default function MatchResultShareModal({ visible, match, onClose }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang) || 'tr';
+    const myUser = useSelector(s => s.auth?.user);
     const insets = useSafeAreaInsets();
+    const [tournamentWins, setTournamentWins] = useState(0);
+    const [avatarDataUrl, setAvatarDataUrl] = useState(null);
     const payload = useMemo(() => {
         if (!visible || !match) return null;
         const base = buildMatchSharePayload(match, t, lang);
         if (!base) return null;
+        const sharerCard = buildSharerDigimonPayload(myUser, match.subCategory, tournamentWins, t, lang);
         return {
             ...base,
+            sharerCard,
             ctaLabel: t.shareMatchStoreCta || 'AcTiViTy · Uygulamayı indir',
             wonWord: t.shareMatchWonWord || (lang === 'tr' ? 'KAZANDI' : lang === 'ru' ? 'ПОБЕДИЛ' : lang === 'de' ? 'GEWINNT' : 'WON'),
             resultBadge: t.shareMatchResultBadge || (lang === 'tr' ? 'MAÇ SONUCU' : lang === 'ru' ? 'РЕЗУЛЬТАТ' : lang === 'de' ? 'ERGEBNIS' : 'MATCH RESULT'),
             colPlayer: t.shareMatchColPlayer || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             colSets: t.shareMatchColSets || 'SETS',
         };
-    }, [visible, match, t, lang]);
+    }, [visible, match, t, lang, myUser, tournamentWins]);
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const [captureHtml, setCaptureHtml] = useState(null);
     const pendingAction = useRef(null);
     const bgDataRef = useRef(null);
+    const avatarDataRef = useRef(null);
 
     useEffect(() => {
         if (!visible) {
@@ -298,22 +412,55 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             setBusy(false);
             pendingAction.current = null;
             bgDataRef.current = null;
+            avatarDataRef.current = null;
+            setAvatarDataUrl(null);
+            setTournamentWins(0);
         }
     }, [visible]);
 
-    // Zemin/spor arka planını önceden yükle
+    // Paylaşanın bu daldaki şampiyonluk sayısı (achievements placement===1)
     useEffect(() => {
-        if (!visible || !payload) {
-            bgDataRef.current = null;
+        if (!visible || !myUser?.id || !match?.subCategory) {
+            setTournamentWins(0);
             return undefined;
         }
         let cancelled = false;
         (async () => {
-            const data = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
-            if (!cancelled) bgDataRef.current = data;
+            try {
+                const { data } = await api.get(`/achievements/${myUser.id}`);
+                if (cancelled) return;
+                const list = Array.isArray(data?.tournament) ? data.tournament : [];
+                const wins = list.filter(
+                    (a) => a?.subCategory === match.subCategory && Number(a?.placement) === 1,
+                ).length;
+                setTournamentWins(wins);
+            } catch {
+                if (!cancelled) setTournamentWins(0);
+            }
         })();
         return () => { cancelled = true; };
-    }, [visible, payload?.id, payload?.subCategory, payload?.surfaceRaw]);
+    }, [visible, myUser?.id, match?.subCategory]);
+
+    // Zemin/spor arka planı + avatar önceden yükle
+    useEffect(() => {
+        if (!visible || !payload) {
+            bgDataRef.current = null;
+            avatarDataRef.current = null;
+            return undefined;
+        }
+        let cancelled = false;
+        (async () => {
+            const [bg, av] = await Promise.all([
+                shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw),
+                avatarToDataUrl(payload.sharerCard?.avatarUrl),
+            ]);
+            if (cancelled) return;
+            bgDataRef.current = bg;
+            avatarDataRef.current = av;
+            setAvatarDataUrl(av);
+        })();
+        return () => { cancelled = true; };
+    }, [visible, payload?.id, payload?.subCategory, payload?.surfaceRaw, payload?.sharerCard?.avatarUrl]);
 
     const onPng = async (dataUrl) => {
         setNeedCapture(false);
@@ -375,7 +522,10 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             if (!bgDataRef.current) {
                 bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
             }
-            setCaptureHtml(cardHtml(payload, bgDataRef.current));
+            if (!avatarDataRef.current && payload.sharerCard?.avatarUrl) {
+                avatarDataRef.current = await avatarToDataUrl(payload.sharerCard.avatarUrl);
+            }
+            setCaptureHtml(cardHtml(payload, bgDataRef.current, avatarDataRef.current || avatarDataUrl));
             setNeedCapture(true);
         } catch {
             setBusy(false);
