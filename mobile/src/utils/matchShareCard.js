@@ -254,11 +254,21 @@ function buildShareStats(match, t) {
     };
 }
 
+/** Tenis/padel/badminton/masa tenisi/pickleball — tekli/çiftler ELO ayrı. */
+export const UTR_SHARE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
+const LEADERBOARD_SHARE_SUBS = new Set(['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis', 'volleyball']);
+
+function fmtRank(n) {
+    if (n == null || !Number.isFinite(Number(n)) || Number(n) <= 0) return '—';
+    return `#${Number(n)}`;
+}
+
 /**
  * Paylaşan kişinin bu daldaki digimon özeti — skor kartında ön/arka iki yüz yan yana.
  * wins/losses UserInterest'ten; tournamentWins achievements (placement===1) sayacı.
+ * ranks: { local, national, international } — leaderboard myRank.
  */
-export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0, t, lang = 'tr') {
+export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0, t, lang = 'tr', ranks = null) {
     if (!user?.id || !subCategory) return null;
     const interests = Array.isArray(user.interests) ? user.interests : [];
     const interest = interests.find(i => i?.subCategory === subCategory) || null;
@@ -267,15 +277,22 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
     const totalMatches = wins + losses;
     const titles = Math.max(0, Number(tournamentWins) || 0);
 
+    const isUtr = UTR_SHARE_SUBS.has(subCategory);
+    const singlesRaw = interest?.singlesDisplayRating ?? interest?.singlesRating;
+    const doublesRaw = interest?.doublesDisplayRating ?? interest?.doublesRating;
+    const singlesElo = (singlesRaw != null && Number.isFinite(Number(singlesRaw)))
+        ? formatElo(Number(singlesRaw))
+        : '';
+    const doublesElo = (doublesRaw != null && Number.isFinite(Number(doublesRaw)))
+        ? formatElo(Number(doublesRaw))
+        : '';
+
+    // UTR dışı: tek birleşik ELO; padel/pickleball'da tekli gizli olabilir — çiftler yeter
     let elo = '';
-    const singles = interest?.singlesDisplayRating ?? interest?.singlesRating;
-    const doubles = interest?.doublesDisplayRating ?? interest?.doublesRating;
-    if (singles != null && Number.isFinite(Number(singles))) {
-        elo = formatElo(Number(singles));
-    } else if (interest?.skillRating != null && Number.isFinite(Number(interest.skillRating)) && Number(interest.skillRating) > 0) {
-        elo = formatElo(Number(interest.skillRating));
-    } else if (doubles != null && Number.isFinite(Number(doubles))) {
-        elo = formatElo(Number(doubles));
+    if (!isUtr) {
+        if (interest?.skillRating != null && Number.isFinite(Number(interest.skillRating)) && Number(interest.skillRating) > 0) {
+            elo = formatElo(Number(interest.skillRating));
+        }
     }
 
     const name = user.fullName || user.username || '';
@@ -284,6 +301,16 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
     const emoji = SUB_EMOJI[subCategory] || '🏅';
     const level = interest?.level || '';
 
+    const showRanks = LEADERBOARD_SHARE_SUBS.has(subCategory);
+    const rankLocal = showRanks ? fmtRank(ranks?.local) : null;
+    const rankNational = showRanks ? fmtRank(ranks?.national) : null;
+    const rankInternational = showRanks ? fmtRank(ranks?.international) : null;
+
+    // Padel/pickleball: tekli genelde yok — ön yüzde çiftler her zaman, tekli sadece varsa
+    const showSinglesLine = isUtr && (subCategory === 'tennis' || subCategory === 'badminton' || subCategory === 'table_tennis'
+        || !!singlesElo || interest?.assessmentCompleted);
+    const showDoublesLine = isUtr;
+
     return {
         name,
         username: user.username || '',
@@ -291,12 +318,21 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
         avatarUrl: user.avatar || null,
         emoji,
         sport,
+        isUtr,
         elo,
+        singlesElo,
+        doublesElo,
+        showSinglesLine,
+        showDoublesLine,
         level,
         totalMatches,
         wins,
         losses,
         titles,
+        showRanks,
+        rankLocal,
+        rankNational,
+        rankInternational,
         labels: {
             front: t?.shareMatchSharerFront || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             back: t?.shareMatchSharerBack || (lang === 'tr' ? 'İSTATİSTİK' : lang === 'ru' ? 'СТАТИСТИКА' : lang === 'de' ? 'STATISTIK' : 'STATS'),
@@ -304,6 +340,11 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
             wins: t?.shareMatchSharerWins || t?.wins || (lang === 'tr' ? 'Galibiyet' : lang === 'ru' ? 'Победы' : lang === 'de' ? 'Siege' : 'Wins'),
             losses: t?.shareMatchSharerLosses || t?.losses || (lang === 'tr' ? 'Yenilgi' : lang === 'ru' ? 'Поражения' : lang === 'de' ? 'Niederlagen' : 'Losses'),
             titles: t?.shareMatchSharerTitles || (lang === 'tr' ? 'Şampiyonluk' : lang === 'ru' ? 'Титулы' : lang === 'de' ? 'Titel' : 'Titles'),
+            singles: t?.shareMatchSharerSingles || (lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'),
+            doubles: t?.shareMatchSharerDoubles || (lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : lang === 'de' ? 'Doppel' : 'Doubles'),
+            rankLocal: t?.shareMatchSharerRankLocal || t?.tournScopeYerel || (lang === 'tr' ? '📍 Yerel' : '📍 Local'),
+            rankNational: t?.shareMatchSharerRankNational || t?.tournScopeUlusal || (lang === 'tr' ? '🇹🇷 Ulusal' : '🇹🇷 National'),
+            rankIntl: t?.shareMatchSharerRankIntl || t?.tournScopeUluslararasi || (lang === 'tr' ? '🌍 Uluslararası' : '🌍 International'),
         },
     };
 }

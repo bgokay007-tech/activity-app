@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useT from '../hooks/useT';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
-import { buildMatchSharePayload, buildSharerDigimonPayload, matchShareMessage, BRAND_LETTER_COLORS } from '../utils/matchShareCard';
+import { buildMatchSharePayload, buildSharerDigimonPayload, matchShareMessage, BRAND_LETTER_COLORS, UTR_SHARE_SUBS } from '../utils/matchShareCard';
 import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
@@ -225,12 +225,12 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         ny += 60 + Math.ceil(metaBits.length/2)*44 + 20;
       }
 
-      // Paylaşanın digimon kartı — tarih/saat/konum ile "Uygulamayı indir" arasındaki boşlukta,
-      // önlü-arkalı iki yüz yan yana (profil digimon kartı gibi).
-      var sharer=${JSON.stringify(p.sharerCard || null)};
+      // Paylaşanın digimon kartı — includeDigimon seçeneği açıksa çizilir.
+      var sharer=${JSON.stringify((p.includeDigimon && p.sharerCard) ? p.sharerCard : null)};
       var CTA_Y=1715;
       if(sharer){
-        var cardH=268;
+        var hasRanks=!!sharer.showRanks;
+        var cardH=hasRanks?318:278;
         var gap=22;
         var digCardW=(W-112-gap)/2;
         var digTop=ny;
@@ -243,11 +243,11 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.5; ctx.stroke();
         }
 
-        // Sol = ön yüz (kimlik)
+        // Sol = ön yüz (kimlik + tekli/çiftler ELO)
         var fx=56, fy=digTop;
         digimonShell(fx,fy,digCardW,cardH,'#C8F54A');
-        text(sharer.labels.front||'PLAYER', fx+digCardW/2, fy+42, 18, '#C8F54A', 'center', '900');
-        var ax=fx+digCardW/2, ay=fy+118, ar=48;
+        text(sharer.labels.front||'PLAYER', fx+digCardW/2, fy+36, 17, '#C8F54A', 'center', '900');
+        var ax=fx+digCardW/2, ay=fy+100, ar=42;
         ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
         ctx.fillStyle='#1C1F2A'; ctx.fill();
         ctx.strokeStyle='#C8F54A'; ctx.lineWidth=3; ctx.stroke();
@@ -260,17 +260,28 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           ctx.restore();
         } else {
           var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
-          text(ini, ax, ay+16, 42, '#F4F1EA', 'center', '900');
+          text(ini, ax, ay+14, 36, '#F4F1EA', 'center', '900');
         }
         var dispName=sharer.alias||sharer.name||sharer.username||'';
-        text(dispName, fx+digCardW/2, fy+190, 26, '#F4F1EA', 'center', '900');
-        text((sharer.emoji||'')+' '+(sharer.sport||''), fx+digCardW/2, fy+224, 20, '#A8A29A', 'center', '700');
-        if(sharer.elo) text(sharer.elo, fx+digCardW/2, fy+252, 22, '#C8F54A', 'center', '900');
+        text(dispName, fx+digCardW/2, fy+162, 24, '#F4F1EA', 'center', '900');
+        text((sharer.emoji||'')+' '+(sharer.sport||''), fx+digCardW/2, fy+190, 18, '#A8A29A', 'center', '700');
+        if(sharer.isUtr){
+          var eloY=fy+220;
+          if(sharer.showSinglesLine){
+            text((sharer.labels.singles||'Singles')+'  '+(sharer.singlesElo||'—'), fx+digCardW/2, eloY, 20, '#C8F54A', 'center', '900');
+            eloY+=28;
+          }
+          if(sharer.showDoublesLine){
+            text((sharer.labels.doubles||'Doubles')+'  '+(sharer.doublesElo||'—'), fx+digCardW/2, eloY, 20, '#C8F54A', 'center', '900');
+          }
+        } else if(sharer.elo){
+          text(sharer.elo, fx+digCardW/2, fy+222, 22, '#C8F54A', 'center', '900');
+        }
 
-        // Sağ = arka yüz (istatistik: toplam maç / G / M / şampiyonluk)
+        // Sağ = arka yüz (istatistik + yerel/ulusal/uluslararası sıralama)
         var bx=56+digCardW+gap;
         digimonShell(bx,fy,digCardW,cardH,'#A855F7');
-        text(sharer.labels.back||'STATS', bx+digCardW/2, fy+42, 18, '#C084FC', 'center', '900');
+        text(sharer.labels.back||'STATS', bx+digCardW/2, fy+36, 17, '#C084FC', 'center', '900');
         var digTiles=[
           { label:sharer.labels.matches||'Matches', value:String(sharer.totalMatches||0), color:'#38BDF8' },
           { label:sharer.labels.wins||'Wins', value:String(sharer.wins||0), color:'#4ADE80' },
@@ -279,18 +290,31 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         if((sharer.titles||0)>0){
           digTiles.push({ label:sharer.labels.titles||'Titles', value:String(sharer.titles), color:'#FACC15' });
         }
-        var digCols=digTiles.length<=3 ? digTiles.length : 2;
-        var digTw=(digCardW-40-(digCols-1)*12)/digCols;
-        var digTh=digTiles.length<=3 ? 150 : 88;
+        var digCols=2;
+        var digTw=(digCardW-40-(digCols-1)*10)/digCols;
+        var digTh=hasRanks?72:88;
         digTiles.forEach(function(tile,i){
           var col=i%digCols, row=Math.floor(i/digCols);
-          var tx=bx+20+col*(digTw+12);
-          var ty=fy+64+row*(digTh+12);
-          roundRect(tx,ty,digTw,digTh,14);
+          var tx=bx+20+col*(digTw+10);
+          var ty=fy+52+row*(digTh+8);
+          roundRect(tx,ty,digTw,digTh,12);
           ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
-          text(tile.value, tx+digTw/2, ty+digTh/2+4, digTiles.length<=3?44:32, tile.color, 'center', '900');
-          text(tile.label, tx+digTw/2, ty+digTh-18, 16, '#A8A29A', 'center', '700');
+          text(tile.value, tx+digTw/2, ty+digTh/2+2, 28, tile.color, 'center', '900');
+          text(tile.label, tx+digTw/2, ty+digTh-14, 14, '#A8A29A', 'center', '700');
         });
+        if(hasRanks){
+          var rankY=fy+cardH-78;
+          var rankRows=[
+            { lbl:sharer.labels.rankLocal||'📍 Local', val:sharer.rankLocal||'—' },
+            { lbl:sharer.labels.rankNational||'🇹🇷 National', val:sharer.rankNational||'—' },
+            { lbl:sharer.labels.rankIntl||'🌍 International', val:sharer.rankInternational||'—' },
+          ];
+          rankRows.forEach(function(r,i){
+            var ry=rankY+i*22;
+            text(r.lbl, bx+24, ry, 15, '#A8A29A', 'left', '700');
+            text(r.val, bx+digCardW-24, ry, 16, '#FACC15', 'right', '900');
+          });
+        }
         ny = digTop + cardH + 20;
       }
 
@@ -382,22 +406,25 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
     const myUser = useSelector(s => s.auth?.user);
     const insets = useSafeAreaInsets();
     const [tournamentWins, setTournamentWins] = useState(0);
+    const [ranks, setRanks] = useState({ local: null, national: null, international: null });
+    const [includeDigimon, setIncludeDigimon] = useState(false);
     const [avatarDataUrl, setAvatarDataUrl] = useState(null);
     const payload = useMemo(() => {
         if (!visible || !match) return null;
         const base = buildMatchSharePayload(match, t, lang);
         if (!base) return null;
-        const sharerCard = buildSharerDigimonPayload(myUser, match.subCategory, tournamentWins, t, lang);
+        const sharerCard = buildSharerDigimonPayload(myUser, match.subCategory, tournamentWins, t, lang, ranks);
         return {
             ...base,
             sharerCard,
+            includeDigimon,
             ctaLabel: t.shareMatchStoreCta || 'AcTiViTy · Uygulamayı indir',
             wonWord: t.shareMatchWonWord || (lang === 'tr' ? 'KAZANDI' : lang === 'ru' ? 'ПОБЕДИЛ' : lang === 'de' ? 'GEWINNT' : 'WON'),
             resultBadge: t.shareMatchResultBadge || (lang === 'tr' ? 'MAÇ SONUCU' : lang === 'ru' ? 'РЕЗУЛЬТАТ' : lang === 'de' ? 'ERGEBNIS' : 'MATCH RESULT'),
             colPlayer: t.shareMatchColPlayer || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             colSets: t.shareMatchColSets || 'SETS',
         };
-    }, [visible, match, t, lang, myUser, tournamentWins]);
+    }, [visible, match, t, lang, myUser, tournamentWins, ranks, includeDigimon]);
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const [captureHtml, setCaptureHtml] = useState(null);
@@ -415,31 +442,55 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             avatarDataRef.current = null;
             setAvatarDataUrl(null);
             setTournamentWins(0);
+            setRanks({ local: null, national: null, international: null });
+            setIncludeDigimon(false);
         }
     }, [visible]);
 
-    // Paylaşanın bu daldaki şampiyonluk sayısı (achievements placement===1)
+    // Şampiyonluk + yerel/ulusal/uluslararası sıralama (digimon arka yüz)
     useEffect(() => {
         if (!visible || !myUser?.id || !match?.subCategory) {
             setTournamentWins(0);
+            setRanks({ local: null, national: null, international: null });
             return undefined;
         }
         let cancelled = false;
+        const sub = match.subCategory;
+        const ratingType = match.matchType === 'DOUBLE' ? 'doubles' : 'singles';
+        const isUtr = UTR_SHARE_SUBS.has(sub);
         (async () => {
             try {
-                const { data } = await api.get(`/achievements/${myUser.id}`);
+                const achP = api.get(`/achievements/${myUser.id}`).catch(() => ({ data: null }));
+                const rankScopes = ['local', 'national', 'international'];
+                const rankPs = rankScopes.map((scope) =>
+                    api.get('/interests/leaderboard', {
+                        params: {
+                            subCategory: sub,
+                            scope,
+                            ...(isUtr ? { ratingType } : {}),
+                        },
+                    }).catch(() => ({ data: null })),
+                );
+                const [achRes, ...rankRes] = await Promise.all([achP, ...rankPs]);
                 if (cancelled) return;
-                const list = Array.isArray(data?.tournament) ? data.tournament : [];
-                const wins = list.filter(
-                    (a) => a?.subCategory === match.subCategory && Number(a?.placement) === 1,
-                ).length;
-                setTournamentWins(wins);
+                const list = Array.isArray(achRes?.data?.tournament) ? achRes.data.tournament : [];
+                setTournamentWins(list.filter(
+                    (a) => a?.subCategory === sub && Number(a?.placement) === 1,
+                ).length);
+                setRanks({
+                    local: rankRes[0]?.data?.myRank ?? null,
+                    national: rankRes[1]?.data?.myRank ?? null,
+                    international: rankRes[2]?.data?.myRank ?? null,
+                });
             } catch {
-                if (!cancelled) setTournamentWins(0);
+                if (!cancelled) {
+                    setTournamentWins(0);
+                    setRanks({ local: null, national: null, international: null });
+                }
             }
         })();
         return () => { cancelled = true; };
-    }, [visible, myUser?.id, match?.subCategory]);
+    }, [visible, myUser?.id, match?.subCategory, match?.matchType]);
 
     // Zemin/spor arka planı + avatar önceden yükle
     useEffect(() => {
@@ -594,6 +645,28 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                         )}
                     </View>
 
+                    {/* Digimon kartı isteğe bağlı — kapalıysa skor kartına çizilmez */}
+                    {!!payload.sharerCard && (
+                        <TouchableOpacity
+                            style={[s.digimonToggle, includeDigimon && s.digimonToggleOn]}
+                            activeOpacity={0.8}
+                            onPress={() => setIncludeDigimon((v) => !v)}
+                            disabled={busy}
+                        >
+                            <View style={[s.digimonCheckBox, includeDigimon && s.digimonCheckBoxOn]}>
+                                {includeDigimon ? <Text style={s.digimonCheckMark}>✓</Text> : null}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.digimonToggleTitle}>
+                                    {t.shareMatchDigimonToggle || 'Digimon kartımı da ekle'}
+                                </Text>
+                                <Text style={s.digimonToggleHint}>
+                                    {t.shareMatchDigimonToggleHint || 'ELO, maç/G/M ve sıralama önlü-arka kartta görünür'}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+
                     {busy ? (
                         <ActivityIndicator color="#C8F54A" style={{ marginVertical: 28 }} />
                     ) : (
@@ -661,6 +734,20 @@ const s = StyleSheet.create({
     elo: { color: '#C8F54A', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 2 },
     score: { color: '#C8F54A', fontSize: 22, fontWeight: '900', minWidth: 56, textAlign: 'center' },
     metaLine: { color: '#A8A29A', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 8 },
+    digimonToggle: {
+        flexDirection: 'row', alignItems: 'center', gap: 12,
+        backgroundColor: '#16181F', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14,
+        marginBottom: 12, borderWidth: 1, borderColor: '#2A2D36',
+    },
+    digimonToggleOn: { borderColor: '#C8F54A66', backgroundColor: '#C8F54A12' },
+    digimonCheckBox: {
+        width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: '#78716C',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    digimonCheckBoxOn: { borderColor: '#C8F54A', backgroundColor: '#C8F54A' },
+    digimonCheckMark: { color: '#0B0C10', fontSize: 14, fontWeight: '900', lineHeight: 16 },
+    digimonToggleTitle: { color: '#F4F1EA', fontSize: 14, fontWeight: '800' },
+    digimonToggleHint: { color: '#A8A29A', fontSize: 11, fontWeight: '600', marginTop: 2 },
     list: { flexGrow: 0 },
     row: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
