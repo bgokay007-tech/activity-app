@@ -73,6 +73,18 @@ function navigateFromNotif(data, isBusiness) {
         } else {
             goToAppScreen(isBusiness, 'ProfileTab');
         }
+    } else if (type === 'MATCH_REMINDER' && data.subCategory) {
+        // Yaklaşan Aktivitelerim'den kurulan yerel hatırlatma — ilgili maç kartına götür.
+        goToAppScreen(isBusiness, 'HomeTab', {
+            screen: 'SubCategory',
+            params: {
+                category: data.category || 'SPORTS',
+                sub: data.subCategory,
+                initialTab: 'rivals',
+                highlightRivalId: data.rivalId || null,
+                notifNavKey,
+            },
+        });
     } else if (type === 'VENUE_ORDER') {
         // Kullanıcı raporu: sipariş bildirimine dokununca rezervasyon takvimi açılıyordu —
         // yanlış, doğrudan o maçın Siparişler sekmesine (rivalId ile filtrelenmiş) gitmeli.

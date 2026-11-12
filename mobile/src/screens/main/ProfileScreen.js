@@ -38,6 +38,12 @@ import { sharePost } from '../../utils/share';
 import EntityShareModal from '../../components/EntityShareModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import {
+    MATCH_REMINDER_OFFSETS,
+    getAllMatchReminderMap,
+    getMatchReminderOffsets,
+    setMatchReminders,
+} from '../../utils/matchReminders';
 
 // UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
 const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
@@ -1840,6 +1846,10 @@ export default function ProfileScreen({ route, navigation }) {
     // Match modals
     const [showMyUpcoming, setShowMyUpcoming] = useState(false);
     const [upcomingHubTab, setUpcomingHubTab] = useState('upcoming'); // upcoming | archive — aynı buton içinde
+    const [reminderTarget, setReminderTarget] = useState(null); // yaklaşan maç — özel bildirim seçici
+    const [reminderSelected, setReminderSelected] = useState(() => new Set());
+    const [reminderSaving, setReminderSaving] = useState(false);
+    const [reminderMap, setReminderMap] = useState({}); // rivalId -> offsets[]
     const [showMyArchive, setShowMyArchive] = useState(false);
     const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
     const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
@@ -1901,6 +1911,7 @@ export default function ProfileScreen({ route, navigation }) {
             .then(res => setMyUpcoming(Array.isArray(res.data) ? res.data : []))
             .catch(() => {})
             .finally(() => setLoadingUpcoming(false));
+        getAllMatchReminderMap().then(setReminderMap).catch(() => setReminderMap({}));
         // Aynı pencerede Arşiv sekmesi için geçmişi de hazırla — tarih geçince oraya düşer.
         if (myHistory.length === 0) {
             setLoadingHistory(true);
@@ -1908,6 +1919,81 @@ export default function ProfileScreen({ route, navigation }) {
                 .then(res => setMyHistory(Array.isArray(res.data) ? res.data : []))
                 .catch(() => {})
                 .finally(() => setLoadingHistory(false));
+        }
+    };
+
+    const openMatchReminder = async (match) => {
+        if (!match?.id) return;
+        if (!match.matchDate || !match.matchTime) {
+            Alert.alert('', t.matchReminderNeedDate);
+            return;
+        }
+        const offsets = await getMatchReminderOffsets(match.id).catch(() => []);
+        setReminderSelected(new Set(offsets));
+        setReminderTarget(match);
+    };
+
+    const toggleReminderOffset = (minutes) => {
+        setReminderSelected(prev => {
+            const next = new Set(prev);
+            if (next.has(minutes)) next.delete(minutes); else next.add(minutes);
+            return next;
+        });
+    };
+
+    const reminderLabelFor = (minutes) => {
+        const map = {
+            15: t.matchReminderWhen15m,
+            30: t.matchReminderWhen30m,
+            60: t.matchReminderWhen1h,
+            180: t.matchReminderWhen3h,
+            360: t.matchReminderWhen6h,
+            720: t.matchReminderWhen12h,
+            1440: t.matchReminderWhen1d,
+        };
+        return map[minutes] || `${minutes}m`;
+    };
+
+    const reminderOffLabel = (minutes) => {
+        const map = {
+            15: t.matchReminderOff15m,
+            30: t.matchReminderOff30m,
+            60: t.matchReminderOff1h,
+            180: t.matchReminderOff3h,
+            360: t.matchReminderOff6h,
+            720: t.matchReminderOff12h,
+            1440: t.matchReminderOff1d,
+        };
+        return map[minutes] || `${minutes}m`;
+    };
+
+    const saveMatchReminder = async () => {
+        if (!reminderTarget) return;
+        setReminderSaving(true);
+        try {
+            const offsets = [...reminderSelected];
+            const res = await setMatchReminders(reminderTarget, offsets, {
+                title: t.matchReminderTitleShort,
+                bodyTpl: t.matchReminderBody,
+                sportLabel: getSubCategoryLabel(reminderTarget.subCategory, lang),
+                labelFor: reminderLabelFor,
+            });
+            if (!res?.ok) {
+                if (res?.reason === 'denied') Alert.alert('', t.matchReminderDenied);
+                else if (res?.reason === 'no_date') Alert.alert('', t.matchReminderNeedDate);
+                else Alert.alert('', t.actionFailed);
+                return;
+            }
+            const map = await getAllMatchReminderMap();
+            setReminderMap(map);
+            setReminderTarget(null);
+            if (!offsets.length) Alert.alert('', t.matchReminderCleared);
+            else if (!res.scheduled) Alert.alert('', t.matchReminderNoneScheduled);
+            else Alert.alert('', t.matchReminderSaved);
+        } catch {
+            Alert.alert('', t.actionFailed);
+        } finally {
+            setReminderSaving(false);
         }
     };
 
@@ -3305,12 +3391,26 @@ export default function ProfileScreen({ route, navigation }) {
                                                     </Text>
                                                 ) : null}
                                             </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => shareRival({ ...m, status: m.status || 'MATCHED' }, t)}
-                                                style={{ marginTop:8, alignSelf:'flex-start', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
-                                            >
-                                                <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
-                                            </TouchableOpacity>
+                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:8 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => openMatchReminder(m)}
+                                                    style={{
+                                                        paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1,
+                                                        borderColor: (reminderMap[m.id]?.length ? '#4ade8050' : colors.purple + '50'),
+                                                        backgroundColor: (reminderMap[m.id]?.length ? '#4ade8018' : colors.purple + '18'),
+                                                    }}
+                                                >
+                                                    <Text style={{ color: reminderMap[m.id]?.length ? '#4ade80' : colors.purple, fontSize:12, fontWeight:'700' }}>
+                                                        {t.matchReminderBtn}{reminderMap[m.id]?.length ? ` (${reminderMap[m.id].length})` : ''}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
+                                                    style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
+                                                >
+                                                    <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
                                         </View>
                                     );
                                 });
@@ -3357,6 +3457,63 @@ export default function ProfileScreen({ route, navigation }) {
                                 );
                             })()}
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* ── Özel maç hatırlatması (1s/3s kala vs.) ── */}
+            <Modal visible={!!reminderTarget} animationType="slide" transparent onRequestClose={() => setReminderTarget(null)}>
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight: '80%' }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={s.modalTitle}>{t.matchReminderTitle}</Text>
+                            <TouchableOpacity onPress={() => setReminderTarget(null)}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 12 }}>
+                            {reminderTarget
+                                ? `${SUB_EMOJI[reminderTarget.subCategory] || '🏅'} ${getSubCategoryLabel(reminderTarget.subCategory, lang)}`
+                                : ''}
+                        </Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 14 }}>{t.matchReminderHint}</Text>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {MATCH_REMINDER_OFFSETS.map(opt => {
+                                const on = reminderSelected.has(opt.minutes);
+                                return (
+                                    <TouchableOpacity
+                                        key={opt.key}
+                                        onPress={() => toggleReminderOffset(opt.minutes)}
+                                        style={{
+                                            flexDirection: 'row', alignItems: 'center', gap: 10,
+                                            paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border,
+                                        }}
+                                    >
+                                        <View style={{
+                                            width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+                                            borderColor: on ? '#4ade80' : colors.border,
+                                            backgroundColor: on ? '#4ade80' : 'transparent',
+                                            alignItems: 'center', justifyContent: 'center',
+                                        }}>
+                                            {on ? <Text style={{ color: '#052e16', fontSize: 12, fontWeight: '900' }}>✓</Text> : null}
+                                        </View>
+                                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 }}>{reminderOffLabel(opt.minutes)}</Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+                        <TouchableOpacity
+                            onPress={saveMatchReminder}
+                            disabled={reminderSaving}
+                            style={{
+                                marginTop: 16, backgroundColor: colors.purple, borderRadius: 14,
+                                paddingVertical: 13, alignItems: 'center', opacity: reminderSaving ? 0.6 : 1,
+                            }}
+                        >
+                            {reminderSaving
+                                ? <ActivityIndicator color="#fff" />
+                                : <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.matchReminderSave}</Text>}
+                        </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
