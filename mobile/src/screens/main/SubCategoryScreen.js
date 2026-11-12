@@ -100,6 +100,25 @@ const TR_PROVINCES = [
 
 const TEAM_SPORTS = new Set(['football', 'volleyball']);
 
+// Format rozeti — teamSize ile matchType karıştırılmamalı. Tenis/padel DOUBLE'da teamSize
+// çoğu zaman 1 kalır; kadroda 2+ kişi varken "1v1" yazıyordu (arşiv maç detayı). Sıra:
+// teamSize>1 → NvN, matchType=DOUBLE (veya senderTeam/partner dolu) → 2v2, değilse 1v1.
+function isDoublesMatch(m) {
+    if (!m) return false;
+    if (String(m.matchType || '').toUpperCase() === 'DOUBLE') return true;
+    const st = Array.isArray(m.senderTeam) ? m.senderTeam.filter((p) => p && (p.id || p.manualName)).length : 0;
+    return st > 0;
+}
+function matchFormatLabel(m, t, { teamFn } = {}) {
+    const teamSize = m?.teamSize || 1;
+    if (teamSize > 1) {
+        if (typeof teamFn === 'function') return teamFn(teamSize, teamSize);
+        return `${teamSize}v${teamSize}`;
+    }
+    if (isDoublesMatch(m)) return '2v2';
+    return t?.archiveSingles || '1v1';
+}
+
 // Tenis/padel UTR-esinli sistemde tekli/çiftli AYRI puanlar var (bkz. backend/src/utils/
 // utrRating.js getDisplayRating) — düz skillRating artık otoriter değil. Kullanıcı isteği:
 // gelen istekler/gönderilen davetler ve digimon kartlarda kullanıcı adının yanında maçın
@@ -2728,7 +2747,7 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                     )}
                                 </Text>
                                 <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
-                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : matchFormatLabel(item, t)}
                                 </Text>
                             </View>
                             {item.matchDate && (
@@ -5536,7 +5555,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                                     )}
                                 </Text>
                                 <Text style={{ color: cfg.color, fontSize: moderateScale(11), lineHeight: moderateScale(13), fontWeight: '700' }} numberOfLines={1}>
-                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : (item.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : matchFormatLabel(item, t)}
                                 </Text>
                             </View>
                             {(() => {
@@ -8380,7 +8399,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
             <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginTop:3 }}>
                 <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                     <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                        {match.matchType === 'DOUBLE' ? '2v2' : (match.teamSize||1) > 1 ? t.sc_0160(match.teamSize, match.teamSize) : '1v1'}
+                        {matchFormatLabel(match, t, { teamFn: (a, b) => t.sc_0160(a, b) })}
                     </Text>
                 </View>
                 {match.matchMode?.toUpperCase() === 'COMPETITIVE' && (
@@ -8504,7 +8523,9 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                     <View style={{ flexDirection:'row', alignItems:'center', gap:3, flexWrap:'wrap', marginBottom:8 }}>
                         <View style={[s.modeBadge, { backgroundColor: cfg.color+'20', borderColor: cfg.color+'40' }]}>
                             <Text style={[s.modeBadgeText, { color: cfg.color }]}>
-                                {TEAM_SPORTS.has(match.subCategory) ? t.sc_0163(match.teamSize||1, match.teamSize||1) : (match.matchType==='DOUBLE' ? '2v2' : '1v1')}
+                                {TEAM_SPORTS.has(match.subCategory)
+                                    ? t.sc_0163(match.teamSize||1, match.teamSize||1)
+                                    : matchFormatLabel(match, t)}
                             </Text>
                         </View>
                         <ModeBadge mode={match.matchMode} />
@@ -12803,14 +12824,14 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
     const opponentSide = parts.filter(Boolean);
     const sets = m.score?.sets;
-    // Kullanıcı raporu: 2v2 (tenis/padel çiftleri) maçlar arşivde yanlışlıkla "1v1"
-    // gösteriyordu — sebep, format için matchType yerine matchMode'a ("TEAM" mi diye)
-    // bakılmasıydı; matchMode aslında Rekabetçi/Antrenman ayrımı, format değil. Takım
-    // sporlarında (voleybol vb., teamSize>1) NvN, çiftlerde (matchType=DOUBLE) 2v2,
-    // geri kalanında 1v1 — UpcomingCard'daki isTeamMatch ile aynı mantık.
-    const isTeamSport = (m.teamSize || 1) > 1;
-    const isDoublesFmt = m.matchType === 'DOUBLE';
-    const sizeTxt = isTeamSport ? `👥 ${m.teamSize}v${m.teamSize}` : isDoublesFmt ? '👥 2v2' : '⚔️ 1v1';
+    // Format: teamSize>1 → NvN, DOUBLE → 2v2 (teamSize=1 olsa bile). Eskiden kadro 2+
+    // iken teamSize ile "1v1" basılıyordu.
+    const sizeTxt = (() => {
+        const teamSize = m.teamSize || 1;
+        if (teamSize > 1) return `👥 ${teamSize}v${teamSize}`;
+        if (isDoublesMatch(m)) return '👥 2v2';
+        return '⚔️ 1v1';
+    })();
     const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
     const founderLabel = m.founderTeamName || (founderSide.length > 1 ? t.sc_team_host : (founderSide[0] ? senderAlias(founderSide[0]) : t.sc_0053));
     const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? t.sc_team_opp : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
@@ -13153,8 +13174,11 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
     const liveDuration = formatArchiveDuration(stats, m.duration, t);
     const youLabel = t.archiveYouLabel;
     const themLabel = iAmFounderSide ? opponentLabel : founderLabel;
+    // Kullanıcı raporu: 2v2 arşiv detayında "1v1" yazıyordu — isTeamMatch (kadro 2+)
+    // true olunca teamSize (teniste genelde 1) ile "1v1" basılıyordu. Format için
+    // matchFormatLabel kullan (DOUBLE / senderTeam → 2v2).
     const formatBits = [
-        isTeamMatch ? `${m.teamSize || '?'}v${m.teamSize || '?'}` : (m.matchType === 'DOUBLE' ? '2v2' : t.archiveSingles),
+        matchFormatLabel(m, t),
         m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : null,
     ].filter(Boolean);
 
