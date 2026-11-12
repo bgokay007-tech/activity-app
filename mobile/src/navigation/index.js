@@ -456,9 +456,12 @@ function AppTabs() {
     // TabIcon). Bildirimlerin unreadCount'undan bağımsız: bildirimi okusa bile skoru gerçekten
     // girmeden bu sayaç 0'a düşmez, aynı unreadMessages gibi 30sn'de bir sunucudan çekilir.
     const [pendingScoreCount, setPendingScoreCount] = useState(0);
+    // Yaklaşan aktivite/maç varken Profil sekmesi yanıp sönsün — tarih/saat geçince dursun.
+    const [upcomingActivityCount, setUpcomingActivityCount] = useState(0);
     const pollRef = useRef(null);
     const messagesPollRef = useRef(null);
     const pendingScorePollRef = useRef(null);
+    const upcomingActivityPollRef = useRef(null);
 
     // Fetch unread count from backend — source of truth
     const syncBadge = useCallback(async () => {
@@ -485,6 +488,23 @@ function AppTabs() {
         } catch { /* silent */ }
     }, []);
 
+    const syncUpcomingActivityCount = useCallback(async () => {
+        try {
+            const { data } = await api.get('/rivals/my-upcoming');
+            const list = Array.isArray(data) ? data : [];
+            const now = new Date();
+            const n = list.filter(m => {
+                if (!m?.matchDate || !m?.matchTime) return !!m?.flexibleSchedule || !m?.matchDate;
+                const [h, min] = String(m.matchTime).split(':').map(Number);
+                const d = new Date(m.matchDate);
+                if (isNaN(d.getTime()) || Number.isNaN(h)) return true;
+                d.setHours(h, min || 0, 0, 0);
+                return now < d;
+            }).length;
+            setUpcomingActivityCount(n);
+        } catch { /* silent */ }
+    }, []);
+
     // Poll every 30s — keeps badge in sync with server after mark-all-read
     useEffect(() => {
         const t = setTimeout(syncBadge, 2000);
@@ -503,6 +523,12 @@ function AppTabs() {
         pendingScorePollRef.current = setInterval(syncPendingScoreCount, 30000);
         return () => { clearTimeout(t); clearInterval(pendingScorePollRef.current); };
     }, [syncPendingScoreCount]);
+
+    useEffect(() => {
+        const t = setTimeout(syncUpcomingActivityCount, 2000);
+        upcomingActivityPollRef.current = setInterval(syncUpcomingActivityCount, 30000);
+        return () => { clearTimeout(t); clearInterval(upcomingActivityPollRef.current); };
+    }, [syncUpcomingActivityCount]);
 
     // Socket connection — instant badge increment on new notification/message
     useEffect(() => {
@@ -609,7 +635,7 @@ function AppTabs() {
             <Tab.Screen
                 name="ProfileTab"
                 component={ProfileStackNav}
-                options={{ tabBarLabel: t.profile, tabBarIcon: ({ focused }) => <TabIcon label="Profile" active={focused} /> }}
+                options={{ tabBarLabel: t.profile, tabBarIcon: ({ focused }) => <TabIcon label="Profile" active={focused} blinking={upcomingActivityCount > 0} /> }}
             />
         </Tab.Navigator>
         <MiniPlayer />

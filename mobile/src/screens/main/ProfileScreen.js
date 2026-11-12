@@ -3186,94 +3186,127 @@ export default function ProfileScreen({ route, navigation }) {
 
             </ScrollView>
 
-            {/* ── Yaklaşan Maçlarım Modal ── */}
+            {/* ── Yaklaşan Aktivitelerim / Maçlarım + Arşiv (aynı buton) ── */}
             <Modal visible={showMyUpcoming} animationType="slide" transparent onRequestClose={() => setShowMyUpcoming(false)}>
                 <View style={s.modalOverlay}>
                     <View style={[s.modalBox, { maxHeight:'85%' }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>
-                                {upcomingSub ? `${SUB_EMOJI[upcomingSub] || '⏰'} ${upcomingSub} ${t.myUpcomingTitle || 'Yaklaşan Maçlar'}` : t.myUpcomingTitle}
+                                {upcomingSub
+                                    ? `${SUB_EMOJI[upcomingSub] || '⏰'} ${getSubCategoryLabel(upcomingSub, lang)} ${t.myUpcomingActivitiesTitle}`
+                                    : t.myUpcomingActivitiesTitle}
                             </Text>
                             <TouchableOpacity onPress={() => setShowMyUpcoming(false)}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
+                        <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
+                            {[
+                                { key: 'upcoming', label: `${t.myUpcomingHubTabUpcoming} (${upcomingSub ? activeUpcomingList.filter(m => m.subCategory === upcomingSub).length : activeUpcomingCount})` },
+                                { key: 'archive', label: t.myUpcomingHubTabArchive },
+                            ].map(tab => (
+                                <TouchableOpacity
+                                    key={tab.key}
+                                    onPress={() => setUpcomingHubTab(tab.key)}
+                                    style={{
+                                        flex: 1, borderRadius: 12, paddingVertical: 10, alignItems: 'center',
+                                        backgroundColor: upcomingHubTab === tab.key ? colors.purple : colors.surface2,
+                                        borderWidth: 1, borderColor: upcomingHubTab === tab.key ? colors.purple : colors.border,
+                                    }}
+                                >
+                                    <Text style={{ color: upcomingHubTab === tab.key ? '#fff' : colors.textMuted, fontSize: 13, fontWeight: '800' }}>{tab.label}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
                         <ScrollView showsVerticalScrollIndicator={false}>
-                            {(() => {
-                                const filtered = upcomingSub ? myUpcoming.filter(m => m.subCategory === upcomingSub) : myUpcoming;
+                            {upcomingHubTab === 'upcoming' ? (() => {
+                                if (loadingUpcoming) return <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />;
+                                const filtered = upcomingSub
+                                    ? activeUpcomingList.filter(m => m.subCategory === upcomingSub)
+                                    : activeUpcomingList;
                                 if (filtered.length === 0) return (
-                                    <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingEmpty}</Text>
+                                    <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingActivitiesEmpty}</Text>
                                 );
                                 return filtered.map(m => {
                                     const allP = [
                                         { ...m.sender, skillRating: m.senderSkillRating },
                                         ...(Array.isArray(m.participants) ? m.participants : []),
+                                        ...(Array.isArray(m.senderTeam) ? m.senderTeam : []),
                                     ].filter(Boolean);
-                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM';
-                                    const sizeBadge2 = isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM' || (m.teamSize || 1) > 1;
+                                    const sizeBadge2 = m.matchType === 'DOUBLE' ? '👥 2v2'
+                                        : isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
                                     return (
                                         <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:11 }}>
-                                            {/* Sport + badges */}
-                                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                                                <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
-                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
-                                                </Text>
-                                            </View>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
-                                                <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: colors.border }}>
-                                                    <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeBadge2}</Text>
-                                                </View>
-                                                {m.matchMode?.toUpperCase() === 'COMPETITIVE' && (
-                                                    <View style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#ef444440' }}>
-                                                        <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>⚔️ Rekabetçi</Text>
-                                                    </View>
-                                                )}
-                                                {m.matchMode?.toUpperCase() === 'PRACTICE' && (
-                                                    <View style={{ backgroundColor:'#22c55e20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#22c55e40' }}>
-                                                        <Text style={{ color:'#22c55e', fontSize:11, fontWeight:'700' }}>🏃 Antrenman</Text>
-                                                    </View>
-                                                )}
-                                                {m.flexibleSchedule && (
-                                                    <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                        <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>📅 Esnek</Text>
-                                                    </View>
-                                                )}
-                                            </View>
-                                            {/* Players */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
-                                                {allP.map(p => (
-                                                    <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1, flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                        <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username}</Text>
-                                                        {p.skillRating != null && (
-                                                            <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
-                                                        )}
-                                                    </View>
-                                                ))}
-                                            </View>
-                                            {/* Date / Time / Location */}
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 }}>
-                                                {m.flexibleSchedule ? (
-                                                    <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 Esnek Program</Text>
-                                                ) : (
-                                                    <>
-                                                        {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString('tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
-                                                        {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
-                                                    </>
-                                                )}
-                                                {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
-                                            </View>
-                                            {/* Court reserved */}
-                                            <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize:12, marginBottom: m.message ? 4 : 0 }}>
-                                                {m.isCourtReserved ? '✅ Kort Rezerve Edildi' : '❌ Kort Rezerve Edilmedi'}
-                                            </Text>
-                                            {/* Note */}
-                                            {m.message ? (
-                                                <Text style={{ color:colors.textSecondary, fontSize:12, fontStyle:'italic', marginTop:2 }}>
-                                                    💬 {m.message}
-                                                </Text>
-                                            ) : null}
                                             <TouchableOpacity
-                                                onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
+                                                activeOpacity={0.85}
+                                                onPress={() => {
+                                                    setShowMyUpcoming(false);
+                                                    navigation.navigate('SubCategory', {
+                                                        category: m.category || 'SPORTS',
+                                                        sub: m.subCategory,
+                                                        initialTab: 'rivals',
+                                                        highlightRivalId: m.id,
+                                                    });
+                                                }}
+                                            >
+                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                                                    <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
+                                                        {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
+                                                    </Text>
+                                                </View>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: colors.border }}>
+                                                        <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeBadge2}</Text>
+                                                    </View>
+                                                    {m.matchMode?.toUpperCase() === 'COMPETITIVE' && (
+                                                        <View style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#ef444440' }}>
+                                                            <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>{t.competitiveMode || 'Competitive'}</Text>
+                                                        </View>
+                                                    )}
+                                                    {m.matchMode?.toUpperCase() === 'PRACTICE' && (
+                                                        <View style={{ backgroundColor:'#22c55e20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#22c55e40' }}>
+                                                            <Text style={{ color:'#22c55e', fontSize:11, fontWeight:'700' }}>{t.practiceMode || 'Practice'}</Text>
+                                                        </View>
+                                                    )}
+                                                    {m.flexibleSchedule && (
+                                                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b40' }}>
+                                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.flexLabel || 'Flexible'}</Text>
+                                                        </View>
+                                                    )}
+                                                </View>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
+                                                    {allP.map(p => (
+                                                        <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1, flexDirection:'row', alignItems:'center', gap:3 }}>
+                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username || p.fullName || p.manualName}</Text>
+                                                            {p.skillRating != null && (
+                                                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
+                                                            )}
+                                                        </View>
+                                                    ))}
+                                                </View>
+                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 }}>
+                                                    {m.flexibleSchedule && !m.matchDate ? (
+                                                        <Text style={{ color:colors.textMuted, fontSize:12 }}>{t.flexLabel || 'Flexible'}</Text>
+                                                    ) : (
+                                                        <>
+                                                            {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
+                                                            {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
+                                                        </>
+                                                    )}
+                                                    {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
+                                                </View>
+                                                <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize:12, marginBottom: m.message ? 4 : 0 }}>
+                                                    {m.isCourtReserved ? `✅ ${t.courtReservedLabel || ''}` : `❌ ${t.courtNotReserved || ''}`}
+                                                </Text>
+                                                {m.message ? (
+                                                    <Text style={{ color:colors.textSecondary, fontSize:12, fontStyle:'italic', marginTop:2 }}>
+                                                        💬 {m.message}
+                                                    </Text>
+                                                ) : null}
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => shareRival({ ...m, status: m.status || 'MATCHED' }, t)}
                                                 style={{ marginTop:8, alignSelf:'flex-start', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
                                             >
                                                 <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
@@ -3281,6 +3314,47 @@ export default function ProfileScreen({ route, navigation }) {
                                         </View>
                                     );
                                 });
+                            })() : (() => {
+                                if (loadingHistory) return <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />;
+                                const filtered = upcomingSub ? myHistory.filter(m => m.subCategory === upcomingSub) : myHistory;
+                                if (filtered.length === 0) return (
+                                    <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.matchArchiveEmpty}</Text>
+                                );
+                                return (
+                                    <>
+                                        {filtered.map(m => {
+                                            const parts = Array.isArray(m.participants) ? m.participants : [];
+                                            const allP = [m.sender, ...parts].filter(Boolean);
+                                            return (
+                                                <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:11 }}>
+                                                    <Text style={{ color:'#a855f7', fontSize:14, fontWeight:'800', marginBottom:6 }}>
+                                                        {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
+                                                    </Text>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 }}>
+                                                        {allP.map(p => (
+                                                            <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
+                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username || p.fullName}</Text>
+                                                            </View>
+                                                        ))}
+                                                    </View>
+                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                                        {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day:'numeric', month:'short', year:'numeric' })}</Text> : null}
+                                                        {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
+                                                        {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
+                                                    </View>
+                                                </View>
+                                            );
+                                        })}
+                                        {upcomingSub ? (
+                                            <TouchableOpacity
+                                                onPress={() => { setShowMyUpcoming(false); openMyArchive(upcomingSub); }}
+                                                style={{ marginTop:16, marginBottom:8, backgroundColor: colors.surface2, borderRadius:12, paddingVertical:12, alignItems:'center', borderWidth:1, borderColor: colors.border }}
+                                            >
+                                                <Text style={{ color: colors.purple, fontSize:13, fontWeight:'800' }}>{t.profileSportArchive} →</Text>
+                                            </TouchableOpacity>
+                                        ) : null}
+                                    </>
+                                );
                             })()}
                         </ScrollView>
                     </View>
