@@ -1,8 +1,8 @@
-﻿import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useCallback, useEffect, useMemo } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import {
     View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, TextInput,
-    Platform, InteractionManager, Animated, PanResponder, useWindowDimensions,
+    Platform, InteractionManager,
 } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useFocusEffect } from '@react-navigation/native';
@@ -144,53 +144,12 @@ function parseIdList(raw) {
     }
 }
 
-const SPORT_TILE_W = 168;
-const SPORT_TILE_GAP = 12;
-
-// Görünüş: soldan sağa yatay kaydırma. ScrollView DEĞİL — iç içe ScrollView
-// Android'de dokunuşu ~1sn bekletiyordu; Sanat/Sosyal anında tepki veriyordu.
-function SportHScroll({ children, itemCount }) {
-    const { width: winW } = useWindowDimensions();
-    const viewport = Math.max(0, winW - 32);
-    const contentW = itemCount * SPORT_TILE_W + Math.max(0, itemCount - 1) * SPORT_TILE_GAP;
-    const maxScroll = Math.max(0, contentW - viewport);
-    const tx = useRef(new Animated.Value(0)).current;
-    const offset = useRef(0);
-    const dragStart = useRef(0);
-
-    const pan = useMemo(() => PanResponder.create({
-        onStartShouldSetPanResponder: () => false,
-        onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
-        onMoveShouldSetPanResponderCapture: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
-        onPanResponderGrant: () => { dragStart.current = offset.current; },
-        onPanResponderMove: (_, g) => {
-            tx.setValue(Math.min(0, Math.max(-maxScroll, dragStart.current + g.dx)));
-        },
-        onPanResponderRelease: (_, g) => {
-            offset.current = Math.min(0, Math.max(-maxScroll, dragStart.current + g.dx));
-            tx.setValue(offset.current);
-        },
-        onPanResponderTerminate: (_, g) => {
-            offset.current = Math.min(0, Math.max(-maxScroll, dragStart.current + g.dx));
-            tx.setValue(offset.current);
-        },
-    }), [maxScroll, tx]);
-
-    return (
-        <View style={{ overflow: 'hidden' }} {...pan.panHandlers}>
-            <Animated.View style={{ flexDirection: 'row', gap: SPORT_TILE_GAP, paddingRight: 8, transform: [{ translateX: tx }] }}>
-                {children}
-            </Animated.View>
-        </View>
-    );
-}
-
 function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav, t, variant }) {
     const photo = SUB_PHOTOS[sub.id] || null;
     const tint = SUB_TINT[sub.id] || '#1C1F28';
     return (
         <TouchableOpacity
-            style={[variant === 'row' ? sp.tileRow : sp.tile, count === 0 && sp.tileQuiet]}
+            style={[variant === 'col' ? sp.tileCol : sp.tile, count === 0 && sp.tileQuiet]}
             onPress={onOpen}
             onPressIn={onPressIn}
             delayPressIn={0}
@@ -237,6 +196,11 @@ function CategoryScreen({ route, navigation }) {
     const [involvedSubIds, setInvolvedSubIds] = useState([]);
     const [intent, setIntent] = useState(null);
     const [todayCounts, setTodayCounts] = useState({});
+    // Kullanıcı isteği: spor grupları dikey; sağdaki ok ▼=açık (default), ◀=kapalı (altındaki
+    // dallar gizlenir). Yatay kaydırma kaldırıldı.
+    const [expandedGroups, setExpandedGroups] = useState(() =>
+        Object.fromEntries(SPORT_GROUPS.map(g => [g.id, true]))
+    );
     const myId = useSelector(s => s.auth.user?.id);
 
     // Sanat/sosyal/oyun: alfabetik; açık ilanı olan öne, profilindeki Aktivitelerim daha da öne.
@@ -585,17 +549,28 @@ function CategoryScreen({ route, navigation }) {
                                 seenEmoji.add(emoji);
                                 return { id, emoji };
                             }).filter(Boolean);
+                            const expanded = expandedGroups[g.id] !== false;
                             return (
                                 <View key={g.id} style={sp.groupBlock}>
-                                    <View style={sp.groupTitleRow}>
-                                        <Text style={[sp.groupTitle, { marginBottom: 0 }]}>{t[g.key]}</Text>
-                                        {groupIcons.map(ic => ic.image
-                                            ? <Image key={ic.id} source={ic.image} style={sp.groupIconImg} resizeMode="contain" />
-                                            : <Text key={ic.id} style={sp.groupIconEmoji}>{ic.emoji}</Text>)}
-                                    </View>
-                                    <SportHScroll itemCount={items.length}>
-                                        {items.map(sub => renderTile(sub, 'row'))}
-                                    </SportHScroll>
+                                    <TouchableOpacity
+                                        onPress={() => setExpandedGroups(prev => ({ ...prev, [g.id]: !expanded }))}
+                                        activeOpacity={0.75}
+                                        delayPressIn={0}
+                                        style={sp.groupTitleRow}
+                                    >
+                                        <Text style={[sp.groupTitle, { marginBottom: 0, flexShrink: 1 }]} numberOfLines={1}>{t[g.key]}</Text>
+                                        <View style={sp.groupIcons}>
+                                            {groupIcons.map(ic => ic.image
+                                                ? <Image key={ic.id} source={ic.image} style={sp.groupIconImg} resizeMode="contain" />
+                                                : <Text key={ic.id} style={sp.groupIconEmoji}>{ic.emoji}</Text>)}
+                                        </View>
+                                        <Text style={sp.groupChevron}>{expanded ? '▼' : '◀'}</Text>
+                                    </TouchableOpacity>
+                                    {expanded ? (
+                                        <View style={sp.groupCol}>
+                                            {items.map(sub => renderTile(sub, 'col'))}
+                                        </View>
+                                    ) : null}
                                 </View>
                             );
                         })}
@@ -726,14 +701,17 @@ const sp = StyleSheet.create({
     groupChipOn: { backgroundColor: 'rgba(200,245,74,0.16)', borderColor: colors.purple },
     groupChipText: { color: colors.textSecondary, fontSize: 13, fontWeight: '600' },
     groupChipTextOn: { color: colors.purple },
-    groupBlock: { marginBottom: 22 },
+    groupBlock: { marginBottom: 18 },
     groupTitle: { color: colors.text, fontSize: 17, fontWeight: '700', marginBottom: 12 },
-    groupTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 12 },
+    groupTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, paddingVertical: 2 },
+    groupIcons: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4, flex: 1 },
+    groupChevron: { color: colors.textMuted, fontSize: 14, fontWeight: '700', marginLeft: 'auto', paddingLeft: 8 },
     groupIconEmoji: { fontSize: 17 },
     groupIconImg: { width: 20, height: 20 },
+    groupCol: { gap: 12 },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
     tile: { width: '47.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
-    tileRow: { width: 168, height: 176, borderRadius: 22, overflow: 'hidden' },
+    tileCol: { width: '100%', height: 148, borderRadius: 22, overflow: 'hidden' },
     tileQuiet: { opacity: 0.78 },
     tileImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
     tileShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,12,16,0.28)' },
