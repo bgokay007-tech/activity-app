@@ -377,12 +377,13 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     } else if (user.gender !== demo.gender) {
         user = await prisma.user.update({ where: { id: user.id }, data: { gender: demo.gender } });
     }
-    // bkz. seedOneTournamentJoin'deki aynı not — UTR dallarında (tennis/padel) gerçek
-    // eşleşme/derece kontrolleri singlesRating/doublesRating'ten (seed'e düşerek) okunuyor.
-    // Tenis'te ayrıca doublesAssessmentCompleted true olmalı — yoksa demo botlar artık ayrı
-    // olan çiftler anketini tamamlamamış sayılıp çiftler test ilanlarına katılamazdı.
-    const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel' || subCategory === 'pickleball';
-    const isTennis = subCategory === 'tennis';
+    // bkz. seedOneTournamentJoin'deki aynı not — UTR dallarında gerçek eşleşme/derece
+    // kontrolleri singlesRating/doublesRating'ten (seed'e düşerek) okunuyor.
+    // Çiftler anketi (doublesAssessmentCompleted) tenis + padel + badminton + masa tenisi
+    // + pickleball için zorunlu — sadece teniste true bırakınca diğer dallarda DOUBLE
+    // demo başvurusu "uygun demo oyuncu kalmadı" ile düşüyordu.
+    const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel' || subCategory === 'pickleball'
+        || subCategory === 'badminton' || subCategory === 'table_tennis';
     // MID havuzu tekli/çiftler için AYRI değer taşıyor (bkz. demo.singlesRating/doublesRating) —
     // diğer havuzlar (ADA/HI vb.) bu alanları hiç taşımıyor, o zaman düz skillRating ikisine de
     // mirror'lanır (eski davranış, geriye dönük uyumlu).
@@ -392,14 +393,18 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
         where: { userId_category_subCategory: { userId: user.id, category: 'SPORTS', subCategory } },
         update: {
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
-            ...(isUtrSubCategory && { singlesSeedRating: singlesVal, doublesSeedRating: doublesVal, assessmentCompletedAt: new Date() }),
-            ...(isTennis && { doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() }),
+            ...(isUtrSubCategory && {
+                singlesSeedRating: singlesVal, doublesSeedRating: doublesVal, assessmentCompletedAt: new Date(),
+                doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date(),
+            }),
         },
         create: {
             userId: user.id, category: 'SPORTS', subCategory,
             skillRating: demo.skillRating, level: levelForRating(demo.skillRating), assessmentCompleted: true,
-            ...(isUtrSubCategory && { singlesSeedRating: singlesVal, doublesSeedRating: doublesVal, assessmentCompletedAt: new Date() }),
-            ...(isTennis && { doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date() }),
+            ...(isUtrSubCategory && {
+                singlesSeedRating: singlesVal, doublesSeedRating: doublesVal, assessmentCompletedAt: new Date(),
+                doublesAssessmentCompleted: true, doublesAssessmentCompletedAt: new Date(),
+            }),
         },
     });
     return user;

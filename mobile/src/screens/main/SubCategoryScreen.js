@@ -3846,6 +3846,152 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                         </Animated.View>
                     </View>
 
+                    {/* İstekler — kullanıcı isteği: kadroya katılmamış olsalar bile maç detayına
+                        giren HERKES kimlerin başvurduğunu görebilsin (ör. sevmediği biri zaten
+                        başvurmuşsa kendisi başvurmayabilsin); kabul/red butonları yine sadece ilan
+                        sahibinde kalır (bkz. aşağıdaki isOwner kontrolü).
+                        Not: Bu blok yanlışlıkla kaldırılmıştı (49641ce2) — demo başvuru + gerçek
+                        katılım istekleri socket ile localJoinRequests'e yazılıyordu ama ekranda
+                        hiç render edilmiyordu; "istekler gözükmüyor" raporunun kök nedeni buydu. */}
+                    {joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                        <View style={det.section}>
+                            <TouchableOpacity onPress={() => setRequestsExpanded(v => !v)} style={{ flexDirection:'row', alignItems:'center' }}>
+                                <Text style={[det.sectionTitle, { flex:1 }]}>📬 {t.requests || 'İstekler'} ({joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length})</Text>
+                                <Text style={{ color:'#fff', fontSize:14 }}>{requestsExpanded ? '▼' : '◀'}</Text>
+                            </TouchableOpacity>
+                            {requestsExpanded && (item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT' ? (() => {
+                                const slotLabel = (slot) => slot === 'partner' ? t.founderTeamLabel : slot === 'opp1' ? t.opp1Label : slot === 'opp2' ? t.opp2Label : t.opp1Label;
+                                return joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').map(jr => (
+                                    <View key={jr.id} style={det.playerRow}>
+                                        <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
+                                            <Text style={det.playerSub}>
+                                                {jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}
+                                            </Text>
+                                            <Text style={{ color: cfg.color, fontSize:moderateScale(10), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
+                                                → {slotLabel(jr.requestedSlot)}
+                                            </Text>
+                                        </View>
+                                        {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                            <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
+                                        ) : (
+                                            <View style={{ flexDirection:'row', gap:3 }}>
+                                                <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
+                                                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
+                                                    <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                ));
+                            })() : item.matchType === 'DOUBLE' ? (() => {
+                                const senderTeamNow = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+                                const openGenderReqs = [
+                                    !senderTeamNow[0]?.id && partnerGenderReq,
+                                    !participants[0]?.id && opp1GenderReq,
+                                    !participants[1]?.id && opp2GenderReq,
+                                ].filter(g => g && g !== 'MIX');
+                                const fitsOpenSlot = (jr) => {
+                                    if (openGenderReqs.length === 0) return true;
+                                    const g = jr.user?.gender;
+                                    if (!g || g === 'OTHER') return true;
+                                    return openGenderReqs.includes(g);
+                                };
+                                const incoming = joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
+                                    .slice()
+                                    .sort((a, b) => (fitsOpenSlot(a) === fitsOpenSlot(b) ? 0 : fitsOpenSlot(a) ? -1 : 1));
+                                const { pairs, solos, byUserId } = groupDoublesPairs(incoming);
+                                const solosWithPartnerLink = solos.filter(s => s.partnerId || solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
+                                const solosIndividual = solos.filter(s => !s.partnerId && !solos.some(o => o.partnerId === s.userId && o.userId !== s.userId));
+                                return (
+                                    <View>
+                                        <View style={{ flexDirection:'row', flexWrap:'wrap', justifyContent:'space-between' }}>
+                                            {pairs.map(([a, b]) => renderRivalDuoCard(a, b, solos, byUserId))}
+                                            {solosWithPartnerLink.map(s => renderRivalDuoCard(s, null, solos, byUserId))}
+                                        </View>
+                                        {solosIndividual.map(jr => (
+                                            <View key={jr.id} style={det.playerRow}>
+                                                <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
+                                                    <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
+                                                </View>
+                                                {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                                    <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
+                                                ) : (
+                                                    <View style={{ flexDirection:'row', gap:3 }}>
+                                                        <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
+                                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                                        </TouchableOpacity>
+                                                        <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
+                                                            <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        ))}
+                                    </View>
+                                );
+                            })() : joinRequests.filter(jr => jr.initiatedBy !== 'OWNER')
+                                .map(jr => (
+                                <View key={jr.id} style={det.playerRow}>
+                                    <Avatar name={jr.user?.username} avatar={jr.user?.avatar} size={moderateScale(32)} color={cfg.color} onPress={() => jr.user?.id && navigation.push('Profile', { userId: jr.user.id })} />
+                                    {Array.isArray(jr.joiningTeam) && jr.joiningTeam.length > 0 ? (
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>
+                                                {t.teamJoinRequestLabel}
+                                                {(() => {
+                                                    const ratings = jr.joiningTeam.filter(m => !m.isSubstitute && m.skillRating != null).map(m => m.skillRating);
+                                                    const avg = ratings.length > 0 ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null;
+                                                    return avg != null ? `  Ort ${avg.toFixed(2)}★` : '';
+                                                })()}
+                                            </Text>
+                                            <Text style={det.playerSub} numberOfLines={2}>
+                                                {jr.joiningTeam.filter(m => !m.isSubstitute).map(m => m.username || m.fullName || m.manualName).join(', ')}
+                                            </Text>
+                                            {jr.joiningTeam.some(m => m.isSubstitute) && (
+                                                <Text style={{ color: colors.textMuted, fontSize: moderateScale(9) }} numberOfLines={1}>
+                                                    {t.subsLabel}: {jr.joiningTeam.filter(m => m.isSubstitute).map(m => m.username || m.fullName || m.manualName).join(', ')}
+                                                </Text>
+                                            )}
+                                            <Text style={{ color: colors.textMuted, fontSize: moderateScale(9) }}>🕐 {reqTimeAgo(jr.createdAt)}</Text>
+                                        </View>
+                                    ) : (
+                                        <View style={{ flex:1 }}>
+                                            <Text style={det.playerName}>{playerDisplayName(jr.user)}</Text>
+                                            <Text style={det.playerSub}>{jr.user?.username} · 🕐 {reqTimeAgo(jr.createdAt)}{eloSuffix(jr.user?.interests?.find(i => i.subCategory === sub), sub, isDoublesFmt, t.lang)}{reqGenderParen(jr.user?.gender, t.lang)}</Text>
+                                            {jr.requestedSlot && (
+                                                <Text style={{ color:'#a855f7', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }}>
+                                                    🎯 {jr.requestedSlot === 'partner' ? t.founderTeamLabel : jr.requestedSlot === 'opp1' ? t.opp1Label : jr.requestedSlot === 'opp2' ? t.opp2Label : t.joinAsOpponentBtn}
+                                                </Text>
+                                            )}
+                                            {Array.isArray(jr.positionPreferences) && jr.positionPreferences.length > 0 && (
+                                                <Text style={{ color:'#38bdf8', fontSize: moderateScale(9), fontWeight:'700', marginTop:1 }} numberOfLines={1}>
+                                                    🏐 {jr.positionPreferences.map((p, i) => `${i + 1}. ${p === 'SETTER' ? t.positionSetter : p === 'SPIKER' ? t.positionSpiker : t.positionLibero}`).join('  ')}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    )}
+                                    {isOwner && (jr.status === 'AWAITING_JOINER_CONFIRM' ? (
+                                        <Text style={{ color:'#fbbf24', fontSize: moderateScale(10), fontWeight:'700' }}>⏳ Son Onay Bekleniyor</Text>
+                                    ) : (
+                                        <View style={{ flexDirection:'row', gap:3 }}>
+                                            <TouchableOpacity style={[s.acceptBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => acceptLocal(jr.id)}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✓</Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity style={[s.declineBtn, { borderRadius: moderateScale(8), width: moderateScale(28), height: moderateScale(28) }]} onPress={() => rejectLocal(jr.id)}>
+                                                <Text style={{ color:'#fff', fontSize:moderateScale(12), fontWeight:'700' }}>✕</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </View>
+                            )))}
+                        </View>
+                    )}
+
                     {/* Ilan sahibinin gönderdiği (OWNER) davetler — kullanıcı isteği: DOUBLE'da davet
                         durumu artık kadro kartının İÇİNDE (ne ön ne arka yüzde) hiç gösterilmiyor,
                         SADECE burada — bu yüzden partner davetleri de (önceden Kurucu Takımı
@@ -4177,6 +4323,13 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                                     setSeedingDemoRival(true);
                                     try {
                                         const { data } = await api.post('/demo/rival-join', { rivalId: item.id });
+                                        // İstekler bölümü localJoinRequests'ten çiziliyor — socket
+                                        // gecikse bile GET ile anında doldur (onRefresh=load stale
+                                        // cache basabiliyor, burada çağırmıyoruz).
+                                        try {
+                                            const fresh = await api.get(`/rivals/${item.id}`);
+                                            if (Array.isArray(fresh.data?.joinRequests)) setLocalJoinRequests(fresh.data.joinRequests);
+                                        } catch { /* socket fallback */ }
                                         Alert.alert('', `Demo başvuru gönderildi: ${data.joined.join(', ')}`);
                                     } catch (e) {
                                         Alert.alert('', e?.response?.data?.message || t.actionFailed);
@@ -4259,9 +4412,14 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                                             demoSpamRunningRef.current = true;
                                             setDemoSpamActive(true);
                                             const sendOne = () => {
-                                                api.post('/demo/volleyball-join', { rivalId: item.id }).catch(() => {}).finally(() => {
-                                                    if (demoSpamRunningRef.current) demoSpamIntervalRef.current = setTimeout(sendOne, 2000);
-                                                });
+                                                api.post('/demo/volleyball-join', { rivalId: item.id })
+                                                    .then(() => api.get(`/rivals/${item.id}`).then(({ data }) => {
+                                                        if (Array.isArray(data?.joinRequests)) setLocalJoinRequests(data.joinRequests);
+                                                    }).catch(() => {}))
+                                                    .catch(() => {})
+                                                    .finally(() => {
+                                                        if (demoSpamRunningRef.current) demoSpamIntervalRef.current = setTimeout(sendOne, 2000);
+                                                    });
                                             };
                                             sendOne();
                                         }}
@@ -28408,7 +28566,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={filteredRivals}
                                             renderCard={(item) => (
-                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
+                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                         {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
@@ -28422,7 +28580,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={upcomingNeedingSubs}
                                             renderCard={(m) => (
-                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={onRefresh} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                         )}
@@ -28447,7 +28605,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={upcomingSubsFull}
                                             renderCard={(m) => (
-                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={onRefresh} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                     )}
@@ -28471,7 +28629,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={playingMatches}
                                             renderCard={(m) => (
-                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={onRefresh} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                     )}
@@ -28495,7 +28653,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={pendingScoreAll}
                                             renderCard={(m) => (
-                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={onRefresh} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                     )}
@@ -28522,7 +28680,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={scoreConfirmPendingMatches}
                                             renderCard={(m) => (
-                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={load} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
+                                                <UpcomingCard key={m.id} match={m} myId={myId} onRefresh={onRefresh} isMatched onOpenComments={openComments} onUserPress={setProfileUserId} autoOpen={m.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} autoOpenOrder={m.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                     )}
@@ -28564,7 +28722,7 @@ function SubCategoryScreen({ route, navigation }) {
                                         viewportW={rivalPageW}
                                         items={playerWanted}
                                         renderCard={(item) => (
-                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
+                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                         )}
                                     />
                                 )
@@ -29477,7 +29635,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 viewportW={rivalPageW}
                                                 items={refereeMatches}
                                                 renderCard={(item) => (
-                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={load} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                                 )}
                                             />
                                         )
@@ -30943,7 +31101,7 @@ function SubCategoryScreen({ route, navigation }) {
                         onClose={() => setShowCreateRefereeMatch(false)}
                         category={category}
                         sub={sub}
-                        onCreated={load}
+                        onCreated={onRefresh}
                     />
 
                     {/* ── ARCHIVE ── */}
@@ -32410,7 +32568,10 @@ function SubCategoryScreen({ route, navigation }) {
                     )}
             </ScrollView>
 
-            {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={load} prefill={rivalPrefill} />}
+            {/* onCreated: load() değil onRefresh — aksi halde branchCache eski listeyi
+                geri basıyor; socket ile anlık gelen yeni ilan 2–3 sn sonra silinip sadece
+                yenilemede / poll'da görünüyordu. */}
+            {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={onRefresh} prefill={rivalPrefill} />}
 
             {/* İlan oluşturma/kort rezervasyonu öncesi anket eksikse burada açılır — bkz. requireActivity */}
             <AssessmentModal
@@ -32655,7 +32816,7 @@ function SubCategoryScreen({ route, navigation }) {
                     </View>
                 </Modal>
             )}
-            {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={load} />}
+            {showCreatePW && <CreatePlayerWantedModal visible onClose={() => setShowCreatePW(false)} category={category} sub={sub} onCreated={onRefresh} />}
             {/* Voleybol "Resmi Takım Adı" başvuru/durum modalı */}
             <Modal visible={showTeamNameModal} animationType="slide" transparent onRequestClose={() => setShowTeamNameModal(false)} android_keyboardInputMode="adjustNothing">
                 <View style={{ flex:1, backgroundColor:'#00000080', justifyContent:'flex-end' }}>
