@@ -74,6 +74,8 @@ import {
 import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, DEFI_TEAM_SUBS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
 import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
 import MatchVideoAnalysisModal from '../../components/MatchVideoAnalysisModal';
+import SportGuideModal from '../../components/SportGuideModal';
+import { hasSportGuide } from '../../data/sportGuides';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -24380,6 +24382,7 @@ function SubCategoryScreen({ route, navigation }) {
     // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
+    const [showSportGuide, setShowSportGuide] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     // Kullanıcı isteği: Medya sekmesindeki videolar Instagram gibi akışta otomatik oynasın,
     // ama "Veri Tasarrufu" (Profil'deki mevcut ayar, AsyncStorage 'activity_data_saver')
@@ -28537,6 +28540,13 @@ function SubCategoryScreen({ route, navigation }) {
                             style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
                             <Text style={{ color:'#c084fc', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts')}</Text>
                         </TouchableOpacity>
+                        {/* Kullanıcı isteği: ℹ️ soluna ? — Nasıl oynanır / Önemli sporcular / Bonus rehberi. */}
+                        {hasSportGuide(sub) ? (
+                            <TouchableOpacity onPress={() => setShowSportGuide(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                                style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(14), backgroundColor:'#ffffff12', borderWidth:1, borderColor:'#ffffff28' }}>
+                                <Text style={{ color:'#fff', fontSize: moderateScale(16), fontWeight:'900', lineHeight: moderateScale(20) }}>?</Text>
+                            </TouchableOpacity>
+                        ) : null}
                         <TouchableOpacity onPress={() => setShowRatingInfo(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                             style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center' }}>
                             <Text style={{ fontSize: moderateScale(22), lineHeight: moderateScale(28) }}>ℹ️</Text>
@@ -28547,9 +28557,17 @@ function SubCategoryScreen({ route, navigation }) {
                         olmayan spor dallarında da tek başına sağ üstte görünmeye devam ediyor —
                         algoritma/veri tenisle birebir aynı (bkz. TennisSpotlightModal, backend
                         spotlight.controller.js zaten subCategory'ye göre generic çalışıyor). */
-                    <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                        <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap: 6 }}>
+                        {hasSportGuide(sub) ? (
+                            <TouchableOpacity onPress={() => setShowSportGuide(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                                style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(14), backgroundColor:'#ffffff12', borderWidth:1, borderColor:'#ffffff28' }}>
+                                <Text style={{ color:'#fff', fontSize: moderateScale(16), fontWeight:'900', lineHeight: moderateScale(20) }}>?</Text>
+                            </TouchableOpacity>
+                        ) : null}
+                        <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
             </View>
 
@@ -33819,6 +33837,7 @@ function SubCategoryScreen({ route, navigation }) {
         </View>
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
         <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} sub={sub} />
+        <SportGuideModal visible={showSportGuide} onClose={() => setShowSportGuide(false)} cfg={cfg} sub={sub} />
         <LeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} cfg={cfg} sub={sub} onUserPress={setProfileUserId} />
 
         {/* Kalbe uzun basınca beğenenler listesi (bkz. openLikersModal) — medya feed kartı ve
