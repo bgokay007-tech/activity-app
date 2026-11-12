@@ -146,15 +146,48 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
       }
 
       var lines=${JSON.stringify(p.lines||[])};
+      var teams=${JSON.stringify(p.teams||null)};
       if(priceLabel) lines=lines.filter(function(ln){ return ln.indexOf(priceLabel)<0; });
-      roundRect(56, ny-40, W-112, Math.max(180, 44+lines.length*54+44), 28);
-      ctx.fillStyle='rgba(22,24,31,0.78)'; ctx.fill();
-      ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.stroke();
-      lines.forEach(function(ln){
-        var wl=wrap(ln, 900, 34);
-        wl.forEach(function(w){ text(w, 540, ny, 34, '#E7E5E4', 'center', '700'); ny+=44; });
-        ny+=8;
-      });
+      // Takım kartları — kim kiminle + isim yanında format ELO (tekli/çiftler)
+      if(teams && teams.leftRoster && teams.rightRoster){
+        var cardGap=20, cardW=(W-112-cardGap)/2, cardX1=56, cardX2=56+cardW+cardGap;
+        function teamCardH(roster){
+          var h=70;
+          (roster||[]).forEach(function(r){ h+=40; if(r&&r.elo) h+=28; });
+          return Math.max(160, h+24);
+        }
+        var th=Math.max(teamCardH(teams.leftRoster), teamCardH(teams.rightRoster));
+        function drawTeamCard(x, title, roster, accent){
+          roundRect(x, ny, cardW, th, 24);
+          ctx.fillStyle='rgba(22,24,31,0.86)'; ctx.fill();
+          ctx.strokeStyle=accent||'rgba(200,245,74,0.45)'; ctx.lineWidth=3; ctx.stroke();
+          text(title||'', x+cardW/2, ny+42, 26, accent||'#C8F54A', 'center', '900');
+          var ty=ny+82;
+          (roster||[]).forEach(function(r){
+            var nm=wrap((r&&r.name)||'', cardW-48, 28);
+            nm.slice(0,2).forEach(function(w){ text(w, x+cardW/2, ty, 28, '#F4F1EA', 'center', '800'); ty+=34; });
+            if(r&&r.elo){ text(r.elo, x+cardW/2, ty, 22, '#C8F54A', 'center', '800'); ty+=30; }
+            ty+=8;
+          });
+        }
+        drawTeamCard(cardX1, teams.teamATitle||'A', teams.leftRoster, '#4ade80');
+        drawTeamCard(cardX2, teams.teamBTitle||'B', teams.rightRoster, '#f87171');
+        ny+=th+36;
+        lines=lines.filter(function(ln){
+          var s=String(ln||'');
+          return s.indexOf('🟢')<0 && s.indexOf('🔴')<0;
+        });
+      }
+      if(lines.length){
+        roundRect(56, ny-40, W-112, Math.max(140, 44+lines.length*54+44), 28);
+        ctx.fillStyle='rgba(22,24,31,0.78)'; ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.stroke();
+        lines.forEach(function(ln){
+          var wl=wrap(ln, 900, 34);
+          wl.forEach(function(w){ text(w, 540, ny, 34, '#E7E5E4', 'center', '700'); ny+=44; });
+          ny+=8;
+        });
+      }
 
       roundRect(180, 1715, 720, 92, 46);
       ctx.fillStyle='#C8F54A'; ctx.fill();
@@ -447,9 +480,42 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
                         {!!payload.priceLabel && (
                             <Text style={s.pricePrev}>{payload.priceLabel}</Text>
                         )}
-                        {(payload.lines || []).slice(0, 4).map((ln, i) => (
-                            <Text key={i} style={s.line} numberOfLines={1}>{ln}</Text>
-                        ))}
+                        {payload.teams?.leftRoster?.length && payload.teams?.rightRoster?.length ? (
+                            <View style={s.teamsRow}>
+                                <View style={[s.teamCard, { borderColor: '#4ade80' }]}>
+                                    <Text style={[s.teamTitle, { color: '#4ade80' }]} numberOfLines={1}>
+                                        {payload.teams.teamATitle || 'A'}
+                                    </Text>
+                                    {payload.teams.leftRoster.map((r, i) => (
+                                        <View key={`A${i}`} style={{ marginBottom: 2 }}>
+                                            <Text style={s.teamName} numberOfLines={1}>{r.name}</Text>
+                                            {!!r.elo && <Text style={s.teamElo}>{r.elo}</Text>}
+                                        </View>
+                                    ))}
+                                </View>
+                                <View style={[s.teamCard, { borderColor: '#f87171' }]}>
+                                    <Text style={[s.teamTitle, { color: '#f87171' }]} numberOfLines={1}>
+                                        {payload.teams.teamBTitle || 'B'}
+                                    </Text>
+                                    {payload.teams.rightRoster.map((r, i) => (
+                                        <View key={`B${i}`} style={{ marginBottom: 2 }}>
+                                            <Text style={s.teamName} numberOfLines={1}>{r.name}</Text>
+                                            {!!r.elo && <Text style={s.teamElo}>{r.elo}</Text>}
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        ) : null}
+                        {(payload.lines || [])
+                            .filter((ln) => {
+                                if (!payload.teams) return true;
+                                const txt = String(ln || '');
+                                return !txt.includes('🟢') && !txt.includes('🔴');
+                            })
+                            .slice(0, 4)
+                            .map((ln, i) => (
+                                <Text key={i} style={s.line} numberOfLines={1}>{ln}</Text>
+                            ))}
                     </View>
 
                     {busy ? (
@@ -521,6 +587,14 @@ const s = StyleSheet.create({
     sport: { color: '#C8F54A', fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
     cardTitle: { color: '#F4F1EA', fontSize: 17, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
     pricePrev: { color: '#C8F54A', fontSize: 20, fontWeight: '900', textAlign: 'center', marginBottom: 8 },
+    teamsRow: { flexDirection: 'row', gap: 8, marginTop: 6, marginBottom: 8 },
+    teamCard: {
+        flex: 1, borderWidth: 1.5, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 6,
+        backgroundColor: 'rgba(22,24,31,0.9)',
+    },
+    teamTitle: { fontSize: 11, fontWeight: '900', textAlign: 'center', marginBottom: 4 },
+    teamName: { color: '#F4F1EA', fontSize: 12, fontWeight: '800', textAlign: 'center' },
+    teamElo: { color: '#C8F54A', fontSize: 11, fontWeight: '700', textAlign: 'center' },
     line: { color: '#A8A29A', fontSize: 13, textAlign: 'center', marginBottom: 2 },
     list: { flexGrow: 0 },
     row: {

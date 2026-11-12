@@ -163,16 +163,20 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       text(won, 540, ny+6, 44, '#C8F54A', 'center', '900');
       ny+=62;
 
-      // Skor tablosu — OYUN sütunu yok (set skorları + SET toplamı yeterli)
+      // Skor tablosu — takımlar belliyse her oyuncu adı + format ELO'su (tekli/çiftler)
       var pairs=${JSON.stringify(setPairs)};
-      var leftLabel=${JSON.stringify(p.leftLabel||'')};
-      var rightLabel=${JSON.stringify(p.rightLabel||'')};
+      var leftRoster=${JSON.stringify(Array.isArray(p.leftRoster) && p.leftRoster.length ? p.leftRoster : [{ name: p.leftLabel || '', elo: p.leftElo || '' }])};
+      var rightRoster=${JSON.stringify(Array.isArray(p.rightRoster) && p.rightRoster.length ? p.rightRoster : [{ name: p.rightLabel || '', elo: p.rightElo || '' }])};
       var leftElo=${JSON.stringify(p.leftElo||'')};
       var rightElo=${JSON.stringify(p.rightElo||'')};
-      var leftWrap=nameLines(leftLabel, 420, 32);
-      var rightWrap=nameLines(rightLabel, 420, 32);
-      var rowH=Math.max(96, 32+leftWrap.length*36+(leftElo?30:0));
-      var rowH2=Math.max(96, 32+rightWrap.length*36+(rightElo?30:0));
+      function rosterHeight(roster, teamElo){
+        var h=28;
+        (roster||[]).forEach(function(r){ h+=36; if(r&&r.elo) h+=26; });
+        if(!(roster&&roster.length) && teamElo) h+=26;
+        return Math.max(96, h);
+      }
+      var rowH=rosterHeight(leftRoster, leftElo);
+      var rowH2=rosterHeight(rightRoster, rightElo);
       var panelH=68+rowH+rowH2+70;
       panel(56, ny, W-112, panelH);
 
@@ -185,14 +189,18 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       }
       text(${JSON.stringify(p.colSets||'SETS')}, 960, ny+38, 20, '#78716C', 'center', '800');
 
-      function drawPlayerRow(y, lines, elo, scores, setsWon, highlight, h){
+      function drawPlayerRow(y, roster, teamElo, scores, setsWon, highlight, h){
         if(highlight){
           roundRect(72, y-34, W-144, h, 16);
           ctx.fillStyle='rgba(200,245,74,0.12)'; ctx.fill();
         }
         var ty=y;
-        lines.forEach(function(ln){ text(ln, 180, ty, 32, '#F4F1EA', 'left', '900'); ty+=36; });
-        if(elo) text(elo, 180, ty+2, 24, '#C8F54A', 'left', '800');
+        (roster||[]).forEach(function(r){
+          var nm=nameLines((r&&r.name)||'', 420, 30);
+          nm.forEach(function(ln){ text(ln, 180, ty, 30, '#F4F1EA', 'left', '900'); ty+=34; });
+          if(r&&r.elo){ text(r.elo, 180, ty+2, 22, '#C8F54A', 'left', '800'); ty+=26; }
+        });
+        if((!roster||!roster.length) && teamElo) text(teamElo, 180, ty+2, 24, '#C8F54A', 'left', '800');
         var midY=y+Math.min(18, (h/2)-8);
         for(var i=0;i<scores.length;i++){
           text(String(scores[i]), setXs[i]||(580+i*120), midY, 38, '#F4F1EA', 'center', '900');
@@ -200,12 +208,12 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         text(String(setsWon), 960, midY, 38, '#C8F54A', 'center', '900');
       }
 
-      var L=pairs.map(function(p){return p[0];});
-      var R=pairs.map(function(p){return p[1];});
+      var L=pairs.map(function(pr){return pr[0];});
+      var R=pairs.map(function(pr){return pr[1];});
       var y1=ny+82;
-      drawPlayerRow(y1, leftWrap, leftElo, L, ${JSON.stringify(p.leftSets)}, ${p.winnerSide==='left'}, rowH);
+      drawPlayerRow(y1, leftRoster, leftElo, L, ${JSON.stringify(p.leftSets)}, ${p.winnerSide==='left'}, rowH);
       var y2=y1+rowH+10;
-      drawPlayerRow(y2, rightWrap, rightElo, R, ${JSON.stringify(p.rightSets)}, ${p.winnerSide==='right'}, rowH2);
+      drawPlayerRow(y2, rightRoster, rightElo, R, ${JSON.stringify(p.rightSets)}, ${p.winnerSide==='right'}, rowH2);
 
       ny = ny + panelH + 28;
 
@@ -667,13 +675,21 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                         </Text>
                         <View style={s.vsRow}>
                             <View style={{ flex: 1 }}>
-                                <Text style={s.side} numberOfLines={1}>{payload.leftLabel}</Text>
-                                {!!payload.leftElo && <Text style={s.elo}>{payload.leftElo}</Text>}
+                                {(payload.leftRoster?.length ? payload.leftRoster : [{ name: payload.leftLabel, elo: payload.leftElo }]).map((r, i) => (
+                                    <View key={`L${i}`} style={{ marginBottom: 2 }}>
+                                        <Text style={s.side} numberOfLines={1}>{r.name}</Text>
+                                        {!!r.elo && <Text style={s.elo}>{r.elo}</Text>}
+                                    </View>
+                                ))}
                             </View>
                             <Text style={s.score}>{payload.leftSets}–{payload.rightSets}</Text>
                             <View style={{ flex: 1 }}>
-                                <Text style={s.side} numberOfLines={1}>{payload.rightLabel}</Text>
-                                {!!payload.rightElo && <Text style={s.elo}>{payload.rightElo}</Text>}
+                                {(payload.rightRoster?.length ? payload.rightRoster : [{ name: payload.rightLabel, elo: payload.rightElo }]).map((r, i) => (
+                                    <View key={`R${i}`} style={{ marginBottom: 2 }}>
+                                        <Text style={[s.side, { textAlign: 'right' }]} numberOfLines={1}>{r.name}</Text>
+                                        {!!r.elo && <Text style={[s.elo, { textAlign: 'right' }]}>{r.elo}</Text>}
+                                    </View>
+                                ))}
                             </View>
                         </View>
                         {!!payload.durationLabel && (

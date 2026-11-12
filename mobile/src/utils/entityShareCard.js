@@ -1,7 +1,7 @@
 import { getSubCategoryLabel } from './subCategoryLabels';
 import { sportEquipmentShareBadge } from './sportFacilityLabels';
 import { BASE_URL } from '../services/api';
-import { BRAND_LETTER_COLORS } from './matchShareCard';
+import { BRAND_LETTER_COLORS, buildMatchSharePayload, teamsAreSet } from './matchShareCard';
 
 const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
 
@@ -68,15 +68,21 @@ function buildRival(rival, t, lang) {
     const place = rival.courtName || rival.location || rival.city || '';
     // MATCHED = Yaklaşan Maçlar — ilan (OPEN) ile aynı kart/paylaşım akışı, metinler farklı.
     const isUpcoming = String(rival.status || '').toUpperCase() === 'MATCHED';
-    const isVolleyballPlayerAd = !isUpcoming && rival.subCategory === 'volleyball' && rival.matchType !== 'PLAYER_WANTED';
+    const isPlayed = ['COMPLETED', 'SCORE_PENDING', 'DISPUTED'].includes(String(rival.status || '').toUpperCase())
+        || !!rival.score;
+    const isVolleyballPlayerAd = !isUpcoming && !isPlayed && rival.subCategory === 'volleyball' && rival.matchType !== 'PLAYER_WANTED';
     const intro = isUpcoming
         ? (t?.shareUpcomingMatchIntro || 'Upcoming match')
-        : isVolleyballPlayerAd
-            ? (t?.sharePlayerWantedIntro || 'Looking for players')
-            : (t?.shareRivalIntro || 'Looking for a rival');
+        : isPlayed
+            ? (t?.sharePlayedMatchIntro || t?.shareUpcomingMatchIntro || 'Match')
+            : isVolleyballPlayerAd
+                ? (t?.sharePlayerWantedIntro || 'Looking for players')
+                : (t?.shareRivalIntro || 'Looking for a rival');
     const badge = isUpcoming
         ? (t?.shareEntityBadgeUpcoming || (lang === 'tr' ? 'YAKLAŞAN MAÇ' : lang === 'ru' ? 'ПРЕДСТОЯЩИЙ' : lang === 'de' ? 'NÄCHSTES MATCH' : 'UPCOMING'))
-        : (t?.shareEntityBadgeRival || (lang === 'tr' ? 'MAÇ İLANI' : lang === 'ru' ? 'ОБЪЯВЛЕНИЕ' : lang === 'de' ? 'ANZEIGE' : 'MATCH AD'));
+        : isPlayed
+            ? (t?.shareEntityBadgePlayed || (lang === 'tr' ? 'OYNANAN MAÇ' : lang === 'ru' ? 'СЫГРАННЫЙ' : lang === 'de' ? 'GESPIELT' : 'PLAYED'))
+            : (t?.shareEntityBadgeRival || (lang === 'tr' ? 'MAÇ İLANI' : lang === 'ru' ? 'ОБЪЯВЛЕНИЕ' : lang === 'de' ? 'ANZEIGE' : 'MATCH AD'));
     const lines = [];
     const surface = surfaceLabel(rival, t);
     if (surface) lines.push(`🏟 ${surface}`);
@@ -85,22 +91,42 @@ function buildRival(rival, t, lang) {
         lines.push(`📅 ${fmtDate(rival.matchDate, lang)}${rival.matchTime ? ` · ${rival.matchTime}` : ''}`);
     }
     if (rival.duration) lines.push(`⏱ ${rival.duration} ${t?.timeMinSuffix || 'min'}`);
-    const label = (n) => (t?.cardParticipantLabel ? t.cardParticipantLabel(n) : `P${n}`);
-    const confirmed = [];
-    if (rival.matchType === 'DOUBLE') {
-        const partner = Array.isArray(rival.senderTeam) ? rival.senderTeam[0] : null;
-        const slots = [rival.sender, partner, rival.participants?.[0], rival.participants?.[1]].filter((p) => p?.id);
-        slots.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
-    } else {
-        const teamPlayers = [
-            rival.sender,
-            ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
-            ...(Array.isArray(rival.participants) ? rival.participants : []),
-            ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
-        ].filter((p) => p?.id);
-        teamPlayers.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
+
+    // Takımlar belliysa (iki taraf dolu) — kart + metinde kadro + format ELO (tekli/çiftler).
+    let teams = null;
+    const teamsKnown = teamsAreSet(rival);
+    if (teamsKnown) {
+        const mp = buildMatchSharePayload(rival, t, lang);
+        if (mp?.teamsKnown) {
+            teams = {
+                teamATitle: mp.teamATitle,
+                teamBTitle: mp.teamBTitle,
+                leftRoster: mp.leftRoster,
+                rightRoster: mp.rightRoster,
+                isDoubles: mp.isDoubles,
+            };
+            lines.push(`🟢 ${mp.teamATitle}: ${mp.leftRoster.map((r) => `${r.name}${r.elo ? ` ${r.elo}` : ''}`).join(' · ')}`);
+            lines.push(`🔴 ${mp.teamBTitle}: ${mp.rightRoster.map((r) => `${r.name}${r.elo ? ` ${r.elo}` : ''}`).join(' · ')}`);
+        }
     }
-    if (confirmed.length) lines.push(`👥 ${confirmed.join(', ')}`);
+    if (!teams) {
+        const label = (n) => (t?.cardParticipantLabel ? t.cardParticipantLabel(n) : `P${n}`);
+        const confirmed = [];
+        if (rival.matchType === 'DOUBLE') {
+            const partner = Array.isArray(rival.senderTeam) ? rival.senderTeam[0] : null;
+            const slots = [rival.sender, partner, rival.participants?.[0], rival.participants?.[1]].filter((p) => p?.id);
+            slots.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
+        } else {
+            const teamPlayers = [
+                rival.sender,
+                ...(Array.isArray(rival.senderTeam) ? rival.senderTeam : []),
+                ...(Array.isArray(rival.participants) ? rival.participants : []),
+                ...(Array.isArray(rival.unassignedPlayers) ? rival.unassignedPlayers : []),
+            ].filter((p) => p?.id);
+            teamPlayers.forEach((p, i) => confirmed.push(`${label(i + 1)}: ${nameOf(p)}`));
+        }
+        if (confirmed.length) lines.push(`👥 ${confirmed.join(', ')}`);
+    }
 
     const message = [intro, ...lines, url].filter(Boolean).join('\n');
     return {
@@ -112,6 +138,7 @@ function buildRival(rival, t, lang) {
         emoji,
         sport: `${emoji} ${sport}`.trim(),
         lines,
+        teams,
         message,
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
         brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',

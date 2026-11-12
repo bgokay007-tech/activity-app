@@ -15,20 +15,49 @@ export const BRAND_LETTER_COLORS = [
     '#00CED1', '#0099FF', '#7B00FF', '#FFFFFF',
 ];
 
+/** Tenis/padel/badminton/masa tenisi/pickleball — tekli/çiftler ELO ayrı. */
+export const UTR_SHARE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
+const LEADERBOARD_SHARE_SUBS = new Set(['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis', 'volleyball']);
+
 function nameOf(p) {
     if (!p) return '';
     return p.fullName || p.username || p.manualName || '';
 }
 
-function ratingOf(p, sub) {
+function isDoublesMatch(match) {
+    if (!match) return false;
+    if (String(match.matchType || '').toUpperCase() === 'DOUBLE') return true;
+    const st = Array.isArray(match.senderTeam)
+        ? match.senderTeam.filter((p) => p && (p.id || p.manualName)).length
+        : 0;
+    return st > 0;
+}
+
+/** Tekli maç → singles ELO; çiftler → doubles ELO. API skillRating formata göre gelmişse o da kullanılır. */
+function ratingOf(p, sub, isDoubles = false) {
     if (!p) return null;
+    const isUtr = UTR_SHARE_SUBS.has(sub);
+    if (isUtr) {
+        const raw = isDoubles
+            ? (p.doublesDisplayRating ?? p.doublesRating)
+            : (p.singlesDisplayRating ?? p.singlesRating);
+        if (raw != null && Number.isFinite(Number(raw))) return Number(raw);
+    }
     if (p.skillRating != null && Number.isFinite(Number(p.skillRating))) {
         return Number(p.skillRating);
     }
     const interests = Array.isArray(p.interests) ? p.interests : [];
     const hit = interests.find(i => i?.subCategory === sub) || interests[0];
-    if (hit?.skillRating != null && Number.isFinite(Number(hit.skillRating))) {
-        return Number(hit.skillRating);
+    if (hit) {
+        if (isUtr) {
+            const raw = isDoubles
+                ? (hit.doublesDisplayRating ?? hit.doublesRating)
+                : (hit.singlesDisplayRating ?? hit.singlesRating);
+            if (raw != null && Number.isFinite(Number(raw))) return Number(raw);
+        }
+        if (hit.skillRating != null && Number.isFinite(Number(hit.skillRating))) {
+            return Number(hit.skillRating);
+        }
     }
     return null;
 }
@@ -40,26 +69,48 @@ function formatElo(v) {
 
 function sidePlayers(match, side) {
     if (side === 'sender') {
+        const sender = match.sender
+            ? { ...match.sender, skillRating: match.senderSkillRating ?? match.sender.skillRating }
+            : null;
         const team = Array.isArray(match.senderTeam) ? match.senderTeam : [];
-        return [match.sender, ...team].filter(Boolean);
+        return [sender, ...team].filter((p) => p && (p.id || p.manualName || nameOf(p)));
     }
     const parts = Array.isArray(match.participants) ? match.participants : [];
     if (match.receiver) {
-        return [match.receiver, ...parts.filter(p => p?.id !== match.receiver?.id)].filter(Boolean);
+        return [match.receiver, ...parts.filter(p => p?.id !== match.receiver?.id)]
+            .filter((p) => p && (p.id || p.manualName || nameOf(p)));
     }
-    return parts.filter(Boolean);
+    return parts.filter((p) => p && (p.id || p.manualName || nameOf(p)));
 }
 
 function sideNames(players) {
     return players.map(nameOf).filter(Boolean);
 }
 
-function sideEloLabel(players, sub) {
-    const ratings = players.map(p => ratingOf(p, sub)).filter(v => v != null);
+function sideRoster(players, sub, isDoubles) {
+    return players
+        .map((p) => {
+            const name = nameOf(p);
+            if (!name) return null;
+            const eloNum = ratingOf(p, sub, isDoubles);
+            return { name, elo: eloNum != null ? formatElo(eloNum) : '', eloNum };
+        })
+        .filter(Boolean);
+}
+
+function sideEloLabel(players, sub, isDoubles) {
+    const ratings = players.map(p => ratingOf(p, sub, isDoubles)).filter(v => v != null);
     if (!ratings.length) return '';
     if (ratings.length === 1) return formatElo(ratings[0]);
     const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length;
     return formatElo(avg);
+}
+
+/** İki taraf da en az bir oyuncu içeriyorsa takımlar "belli". */
+export function teamsAreSet(match) {
+    const left = sidePlayers(match, 'sender');
+    const right = sidePlayers(match, 'opponent');
+    return left.length > 0 && right.length > 0;
 }
 
 function setLine(set) {
@@ -254,10 +305,6 @@ function buildShareStats(match, t) {
     };
 }
 
-/** Tenis/padel/badminton/masa tenisi/pickleball — tekli/çiftler ELO ayrı. */
-export const UTR_SHARE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
-const LEADERBOARD_SHARE_SUBS = new Set(['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis', 'volleyball']);
-
 function fmtRank(n) {
     if (n == null || !Number.isFinite(Number(n)) || Number(n) <= 0) return '—';
     return `#${Number(n)}`;
@@ -363,14 +410,18 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
     if (!match?.id) return null;
     const sets = Array.isArray(match.score?.sets) ? match.score.sets : [];
     const sub = match.subCategory;
+    const doubles = isDoublesMatch(match);
     const leftPlayers = sidePlayers(match, 'sender');
     const rightPlayers = sidePlayers(match, 'opponent');
-    const left = sideNames(leftPlayers);
-    const right = sideNames(rightPlayers);
+    const leftRoster = sideRoster(leftPlayers, sub, doubles);
+    const rightRoster = sideRoster(rightPlayers, sub, doubles);
+    const left = leftRoster.map((r) => r.name);
+    const right = rightRoster.map((r) => r.name);
     const leftLabel = left.join(' & ') || (t?.shareMatchSideA || 'A');
     const rightLabel = right.join(' & ') || (t?.shareMatchSideB || 'B');
-    const leftElo = sideEloLabel(leftPlayers, sub);
-    const rightElo = sideEloLabel(rightPlayers, sub);
+    const leftElo = sideEloLabel(leftPlayers, sub, doubles);
+    const rightElo = sideEloLabel(rightPlayers, sub, doubles);
+    const teamsKnown = leftRoster.length > 0 && rightRoster.length > 0;
     const lines = sets.map(setLine).filter(Boolean);
 
     let leftSets = 0;
@@ -428,9 +479,12 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
         || formatDurationFromStats(match?.score?.stats, match?.duration, t);
 
     const formatBits = [];
-    if (match.matchType === 'DOUBLE') formatBits.push(t?.shareMatchFormatDoubles || 'Doubles');
-    else if (match.matchType === 'SINGLE') formatBits.push(t?.shareMatchFormatSingles || 'Singles');
+    if (doubles) formatBits.push(t?.shareMatchFormatDoubles || 'Doubles');
+    else if (match.matchType === 'SINGLE' || !doubles) formatBits.push(t?.shareMatchFormatSingles || 'Singles');
     if (surface) formatBits.push(surface);
+
+    const teamATitle = t?.shareMatchTeamA || (lang === 'tr' ? 'Takım A' : lang === 'ru' ? 'Команда A' : lang === 'de' ? 'Team A' : 'Team A');
+    const teamBTitle = t?.shareMatchTeamB || (lang === 'tr' ? 'Takım B' : lang === 'ru' ? 'Команда B' : lang === 'de' ? 'Team B' : 'Team B');
 
     return {
         id: match.id,
@@ -438,10 +492,16 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
         surfaceRaw: match.surface || null,
         emoji,
         sport,
+        isDoubles: doubles,
+        teamsKnown,
+        leftRoster,
+        rightRoster,
         leftLabel,
         rightLabel,
         leftElo,
         rightElo,
+        teamATitle,
+        teamBTitle,
         leftSets,
         rightSets,
         leftGames,
@@ -461,15 +521,30 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
     };
 }
 
+function rosterTextLine(roster, fallbackLabel, fallbackElo) {
+    if (Array.isArray(roster) && roster.length) {
+        return roster.map((r) => `${r.name}${r.elo ? ` ${r.elo}` : ''}`).join(' · ');
+    }
+    return `${fallbackLabel || ''}${fallbackElo ? ` (${fallbackElo})` : ''}`;
+}
+
 export function matchShareMessage(payload, t) {
     if (!payload) return '';
     const parts = [
         t?.shareMatchIntro
             ? t.shareMatchIntro(payload.sport)
             : `AcTiViTy · ${payload.sport}`,
-        `${payload.leftLabel}${payload.leftElo ? ` (${payload.leftElo})` : ''}  ${payload.leftSets}–${payload.rightSets}  ${payload.rightLabel}${payload.rightElo ? ` (${payload.rightElo})` : ''}`,
     ];
-    if (payload.lines.length) parts.push(payload.lines.join('  ·  '));
+    if (payload.teamsKnown) {
+        parts.push(`🟢 ${payload.teamATitle || 'A'}: ${rosterTextLine(payload.leftRoster, payload.leftLabel, payload.leftElo)}`);
+        parts.push(`🔴 ${payload.teamBTitle || 'B'}: ${rosterTextLine(payload.rightRoster, payload.rightLabel, payload.rightElo)}`);
+        if (payload.leftSets != null && payload.rightSets != null) {
+            parts.push(`📊 ${payload.leftSets}–${payload.rightSets}`);
+        }
+    } else {
+        parts.push(`${payload.leftLabel}${payload.leftElo ? ` (${payload.leftElo})` : ''}  ${payload.leftSets}–${payload.rightSets}  ${payload.rightLabel}${payload.rightElo ? ` (${payload.rightElo})` : ''}`);
+    }
+    if (payload.lines?.length) parts.push(payload.lines.join('  ·  '));
     if (payload.resultLabel) parts.push(`🏆 ${payload.resultLabel}`);
     if (payload.surface) parts.push(`🏟 ${payload.surface}`);
     if (payload.place) parts.push(`📍 ${payload.place}`);
