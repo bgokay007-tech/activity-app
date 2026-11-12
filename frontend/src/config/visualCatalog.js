@@ -16,7 +16,7 @@ const SUB_PHOTO_FILE = {
     tennis: 'sub-tennis', padel: 'sub-padel', pickleball: 'sub-pickleball', football: 'sub-football',
     wellness: 'sub-yoga', basketball: 'sub-basketball', running: 'sub-running', climbing: 'sub-climbing',
     volleyball: 'sub-volleyball', badminton: 'sub-badminton', table_tennis: 'sub-table-tennis',
-    foot_tennis: 'sub-foot-tennis', handball: 'sub-handball', golf: 'sub-golf', hiking: 'sub-hiking',
+    foot_tennis: 'sub-foot-tennis', handball: 'sub-handball', dodgeball: 'sub-dodgeball', golf: 'sub-golf', hiking: 'sub-hiking',
     camping: 'sub-camping', walking: 'sub-walking', archery: 'sub-archery', equestrian: 'sub-equestrian',
     sup_kano: 'sub-sup-kano', fitness_gym: 'sub-fitness', ice_skating: 'sub-ice-skating',
     skiing_snowboard: 'sub-skiing', motorcycle: 'sub-motorcycle', extreme_sports: 'sub-extreme',
