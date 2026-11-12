@@ -41,8 +41,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
     MATCH_REMINDER_OFFSETS,
     getAllMatchReminderMap,
-    getMatchReminderOffsets,
-    setMatchReminders,
+    getDefaultReminderOffsets,
+    saveReminderDefaultsAndApply,
 } from '../../utils/matchReminders';
 
 // UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
@@ -1846,10 +1846,11 @@ export default function ProfileScreen({ route, navigation }) {
     // Match modals
     const [showMyUpcoming, setShowMyUpcoming] = useState(false);
     const [upcomingHubTab, setUpcomingHubTab] = useState('upcoming'); // upcoming | archive — aynı buton içinde
-    const [reminderTarget, setReminderTarget] = useState(null); // yaklaşan maç — özel bildirim seçici
+    // Bildirim ayarları — maç olmasa da açılır; varsayılan ofsetler sonra gelen maçlara uygulanır.
+    const [showReminderSettings, setShowReminderSettings] = useState(false);
     const [reminderSelected, setReminderSelected] = useState(() => new Set());
     const [reminderSaving, setReminderSaving] = useState(false);
-    const [reminderMap, setReminderMap] = useState({}); // rivalId -> offsets[]
+    const [reminderDefaultCount, setReminderDefaultCount] = useState(0);
     const [showMyArchive, setShowMyArchive] = useState(false);
     const [upcomingSub, setUpcomingSub] = useState(null); // which sport's upcoming is open
     const [archiveSub, setArchiveSub] = useState(null); // which sport's archive is open
@@ -1902,46 +1903,7 @@ export default function ProfileScreen({ route, navigation }) {
         await AsyncStorage.setItem('activity_data_saver', String(next));
     }, [dataSaver]);
 
-    const openMyUpcoming = (subCategory = null) => {
-        setUpcomingSub(subCategory);
-        setUpcomingHubTab('upcoming');
-        setShowMyUpcoming(true);
-        setLoadingUpcoming(true);
-        api.get('/rivals/my-upcoming')
-            .then(res => setMyUpcoming(Array.isArray(res.data) ? res.data : []))
-            .catch(() => {})
-            .finally(() => setLoadingUpcoming(false));
-        getAllMatchReminderMap().then(setReminderMap).catch(() => setReminderMap({}));
-        // Aynı pencerede Arşiv sekmesi için geçmişi de hazırla — tarih geçince oraya düşer.
-        if (myHistory.length === 0) {
-            setLoadingHistory(true);
-            api.get('/rivals/my-history')
-                .then(res => setMyHistory(Array.isArray(res.data) ? res.data : []))
-                .catch(() => {})
-                .finally(() => setLoadingHistory(false));
-        }
-    };
-
-    const openMatchReminder = async (match) => {
-        if (!match?.id) return;
-        if (!match.matchDate || !match.matchTime) {
-            Alert.alert('', t.matchReminderNeedDate);
-            return;
-        }
-        const offsets = await getMatchReminderOffsets(match.id).catch(() => []);
-        setReminderSelected(new Set(offsets));
-        setReminderTarget(match);
-    };
-
-    const toggleReminderOffset = (minutes) => {
-        setReminderSelected(prev => {
-            const next = new Set(prev);
-            if (next.has(minutes)) next.delete(minutes); else next.add(minutes);
-            return next;
-        });
-    };
-
-    const reminderLabelFor = (minutes) => {
+    const reminderLabelFor = useCallback((minutes) => {
         const map = {
             15: t.matchReminderWhen15m,
             30: t.matchReminderWhen30m,
@@ -1952,9 +1914,9 @@ export default function ProfileScreen({ route, navigation }) {
             1440: t.matchReminderWhen1d,
         };
         return map[minutes] || `${minutes}m`;
-    };
+    }, [t]);
 
-    const reminderOffLabel = (minutes) => {
+    const reminderOffLabel = useCallback((minutes) => {
         const map = {
             15: t.matchReminderOff15m,
             30: t.matchReminderOff30m,
@@ -1965,31 +1927,79 @@ export default function ProfileScreen({ route, navigation }) {
             1440: t.matchReminderOff1d,
         };
         return map[minutes] || `${minutes}m`;
+    }, [t]);
+
+    const applyRemindersToList = useCallback(async (list) => {
+        const defaults = await getDefaultReminderOffsets();
+        setReminderDefaultCount(defaults.length);
+        if (!defaults.length || !Array.isArray(list) || !list.length) return;
+        await saveReminderDefaultsAndApply(defaults, list, (item) => ({
+            title: t.matchReminderTitleShort,
+            bodyTpl: t.matchReminderBody,
+            sportLabel: getSubCategoryLabel(item.subCategory, lang),
+            labelFor: reminderLabelFor,
+        }));
+        getAllMatchReminderMap().catch(() => ({}));
+    }, [t, lang, reminderLabelFor]);
+
+    const openMyUpcoming = (subCategory = null) => {
+        setUpcomingSub(subCategory);
+        setUpcomingHubTab('upcoming');
+        setShowMyUpcoming(true);
+        setLoadingUpcoming(true);
+        api.get('/rivals/my-upcoming')
+            .then(async (res) => {
+                const list = Array.isArray(res.data) ? res.data : [];
+                setMyUpcoming(list);
+                await applyRemindersToList(list.filter(m => !matchHasStarted(m)));
+            })
+            .catch(() => {})
+            .finally(() => setLoadingUpcoming(false));
+        getDefaultReminderOffsets().then(d => setReminderDefaultCount(d.length)).catch(() => {});
+        // Aynı pencerede Arşiv sekmesi için geçmişi de hazırla — tarih geçince oraya düşer.
+        if (myHistory.length === 0) {
+            setLoadingHistory(true);
+            api.get('/rivals/my-history')
+                .then(res => setMyHistory(Array.isArray(res.data) ? res.data : []))
+                .catch(() => {})
+                .finally(() => setLoadingHistory(false));
+        }
     };
 
-    const saveMatchReminder = async () => {
-        if (!reminderTarget) return;
+    const openReminderSettings = async () => {
+        const offsets = await getDefaultReminderOffsets().catch(() => []);
+        setReminderSelected(new Set(offsets));
+        setReminderDefaultCount(offsets.length);
+        setShowReminderSettings(true);
+    };
+
+    const toggleReminderOffset = (minutes) => {
+        setReminderSelected(prev => {
+            const next = new Set(prev);
+            if (next.has(minutes)) next.delete(minutes); else next.add(minutes);
+            return next;
+        });
+    };
+
+    const saveReminderSettings = async () => {
         setReminderSaving(true);
         try {
             const offsets = [...reminderSelected];
-            const res = await setMatchReminders(reminderTarget, offsets, {
+            const live = (myUpcoming || []).filter(m => !matchHasStarted(m, new Date(upcomingNowMs)));
+            const res = await saveReminderDefaultsAndApply(offsets, live, (item) => ({
                 title: t.matchReminderTitleShort,
                 bodyTpl: t.matchReminderBody,
-                sportLabel: getSubCategoryLabel(reminderTarget.subCategory, lang),
+                sportLabel: getSubCategoryLabel(item.subCategory, lang),
                 labelFor: reminderLabelFor,
-            });
-            if (!res?.ok) {
-                if (res?.reason === 'denied') Alert.alert('', t.matchReminderDenied);
-                else if (res?.reason === 'no_date') Alert.alert('', t.matchReminderNeedDate);
-                else Alert.alert('', t.actionFailed);
+            }));
+            if (!res?.ok && res?.reason === 'denied') {
+                Alert.alert('', t.matchReminderDenied);
                 return;
             }
-            const map = await getAllMatchReminderMap();
-            setReminderMap(map);
-            setReminderTarget(null);
+            setReminderDefaultCount((res?.defaults || offsets).length);
+            setShowReminderSettings(false);
             if (!offsets.length) Alert.alert('', t.matchReminderCleared);
-            else if (!res.scheduled) Alert.alert('', t.matchReminderNoneScheduled);
-            else Alert.alert('', t.matchReminderSaved);
+            else Alert.alert('', t.matchReminderDefaultsSaved);
         } catch {
             Alert.alert('', t.actionFailed);
         } finally {
@@ -2031,13 +2041,21 @@ export default function ProfileScreen({ route, navigation }) {
         if (!isOwnProfile) return undefined;
         let alive = true;
         api.get('/rivals/my-upcoming')
-            .then(res => { if (alive) setMyUpcoming(Array.isArray(res.data) ? res.data : []); })
+            .then(async (res) => {
+                const list = Array.isArray(res.data) ? res.data : [];
+                if (!alive) return;
+                setMyUpcoming(list);
+                await applyRemindersToList(list.filter(m => !matchHasStarted(m)));
+            })
             .catch(() => {});
         api.get('/rivals/my-history')
             .then(res => { if (alive) setMyHistory(Array.isArray(res.data) ? res.data : []); })
             .catch(() => {});
+        getDefaultReminderOffsets()
+            .then(d => { if (alive) setReminderDefaultCount(d.length); })
+            .catch(() => {});
         return () => { alive = false; };
-    }, [isOwnProfile]));
+    }, [isOwnProfile, applyRemindersToList]));
 
     const activeUpcomingList = (myUpcoming || []).filter(m => !matchHasStarted(m, new Date(upcomingNowMs)));
     const activeUpcomingCount = activeUpcomingList.length;
@@ -3233,15 +3251,27 @@ export default function ProfileScreen({ route, navigation }) {
                 {/* Yaklaşan Aktivitelerim — rezervasyonların üstünde; sayaç + tarih geçene kadar yanıp söner.
                     İçinde Yaklaşan / Arşiv sekmeleri; süre bitince kayıt arşive düşer. */}
                 {isOwnProfile && (
-                    <TouchableOpacity
-                        style={[ap.reservBtn, activeUpcomingCount > 0 && { borderColor: '#4ade8060' }]}
-                        onPress={() => openMyUpcoming(null)}
-                        activeOpacity={0.75}
-                    >
-                        <Animated.Text style={[ap.reservBtnText, { color: '#4ade80', opacity: upcomingHubBlink }]}>
-                            {t.myUpcomingActivitiesBtn}{` (${activeUpcomingCount})`}
-                        </Animated.Text>
-                    </TouchableOpacity>
+                    <View style={{ marginHorizontal: 20, marginTop: 12, gap: 8 }}>
+                        <TouchableOpacity
+                            style={[ap.reservBtn, { marginHorizontal: 0, marginTop: 0 }, activeUpcomingCount > 0 && { borderColor: '#4ade8060' }]}
+                            onPress={() => openMyUpcoming(null)}
+                            activeOpacity={0.75}
+                        >
+                            <Animated.Text style={[ap.reservBtnText, { color: '#4ade80', opacity: upcomingHubBlink }]}>
+                                {t.myUpcomingActivitiesBtn}{` (${activeUpcomingCount})`}
+                            </Animated.Text>
+                        </TouchableOpacity>
+                        {/* Maç olmasa da açılır — varsayılan 1s/3s kala bildirim ayarları. */}
+                        <TouchableOpacity
+                            style={[ap.reservBtn, { marginHorizontal: 0, marginTop: 0, borderColor: reminderDefaultCount > 0 ? '#4ade8060' : '#9333ea30' }]}
+                            onPress={openReminderSettings}
+                            activeOpacity={0.75}
+                        >
+                            <Text style={[ap.reservBtnText, { color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple }]}>
+                                {t.matchReminderSettingsBtn}{reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
                 )}
                 {/* Rezervasyonlarım — maçlar aynı ekranın içinde sekme olarak var, ayrı buton yok */}
                 {isOwnProfile && (
@@ -3272,18 +3302,30 @@ export default function ProfileScreen({ route, navigation }) {
 
             </ScrollView>
 
-            {/* ── Yaklaşan Aktivitelerim / Maçlarım + Arşiv (aynı buton) ── */}
-            <Modal visible={showMyUpcoming} animationType="slide" transparent onRequestClose={() => setShowMyUpcoming(false)}>
-                <View style={s.modalOverlay}>
-                    <View style={[s.modalBox, { maxHeight:'85%' }]}>
-                        <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>
+            {/* ── Yaklaşan Aktivitelerim / Maçlarım + Arşiv (tam pencere) ── */}
+            <Modal visible={showMyUpcoming} animationType="slide" onRequestClose={() => setShowMyUpcoming(false)}>
+                <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+                    <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: insets.bottom + 12 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 }}>
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }} numberOfLines={2}>
                                 {upcomingSub
                                     ? `${SUB_EMOJI[upcomingSub] || '⏰'} ${getSubCategoryLabel(upcomingSub, lang)} ${t.myUpcomingActivitiesTitle}`
                                     : t.myUpcomingActivitiesTitle}
                             </Text>
-                            <TouchableOpacity onPress={() => setShowMyUpcoming(false)}>
-                                <Text style={s.modalClose}>✕</Text>
+                            <TouchableOpacity
+                                onPress={openReminderSettings}
+                                style={{
+                                    paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+                                    borderColor: reminderDefaultCount > 0 ? '#4ade8050' : colors.border,
+                                    backgroundColor: reminderDefaultCount > 0 ? '#4ade8018' : colors.surface2,
+                                }}
+                            >
+                                <Text style={{ color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple, fontSize: 12, fontWeight: '800' }}>
+                                    {t.matchReminderBtn}{reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setShowMyUpcoming(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
@@ -3304,7 +3346,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 </TouchableOpacity>
                             ))}
                         </View>
-                        <ScrollView showsVerticalScrollIndicator={false}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
                             {upcomingHubTab === 'upcoming' ? (() => {
                                 if (loadingUpcoming) return <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />;
                                 const filtered = upcomingSub
@@ -3391,26 +3433,12 @@ export default function ProfileScreen({ route, navigation }) {
                                                     </Text>
                                                 ) : null}
                                             </TouchableOpacity>
-                                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:8 }}>
-                                                <TouchableOpacity
-                                                    onPress={() => openMatchReminder(m)}
-                                                    style={{
-                                                        paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1,
-                                                        borderColor: (reminderMap[m.id]?.length ? '#4ade8050' : colors.purple + '50'),
-                                                        backgroundColor: (reminderMap[m.id]?.length ? '#4ade8018' : colors.purple + '18'),
-                                                    }}
-                                                >
-                                                    <Text style={{ color: reminderMap[m.id]?.length ? '#4ade80' : colors.purple, fontSize:12, fontWeight:'700' }}>
-                                                        {t.matchReminderBtn}{reminderMap[m.id]?.length ? ` (${reminderMap[m.id].length})` : ''}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
-                                                    style={{ paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
-                                                >
-                                                    <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
-                                                </TouchableOpacity>
-                                            </View>
+                                            <TouchableOpacity
+                                                onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
+                                                style={{ marginTop:8, alignSelf:'flex-start', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
+                                            >
+                                                <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     );
                                 });
@@ -3461,23 +3489,20 @@ export default function ProfileScreen({ route, navigation }) {
                 </View>
             </Modal>
 
-            {/* ── Özel maç hatırlatması (1s/3s kala vs.) ── */}
-            <Modal visible={!!reminderTarget} animationType="slide" transparent onRequestClose={() => setReminderTarget(null)}>
-                <View style={s.modalOverlay}>
-                    <View style={[s.modalBox, { maxHeight: '80%' }]}>
-                        <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{t.matchReminderTitle}</Text>
-                            <TouchableOpacity onPress={() => setReminderTarget(null)}>
-                                <Text style={s.modalClose}>✕</Text>
+            {/* ── Yaklaşan aktivite bildirim ayarları (tam pencere; maç şart değil) ── */}
+            <Modal visible={showReminderSettings} animationType="slide" onRequestClose={() => setShowReminderSettings(false)}>
+                <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
+                    <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: insets.bottom + 12 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 }}>
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }}>{t.matchReminderTitle}</Text>
+                            <TouchableOpacity onPress={() => setShowReminderSettings(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: 12 }}>
-                            {reminderTarget
-                                ? `${SUB_EMOJI[reminderTarget.subCategory] || '🏅'} ${getSubCategoryLabel(reminderTarget.subCategory, lang)}`
-                                : ''}
+                        <Text style={{ color: colors.textSecondary, fontSize: 13, marginBottom: 16, lineHeight: 18 }}>
+                            {t.matchReminderDefaultsHint}
                         </Text>
-                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 14 }}>{t.matchReminderHint}</Text>
-                        <ScrollView showsVerticalScrollIndicator={false}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
                             {MATCH_REMINDER_OFFSETS.map(opt => {
                                 const on = reminderSelected.has(opt.minutes);
                                 return (
@@ -3485,34 +3510,35 @@ export default function ProfileScreen({ route, navigation }) {
                                         key={opt.key}
                                         onPress={() => toggleReminderOffset(opt.minutes)}
                                         style={{
-                                            flexDirection: 'row', alignItems: 'center', gap: 10,
-                                            paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border,
+                                            flexDirection: 'row', alignItems: 'center', gap: 12,
+                                            paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.border,
                                         }}
                                     >
                                         <View style={{
-                                            width: 22, height: 22, borderRadius: 6, borderWidth: 2,
+                                            width: 24, height: 24, borderRadius: 7, borderWidth: 2,
                                             borderColor: on ? '#4ade80' : colors.border,
                                             backgroundColor: on ? '#4ade80' : 'transparent',
                                             alignItems: 'center', justifyContent: 'center',
                                         }}>
-                                            {on ? <Text style={{ color: '#052e16', fontSize: 12, fontWeight: '900' }}>✓</Text> : null}
+                                            {on ? <Text style={{ color: '#052e16', fontSize: 13, fontWeight: '900' }}>✓</Text> : null}
                                         </View>
-                                        <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', flex: 1 }}>{reminderOffLabel(opt.minutes)}</Text>
+                                        <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700', flex: 1 }}>{reminderOffLabel(opt.minutes)}</Text>
                                     </TouchableOpacity>
                                 );
                             })}
                         </ScrollView>
                         <TouchableOpacity
-                            onPress={saveMatchReminder}
+                            onPress={saveReminderSettings}
                             disabled={reminderSaving}
                             style={{
-                                marginTop: 16, backgroundColor: colors.purple, borderRadius: 14,
-                                paddingVertical: 13, alignItems: 'center', opacity: reminderSaving ? 0.6 : 1,
+                                marginTop: 8, backgroundColor: colors.purple, borderRadius: 14,
+                                paddingVertical: 14, alignItems: 'center', opacity: reminderSaving ? 0.6 : 1,
+                                minHeight: touchSize(52), justifyContent: 'center',
                             }}
                         >
                             {reminderSaving
                                 ? <ActivityIndicator color="#fff" />
-                                : <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.matchReminderSave}</Text>}
+                                : <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800' }}>{t.matchReminderSave}</Text>}
                         </TouchableOpacity>
                     </View>
                 </View>

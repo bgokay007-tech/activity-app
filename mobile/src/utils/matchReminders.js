@@ -2,10 +2,11 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Kullanıcı "Yaklaşan Aktivitelerim" içinden maça özel hatırlatma seçer
-// (1 saat / 3 saat kala vb.). Sunucu cron'u değil — cihaz yerel bildirimi;
-// uygulama kapalıyken de OS tetikler. AsyncStorage tercih + bildirim id'lerini tutar.
+// Yaklaşan Aktivitelerim bildirim ayarları. Varsayılan ofsetler maç olmasa da
+// kaydedilir; sonra gelen / mevcut yaklaşan maçlara uygulanır. Cihaz yerel
+// bildirimi — uygulama kapalıyken de OS tetikler.
 const STORE_KEY = 'match_reminders_v1';
+const DEFAULTS_KEY = 'match_reminder_defaults_v1';
 const CHANNEL = 'match-reminders';
 
 export const MATCH_REMINDER_OFFSETS = [
@@ -59,11 +60,25 @@ async function cancelIds(ids = []) {
     );
 }
 
-export async function getMatchReminderOffsets(rivalId) {
-    if (!rivalId) return [];
-    const map = await readStore();
-    const row = map[rivalId];
-    return Array.isArray(row?.offsets) ? row.offsets.map(Number).filter(n => n > 0) : [];
+function normalizeOffsets(offsetsMinutes) {
+    return [...new Set((offsetsMinutes || []).map(Number).filter(n => n > 0))].sort((a, b) => a - b);
+}
+
+export async function getDefaultReminderOffsets() {
+    try {
+        const raw = await AsyncStorage.getItem(DEFAULTS_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return normalizeOffsets(Array.isArray(parsed) ? parsed : []);
+    } catch {
+        return [];
+    }
+}
+
+/** Maç olmasa da kaydedilir — sonraki yaklaşan aktivitelere uygulanır. */
+export async function setDefaultReminderOffsets(offsetsMinutes) {
+    const wanted = normalizeOffsets(offsetsMinutes);
+    await AsyncStorage.setItem(DEFAULTS_KEY, JSON.stringify(wanted));
+    return wanted;
 }
 
 export async function getAllMatchReminderMap() {
@@ -86,23 +101,22 @@ export async function clearMatchReminders(rivalId) {
 }
 
 /**
- * Seçilen "X dakika kala" ofsetlerini kaydeder ve yerel bildirimleri planlar.
- * Geçmişe düşen ofsetler atlanır. Tarih/saat yoksa { ok:false, reason:'no_date' }.
+ * Tek maç için ofsetleri planlar. Geçmişe düşen ofsetler atlanır.
  */
 export async function setMatchReminders(item, offsetsMinutes, strings = {}) {
-    if (!item?.id) return { ok: false, reason: 'no_item' };
+    if (!item?.id) return { ok: false, reason: 'no_item', scheduled: 0 };
     const start = matchStartDate(item);
-    if (!start) return { ok: false, reason: 'no_date' };
+    if (!start) return { ok: false, reason: 'no_date', scheduled: 0 };
 
     const perm = await Notifications.requestPermissionsAsync().catch(() => ({ status: 'denied' }));
-    if (perm?.status !== 'granted') return { ok: false, reason: 'denied' };
+    if (perm?.status !== 'granted') return { ok: false, reason: 'denied', scheduled: 0 };
 
     await ensureChannel();
     const map = await readStore();
     const prev = map[item.id];
     if (prev?.ids) await cancelIds(Object.values(prev.ids));
 
-    const wanted = [...new Set((offsetsMinutes || []).map(Number).filter(n => n > 0))].sort((a, b) => a - b);
+    const wanted = normalizeOffsets(offsetsMinutes);
     if (!wanted.length) {
         delete map[item.id];
         await writeStore(map);
@@ -157,4 +171,36 @@ export async function setMatchReminders(item, offsetsMinutes, strings = {}) {
     };
     await writeStore(map);
     return { ok: true, scheduled, skipped: wanted.length - scheduled };
+}
+
+/**
+ * Varsayılan ofsetleri kaydeder ve (varsa) yaklaşan maç listesine uygular.
+ * Liste boş olsa bile varsayılanlar kalır.
+ */
+export async function saveReminderDefaultsAndApply(offsetsMinutes, matches = [], stringsFor = null) {
+    const wanted = await setDefaultReminderOffsets(offsetsMinutes);
+
+    if (!wanted.length) {
+        // Tüm planlı hatırlatmaları temizle.
+        const map = await readStore();
+        for (const id of Object.keys(map)) {
+            if (map[id]?.ids) await cancelIds(Object.values(map[id].ids));
+        }
+        await writeStore({});
+        return { ok: true, scheduled: 0, defaults: [] };
+    }
+
+    const perm = await Notifications.requestPermissionsAsync().catch(() => ({ status: 'denied' }));
+    if (perm?.status !== 'granted') return { ok: false, reason: 'denied', defaults: wanted, scheduled: 0 };
+
+    let scheduled = 0;
+    const list = Array.isArray(matches) ? matches : [];
+    for (const item of list) {
+        if (!item?.id || !matchStartDate(item)) continue;
+        const strings = typeof stringsFor === 'function' ? stringsFor(item) : (stringsFor || {});
+        const res = await setMatchReminders(item, wanted, strings);
+        if (res?.ok) scheduled += res.scheduled || 0;
+        if (res?.reason === 'denied') return { ok: false, reason: 'denied', defaults: wanted, scheduled };
+    }
+    return { ok: true, defaults: wanted, scheduled };
 }
