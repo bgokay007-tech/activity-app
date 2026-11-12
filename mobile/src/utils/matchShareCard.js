@@ -302,9 +302,13 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
     const level = interest?.level || '';
 
     const showRanks = LEADERBOARD_SHARE_SUBS.has(subCategory);
-    const rankLocal = showRanks ? fmtRank(ranks?.local) : null;
-    const rankNational = showRanks ? fmtRank(ranks?.national) : null;
-    const rankInternational = showRanks ? fmtRank(ranks?.international) : null;
+    // UTR: tekli/çiftler ayrı sıra; diğer dallarda tek sütun (singles alanına yazılır)
+    const rankLocalS = showRanks ? fmtRank(ranks?.singles?.local ?? ranks?.local) : null;
+    const rankNationalS = showRanks ? fmtRank(ranks?.singles?.national ?? ranks?.national) : null;
+    const rankInternationalS = showRanks ? fmtRank(ranks?.singles?.international ?? ranks?.international) : null;
+    const rankLocalD = showRanks && isUtr ? fmtRank(ranks?.doubles?.local) : null;
+    const rankNationalD = showRanks && isUtr ? fmtRank(ranks?.doubles?.national) : null;
+    const rankInternationalD = showRanks && isUtr ? fmtRank(ranks?.doubles?.international) : null;
 
     // Padel/pickleball: tekli genelde yok — ön yüzde çiftler her zaman, tekli sadece varsa
     const showSinglesLine = isUtr && (subCategory === 'tennis' || subCategory === 'badminton' || subCategory === 'table_tennis'
@@ -330,9 +334,12 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
         losses,
         titles,
         showRanks,
-        rankLocal,
-        rankNational,
-        rankInternational,
+        rankLocalS,
+        rankNationalS,
+        rankInternationalS,
+        rankLocalD,
+        rankNationalD,
+        rankInternationalD,
         labels: {
             front: t?.shareMatchSharerFront || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             back: t?.shareMatchSharerBack || (lang === 'tr' ? 'İSTATİSTİK' : lang === 'ru' ? 'СТАТИСТИКА' : lang === 'de' ? 'STATISTIK' : 'STATS'),
@@ -342,6 +349,8 @@ export function buildSharerDigimonPayload(user, subCategory, tournamentWins = 0,
             titles: t?.shareMatchSharerTitles || (lang === 'tr' ? 'Şampiyonluk' : lang === 'ru' ? 'Титулы' : lang === 'de' ? 'Titel' : 'Titles'),
             singles: t?.shareMatchSharerSingles || (lang === 'tr' ? 'Tekli' : lang === 'ru' ? 'Одиночный' : lang === 'de' ? 'Einzel' : 'Singles'),
             doubles: t?.shareMatchSharerDoubles || (lang === 'tr' ? 'Çiftler' : lang === 'ru' ? 'Пары' : lang === 'de' ? 'Doppel' : 'Doubles'),
+            singlesShort: t?.shareMatchSharerSinglesShort || (lang === 'tr' ? 'T' : lang === 'ru' ? 'О' : lang === 'de' ? 'E' : 'S'),
+            doublesShort: t?.shareMatchSharerDoublesShort || (lang === 'tr' ? 'Ç' : lang === 'ru' ? 'П' : lang === 'de' ? 'D' : 'D'),
             rankLocal: t?.shareMatchSharerRankLocal || t?.tournScopeYerel || (lang === 'tr' ? '📍 Yerel' : '📍 Local'),
             rankNational: t?.shareMatchSharerRankNational || t?.tournScopeUlusal || (lang === 'tr' ? '🇹🇷 Ulusal' : '🇹🇷 National'),
             rankIntl: t?.shareMatchSharerRankIntl || t?.tournScopeUluslararasi || (lang === 'tr' ? '🌍 Uluslararası' : '🌍 International'),

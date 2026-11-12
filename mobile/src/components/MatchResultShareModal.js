@@ -225,94 +225,113 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         ny += 60 + Math.ceil(metaBits.length/2)*44 + 20;
       }
 
-      // Paylaşanın digimon kartı — includeDigimon seçeneği açıksa çizilir.
+      // Paylaşanın digimon kartı — sol dar (kimlik), sağ geniş (istatistik + sıra)
       var sharer=${JSON.stringify((p.includeDigimon && p.sharerCard) ? p.sharerCard : null)};
       var CTA_Y=1715;
       if(sharer){
         var hasRanks=!!sharer.showRanks;
-        var cardH=hasRanks?318:278;
-        var gap=22;
-        var digCardW=(W-112-gap)/2;
+        var isUtrRank=!!sharer.isUtr && hasRanks;
+        var cardH=hasRanks?(isUtrRank?300:278):240;
+        var gap=16;
+        var totalDigW=W-112;
+        // Ön yüz dar (~36%), arka yüz geniş (~64%) — boşluk arka yüze
+        var frontW=Math.round(totalDigW*0.36);
+        var backW=totalDigW-frontW-gap;
         var digTop=ny;
 
         function digimonShell(x,y,w,h,accent){
-          roundRect(x,y,w,h,20);
+          roundRect(x,y,w,h,18);
           ctx.fillStyle='rgba(18,20,28,0.92)'; ctx.fill();
           ctx.strokeStyle=accent||'rgba(200,245,74,0.55)'; ctx.lineWidth=3; ctx.stroke();
-          roundRect(x+10,y+10,w-20,h-20,14);
+          roundRect(x+8,y+8,w-16,h-16,12);
           ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.5; ctx.stroke();
         }
 
-        // Sol = ön yüz (kimlik + tekli/çiftler ELO)
+        // Sol = ön yüz (kimlik + tekli/çiftler ELO) — dar
         var fx=56, fy=digTop;
-        digimonShell(fx,fy,digCardW,cardH,'#C8F54A');
-        text(sharer.labels.front||'PLAYER', fx+digCardW/2, fy+36, 17, '#C8F54A', 'center', '900');
-        var ax=fx+digCardW/2, ay=fy+100, ar=42;
+        digimonShell(fx,fy,frontW,cardH,'#C8F54A');
+        text(sharer.labels.front||'PLAYER', fx+frontW/2, fy+32, 15, '#C8F54A', 'center', '900');
+        var ax=fx+frontW/2, ay=fy+88, ar=36;
         ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
         ctx.fillStyle='#1C1F2A'; ctx.fill();
-        ctx.strokeStyle='#C8F54A'; ctx.lineWidth=3; ctx.stroke();
+        ctx.strokeStyle='#C8F54A'; ctx.lineWidth=2.5; ctx.stroke();
         if(avImg){
           ctx.save();
-          ctx.beginPath(); ctx.arc(ax,ay,ar-3,0,Math.PI*2); ctx.closePath(); ctx.clip();
+          ctx.beginPath(); ctx.arc(ax,ay,ar-2,0,Math.PI*2); ctx.closePath(); ctx.clip();
           var as=Math.max((ar*2)/(avImg.width||1),(ar*2)/(avImg.height||1));
           var aw=(avImg.width||1)*as, ah=(avImg.height||1)*as;
           ctx.drawImage(avImg, ax-aw/2, ay-ah/2, aw, ah);
           ctx.restore();
         } else {
           var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
-          text(ini, ax, ay+14, 36, '#F4F1EA', 'center', '900');
+          text(ini, ax, ay+12, 30, '#F4F1EA', 'center', '900');
         }
         var dispName=sharer.alias||sharer.name||sharer.username||'';
-        text(dispName, fx+digCardW/2, fy+162, 24, '#F4F1EA', 'center', '900');
-        text((sharer.emoji||'')+' '+(sharer.sport||''), fx+digCardW/2, fy+190, 18, '#A8A29A', 'center', '700');
+        text(dispName, fx+frontW/2, fy+142, 20, '#F4F1EA', 'center', '900');
+        text((sharer.emoji||'')+' '+(sharer.sport||''), fx+frontW/2, fy+166, 15, '#A8A29A', 'center', '700');
         if(sharer.isUtr){
-          var eloY=fy+220;
+          var eloY=fy+196;
           if(sharer.showSinglesLine){
-            text((sharer.labels.singles||'Singles')+'  '+(sharer.singlesElo||'—'), fx+digCardW/2, eloY, 20, '#C8F54A', 'center', '900');
-            eloY+=28;
+            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), fx+frontW/2, eloY, 17, '#C8F54A', 'center', '900');
+            eloY+=24;
           }
           if(sharer.showDoublesLine){
-            text((sharer.labels.doubles||'Doubles')+'  '+(sharer.doublesElo||'—'), fx+digCardW/2, eloY, 20, '#C8F54A', 'center', '900');
+            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), fx+frontW/2, eloY, 17, '#C8F54A', 'center', '900');
           }
         } else if(sharer.elo){
-          text(sharer.elo, fx+digCardW/2, fy+222, 22, '#C8F54A', 'center', '900');
+          text(sharer.elo, fx+frontW/2, fy+196, 18, '#C8F54A', 'center', '900');
         }
 
-        // Sağ = arka yüz (istatistik + yerel/ulusal/uluslararası sıralama)
-        var bx=56+digCardW+gap;
-        digimonShell(bx,fy,digCardW,cardH,'#A855F7');
-        text(sharer.labels.back||'STATS', bx+digCardW/2, fy+36, 17, '#C084FC', 'center', '900');
+        // Sağ = arka yüz — geniş; maç/G/M tek satır + sıralama (tekli/çiftler ayrı)
+        var bx=56+frontW+gap;
+        digimonShell(bx,fy,backW,cardH,'#A855F7');
+        text(sharer.labels.back||'STATS', bx+backW/2, fy+30, 15, '#C084FC', 'center', '900');
         var digTiles=[
           { label:sharer.labels.matches||'Matches', value:String(sharer.totalMatches||0), color:'#38BDF8' },
           { label:sharer.labels.wins||'Wins', value:String(sharer.wins||0), color:'#4ADE80' },
           { label:sharer.labels.losses||'Losses', value:String(sharer.losses||0), color:'#F87171' },
         ];
-        if((sharer.titles||0)>0){
-          digTiles.push({ label:sharer.labels.titles||'Titles', value:String(sharer.titles), color:'#FACC15' });
-        }
-        var digCols=2;
-        var digTw=(digCardW-40-(digCols-1)*10)/digCols;
-        var digTh=hasRanks?72:88;
+        var digCols=3;
+        var digPad=14;
+        var digGap=8;
+        var digTw=(backW-digPad*2-(digCols-1)*digGap)/digCols;
+        var digTh=64;
         digTiles.forEach(function(tile,i){
-          var col=i%digCols, row=Math.floor(i/digCols);
-          var tx=bx+20+col*(digTw+10);
-          var ty=fy+52+row*(digTh+8);
-          roundRect(tx,ty,digTw,digTh,12);
+          var tx=bx+digPad+i*(digTw+digGap);
+          var ty=fy+44;
+          roundRect(tx,ty,digTw,digTh,10);
           ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
-          text(tile.value, tx+digTw/2, ty+digTh/2+2, 28, tile.color, 'center', '900');
-          text(tile.label, tx+digTw/2, ty+digTh-14, 14, '#A8A29A', 'center', '700');
+          text(tile.value, tx+digTw/2, ty+30, 26, tile.color, 'center', '900');
+          text(tile.label, tx+digTw/2, ty+digTh-12, 13, '#A8A29A', 'center', '700');
         });
+        var afterStatsY=fy+44+digTh+10;
+        if((sharer.titles||0)>0){
+          roundRect(bx+digPad, afterStatsY, backW-digPad*2, 28, 8);
+          ctx.fillStyle='rgba(250,204,21,0.12)'; ctx.fill();
+          text('🏆 '+(sharer.labels.titles||'Titles')+'  '+String(sharer.titles), bx+backW/2, afterStatsY+20, 15, '#FACC15', 'center', '800');
+          afterStatsY+=36;
+        }
         if(hasRanks){
-          var rankY=fy+cardH-78;
+          var sShort=sharer.labels.singlesShort||'S';
+          var dShort=sharer.labels.doublesShort||'D';
+          var colS=bx+backW-digPad-(isUtrRank?120:70);
+          var colD=bx+backW-digPad;
+          // Başlık: Tekli / Çiftler
+          if(isUtrRank){
+            text(sShort, colS, afterStatsY+14, 14, '#C8F54A', 'right', '900');
+            text(dShort, colD, afterStatsY+14, 14, '#C084FC', 'right', '900');
+            afterStatsY+=22;
+          }
           var rankRows=[
-            { lbl:sharer.labels.rankLocal||'📍 Local', val:sharer.rankLocal||'—' },
-            { lbl:sharer.labels.rankNational||'🇹🇷 National', val:sharer.rankNational||'—' },
-            { lbl:sharer.labels.rankIntl||'🌍 International', val:sharer.rankInternational||'—' },
+            { lbl:sharer.labels.rankLocal||'📍 Local', s:sharer.rankLocalS||'—', d:sharer.rankLocalD||'—' },
+            { lbl:sharer.labels.rankNational||'🇹🇷 National', s:sharer.rankNationalS||'—', d:sharer.rankNationalD||'—' },
+            { lbl:sharer.labels.rankIntl||'🌍 International', s:sharer.rankInternationalS||'—', d:sharer.rankInternationalD||'—' },
           ];
           rankRows.forEach(function(r,i){
-            var ry=rankY+i*22;
-            text(r.lbl, bx+24, ry, 15, '#A8A29A', 'left', '700');
-            text(r.val, bx+digCardW-24, ry, 16, '#FACC15', 'right', '900');
+            var ry=afterStatsY+18+i*26;
+            text(r.lbl, bx+digPad, ry, 15, '#A8A29A', 'left', '700');
+            text(r.s, colS, ry, 16, '#FACC15', 'right', '900');
+            if(isUtrRank) text(r.d, colD, ry, 16, '#FACC15', 'right', '900');
           });
         }
         ny = digTop + cardH + 20;
@@ -406,7 +425,10 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
     const myUser = useSelector(s => s.auth?.user);
     const insets = useSafeAreaInsets();
     const [tournamentWins, setTournamentWins] = useState(0);
-    const [ranks, setRanks] = useState({ local: null, national: null, international: null });
+    const [ranks, setRanks] = useState({
+        singles: { local: null, national: null, international: null },
+        doubles: { local: null, national: null, international: null },
+    });
     const [includeDigimon, setIncludeDigimon] = useState(false);
     const [avatarDataUrl, setAvatarDataUrl] = useState(null);
     const payload = useMemo(() => {
@@ -442,55 +464,72 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             avatarDataRef.current = null;
             setAvatarDataUrl(null);
             setTournamentWins(0);
-            setRanks({ local: null, national: null, international: null });
+            setRanks({
+                singles: { local: null, national: null, international: null },
+                doubles: { local: null, national: null, international: null },
+            });
             setIncludeDigimon(false);
         }
     }, [visible]);
 
-    // Şampiyonluk + yerel/ulusal/uluslararası sıralama (digimon arka yüz)
+    // Şampiyonluk + yerel/ulusal/uluslararası sıralama — UTR'de tekli ve çiftler ayrı
     useEffect(() => {
         if (!visible || !myUser?.id || !match?.subCategory) {
             setTournamentWins(0);
-            setRanks({ local: null, national: null, international: null });
+            setRanks({
+                singles: { local: null, national: null, international: null },
+                doubles: { local: null, national: null, international: null },
+            });
             return undefined;
         }
         let cancelled = false;
         const sub = match.subCategory;
-        const ratingType = match.matchType === 'DOUBLE' ? 'doubles' : 'singles';
         const isUtr = UTR_SHARE_SUBS.has(sub);
+        const scopes = ['local', 'national', 'international'];
+        const fetchScope = (scope, ratingType) =>
+            api.get('/interests/leaderboard', {
+                params: { subCategory: sub, scope, ...(ratingType ? { ratingType } : {}) },
+            }).catch(() => ({ data: null }));
+
         (async () => {
             try {
                 const achP = api.get(`/achievements/${myUser.id}`).catch(() => ({ data: null }));
-                const rankScopes = ['local', 'national', 'international'];
-                const rankPs = rankScopes.map((scope) =>
-                    api.get('/interests/leaderboard', {
-                        params: {
-                            subCategory: sub,
-                            scope,
-                            ...(isUtr ? { ratingType } : {}),
-                        },
-                    }).catch(() => ({ data: null })),
-                );
-                const [achRes, ...rankRes] = await Promise.all([achP, ...rankPs]);
+                const singlesPs = scopes.map((sc) => fetchScope(sc, isUtr ? 'singles' : undefined));
+                const doublesPs = isUtr
+                    ? scopes.map((sc) => fetchScope(sc, 'doubles'))
+                    : [Promise.resolve({ data: null }), Promise.resolve({ data: null }), Promise.resolve({ data: null })];
+                const [achRes, ...rest] = await Promise.all([achP, ...singlesPs, ...doublesPs]);
                 if (cancelled) return;
                 const list = Array.isArray(achRes?.data?.tournament) ? achRes.data.tournament : [];
                 setTournamentWins(list.filter(
                     (a) => a?.subCategory === sub && Number(a?.placement) === 1,
                 ).length);
+                const sRes = rest.slice(0, 3);
+                const dRes = rest.slice(3, 6);
                 setRanks({
-                    local: rankRes[0]?.data?.myRank ?? null,
-                    national: rankRes[1]?.data?.myRank ?? null,
-                    international: rankRes[2]?.data?.myRank ?? null,
+                    singles: {
+                        local: sRes[0]?.data?.myRank ?? null,
+                        national: sRes[1]?.data?.myRank ?? null,
+                        international: sRes[2]?.data?.myRank ?? null,
+                    },
+                    doubles: {
+                        local: dRes[0]?.data?.myRank ?? null,
+                        national: dRes[1]?.data?.myRank ?? null,
+                        international: dRes[2]?.data?.myRank ?? null,
+                    },
                 });
             } catch {
                 if (!cancelled) {
                     setTournamentWins(0);
-                    setRanks({ local: null, national: null, international: null });
+                    setRanks({
+                        singles: { local: null, national: null, international: null },
+                        doubles: { local: null, national: null, international: null },
+                    });
                 }
             }
         })();
         return () => { cancelled = true; };
-    }, [visible, myUser?.id, match?.subCategory, match?.matchType]);
+    }, [visible, myUser?.id, match?.subCategory]);
 
     // Zemin/spor arka planı + avatar önceden yükle
     useEffect(() => {
