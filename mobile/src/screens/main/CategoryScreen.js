@@ -166,7 +166,7 @@ function SportTilesHScroll({ viewportW, items, renderTile, perRow = 3 }) {
                     contentContainerStyle={sp.groupRowPad}
                 >
                     {row.map((sub) => (
-                        <View key={sub.id} style={{ width: cardW, paddingRight: 8 }}>
+                        <View key={sub.id} style={{ width: cardW, paddingRight: 1 }}>
                             {renderTile(sub)}
                         </View>
                     ))}
@@ -233,7 +233,7 @@ function CategoryScreen({ route, navigation }) {
         Object.fromEntries(SPORT_GROUPS.map(g => [g.id, true]))
     );
     const { width: winW } = useWindowDimensions();
-    const sportPageW = winW - 32; // sp.list paddingHorizontal × 2
+    const sportPageW = winW - 6; // sp.list paddingHorizontal (3) × 2
     const myId = useSelector(s => s.auth.user?.id);
 
     // Sanat/sosyal/oyun: alfabetik; açık ilanı olan öne, profilindeki Aktivitelerim daha da öne.
@@ -672,18 +672,18 @@ const s = StyleSheet.create({
 });
 
 const nv = StyleSheet.create({
-    header: { paddingHorizontal: 18, marginBottom: 18 },
+    header: { paddingHorizontal: 3, marginBottom: 18 },
     back:   { color: colors.purple, fontSize: 15, fontWeight: '600', marginBottom: 8 },
     title:  { color: colors.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.4 },
-    list:   { paddingHorizontal: 16, paddingBottom: 36 },
+    list:   { paddingHorizontal: 3, paddingBottom: 36 },
     hero:   { height: 200, borderRadius: 26, overflow: 'hidden', marginBottom: 14 },
     heroImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
     heroShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,12,16,0.38)' },
     heroBody: { flex: 1, justifyContent: 'flex-end', padding: 16 },
     heroName: { color: '#fff', fontSize: 24, fontWeight: '700' },
     heroMeta: { color: colors.purple, fontSize: 13, fontWeight: '600', marginTop: 4 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    tile: { width: '47.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 1 },
+    tile: { width: '49.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
     tileImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
     tileShade: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,12,16,0.34)' },
     tileName: { position: 'absolute', left: 10, right: 10, bottom: 28, color: '#fff', fontSize: 15, fontWeight: '700' },
@@ -693,7 +693,7 @@ const nv = StyleSheet.create({
 const sp = StyleSheet.create({
     topBar: {
         flexDirection: 'row', alignItems: 'center', gap: 10,
-        paddingHorizontal: 16, marginBottom: 10,
+        paddingHorizontal: 3, marginBottom: 10,
     },
     topBack: { color: colors.purple, fontSize: 15, fontWeight: '600', flexShrink: 0 },
     topTitle: { color: colors.text, fontSize: 20, fontWeight: '700', letterSpacing: -0.3, flexShrink: 0 },
@@ -702,10 +702,10 @@ const sp = StyleSheet.create({
         paddingHorizontal: 12, paddingVertical: Platform.OS === 'ios' ? 8 : 6, color: colors.text,
         fontSize: 14, fontWeight: '500', borderWidth: 1, borderColor: colors.purple,
     },
-    list: { paddingHorizontal: 16 },
+    list: { paddingHorizontal: 3 },
     section: { color: colors.text, fontSize: 16, fontWeight: '700', marginBottom: 10, marginTop: 4 },
     chipRow: { gap: 8, paddingRight: 8, marginBottom: 18 },
-    row: { gap: 12, paddingRight: 8 },
+    row: { gap: 1, paddingRight: 8 },
     intentChip: {
         backgroundColor: colors.surface, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 10,
         borderWidth: 1, borderColor: colors.border,
@@ -743,10 +743,10 @@ const sp = StyleSheet.create({
     groupChevron: { color: colors.textMuted, fontSize: 14, fontWeight: '700', marginLeft: 'auto', paddingLeft: 8 },
     groupIconEmoji: { fontSize: 17 },
     groupIconImg: { width: 20, height: 20 },
-    groupRows: { gap: 10 },
+    groupRows: { gap: 1 },
     groupRowPad: { paddingRight: 2 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    tile: { width: '47.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
+    grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 1 },
+    tile: { width: '49.5%', height: 168, borderRadius: 22, overflow: 'hidden' },
     tilePeek: { width: '100%', height: 128, borderRadius: 18, overflow: 'hidden' },
     tileQuiet: { opacity: 0.78 },
     tileImg: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
