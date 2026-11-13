@@ -5,11 +5,13 @@ import { getDisplayRating, isDoublesFormat } from '../utils/utrRating.js';
 import {
     buildWeeklyRounds,
     normalizeSlots,
+    normalizePreferredCourts,
     generateAvailabilityPairings,
     fingerprintProposed,
     findDuplicateWarnings,
     pairKey,
     toYmd,
+    isPlayersArrangeCourts,
 } from '../utils/tournamentAvailabilityMatch.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
@@ -211,7 +213,7 @@ export const updateTournamentRound = async (req, res, next) => {
 export const upsertRoundAvailability = async (req, res, next) => {
     try {
         const { id, roundId } = req.params;
-        const { slots, maxMatches } = req.body;
+        const { slots, maxMatches, preferredCourts } = req.body;
         const tournament = await prisma.tournament.findUnique({ where: { id } });
         if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
         if (!tournament.availabilityMatchEnabled) {
@@ -241,15 +243,31 @@ export const upsertRoundAvailability = async (req, res, next) => {
             return res.status(400).json({ message: 'En az bir geçerli gün/saat aralığı girin' });
         }
 
+        const arrange = isPlayersArrangeCourts(tournament);
+        const cleanCourts = arrange
+            ? normalizePreferredCourts(preferredCourts)
+            : [];
+        if (arrange && !cleanCourts.length) {
+            return res.status(400).json({
+                message: 'Belirli kort yok — en az bir oynayabileceğiniz kort / mekan seçin',
+            });
+        }
+
         const row = await prisma.tournamentRoundAvailability.upsert({
             where: { roundId_userId: { roundId, userId: req.userId } },
-            update: { maxMatches: cap, slots: cleanSlots, tournamentId: id },
+            update: {
+                maxMatches: cap,
+                slots: cleanSlots,
+                preferredCourts: arrange ? cleanCourts : null,
+                tournamentId: id,
+            },
             create: {
                 roundId,
                 tournamentId: id,
                 userId: req.userId,
                 maxMatches: cap,
                 slots: cleanSlots,
+                preferredCourts: arrange ? cleanCourts : null,
             },
         });
 
@@ -319,6 +337,7 @@ export const generateRoundMatching = async (req, res, next) => {
         const availByUserId = Object.fromEntries(avails.map(a => [a.userId, a]));
         const prev = await previousPairKeys(id);
         const { usedCounts, existingRoundPairKeys } = await roundUsedCounts(roundId);
+        const requireCourtOverlap = isPlayersArrangeCourts(tournament);
 
         const proposed = generateAvailabilityPairings({
             sides,
@@ -326,6 +345,7 @@ export const generateRoundMatching = async (req, res, next) => {
             previousPairKeys: prev,
             existingRoundPairKeys,
             usedCounts,
+            requireCourtOverlap,
         });
 
         const fp = fingerprintProposed(proposed);
@@ -452,6 +472,9 @@ export const approveRoundMatching = async (req, res, next) => {
         }
 
         // Zaten onaylı çiftleri atla; yeni olanları ekle (hafta içi ekstra eşleşme)
+        // Belirli kort yok: saati kilitleme — ortak kort + ortak pencereyi suggested olarak sun;
+        // oyuncular nokta atışı kort/saat seçer. Belirli kort varsa admin kilitli agreed.
+        const arrange = isPlayersArrangeCourts(tournament);
         const toCreate = [];
         let matchIndex = await prisma.tournamentMatch.count({ where: { tournamentId: id, round: round.roundIndex } });
         for (const p of proposed) {
@@ -459,15 +482,38 @@ export const approveRoundMatching = async (req, res, next) => {
             const pk = pairKey(p.p1Id, p.p2Id);
             if (existingRoundPairKeys.has(pk)) continue;
             const slot = p.slot || null;
-            const agreed = slot ? {
-                date: slot.date,
-                timeFrom: slot.timeFrom,
-                timeTo: slot.timeTo,
-                venueName: tournament.location || null,
-                agreedByUserId: req.userId,
-                agreedAt: new Date().toISOString(),
-                lockedByAdmin: true,
-            } : null;
+            const windows = Array.isArray(p.windows) && p.windows.length
+                ? p.windows
+                : (slot ? [slot] : []);
+            const commonCourts = Array.isArray(p.commonCourts) ? p.commonCourts : [];
+            let agreed = null;
+            let suggested = null;
+            if (arrange) {
+                suggested = {
+                    windows: windows.map(w => ({
+                        date: w.date,
+                        timeFrom: w.timeFrom,
+                        timeTo: w.timeTo,
+                    })),
+                    courts: commonCourts.map(c => ({
+                        courtId: c.courtId || null,
+                        venueId: c.venueId || null,
+                        name: c.name,
+                        city: c.city || null,
+                        key: c.key || null,
+                    })),
+                };
+            } else if (slot) {
+                agreed = {
+                    date: slot.date,
+                    timeFrom: slot.timeFrom,
+                    timeTo: slot.timeTo,
+                    venueName: tournament.location || null,
+                    agreedByUserId: req.userId,
+                    agreedAt: new Date().toISOString(),
+                    lockedByAdmin: true,
+                };
+            }
             toCreate.push({
                 tournamentId: id,
                 roundId: round.id,
@@ -484,6 +530,7 @@ export const approveRoundMatching = async (req, res, next) => {
                     availability: { p1: [], p2: [] },
                     proposals: [],
                     agreed,
+                    suggested,
                 },
             });
             usedCounts[p.p1Id] = (usedCounts[p.p1Id] || 0) + 1;

@@ -5,6 +5,21 @@ import {
 import api from '../services/api';
 import colors from '../theme/colors';
 
+function courtKeyOf(c) {
+    if (!c) return null;
+    if (c.courtId) return `c:${c.courtId}`;
+    if (c.venueId) return `v:${c.venueId}`;
+    const name = String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return name ? `n:${name}` : null;
+}
+
+function hasTournSpecificCourt(item) {
+    const loc = String(item?.location || '').trim();
+    if (!loc) return false;
+    if (/ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc)) return false;
+    return true;
+}
+
 const WEEKDAYS = [
     { key: 1, tr: 'Pzt', en: 'Mon', ru: 'Пн', de: 'Mo' },
     { key: 2, tr: 'Sal', en: 'Tue', ru: 'Вт', de: 'Di' },
@@ -109,11 +124,17 @@ export default function TournamentAvailabilityPanel({
     const [activeRoundId, setActiveRoundId] = useState(null);
     const [maxMatches, setMaxMatches] = useState(1);
     const [slots, setSlots] = useState([]);
+    const [preferredCourts, setPreferredCourts] = useState([]);
+    const [courtQuery, setCourtQuery] = useState('');
+    const [courtResults, setCourtResults] = useState([]);
+    const [courtSearching, setCourtSearching] = useState(false);
+    const [manualCourtName, setManualCourtName] = useState('');
     const [saving, setSaving] = useState(false);
     const [proposed, setProposed] = useState([]);
     const [adminBusy, setAdminBusy] = useState(false);
 
     const canAdmin = isCreator || myIsAdmin;
+    const playersArrangeCourts = !hasTournSpecificCourt(tournament);
 
     const load = useCallback(async () => {
         if (!tournament?.id) return;
@@ -141,6 +162,7 @@ export default function TournamentAvailabilityPanel({
     useEffect(() => {
         if (!active) {
             setSlots([]);
+            setPreferredCourts([]);
             setMaxMatches(1);
             setProposed([]);
             return;
@@ -160,12 +182,82 @@ export default function TournamentAvailabilityPanel({
                 }
                 return s;
             }));
+            setPreferredCourts(Array.isArray(mine.preferredCourts) ? mine.preferredCourts : []);
         } else {
             setSlots([]);
+            setPreferredCourts([]);
             setMaxMatches(1);
         }
         setProposed(Array.isArray(active.proposedMatches) ? active.proposedMatches : []);
     }, [active?.id, active?.myAvailability, active?.proposedMatches]);
+
+    useEffect(() => {
+        if (!playersArrangeCourts) {
+            setCourtResults([]);
+            return undefined;
+        }
+        const q = courtQuery.trim();
+        if (q.length < 2) {
+            setCourtResults([]);
+            setCourtSearching(false);
+            return undefined;
+        }
+        setCourtSearching(true);
+        const task = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/courts/search', {
+                    params: {
+                        q,
+                        sport: tournament?.subCategory || undefined,
+                        verifiedOnly: 'true',
+                    },
+                });
+                const raw = Array.isArray(data) ? data : [];
+                setCourtResults(raw.slice(0, 12));
+            } catch {
+                setCourtResults([]);
+            } finally {
+                setCourtSearching(false);
+            }
+        }, 350);
+        return () => clearTimeout(task);
+    }, [courtQuery, playersArrangeCourts, tournament?.subCategory]);
+
+    const addPreferredCourt = (court) => {
+        if (!court) return;
+        const item = {
+            courtId: court.isBusinessVenue ? null : (court.id || null),
+            venueId: court.venueId || (court.isBusinessVenue ? court.id : null) || null,
+            name: court.isBusinessVenue
+                ? (court.venueName || court.name || '')
+                : ([court.venueName, court.name].filter(Boolean).join(' · ') || court.name || ''),
+            city: court.city || null,
+        };
+        const key = courtKeyOf(item);
+        if (!key || !item.name) return;
+        setPreferredCourts(prev => {
+            if (prev.some(c => courtKeyOf(c) === key)) return prev;
+            return [...prev, item].slice(0, 20);
+        });
+        setCourtQuery('');
+        setCourtResults([]);
+    };
+
+    const addManualCourt = () => {
+        const name = manualCourtName.trim();
+        if (!name) return;
+        const item = { courtId: null, venueId: null, name, city: null };
+        const key = courtKeyOf(item);
+        setPreferredCourts(prev => {
+            if (prev.some(c => courtKeyOf(c) === key)) return prev;
+            return [...prev, item].slice(0, 20);
+        });
+        setManualCourtName('');
+    };
+
+    const removePreferredCourt = (key) => {
+        setPreferredCourts(prev => prev.filter(c => courtKeyOf(c) !== key));
+    };
 
     const toggleWeekday = (weekday) => {
         setSlots(prev => {
@@ -181,6 +273,10 @@ export default function TournamentAvailabilityPanel({
 
     const saveMyAvailability = async () => {
         if (!active) return;
+        if (playersArrangeCourts && preferredCourts.length === 0) {
+            Alert.alert('', t.tournAvailNeedCourts || 'En az bir kort / mekan seçin');
+            return;
+        }
         setSaving(true);
         try {
             await api.put(`/tournaments/${tournament.id}/rounds/${active.id}/availability`, {
@@ -191,6 +287,7 @@ export default function TournamentAvailabilityPanel({
                     timeFrom: s.timeFrom,
                     timeTo: s.timeTo,
                 })),
+                preferredCourts: playersArrangeCourts ? preferredCourts : undefined,
             });
             Alert.alert('', t.tournAvailSaved || 'Müsaitlik kaydedildi');
             await load();
@@ -408,6 +505,98 @@ export default function TournamentAvailabilityPanel({
                         </View>
                     ))}
 
+                    {playersArrangeCourts && (
+                        <View style={{ marginTop: 8, marginBottom: 10 }}>
+                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 4 }}>
+                                {t.tournAvailMyCourts || 'Oynayabileceğim kortlar'}
+                            </Text>
+                            <Text style={{ color: '#94a3b8', fontSize: 10, lineHeight: 14, marginBottom: 8 }}>
+                                {t.tournAvailMyCourtsHint || 'Bir veya birden fazla kort seçin. Eşleşince ortak kortlar ve ortak saat aralığı size sunulur; kesin kort/saati siz seçersiniz.'}
+                            </Text>
+                            <TextInput
+                                value={courtQuery}
+                                onChangeText={setCourtQuery}
+                                placeholder={t.tournAvailCourtSearchPh || 'Kort / tesis ara…'}
+                                placeholderTextColor="#64748b"
+                                style={{ backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12, marginBottom: 6 }}
+                            />
+                            {courtSearching ? (
+                                <ActivityIndicator color={accent} style={{ marginBottom: 6 }} />
+                            ) : null}
+                            {courtResults.length > 0 && (
+                                <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 160 }}>
+                                    <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+                                        {courtResults.map((c) => {
+                                            const label = c.isBusinessVenue
+                                                ? (c.venueName || c.name)
+                                                : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={c.id || label}
+                                                    onPress={() => addPreferredCourt(c)}
+                                                    style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
+                                                >
+                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
+                                                    {!!c.city && (
+                                                        <Text style={{ color: '#64748b', fontSize: 10 }}>{c.city}</Text>
+                                                    )}
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </ScrollView>
+                                </View>
+                            )}
+                            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                <TextInput
+                                    value={manualCourtName}
+                                    onChangeText={setManualCourtName}
+                                    placeholder={t.tournAvailCourtManualPh || 'Manuel kort adı ekle'}
+                                    placeholderTextColor="#64748b"
+                                    style={{ flex: 1, backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
+                                />
+                                <TouchableOpacity
+                                    onPress={addManualCourt}
+                                    style={{ backgroundColor: accent + '30', borderRadius: 8, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: accent + '60' }}
+                                >
+                                    <Text style={{ color: accent, fontWeight: '800', fontSize: 12 }}>+</Text>
+                                </TouchableOpacity>
+                            </View>
+                            {preferredCourts.length === 0 ? (
+                                <Text style={{ color: '#f87171', fontSize: 10, marginBottom: 4 }}>
+                                    {t.tournAvailNeedCourts || 'En az bir kort seçin'}
+                                </Text>
+                            ) : (
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                    {preferredCourts.map((c) => {
+                                        const key = courtKeyOf(c);
+                                        return (
+                                            <TouchableOpacity
+                                                key={key}
+                                                onPress={() => removePreferredCourt(key)}
+                                                style={{
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    gap: 4,
+                                                    backgroundColor: accent + '22',
+                                                    borderRadius: 999,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 5,
+                                                    borderWidth: 1,
+                                                    borderColor: accent + '55',
+                                                }}
+                                            >
+                                                <Text style={{ color: accent, fontSize: 11, fontWeight: '700', maxWidth: 180 }} numberOfLines={1}>
+                                                    {c.name}
+                                                </Text>
+                                                <Text style={{ color: '#f87171', fontWeight: '900', fontSize: 11 }}>✕</Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
                     <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6, marginTop: 4 }}>
                         {t.tournAvailMaxMatches || 'Bu turda kaç maç yapabilirim?'}
                     </Text>
@@ -503,6 +692,11 @@ export default function TournamentAvailabilityPanel({
                                                 {p.slot ? `${p.slot.date} ${p.slot.timeFrom}-${p.slot.timeTo}` : '—'}
                                                 {p.neverPlayed === false ? ` · ${t.tournAvailRematch || 'Daha önce oynadılar'}` : ''}
                                             </Text>
+                                            {Array.isArray(p.commonCourts) && p.commonCourts.length > 0 ? (
+                                                <Text style={{ color: '#a78bfa', fontSize: 10, marginTop: 2 }} numberOfLines={2}>
+                                                    🏟 {p.commonCourts.map(c => c.name).join(' · ')}
+                                                </Text>
+                                            ) : null}
                                         </View>
                                         <TouchableOpacity onPress={() => removeProposed(idx)} hitSlop={8}>
                                             <Text style={{ color: '#f87171', fontWeight: '800' }}>✕</Text>

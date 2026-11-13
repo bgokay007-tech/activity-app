@@ -95,8 +95,13 @@ export function normalizeSlots(slots, roundStart, roundEnd) {
 
 /** İki slot listesinin kesişimi; en uzun ortak aralık tercih edilir */
 export function findBestOverlap(slotsA, slotsB) {
-    let best = null;
-    let bestDur = 0;
+    const all = findAllOverlaps(slotsA, slotsB);
+    return all[0] || null;
+}
+
+/** Tüm ortak aralıklar (≥60 dk), uzunluğa göre azalan */
+export function findAllOverlaps(slotsA, slotsB) {
+    const out = [];
     for (const a of slotsA || []) {
         for (const b of slotsB || []) {
             if (!a.date || !b.date || a.date !== b.date) continue;
@@ -108,13 +113,70 @@ export function findBestOverlap(slotsA, slotsB) {
             const from = Math.max(a0, b0);
             const to = Math.min(a1, b1);
             const dur = to - from;
-            if (dur >= 60 && dur > bestDur) {
-                bestDur = dur;
-                best = { date: a.date, timeFrom: minToTime(from), timeTo: minToTime(to) };
+            if (dur >= 60) {
+                out.push({
+                    date: a.date,
+                    timeFrom: minToTime(from),
+                    timeTo: minToTime(to),
+                    durationMin: dur,
+                });
             }
         }
     }
-    return best;
+    out.sort((x, y) => y.durationMin - x.durationMin || String(x.date).localeCompare(String(y.date)));
+    return out;
+}
+
+/** Kort/mekan kimliği — courtId > venueId > normalize ad */
+export function courtKey(c) {
+    if (!c || typeof c !== 'object') return null;
+    if (c.courtId) return `c:${c.courtId}`;
+    if (c.venueId) return `v:${c.venueId}`;
+    const name = String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return name ? `n:${name}` : null;
+}
+
+export function normalizePreferredCourts(list) {
+    if (!Array.isArray(list)) return [];
+    const seen = new Set();
+    const out = [];
+    for (const raw of list) {
+        if (!raw || typeof raw !== 'object') continue;
+        const name = String(raw.name || '').trim().slice(0, 120);
+        if (!name && !raw.courtId && !raw.venueId) continue;
+        const item = {
+            courtId: raw.courtId ? String(raw.courtId) : null,
+            venueId: raw.venueId ? String(raw.venueId) : null,
+            name: name || (raw.venueId ? 'Venue' : 'Court'),
+            city: raw.city ? String(raw.city).trim().slice(0, 80) : null,
+        };
+        const key = courtKey(item);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push({ ...item, key });
+        if (out.length >= 20) break;
+    }
+    return out;
+}
+
+/** İki kort listesinin ortakları (kimlik kesişimi) */
+export function intersectCourts(listA, listB) {
+    const a = normalizePreferredCourts(listA);
+    const b = normalizePreferredCourts(listB);
+    if (!a.length || !b.length) return [];
+    const mapB = new Map(b.map(c => [c.key, c]));
+    const out = [];
+    for (const c of a) {
+        if (mapB.has(c.key)) out.push(c);
+    }
+    return out;
+}
+
+/** Turnuva location'ı belirli kort mu, oyuncular mı seçer */
+export function isPlayersArrangeCourts(tournament) {
+    const loc = String(tournament?.location || '').trim();
+    if (!loc) return true;
+    return /ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(loc);
 }
 
 export function pairKey(id1, id2) {
@@ -131,10 +193,9 @@ export function fingerprintProposed(proposed) {
 
 /**
  * sides: [{ id, name, skillRating, memberUserIds: string[] }]
- * availByUserId: { [userId]: { maxMatches, slots:[{date,timeFrom,timeTo}] } }
- * previousPairKeys: Set of "id1|id2" already played in tournament
- * existingRoundPairKeys: already approved this round
- * remainingCap override via usedCounts: { [sideId]: number already matched this round }
+ * availByUserId: { [userId]: { maxMatches, slots, preferredCourts? } }
+ * requireCourtOverlap: belirli kort yok — ortak kort şart
+ * previousPairKeys / existingRoundPairKeys / usedCounts: kapasite & tekrar kontrolü
  */
 export function generateAvailabilityPairings({
     sides,
@@ -142,13 +203,15 @@ export function generateAvailabilityPairings({
     previousPairKeys = new Set(),
     existingRoundPairKeys = new Set(),
     usedCounts = {},
+    requireCourtOverlap = false,
 }) {
     // Takım müsaitliği = üyelerin slot kesişimi; kapasite = üyelerin min(kalan)
+    // Kort tercihi = üyelerin ortak kortları (belirli kort yok modunda)
     const sideMeta = sides.map(side => {
         const members = side.memberUserIds?.length ? side.memberUserIds : [side.id];
         const avails = members.map(uid => availByUserId[uid]).filter(Boolean);
         if (avails.length !== members.length) {
-            return { ...side, members, slots: [], remaining: 0, ready: false };
+            return { ...side, members, slots: [], courts: [], remaining: 0, ready: false };
         }
         let slots = normalizeSlots(avails[0].slots);
         for (let i = 1; i < avails.length; i++) {
@@ -162,20 +225,28 @@ export function generateAvailabilityPairings({
             }
             slots = merged;
         }
+        let courts = normalizePreferredCourts(avails[0].preferredCourts);
+        for (let i = 1; i < avails.length; i++) {
+            courts = intersectCourts(courts, avails[i].preferredCourts);
+        }
         const maxCap = Math.min(...avails.map(a => Math.max(0, Math.min(5, parseInt(a.maxMatches) || 1))));
         const used = usedCounts[side.id] || 0;
         const remaining = Math.max(0, maxCap - used);
+        const ready = remaining > 0
+            && slots.length > 0
+            && (!requireCourtOverlap || courts.length > 0);
         return {
             ...side,
             members,
             slots,
+            courts,
             remaining,
-            ready: remaining > 0 && slots.length > 0,
+            ready,
             skillRating: side.skillRating || 0,
         };
     }).filter(s => s.ready);
 
-    // Aday çiftler: ortak saat + skor
+    // Aday çiftler: ortak saat (+ ortak kort) + skor
     const candidates = [];
     for (let i = 0; i < sideMeta.length; i++) {
         for (let j = i + 1; j < sideMeta.length; j++) {
@@ -183,18 +254,28 @@ export function generateAvailabilityPairings({
             const b = sideMeta[j];
             const pk = pairKey(a.id, b.id);
             if (existingRoundPairKeys.has(pk)) continue;
-            const slot = findBestOverlap(a.slots, b.slots);
-            if (!slot) continue;
+            const windows = findAllOverlaps(a.slots, b.slots);
+            if (!windows.length) continue;
+            const slot = windows[0];
+            const commonCourts = requireCourtOverlap
+                ? intersectCourts(a.courts, b.courts)
+                : intersectCourts(a.courts, b.courts);
+            if (requireCourtOverlap && !commonCourts.length) continue;
             const neverPlayed = !previousPairKeys.has(pk);
             const eloDiff = Math.abs((a.skillRating || 0) - (b.skillRating || 0));
-            // Önce oynamamışlar (0), sonra ELO yakınlığı
-            const score = (neverPlayed ? 0 : 10000) + eloDiff;
+            // Önce oynamamışlar, sonra ELO; ortak kort/uzun pencere bonus
+            const score = (neverPlayed ? 0 : 10000)
+                + eloDiff
+                - Math.min(40, commonCourts.length * 8)
+                - Math.min(80, (slot.durationMin || 0) / 15);
             candidates.push({
                 p1Id: a.id,
                 p1Name: a.name,
                 p2Id: b.id,
                 p2Name: b.name,
                 slot,
+                windows,
+                commonCourts,
                 neverPlayed,
                 eloDiff,
                 score,
@@ -217,6 +298,8 @@ export function generateAvailabilityPairings({
             p2Id: c.p2Id,
             p2Name: c.p2Name,
             slot: c.slot,
+            windows: c.windows,
+            commonCourts: c.commonCourts,
             neverPlayed: c.neverPlayed,
             eloDiff: c.eloDiff,
         });

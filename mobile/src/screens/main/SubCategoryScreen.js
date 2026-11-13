@@ -20038,12 +20038,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 )}
                                 {(() => {
                                     const agreed = match.scheduleData?.agreed;
-                                    if (!agreed) return null;
-                                    const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
-                                    if (!txt) return null;
+                                    if (agreed) {
+                                        const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
+                                        if (!txt) return null;
+                                        return (
+                                            <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
+                                                📍 {txt}
+                                            </Text>
+                                        );
+                                    }
+                                    const sug = match.scheduleData?.suggested;
+                                    if (!sug) return null;
+                                    const w = Array.isArray(sug.windows) && sug.windows[0];
+                                    const courts = Array.isArray(sug.courts) ? sug.courts.map(c => c.name).filter(Boolean).slice(0, 2) : [];
+                                    const bits = [];
+                                    if (w) bits.push(`${w.date} ${w.timeFrom || ''}-${w.timeTo || ''}`);
+                                    if (courts.length) bits.push(courts.join(' · '));
+                                    if (!bits.length) return null;
                                     return (
-                                        <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
-                                            📍 {txt}
+                                        <Text style={{ color: '#c4b5fd', fontSize: 9, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
+                                            🤝 {bits.join(' · ')}
                                         </Text>
                                     );
                                 })()}
@@ -20749,12 +20763,26 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     )}
                                                     {(() => {
                                                         const agreed = match.scheduleData?.agreed;
-                                                        if (!agreed) return null;
-                                                        const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
-                                                        if (!txt) return null;
+                                                        if (agreed) {
+                                                            const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
+                                                            if (!txt) return null;
+                                                            return (
+                                                                <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '700', marginTop: 3 }} numberOfLines={2}>
+                                                                    📍 {txt}
+                                                                </Text>
+                                                            );
+                                                        }
+                                                        const sug = match.scheduleData?.suggested;
+                                                        if (!sug) return null;
+                                                        const w = Array.isArray(sug.windows) && sug.windows[0];
+                                                        const courts = Array.isArray(sug.courts) ? sug.courts.map(c => c.name).filter(Boolean).slice(0, 2) : [];
+                                                        const bits = [];
+                                                        if (w) bits.push(`${w.date} ${w.timeFrom || ''}-${w.timeTo || ''}`);
+                                                        if (courts.length) bits.push(courts.join(' · '));
+                                                        if (!bits.length) return null;
                                                         return (
-                                                            <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '700', marginTop: 3 }} numberOfLines={2}>
-                                                                📍 {txt}
+                                                            <Text style={{ color: '#c4b5fd', fontSize: 8, fontWeight: '700', marginTop: 3 }} numberOfLines={2}>
+                                                                🤝 {bits.join(' · ')}
                                                             </Text>
                                                         );
                                                     })()}

@@ -66,6 +66,7 @@ export default function TournamentMatchDetailModal({
     const [propFrom, setPropFrom] = useState('10:00');
     const [propTo, setPropTo] = useState('12:00');
     const [propVenue, setPropVenue] = useState('');
+    const [propCourtId, setPropCourtId] = useState(null);
     const [chatMsgs, setChatMsgs] = useState([]);
     const [chatText, setChatText] = useState('');
     const [reqDate, setReqDate] = useState('');
@@ -106,7 +107,14 @@ export default function TournamentMatchDetailModal({
         }
     }, [visible, match?.id, match?.scheduleData, mySide]);
 
-    const lockedByAdmin = !!schedule?.agreed?.lockedByAdmin || !!tournament?.availabilityMatchEnabled;
+    // Sadece admin gerçekten saat/kortu kilitlediyse (belirli kort + müsaitlik eşleştirme).
+    // Belirli kort yoksa oyuncular ortak önerilerden nokta atışı seçer.
+    const lockedByAdmin = !!schedule?.agreed?.lockedByAdmin;
+    const suggested = schedule?.suggested && typeof schedule.suggested === 'object'
+        ? schedule.suggested
+        : null;
+    const suggestedWindows = Array.isArray(suggested?.windows) ? suggested.windows : [];
+    const suggestedCourts = Array.isArray(suggested?.courts) ? suggested.courts : [];
 
     useEffect(() => {
         if (!visible || !match?.id || !tournament?.id) return;
@@ -174,10 +182,12 @@ export default function TournamentMatchDetailModal({
                     timeFrom: propFrom.trim(),
                     timeTo: propTo.trim(),
                     venueName: playersArrangeCourts ? propVenue.trim() : undefined,
+                    courtId: playersArrangeCourts ? (propCourtId || undefined) : undefined,
                 },
             );
             setSchedule(data.scheduleData);
             setPropVenue('');
+            setPropCourtId(null);
             onRefresh?.();
             Alert.alert('', t.tournSchedProposed || 'Teklif gönderildi');
         } catch (e) {
@@ -383,6 +393,88 @@ export default function TournamentMatchDetailModal({
                                 </Text>
                             ) : null}
                         </View>
+
+                        {/* Ortak kort + ortak saat penceresi (belirli kort yok + müsaitlik eşleştirme) */}
+                        {!agreedText && (suggestedCourts.length > 0 || suggestedWindows.length > 0) ? (
+                            <View style={{
+                                backgroundColor: '#7c3aed18',
+                                borderRadius: 10,
+                                padding: 10,
+                                marginBottom: 12,
+                                borderWidth: 1,
+                                borderColor: '#7c3aed50',
+                            }}>
+                                <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '800', marginBottom: 6 }}>
+                                    {t.tournAvailSuggestedTitle || 'Ortak uygunluk'}
+                                </Text>
+                                <Text style={{ color: '#e2e8f0', fontSize: 11, lineHeight: 16, marginBottom: 8 }}>
+                                    {t.tournAvailSuggestedHint || 'Ortak kortlar ve ortak saat aralığı aşağıda. Kesin kort ve saati teklif ederek seçin.'}
+                                </Text>
+                                {suggestedWindows.length > 0 ? (
+                                    <View style={{ marginBottom: suggestedCourts.length ? 8 : 0, gap: 4 }}>
+                                        <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800' }}>
+                                            {t.tournAvailSuggestedWindows || 'Ortak saatler'}
+                                        </Text>
+                                        {suggestedWindows.map((w, i) => (
+                                            <TouchableOpacity
+                                                key={`${w.date}-${w.timeFrom}-${i}`}
+                                                disabled={!canAct || lockedByAdmin}
+                                                onPress={() => {
+                                                    if (!canAct || lockedByAdmin) return;
+                                                    setPropDate(w.date || '');
+                                                    setPropFrom(w.timeFrom || '10:00');
+                                                    setPropTo(w.timeTo || '12:00');
+                                                }}
+                                                style={{
+                                                    backgroundColor: '#0f172a',
+                                                    borderRadius: 8,
+                                                    paddingHorizontal: 8,
+                                                    paddingVertical: 6,
+                                                    borderWidth: 1,
+                                                    borderColor: '#334155',
+                                                }}
+                                            >
+                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                                                    📅 {w.date} · {w.timeFrom}-{w.timeTo}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                ) : null}
+                                {suggestedCourts.length > 0 ? (
+                                    <View style={{ gap: 4 }}>
+                                        <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800' }}>
+                                            {t.tournAvailSuggestedCourts || 'Ortak kortlar'}
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                            {suggestedCourts.map((c) => (
+                                                <TouchableOpacity
+                                                    key={c.key || c.courtId || c.venueId || c.name}
+                                                    disabled={!canAct || lockedByAdmin}
+                                                    onPress={() => {
+                                                        if (!canAct || lockedByAdmin) return;
+                                                        setPropVenue(c.name || '');
+                                                        setPropCourtId(c.courtId || null);
+                                                    }}
+                                                    style={{
+                                                        backgroundColor: '#7c3aed30',
+                                                        borderRadius: 999,
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 5,
+                                                        borderWidth: 1,
+                                                        borderColor: '#7c3aed60',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                                        🏟 {c.name}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+                                ) : null}
+                            </View>
+                        ) : null}
 
                         {!canAct && !agreedText ? (
                             <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 12 }}>

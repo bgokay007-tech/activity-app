@@ -4098,7 +4098,7 @@ function buildDateTime(date, time) {
 }
 
 function emptySchedule() {
-    return { availability: { p1: [], p2: [] }, proposals: [], agreed: null };
+    return { availability: { p1: [], p2: [] }, proposals: [], agreed: null, suggested: null };
 }
 
 function normalizeSchedule(raw) {
@@ -4111,6 +4111,8 @@ function normalizeSchedule(raw) {
         },
         proposals: Array.isArray(raw.proposals) ? raw.proposals : [],
         agreed: raw.agreed && typeof raw.agreed === 'object' ? raw.agreed : null,
+        // Ortak kort + ortak saat penceresi (belirli kort yok + müsaitlik eşleştirme)
+        suggested: raw.suggested && typeof raw.suggested === 'object' ? raw.suggested : null,
     };
 }
 
@@ -4136,8 +4138,14 @@ async function resolveUserMatchSide(tournament, match, userId) {
 function sanitizeScheduleForViewer(scheduleData, isMatchParticipant) {
     const s = normalizeSchedule(scheduleData);
     if (isMatchParticipant) return s;
-    // Diğer katılımcılar yalnızca anlaşılmış yer/zamanı görür
-    return s.agreed ? { availability: { p1: [], p2: [] }, proposals: [], agreed: s.agreed } : null;
+    // Diğerleri: anlaşılmış yer/zaman (+ önerilen ortak kort/pencere özeti)
+    if (!s.agreed && !s.suggested) return null;
+    return {
+        availability: { p1: [], p2: [] },
+        proposals: [],
+        agreed: s.agreed,
+        suggested: s.suggested,
+    };
 }
 
 /** Maç listesinde her maçın scheduleData'sını izleyiciye göre kırp */

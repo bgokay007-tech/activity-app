@@ -1508,7 +1508,8 @@ model TournamentMatch {
   // Eşleşen tarafların ortak yer/zaman müzakeresi:
   // { availability:{p1:[{weekday,timeFrom,timeTo}],p2:[...]},
   //   proposals:[{id,side,byUserId,venueName,courtId?,date,timeFrom,timeTo,createdAt}],
-  //   agreed:{venueName,courtId?,date,timeFrom,timeTo,proposalId?,agreedByUserId,agreedAt}|null }
+  //   agreed:{venueName,courtId?,date,timeFrom,timeTo,proposalId?,agreedByUserId,agreedAt,lockedByAdmin?}|null,
+  //   suggested:{windows:[{date,timeFrom,timeTo}],courts:[{courtId?,venueId?,name}]}|null }
   scheduleData          Json?
   // Müsaitliğe göre eşleştirme: hangi TournamentRound'tan üretildi (null = klasik kura)
   roundId               String?
@@ -1553,6 +1554,9 @@ model TournamentRoundAvailability {
   maxMatches   Int      @default(1)
   // [{date:'YYYY-MM-DD', timeFrom:'HH:mm', timeTo:'HH:mm'}] veya weekday+saat
   slots        Json
+  // Belirli kort yokken: oyuncunun oynayabileceği kort/mekan seçenekleri (1+)
+  // [{courtId?, venueId?, name, city?}]
+  preferredCourts Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
