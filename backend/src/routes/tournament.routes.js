@@ -49,6 +49,19 @@ import {
     agreeMatchSchedule,
     clearMatchScheduleAgreed,
 } from '../controllers/tournament.controller.js';
+import {
+    getTournamentRounds,
+    updateTournamentRound,
+    upsertRoundAvailability,
+    getRoundAvailabilities,
+    generateRoundMatching,
+    setRoundProposedMatches,
+    approveRoundMatching,
+    adminUpdateMatchSchedule,
+    getMatchMessages,
+    sendMatchMessage,
+    respondMatchRequest,
+} from '../controllers/tournamentAvailability.controller.js';
 
 const router = Router();
 router.use(authenticate);
@@ -94,6 +107,17 @@ router.patch('/:id/matches/:matchId/availability', setMatchAvailability);
 router.post('/:id/matches/:matchId/schedule-propose', proposeMatchSchedule);
 router.post('/:id/matches/:matchId/schedule-agree', agreeMatchSchedule);
 router.delete('/:id/matches/:matchId/schedule-agreed', clearMatchScheduleAgreed);
+router.patch('/:id/matches/:matchId/admin-schedule', adminUpdateMatchSchedule);
+router.get('/:id/matches/:matchId/messages', getMatchMessages);
+router.post('/:id/matches/:matchId/messages', sendMatchMessage);
+router.post('/:id/matches/:matchId/messages/:messageId/respond', respondMatchRequest);
+router.get('/:id/rounds', getTournamentRounds);
+router.patch('/:id/rounds/:roundId', updateTournamentRound);
+router.put('/:id/rounds/:roundId/availability', upsertRoundAvailability);
+router.get('/:id/rounds/:roundId/availabilities', getRoundAvailabilities);
+router.post('/:id/rounds/:roundId/generate-matching', generateRoundMatching);
+router.put('/:id/rounds/:roundId/proposed-matches', setRoundProposedMatches);
+router.post('/:id/rounds/:roundId/approve-matching', approveRoundMatching);
 router.patch('/:id/playoff-round-deadline',  assignPlayoffRoundDeadline);
 router.post('/:id/extend-round',             extendRoundDeadline);
 router.post('/:id/matches/:matchId/extend',  extendMatchDeadline);

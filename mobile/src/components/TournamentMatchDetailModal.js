@@ -3,6 +3,7 @@ import {
     View, Text, Modal, ScrollView, TouchableOpacity, TextInput,
     ActivityIndicator, Alert, Platform,
 } from 'react-native';
+import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
@@ -63,6 +64,15 @@ export default function TournamentMatchDetailModal({
     const [propFrom, setPropFrom] = useState('10:00');
     const [propTo, setPropTo] = useState('12:00');
     const [propVenue, setPropVenue] = useState('');
+    const [chatMsgs, setChatMsgs] = useState([]);
+    const [chatText, setChatText] = useState('');
+    const [reqDate, setReqDate] = useState('');
+    const [reqFrom, setReqFrom] = useState('10:00');
+    const [reqTo, setReqTo] = useState('12:00');
+    const [adminDate, setAdminDate] = useState('');
+    const [adminFrom, setAdminFrom] = useState('');
+    const [adminTo, setAdminTo] = useState('');
+    const myUserId = useSelector(s => s.auth?.user?.id);
 
     const iAmSide = !!match?._iAmMatchSide
         || (match && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId));
@@ -81,7 +91,28 @@ export default function TournamentMatchDetailModal({
         setSchedule(s);
         if (mySide) setMySlots(Array.isArray(s.availability?.[mySide]) ? s.availability[mySide] : []);
         else setMySlots([]);
+        if (s.agreed) {
+            setAdminDate(s.agreed.date || '');
+            setAdminFrom(s.agreed.timeFrom || '');
+            setAdminTo(s.agreed.timeTo || '');
+        }
     }, [visible, match?.id, match?.scheduleData, mySide]);
+
+    const lockedByAdmin = !!schedule?.agreed?.lockedByAdmin || !!tournament?.availabilityMatchEnabled;
+
+    useEffect(() => {
+        if (!visible || !match?.id || !tournament?.id) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await api.get(`/tournaments/${tournament.id}/matches/${match.id}/messages`);
+                if (!cancelled) setChatMsgs(data.messages || []);
+            } catch {
+                if (!cancelled) setChatMsgs([]);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [visible, match?.id, tournament?.id]);
 
     const agreedText = useMemo(() => formatAgreed(schedule?.agreed), [schedule?.agreed]);
     const oppSlots = oppSide ? (schedule?.availability?.[oppSide] || []) : [];
@@ -158,6 +189,80 @@ export default function TournamentMatchDetailModal({
             setSchedule(data.scheduleData);
             onRefresh?.();
             Alert.alert('', t.tournSchedAgreedOk || 'Anlaşıldı');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const sendChat = async () => {
+        const text = chatText.trim();
+        if (!text) return;
+        setSaving(true);
+        try {
+            const { data } = await api.post(`/tournaments/${tournament.id}/matches/${match.id}/messages`, {
+                content: text,
+                kind: 'CHAT',
+            });
+            setChatMsgs(prev => [...prev, data]);
+            setChatText('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const sendScheduleRequest = async () => {
+        if (!reqDate.trim() || !reqFrom.trim() || !reqTo.trim()) {
+            Alert.alert('', t.tournSchedNeedDateTime || 'Tarih ve saat gerekli');
+            return;
+        }
+        setSaving(true);
+        try {
+            const { data } = await api.post(`/tournaments/${tournament.id}/matches/${match.id}/messages`, {
+                content: `${reqDate} ${reqFrom}-${reqTo}`,
+                kind: 'REQUEST',
+                requestType: 'SCHEDULE_CHANGE',
+                requestData: { date: reqDate.trim(), timeFrom: reqFrom.trim(), timeTo: reqTo.trim() },
+            });
+            setChatMsgs(prev => [...prev, data]);
+            setReqDate('');
+            Alert.alert('', t.tournMatchReqSent || 'Talep gönderildi');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const respondRequest = async (messageId, accept) => {
+        setSaving(true);
+        try {
+            const { data } = await api.post(
+                `/tournaments/${tournament.id}/matches/${match.id}/messages/${messageId}/respond`,
+                { accept },
+            );
+            setChatMsgs(prev => prev.map(m => m.id === messageId ? data : m));
+            onRefresh?.();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const saveAdminSchedule = async () => {
+        setSaving(true);
+        try {
+            const { data } = await api.patch(
+                `/tournaments/${tournament.id}/matches/${match.id}/admin-schedule`,
+                { date: adminDate, timeFrom: adminFrom, timeTo: adminTo },
+            );
+            setSchedule(data.scheduleData);
+            onRefresh?.();
+            Alert.alert('', t.tournSchedAgreedOk || 'Kaydedildi');
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
         } finally {
@@ -258,7 +363,29 @@ export default function TournamentMatchDetailModal({
                             </Text>
                         ) : null}
 
-                        {canAct && (
+                        {(isCreator || myIsAdmin) && tournament?.availabilityMatchEnabled && (
+                            <View style={{ marginBottom: 14, backgroundColor: '#1e293b', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#334155' }}>
+                                <Text style={{ color: '#c4b5fd', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                    {t.tournAvailAdminSchedule || 'Admin: kilitli saat değiştir'}
+                                </Text>
+                                <TextInput
+                                    value={adminDate}
+                                    onChangeText={setAdminDate}
+                                    placeholder="YYYY-MM-DD"
+                                    placeholderTextColor="#64748b"
+                                    style={{ backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                                />
+                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                    <TextInput value={adminFrom} onChangeText={setAdminFrom} placeholder="10:00" placeholderTextColor="#64748b" style={{ flex: 1, backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }} />
+                                    <TextInput value={adminTo} onChangeText={setAdminTo} placeholder="12:00" placeholderTextColor="#64748b" style={{ flex: 1, backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }} />
+                                </View>
+                                <TouchableOpacity onPress={saveAdminSchedule} style={{ backgroundColor: '#7c3aed30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#7c3aed60' }}>
+                                    <Text style={{ color: '#c4b5fd', fontWeight: '800', fontSize: 12 }}>{t.save || 'Kaydet'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        {canAct && !lockedByAdmin && (
                             <>
                                 {/* Rakip müsaitliği */}
                                 <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
@@ -425,6 +552,60 @@ export default function TournamentMatchDetailModal({
                                     })
                                 )}
                             </>
+                        )}
+
+                        {/* Maç kartı sohbet + talep */}
+                        {(iAmSide || isCreator || myIsAdmin) && isReady && (
+                            <View style={{ marginTop: 8, marginBottom: 12, backgroundColor: '#1e293b', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#334155' }}>
+                                <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 8 }}>
+                                    {t.tournMatchChatTitle || 'Maç sohbeti / talep'}
+                                </Text>
+                                {chatMsgs.map(m => (
+                                    <View key={m.id} style={{ marginBottom: 8, backgroundColor: '#0f172a', borderRadius: 8, padding: 8 }}>
+                                        <Text style={{ color: '#94a3b8', fontSize: 10 }}>
+                                            {m.sender?.fullName || m.sender?.username || '—'}
+                                            {m.kind === 'REQUEST' ? ` · ${t.tournMatchReq || 'Talep'}` : ''}
+                                            {m.status ? ` · ${m.status}` : ''}
+                                        </Text>
+                                        <Text style={{ color: '#fff', fontSize: 12, marginTop: 2 }}>{m.content}</Text>
+                                        {m.kind === 'REQUEST' && m.status === 'PENDING' && m.senderId !== myUserId && (
+                                            <View style={{ flexDirection: 'row', gap: 8, marginTop: 6 }}>
+                                                <TouchableOpacity onPress={() => respondRequest(m.id, true)} style={{ flex: 1, backgroundColor: '#16a34a30', borderRadius: 6, paddingVertical: 6, alignItems: 'center' }}>
+                                                    <Text style={{ color: '#4ade80', fontWeight: '800', fontSize: 11 }}>{t.tournSchedAgreeBtn || 'Kabul'}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => respondRequest(m.id, false)} style={{ flex: 1, backgroundColor: '#7f1d1d30', borderRadius: 6, paddingVertical: 6, alignItems: 'center' }}>
+                                                    <Text style={{ color: '#f87171', fontWeight: '800', fontSize: 11 }}>{t.reject || 'Reddet'}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        )}
+                                    </View>
+                                ))}
+                                <TextInput
+                                    value={chatText}
+                                    onChangeText={setChatText}
+                                    placeholder={t.tournMatchChatPh || 'Mesaj yaz…'}
+                                    placeholderTextColor="#64748b"
+                                    style={{ backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                                />
+                                <TouchableOpacity onPress={sendChat} style={{ backgroundColor: infoColor + '25', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: infoColor + '50', marginBottom: 10 }}>
+                                    <Text style={{ color: infoColor, fontWeight: '800', fontSize: 12 }}>{t.tournMatchSend || 'Gönder'}</Text>
+                                </TouchableOpacity>
+                                {iAmSide && (
+                                    <>
+                                        <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700', marginBottom: 4 }}>
+                                            {t.tournMatchReqSchedule || 'Saat değişikliği talep et'}
+                                        </Text>
+                                        <TextInput value={reqDate} onChangeText={setReqDate} placeholder="YYYY-MM-DD" placeholderTextColor="#64748b" style={{ backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }} />
+                                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                                            <TextInput value={reqFrom} onChangeText={setReqFrom} placeholder="10:00" placeholderTextColor="#64748b" style={{ flex: 1, backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }} />
+                                            <TextInput value={reqTo} onChangeText={setReqTo} placeholder="12:00" placeholderTextColor="#64748b" style={{ flex: 1, backgroundColor: '#0f172a', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }} />
+                                        </View>
+                                        <TouchableOpacity onPress={sendScheduleRequest} style={{ backgroundColor: '#f59e0b20', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#f59e0b50' }}>
+                                            <Text style={{ color: '#fbbf24', fontWeight: '800', fontSize: 12 }}>{t.tournMatchSendReq || 'Talep gönder'}</Text>
+                                        </TouchableOpacity>
+                                    </>
+                                )}
+                            </View>
                         )}
 
                         {/* Skor / gün uzat / joker — eşleşenler (+ sahip uzatma) */}

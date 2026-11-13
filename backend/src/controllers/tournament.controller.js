@@ -892,6 +892,7 @@ export const createTournament = async (req, res, next) => {
             minPlayers, maxPlayers, minRating, maxRating,
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
+            availabilityMatchEnabled,
             setsPerMatch, advantageScoring, decidingTiebreak, matchesBeforePlayoff, playoffQualifiers,
             teamSize, teamRequiredMaleCount,
             rules, extraServices,
@@ -987,6 +988,7 @@ export const createTournament = async (req, res, next) => {
                 matchTimeStart: matchTimeStart || null,
                 matchTimeEnd: matchTimeEnd || null,
                 dayTrip: dayTrip === true,
+                availabilityMatchEnabled: availabilityMatchEnabled === true,
                 minPlayers: minPlayers ? parseInt(minPlayers) : 2,
                 setsPerMatch: setsPerMatch ? parseInt(setsPerMatch) : null,
                 // true/false/null (serbest) istemciden geldiği gibi kaydedilir — sadece hiç
@@ -1104,6 +1106,7 @@ export const getTournamentById = async (req, res, next) => {
                 _count:  { select: { participants: { where: { status: 'ACCEPTED' } }, messages: true } },
                 participants: { where: { userId: myId }, select: { userId: true, status: true } },
                 typeVotes: { select: { userId: true, votedType: true } },
+                rounds: { orderBy: { roundIndex: 'asc' } },
             },
         });
         if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
@@ -2025,6 +2028,63 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
 
     if (players.length < (tournament.minPlayers || 2)) {
         throw Object.assign(new Error(`En az ${tournament.minPlayers || 2} oyuncu gerekli`), { status: 400 });
+    }
+
+    // Müsaitliğe göre eşleştirme: format aynı kalır; kura yerine haftalık tur + admin onaylı eşleşme
+    if (tournament.availabilityMatchEnabled) {
+        if (isDefi(tournament)) {
+            throw Object.assign(new Error('Defi liginde müsaitliğe göre eşleştirme kullanılamaz'), { status: 400 });
+        }
+        let sides;
+        let excludedFromTeamsAvail = [];
+        if (tournament.type === '2' || tournament.type === '4') {
+            const { teamsData, excluded } = await formTeamsForTournament(
+                tournament, rawParticipants, tournament.type === '4',
+            );
+            excludedFromTeamsAvail = excluded;
+            if (teamsData.length < 2) {
+                throw Object.assign(new Error('Çiftler turnuvası için en az 2 takım gerekli'), { status: 400 });
+            }
+            for (const ex of excluded) {
+                const body = ex.reason === 'capacity'
+                    ? `"${tournament.name}" turnuvasında kontenjan dolduğu için bu turda yer alamadınız.`
+                    : `"${tournament.name}" turnuvasında size eşleşecek bir partner bulunamadığı için bu turda yer alamadınız.`;
+                createNotification(
+                    ex.userId, 'TOURNAMENT_REMOVED', '⚠️ Takım Eşleşmesi Bulunamadı', body,
+                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+                ).catch(() => {});
+            }
+            const createdTeams = await prisma.$transaction(teamsData.map(td => prisma.tournamentTeam.create({ data: td })));
+            sides = createdTeams.map(t => ({
+                id: t.id,
+                name: `${t.player1Name} & ${t.player2Name}`,
+                skillRating: t.avgRating,
+                memberUserIds: [t.player1Id, t.player2Id].filter(Boolean),
+            }));
+        } else if (tournament.type === '7') {
+            // Americano: her tur geçici çift — side bireysel oyuncu; eşleşme motoru tur bazlı
+            if (players.length < 4) {
+                throw Object.assign(new Error('Americano için en az 4 oyuncu gerekli'), { status: 400 });
+            }
+            sides = players.filter(p => p.id).map(p => ({
+                id: p.id,
+                name: sportDisplayName(p, { alias: p.alias }),
+                skillRating: p.skillRating || 0,
+                memberUserIds: [p.id],
+            }));
+        } else {
+            sides = players.filter(p => p.id).map(p => ({
+                id: p.id,
+                name: sportDisplayName(p, { alias: p.alias }),
+                skillRating: p.skillRating || 0,
+                memberUserIds: [p.id],
+            }));
+        }
+        const { bootstrapAvailabilityRounds } = await import('./tournamentAvailability.controller.js');
+        const result = await bootstrapAvailabilityRounds(tournament, { sides, actorUserId });
+        // excluded bildirimleri zaten yukarıda; sonuç dön
+        void excludedFromTeamsAvail;
+        return result;
     }
 
     const mmType = tournament.matchmakingType || 'ELO';

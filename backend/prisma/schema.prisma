@@ -120,6 +120,8 @@ model User {
   challengesReceived MatchChallenge[] @relation("challengeReceiver")
   tournamentMessages TournamentMessage[]
   tournamentChatNotifyPrefs TournamentChatNotify[]
+  tournamentRoundAvailabilities TournamentRoundAvailability[]
+  tournamentMatchMessages TournamentMatchMessage[]
   conversations1   Conversation[] @relation("convUser1")
   conversations2   Conversation[] @relation("convUser2")
   conversationMutes ConversationMute[]
@@ -1397,6 +1399,8 @@ model Tournament {
   matchTimeStart       String?      // earliest allowed match time e.g. '09:00'
   matchTimeEnd         String?      // latest allowed match time e.g. '22:00'
   dayTrip              Boolean      @default(false) // Günübirlik: tüm maçlar tek günde oynanır — joker/haftalık süre kuralları (3./4. madde) geçersizdir
+  // true: format aynı kalır; kim kiminle oynayacağı müsaitlik+kapasite algoritması + admin onayı ile belirlenir
+  availabilityMatchEnabled Boolean  @default(false)
   minPlayers           Int          @default(2)
   maxPlayers           Int          @default(32)
   setsPerMatch         Int?         // 1 | 3 | 5
@@ -1441,6 +1445,8 @@ model Tournament {
   teams            TournamentTeam[]
   tournamentCourts TournamentCourt[]
   courtBlocks      CourtBlock[]
+  rounds           TournamentRound[]
+  roundAvailabilities TournamentRoundAvailability[]
 }
 
 // TURNUVA GRUP SOHBETI — turnuva sahibi + AS/yedek olarak onaylanmis tum katilimcilar
@@ -1504,9 +1510,73 @@ model TournamentMatch {
   //   proposals:[{id,side,byUserId,venueName,courtId?,date,timeFrom,timeTo,createdAt}],
   //   agreed:{venueName,courtId?,date,timeFrom,timeTo,proposalId?,agreedByUserId,agreedAt}|null }
   scheduleData          Json?
+  // Müsaitliğe göre eşleştirme: hangi TournamentRound'tan üretildi (null = klasik kura)
+  roundId               String?
 
-  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  court        Court?     @relation(fields: [courtId], references: [id], onDelete: SetNull)
+  tournament       Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentRound  TournamentRound? @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  court            Court?     @relation(fields: [courtId], references: [id], onDelete: SetNull)
+  messages         TournamentMatchMessage[]
+}
+
+// Haftalık tur — müsaitliğe göre eşleştirme açıkken oluşturulur; admin tarihleri değiştirebilir
+model TournamentRound {
+  id                  String   @id @default(uuid())
+  tournamentId        String
+  roundIndex          Int      // 1-based hafta/tur
+  startDate           DateTime // oyun penceresi başlangıcı
+  endDate             DateTime // oyun penceresi bitişi
+  availabilityOpenAt  DateTime
+  availabilityCloseAt DateTime
+  status              String   @default("UPCOMING") // UPCOMING | AVAIL_OPEN | PENDING_APPROVAL | ACTIVE | COMPLETED
+  // Admin onay öncesi taslak: [{p1Id,p1Name,p2Id,p2Name,slot:{date,timeFrom,timeTo}, eloDiff?}]
+  proposedMatches     Json?
+  // Son üretilen/onaylanan eşleşme parmak izi — aynı eşleştirmeyi tekrarlamada uyarı
+  lastFingerprint     String?
+  matchingApprovedAt  DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  tournament     Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  availabilities TournamentRoundAvailability[]
+  matches        TournamentMatch[]
+
+  @@unique([tournamentId, roundIndex])
+}
+
+// Katılımcının bir tur için müsait gün/saat + o turda kaç maç yapabileceği (1–5)
+model TournamentRoundAvailability {
+  id           String   @id @default(uuid())
+  roundId      String
+  tournamentId String
+  userId       String
+  maxMatches   Int      @default(1)
+  // [{date:'YYYY-MM-DD', timeFrom:'HH:mm', timeTo:'HH:mm'}] veya weekday+saat
+  slots        Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  round      TournamentRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  tournament Tournament     @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, userId])
+}
+
+// Maç kartı içi sohbet + talep (saat değişikliği vb.)
+model TournamentMatchMessage {
+  id          String   @id @default(uuid())
+  matchId     String
+  senderId    String
+  content     String
+  kind        String   @default("CHAT") // CHAT | REQUEST
+  requestType String?  // SCHEDULE_CHANGE
+  requestData Json?
+  status      String?  // PENDING | ACCEPTED | REJECTED (REQUEST için)
+  createdAt   DateTime @default(now())
+
+  match  TournamentMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  sender User            @relation(fields: [senderId], references: [id], onDelete: Cascade)
 }
 
 // TURNUVA KATILIMCI / JOIN REQUEST

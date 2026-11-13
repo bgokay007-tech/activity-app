@@ -37,6 +37,7 @@ import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
 import { moderateScale, touchSize } from '../../theme/scale';
 import TournamentMatchDetailModal from '../../components/TournamentMatchDetailModal';
+import TournamentAvailabilityPanel from '../../components/TournamentAvailabilityPanel';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
@@ -19414,6 +19415,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     };
 
     const infoColor = cfg.color;
+    const lang = useSelector(s => s.lang?.lang || 'en');
 
     const openTournPhone = (phone) => {
         if (!phone) return;
@@ -19665,6 +19667,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>{t.sc_0408}</Text>
                     </View>
                 ) : null}
+                {item.availabilityMatchEnabled ? (
+                    <View style={{ backgroundColor:'#7c3aed18', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#7c3aed40' }}>
+                        <Text style={{ color:'#c4b5fd', fontSize:10, fontWeight:'800' }}>{t.tournAvailBadge || 'Müsaitliğe göre eşleştir'}</Text>
+                    </View>
+                ) : null}
                 {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' ? (
                     <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50' }}>
                         <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
@@ -19823,6 +19830,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     : t.sc_0427}
                             </Text>
                         </View>
+                    )}
+                    {item.availabilityMatchEnabled && (
+                        <TournamentAvailabilityPanel
+                            tournament={item}
+                            t={t}
+                            lang={lang}
+                            accent={infoColor}
+                            isCreator={isCreator}
+                            myIsAdmin={myIsAdmin}
+                            onRefresh={() => { fetchMatches?.(); }}
+                        />
                     )}
                     {TOURN_TYPES.includes(item.type) && (
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
@@ -22376,7 +22394,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
         ratingGenderSplit: false,
         minRatingMale: '', maxRatingMale: '',
         minRatingFemale: '', maxRatingFemale: '',
-        matchmakingType: 'ELO', matchFrequency: 'FLEXIBLE', matchTimeStart: '', matchTimeEnd: '', dayTrip: false,
+                matchmakingType: 'ELO', matchFrequency: 'FLEXIBLE', matchTimeStart: '', matchTimeEnd: '', dayTrip: false,
+                availabilityMatchEnabled: false,
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
@@ -22573,6 +22592,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 matchTimeStart: f.matchTimeStart || undefined,
                 matchTimeEnd: f.matchTimeEnd || undefined,
                 dayTrip: f.dayTrip,
+                availabilityMatchEnabled: f.availabilityMatchEnabled === true && f.type !== '9',
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
@@ -23026,6 +23046,28 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                     ))}
                                 </View>
+                            )}
+
+                            {/* Kuralların altında: müsaitliğe göre eşleştir (Defi hariç) */}
+                            {!f.pollEnabled && f.type !== '9' && (
+                                <TouchableOpacity
+                                    onPress={() => set('availabilityMatchEnabled', !f.availabilityMatchEnabled)}
+                                    style={{
+                                        backgroundColor: f.availabilityMatchEnabled ? cfg.color + '22' : '#1e293b',
+                                        borderRadius: 8,
+                                        padding: 10,
+                                        marginBottom: 10,
+                                        borderWidth: 1,
+                                        borderColor: f.availabilityMatchEnabled ? cfg.color : '#334155',
+                                    }}
+                                >
+                                    <Text style={{ color: f.availabilityMatchEnabled ? cfg.color : '#e2e8f0', fontSize: 12, fontWeight: '900' }}>
+                                        {f.availabilityMatchEnabled ? '✅ ' : ''}{t.tournAvailToggle || 'Müsaitliğe göre eşleştir'}
+                                    </Text>
+                                    <Text style={{ color: '#94a3b8', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
+                                        {t.tournAvailToggleHint || 'Katılımcılar tur/hafta için müsait gün-saat ve maç sayısı girer; sistem ortak aralığa göre eşleştirir, admin onaylar.'}
+                                    </Text>
+                                </TouchableOpacity>
                             )}
                             </>
                             )}
