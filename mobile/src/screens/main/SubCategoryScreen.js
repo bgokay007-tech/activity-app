@@ -18473,6 +18473,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [extendTarget, setExtendTarget] = useState(null); // null | { kind:'round', phase, round, label } | { kind:'match', match, label }
     const [extendDaysInput, setExtendDaysInput] = useState('7');
     const [extendingDeadline, setExtendingDeadline] = useState(false);
+    const [showDeadlinePickModal, setShowDeadlinePickModal] = useState(false);
     const [drawingUnscored, setDrawingUnscored] = useState(false);
     const [detailMatch, setDetailMatch] = useState(null); // tur kartına tıklanınca maç detayı
     const [playoffDeadlineDate, setPlayoffDeadlineDate] = useState(null);
@@ -19163,45 +19164,122 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         );
     };
 
-    const handleFixDeadlines = async () => {
-        try {
-            const { data } = await api.post(`/tournaments/${item.id}/fix-deadlines`);
-            setTournMatches(Array.isArray(data.matches) ? data.matches : []);
-            Alert.alert('✅', t.sc_0380(data.fixed));
-        } catch (e) {
-            Alert.alert('', e?.response?.data?.message || t.actionFailed);
-        }
+    // Süre düzelt: maç seç → mevcut uzatma modalı (veya tümünü turnuva başlangıcına göre hizala)
+    const handleFixDeadlines = () => {
+        Alert.alert(
+            t.sc_0612,
+            t.tournFixDurationChoose || 'Süresini düzenlemek istediğiniz maçı seçin, veya tüm maç sürelerini turnuva başlangıcına göre yeniden hizalayın.',
+            [
+                { text: t.sc_0065, style: 'cancel' },
+                {
+                    text: t.tournFixDurationPickMatch || 'Maç seç',
+                    onPress: async () => {
+                        try {
+                            if (!(tournMatches || []).length) await fetchMatches();
+                        } catch { /* */ }
+                        setShowDeadlinePickModal(true);
+                    },
+                },
+                {
+                    text: t.tournFixDurationAll || 'Tümünü hizala',
+                    onPress: async () => {
+                        try {
+                            const { data } = await api.post(`/tournaments/${item.id}/fix-deadlines`);
+                            setTournMatches(Array.isArray(data.matches) ? data.matches : []);
+                            Alert.alert('✅', t.sc_0380(data.fixed));
+                        } catch (e) {
+                            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                        }
+                    },
+                },
+            ],
+        );
     };
 
+    // Turu düzelt = tüm turları silip turnuvayı OPEN'a çek (baştan başlat). İki katmanlı onay.
     const handleRegenRound = () => {
-        Alert.alert(t.sc_0381, t.sc_0382, [
-            { text: t.sc_0065, style: 'cancel' },
-            { text: t.sc_0383, style: 'destructive', onPress: async () => {
-                try {
-                    const { data } = await api.post(`/tournaments/${item.id}/regen-round`);
-                    setTournMatches(Array.isArray(data) ? data : []);
-                    Alert.alert('✅', t.sc_0384);
-                } catch (e) {
-                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
-                }
-            }},
-        ]);
+        Alert.alert(
+            t.sc_0613,
+            t.tournRestartWarn1 || t.sc_0382,
+            [
+                { text: t.sc_0065, style: 'cancel' },
+                {
+                    text: t.tournRestartContinue || t.sc_0383,
+                    style: 'destructive',
+                    onPress: () => {
+                        Alert.alert(
+                            t.tournRestartWarn2Title || t.sc_0381,
+                            t.tournRestartWarn2 || t.sc_0382,
+                            [
+                                { text: t.sc_0065, style: 'cancel' },
+                                {
+                                    text: t.tournRestartConfirm || t.sc_0383,
+                                    style: 'destructive',
+                                    onPress: async () => {
+                                        try {
+                                            const { data } = await api.post(`/tournaments/${item.id}/regen-round`);
+                                            setTournMatches([]);
+                                            onUpdated?.();
+                                            Alert.alert(
+                                                '✅',
+                                                t.tournRestartDone || t.sc_0384,
+                                                [
+                                                    { text: t.sc_0065, style: 'cancel' },
+                                                    {
+                                                        text: t.sc_0377,
+                                                        onPress: () => handleStartTournament(),
+                                                    },
+                                                ],
+                                            );
+                                            if (data?.wipedCompleted != null) { /* ok */ }
+                                        } catch (e) {
+                                            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                                        }
+                                    },
+                                },
+                            ],
+                        );
+                    },
+                },
+            ],
+        );
     };
 
+    // Tekrar eşleştir = mevcut (son) turu yeniden kur; o turdaki oynanmış maçlar da silinir.
     const handleRematch = () => {
-        Alert.alert(t.sc_0385, t.sc_0386, [
-            { text: t.sc_0065, style: 'cancel' },
-            { text: t.sc_0387, style: 'destructive', onPress: async () => {
-                try {
-                    const { data } = await api.post(`/tournaments/${item.id}/rematch`);
-                    setTournMatches(Array.isArray(data) ? data : []);
-                    if (!showMatchesModal) { fetchMatches(); setShowMatchesModal(true); }
-                    Alert.alert('✅', t.sc_0388);
-                } catch (e) {
-                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
-                }
-            }},
-        ]);
+        const group = (tournMatches || []).filter(m => m.phase === 'GROUP');
+        const maxRound = group.length ? Math.max(...group.map(m => m.round || 1)) : 1;
+        const current = group.filter(m => m.round === maxRound);
+        const doneCount = current.filter(m => m.status === 'COMPLETED' || m.status === 'FORFEIT').length;
+        const warn = (t.tournRematchWarn || t.sc_0386)
+            .replace('{round}', String(maxRound))
+            .replace('{done}', String(doneCount));
+        Alert.alert(
+            t.sc_0611,
+            warn,
+            [
+                { text: t.sc_0065, style: 'cancel' },
+                {
+                    text: t.sc_0387,
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            const { data } = await api.post(`/tournaments/${item.id}/rematch`);
+                            const list = Array.isArray(data) ? data : (data?.matches || []);
+                            setTournMatches(list);
+                            if (!showMatchesModal) { fetchMatches(); setShowMatchesModal(true); }
+                            const round = data?.rematchedRound || maxRound;
+                            const wiped = data?.wipedCompleted ?? doneCount;
+                            Alert.alert('✅', (t.tournRematchDone || t.sc_0388)
+                                .replace('{round}', String(round))
+                                .replace('{done}', String(wiped)));
+                        } catch (e) {
+                            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                        }
+                    },
+                },
+            ],
+        );
     };
 
     const openScoreEntry = (match) => {
@@ -20905,6 +20983,54 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     onSelect={(v) => { setPlayoffDeadlineTime(v); setShowPlayoffTimePicker(false); }}
                     onClose={() => setShowPlayoffTimePicker(false)}
                 />
+            </Modal>
+
+            {/* Süre düzelt — maç seçimi */}
+            <Modal visible={showDeadlinePickModal} animationType="slide" transparent onRequestClose={() => setShowDeadlinePickModal(false)} android_keyboardInputMode="adjustNothing">
+                <View style={s.modalOverlay}>
+                    <View style={[s.modalBox, { maxHeight: '70%', paddingBottom: Math.max(24, insets.bottom + 16) }]}>
+                        <View style={s.modalHeader}>
+                            <Text style={[s.modalTitle, { flex: 1 }]}>{t.tournFixDurationPickTitle || t.sc_0612}</Text>
+                            <TouchableOpacity onPress={() => setShowDeadlinePickModal(false)}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                        </View>
+                        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 10, lineHeight: 18 }}>
+                            {t.tournFixDurationPickHint || 'Süresini uzatmak istediğiniz eşleşmeyi seçin.'}
+                        </Text>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {(tournMatches || [])
+                                .filter(m => m.status === 'PENDING' && m.deadline && m.p1Id && m.p2Id)
+                                .map(match => {
+                                    const md = new Date(match.deadline);
+                                    const label = `${match.p1Name || '?'} vs ${match.p2Name || '?'}`;
+                                    const roundLabel = `${t.sc_0403 || 'Tur'} ${match.round || '?'}`;
+                                    return (
+                                        <TouchableOpacity
+                                            key={match.id}
+                                            onPress={() => {
+                                                setShowDeadlinePickModal(false);
+                                                setExtendDaysInput('7');
+                                                setExtendTarget({ kind: 'match', match, label });
+                                            }}
+                                            style={{
+                                                backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 8,
+                                                borderWidth: 1, borderColor: colors.border,
+                                            }}
+                                        >
+                                            <Text style={{ color: colors.text, fontSize: 13, fontWeight: '800' }}>{label}</Text>
+                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 4 }}>
+                                                {roundLabel} · {md.toLocaleDateString()} {md.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            {(tournMatches || []).filter(m => m.status === 'PENDING' && m.deadline && m.p1Id && m.p2Id).length === 0 && (
+                                <Text style={{ color: colors.textMuted, textAlign: 'center', marginTop: 20 }}>
+                                    {t.tournFixDurationNoMatches || 'Bekleyen maç yok.'}
+                                </Text>
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
             </Modal>
 
             {/* Tur / maç süre uzatma (sahip + admin) */}
