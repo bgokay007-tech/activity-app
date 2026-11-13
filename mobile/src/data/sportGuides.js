@@ -56,6 +56,46 @@ export function mergeAthleteRankings(athletes, tours = {}) {
     });
 }
 
+const SPORT_SOURCE_BANK = {
+    tennis: [
+        { label: L('ATP Tour', 'ATP Tour', 'ATP Tour', 'ATP Tour'), url: 'https://www.atptour.com/' },
+        { label: L('WTA', 'WTA', 'WTA', 'WTA'), url: 'https://www.wtatennis.com/' },
+        { label: L('Olympics — tennis greats', 'Olimpiyat — tenis efsaneleri', 'Олимпиада — легенды тенниса', 'Olympia — Tennis-Legenden'), url: 'https://www.olympics.com/en/news/top-tennis-players-best-men-women-rank-greatest-all-time' },
+        { label: L('ESPN Top 20 all-time', 'ESPN tüm zamanlar Top 20', 'ESPN топ-20 всех времён', 'ESPN Top 20 aller Zeiten'), url: 'https://www.espn.com/espn/feature/story/_/id/16371992/tennis-top-20' },
+    ],
+    padel: [
+        { label: L('Premier Padel / FIP', 'Premier Padel / FIP', 'Premier Padel / FIP', 'Premier Padel / FIP'), url: 'https://www.padelfip.com/ranking-history/' },
+        { label: L('Padel Magazine — legends', 'Padel Magazine — efsaneler', 'Padel Magazine — легенды', 'Padel Magazine — Legenden'), url: 'https://padel-magazine.co.uk/From-corcuera-to-coello--a-look-back-at-the-legends-who-made-padel/' },
+    ],
+    badminton: [
+        { label: L('BWF', 'BWF', 'BWF', 'BWF'), url: 'https://bwfbadminton.com/' },
+        { label: L('Olympics / badminton', 'Olimpiyat / badminton', 'Олимпиада / бадминтон', 'Olympia / Badminton'), url: 'https://www.olympics.com/en/sports/badminton/' },
+    ],
+    table_tennis: [
+        { label: L('ITTF', 'ITTF', 'ITTF', 'ITTF'), url: 'https://www.ittf.com/' },
+        { label: L('Olympics / table tennis', 'Olimpiyat / masa tenisi', 'Олимпиада / настольный теннис', 'Olympia / Tischtennis'), url: 'https://www.olympics.com/en/sports/table-tennis/' },
+    ],
+    pickleball: [
+        { label: L('PPA Tour', 'PPA Tour', 'PPA Tour', 'PPA Tour'), url: 'https://www.ppatour.com/' },
+        { label: L('Pickleball.com culture', 'Pickleball.com', 'Pickleball.com', 'Pickleball.com'), url: 'https://pickleball.com/culture/who-belongs-on-pickleball-mount-rushmore' },
+    ],
+    volleyball: [
+        { label: L('FIVB', 'FIVB', 'FIVB', 'FIVB'), url: 'https://www.fivb.com/' },
+        { label: L('Olympics / volleyball', 'Olimpiyat / voleybol', 'Олимпиада / волейбол', 'Olympia / Volleyball'), url: 'https://www.olympics.com/en/sports/volleyball/' },
+    ],
+};
+
+function defaultSourcesFor(sub, athlete) {
+    const wikiSlug = (athlete.wiki || athlete.name || '')
+        .replace(/ /g, '_')
+        .replace(/'/g, '%27');
+    const wiki = {
+        label: L('Wikipedia', 'Wikipedia', 'Википедия', 'Wikipedia'),
+        url: `https://en.wikipedia.org/wiki/${wikiSlug}`,
+    };
+    return [wiki, ...(SPORT_SOURCE_BANK[sub] || [])];
+}
+
 export function getSportGuide(sub, lang = 'en') {
     const g = SPORT_GUIDES[sub];
     if (!g) return null;
@@ -66,7 +106,11 @@ export function getSportGuide(sub, lang = 'en') {
             title: pick(s.title, lang),
             body: pick(s.body, lang),
         })),
-        athletes: rawAthletes.map(a => ({
+        athletes: rawAthletes.map(a => {
+            const rawSources = (a.sources && a.sources.length)
+                ? a.sources
+                : defaultSourcesFor(sub, a);
+            return {
             id: a.id,
             name: a.name,
             years: a.years || '',
@@ -87,7 +131,13 @@ export function getSportGuide(sub, lang = 'en') {
                 label: pick(l.label, lang),
                 url: l.url,
             })),
-        })),
+            // Detay modalının en altında gösterilen kaynaklar (Wikipedia + dal kaynakları).
+            sources: rawSources.map(s => ({
+                label: pick(s.label, lang),
+                url: s.url,
+            })),
+        };
+        }),
         bonus: (g.bonus || []).map(b => ({
             title: pick(b.title, lang),
             body: pick(b.body, lang),

@@ -193,6 +193,22 @@ function AthleteDetailModal({ visible, athlete, onClose, accent, insets }) {
                                 ))}
                             </DetailSection>
                         )}
+                        {(athlete.sources || []).length > 0 && (
+                            <View style={s.sourcesBox}>
+                                <Text style={s.sourcesTitle}>{t.sportGuideSources}</Text>
+                                {(athlete.sources || []).map((src, j) => (
+                                    <TouchableOpacity
+                                        key={`src-${j}`}
+                                        onPress={() => openUrl(src.url)}
+                                        activeOpacity={0.75}
+                                        style={s.sourceRow}
+                                    >
+                                        <Text style={s.sourceBullet}>•</Text>
+                                        <Text style={[s.sourceTxt, { color: accent }]}>{src.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
                         <View style={{ height: 16 }} />
                     </ScrollView>
                 </View>
@@ -431,6 +447,14 @@ const s = StyleSheet.create({
     tipRow: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'flex-start' },
     tipBullet: { color: colors.purple, fontWeight: '900', marginTop: 1 },
     tipTxt: { flex: 1, color: colors.textSecondary, fontSize: moderateScale(12), lineHeight: moderateScale(18) },
+    sourcesBox: {
+        marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 12,
+        borderWidth: 1, borderColor: colors.border, backgroundColor: '#ffffff06',
+    },
+    sourcesTitle: { color: colors.textMuted, fontSize: moderateScale(11), fontWeight: '800', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.6 },
+    sourceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 6 },
+    sourceBullet: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
+    sourceTxt: { flex: 1, fontSize: moderateScale(12), fontWeight: '700', lineHeight: moderateScale(18), textDecorationLine: 'underline' },
 });
 
 const d = StyleSheet.create({

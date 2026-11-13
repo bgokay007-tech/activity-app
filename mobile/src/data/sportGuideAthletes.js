@@ -4,7 +4,7 @@ const L = (en, tr, ru, de) => ({ en, tr, ru, de });
 
 function A({
     id, name, years, country = '', tour = null, status = 'active',
-    peakRank = null, fallbackRank = null, bio, life, achievements, advice, style, links = [],
+    peakRank = null, fallbackRank = null, bio, life, achievements, advice, style, links = [], sources = [], wiki,
 }) {
     return {
         id,
@@ -16,10 +16,27 @@ function A({
         peakRank,
         fallbackRank,
         rankingKey: name.toLowerCase(),
+        wiki: wiki || name.replace(/ /g, '_'),
         bio,
         detail: { life, achievements, advice, style },
         links,
+        sources,
     };
+}
+
+/** Kısa 4 dil + varsayılan kaynak; toplu eklemeler için. */
+export function P({
+    id, name, years, country = '', tour = null, status = 'legend',
+    peakRank = null, fallbackRank = null, wiki,
+    bio, life, ach, adv, sty, links = [], sources = [],
+}) {
+    // Kaynaklar getSportGuide içinde Wikipedia + dal bankasıyla doldurulur.
+    return A({
+        id, name, years, country, tour, status, peakRank, fallbackRank,
+        bio, life, achievements: ach, advice: adv, style: sty, links,
+        sources: sources.length ? sources : [],
+        wiki: wiki || name.replace(/ /g, '_'),
+    });
 }
 
 export const TENNIS_ATHLETES = [
@@ -598,11 +615,33 @@ import {
     VOLLEYBALL_ATHLETES,
 } from './sportGuideAthletesRest.js';
 
+import {
+    TENNIS_MORE,
+    PADEL_MORE,
+    BADMINTON_MORE,
+    TABLE_TENNIS_MORE,
+    PICKLEBALL_MORE,
+    VOLLEYBALL_MORE,
+} from './sportGuideAthletesBulk.js';
+
+function mergeAthletes(...lists) {
+    const seen = new Set();
+    const out = [];
+    for (const list of lists) {
+        for (const a of list || []) {
+            if (!a?.id || seen.has(a.id)) continue;
+            seen.add(a.id);
+            out.push(a);
+        }
+    }
+    return out;
+}
+
 export const ATHLETES_BY_SUB = {
-    tennis: TENNIS_ATHLETES,
-    padel: PADEL_ATHLETES,
-    badminton: BADMINTON_ATHLETES,
-    table_tennis: TABLE_TENNIS_ATHLETES,
-    pickleball: PICKLEBALL_ATHLETES,
-    volleyball: VOLLEYBALL_ATHLETES,
+    tennis: mergeAthletes(TENNIS_ATHLETES, TENNIS_MORE),
+    padel: mergeAthletes(PADEL_ATHLETES, PADEL_MORE),
+    badminton: mergeAthletes(BADMINTON_ATHLETES, BADMINTON_MORE),
+    table_tennis: mergeAthletes(TABLE_TENNIS_ATHLETES, TABLE_TENNIS_MORE),
+    pickleball: mergeAthletes(PICKLEBALL_ATHLETES, PICKLEBALL_MORE),
+    volleyball: mergeAthletes(VOLLEYBALL_ATHLETES, VOLLEYBALL_MORE),
 };

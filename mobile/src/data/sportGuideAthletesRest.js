@@ -4,12 +4,13 @@ const L = (en, tr, ru, de) => ({ en, tr, ru, de });
 
 function A({
     id, name, years, country = '', tour = null, status = 'legend',
-    peakRank = null, fallbackRank = null, bio, life, achievements, advice, style, links = [],
+    peakRank = null, fallbackRank = null, bio, life, achievements, advice, style, links = [], sources = [],
 }) {
     return {
         id, name, years: years || '', country, tour, status, peakRank, fallbackRank,
         rankingKey: name.toLowerCase(),
-        bio, detail: { life, achievements, advice, style }, links,
+        wiki: name.replace(/ /g, '_'),
+        bio, detail: { life, achievements, advice, style }, links, sources,
     };
 }
 
