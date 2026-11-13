@@ -591,7 +591,7 @@ export default function TournamentMatchDetailModal({
                                 {playersArrangeCourts && (
                                     <TextInput
                                         value={propVenue}
-                                        onChangeText={setPropVenue}
+                                        onChangeText={(v) => { setPropVenue(v); setPropCourtId(null); }}
                                         placeholder={t.tournSchedVenuePh || 'Kort / mekan adı'}
                                         placeholderTextColor="#64748b"
                                         style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
