@@ -1,6 +1,8 @@
 /** Spor dalı rehberi — Nasıl oynanır / Önemli sporcular / Bonus.
  *  Metinler en+tr+ru+de; UI etiketleri i18n'de. Linkler harici (Linking.openURL). */
 
+import { ATHLETES_BY_SUB } from './sportGuideAthletes.js';
+
 const L = (en, tr, ru, de) => ({ en, tr, ru, de });
 
 function pick(obj, lang) {
@@ -9,23 +11,78 @@ function pick(obj, lang) {
     return obj[lang] || obj.en || obj.tr || '';
 }
 
+function normKey(s) {
+    return String(s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 export function hasSportGuide(sub) {
     return !!SPORT_GUIDES[sub];
+}
+
+/** Canlı sıralama (tours.ATP / tours.WTA) ile birleştirip sıralar. */
+export function mergeAthleteRankings(athletes, tours = {}) {
+    const map = new Map();
+    for (const [tour, list] of Object.entries(tours || {})) {
+        for (const p of list || []) {
+            const k = normKey(p.key || p.name);
+            if (!k) continue;
+            map.set(k, { rank: p.rank, tour, points: p.points || null });
+        }
+    }
+    const enriched = (athletes || []).map((a) => {
+        const hit = map.get(normKey(a.rankingKey || a.name));
+        const worldRank = hit?.rank ?? (a.status === 'active' ? a.fallbackRank : null) ?? null;
+        return {
+            ...a,
+            worldRank,
+            tourLabel: hit?.tour || a.tour || null,
+            rankLive: !!hit,
+        };
+    });
+    return enriched.sort((a, b) => {
+        const ar = a.worldRank != null ? a.worldRank : null;
+        const br = b.worldRank != null ? b.worldRank : null;
+        if (ar != null && br != null) return ar - br;
+        if (ar != null) return -1;
+        if (br != null) return 1;
+        if (a.status === 'active' && b.status !== 'active') return -1;
+        if (b.status === 'active' && a.status !== 'active') return 1;
+        return (a.peakRank || 999) - (b.peakRank || 999);
+    });
 }
 
 export function getSportGuide(sub, lang = 'en') {
     const g = SPORT_GUIDES[sub];
     if (!g) return null;
+    const rawAthletes = ATHLETES_BY_SUB[sub] || g.athletes || [];
     return {
+        rankingSport: !!g.rankingSport,
         howToPlay: (g.howToPlay || []).map(s => ({
             title: pick(s.title, lang),
             body: pick(s.body, lang),
         })),
-        athletes: (g.athletes || []).map(a => ({
+        athletes: rawAthletes.map(a => ({
+            id: a.id,
             name: a.name,
             years: a.years || '',
+            country: a.country || '',
+            tour: a.tour || null,
+            status: a.status || 'active',
+            peakRank: a.peakRank ?? null,
+            fallbackRank: a.fallbackRank ?? null,
+            rankingKey: a.rankingKey || a.name.toLowerCase(),
             bio: pick(a.bio, lang),
-            achievements: pick(a.achievements, lang),
+            detail: {
+                life: pick(a.detail?.life, lang),
+                achievements: pick(a.detail?.achievements || a.achievements, lang),
+                advice: pick(a.detail?.advice, lang),
+                style: pick(a.detail?.style, lang),
+            },
             links: (a.links || []).map(l => ({
                 label: pick(l.label, lang),
                 url: l.url,
@@ -42,6 +99,7 @@ export function getSportGuide(sub, lang = 'en') {
 
 const SPORT_GUIDES = {
     tennis: {
+        rankingSport: true,
         howToPlay: [
             {
                 title: L('Court & equipment', 'Kort ve ekipman', 'Корт и инвентарь', 'Platz & Ausrüstung'),
@@ -89,104 +147,7 @@ const SPORT_GUIDES = {
                 ),
             },
         ],
-        athletes: [
-            {
-                name: 'Roger Federer',
-                years: '1981–',
-                bio: L(
-                    'Swiss all-courter known for fluid one-handed backhand, serve-and-volley elegance and sportsmanship. Dominated the 2000s; rivalries with Nadal and Djokovic defined an era.',
-                    'İsviçreli all-court oyuncu; akıcı tek elli backhand, zarif serve-volley ve sportmenlik. 2000’lerde baskın; Nadal ve Djokovic rekabetleri bir dönemi tanımladı.',
-                    'Швейцарец, мастер всех покрытий: одноручный бэкхенд, элегантный стиль. Доминировал в 2000-х; эра соперничества с Надалем и Джоковичем.',
-                    'Schweizer Allcourter mit flüssiger einhändiger Rückhand und Eleganz. Dominanz in den 2000ern; Rivalitäten mit Nadal und Djokovic.'
-                ),
-                achievements: L(
-                    '20 Grand Slam singles titles; 8 Wimbledon; 103 ATP titles; held #1 for 310 weeks; Olympic doubles gold (2008) with Wawrinka.',
-                    '20 Grand Slam tekler; 8 Wimbledon; 103 ATP unvanı; 310 hafta 1 numara; 2008 Olimpiyat çiftler altını (Wawrinka ile).',
-                    '20 титулов Grand Slam; 8 Уимблдонов; 103 титула ATP; 310 недель №1; олимпийское золото в паре (2008).',
-                    '20 Grand-Slam-Einzeltitel; 8× Wimbledon; 103 ATP-Titel; 310 Wochen Nr. 1; Olympia-Gold Doppel 2008.'
-                ),
-                links: [
-                    { label: L('Retirement speech (Laver Cup)', 'Emeklilik konuşması (Laver Cup)', 'Речь об уходе (Laver Cup)', 'Abschiedsrede (Laver Cup)'), url: 'https://www.youtube.com/watch?v=nCqHhuGgB_o' },
-                    { label: L('Interview: legacy & rivals', 'Röportaj: miras ve rakipler', 'Интервью: наследие и соперники', 'Interview: Vermächtnis & Rivalen'), url: 'https://www.youtube.com/watch?v=YxqQv0kNqHk' },
-                ],
-            },
-            {
-                name: 'Rafael Nadal',
-                years: '1986–',
-                bio: L(
-                    'Spanish lefty clay king with extreme topspin forehand, relentless defense and fighting spirit. “Vamos” energy and physical intensity changed modern baseline tennis.',
-                    'İspanyol solak toprak kralı; aşırı topspin forehand, amansız savunma ve savaşçı ruh. “Vamos” enerjisi modern baseline tenisini değiştirdi.',
-                    'Испанский левша, король грунта: экстремальный топспин, железная защита. Энергия «Vamos» изменила современный теннис.',
-                    'Spanischer Linkshänder, König auf Sand: extremes Topspin, unermüdliche Defence. „Vamos“-Energie prägte den modernen Tennis.'
-                ),
-                achievements: L(
-                    '22 Grand Slams; 14 French Opens (record); Olympic singles gold (2008); Davis Cup hero for Spain.',
-                    '22 Grand Slam; 14 Fransa Açık (rekor); 2008 Olimpiyat tekler altını; İspanya Davis Cup kahramanı.',
-                    '22 Grand Slam; 14 Roland Garros (рекорд); олимпийское золото 2008; герой Кубка Дэвиса.',
-                    '22 Grand Slams; 14× Roland Garros (Rekord); Olympia-Gold 2008; Davis-Cup-Held.'
-                ),
-                links: [
-                    { label: L('Talk on mentality & clay', 'Zihniyet ve toprak üzerine', 'О менталитете и грунте', 'Über Mentalität & Sand'), url: 'https://www.youtube.com/watch?v=0mS8q5Z2h1s' },
-                ],
-            },
-            {
-                name: 'Novak Djokovic',
-                years: '1987–',
-                bio: L(
-                    'Serbian return specialist and flexibility icon. Elite backhand down-the-line, mental toughness in fifth sets, and the most complete defensive-to-offensive transition of his generation.',
-                    'Sırp karşılama ustası ve esneklik ikonu. Çizgi üstü backhand, 5. setlerde mental güç, kuşağının en bütün savunma→hücum geçişi.',
-                    'Серб, мастер приёма и гибкости. Бэкхенд по линии, ментальная сила в пятых сетах.',
-                    'Serbe, Return- und Flexibilitätsspezialist. Rückhand longline, mentale Stärke im 5. Satz.'
-                ),
-                achievements: L(
-                    'Most men’s Grand Slam singles titles in the Open Era; career Golden Masters; record weeks at #1; Olympic gold (2024).',
-                    'Open Era’da en çok erkek Grand Slam tekler unvanı; kariyer Golden Masters; rekor hafta 1 numara; 2024 Olimpiyat altını.',
-                    'Рекорд Grand Slam среди мужчин Open Era; Career Golden Masters; рекорд недель №1; золото ОИ-2024.',
-                    'Meiste Herren-Grand-Slams der Open Era; Career Golden Masters; Rekordwochen Nr. 1; Olympia-Gold 2024.'
-                ),
-                links: [
-                    { label: L('Press talk after major final', 'Büyük final sonrası basın', 'Пресс-конференция после финала', 'Presse nach Grand-Slam-Finale'), url: 'https://www.youtube.com/watch?v=JQw8Z8qZ8qE' },
-                ],
-            },
-            {
-                name: 'Serena Williams',
-                years: '1981–',
-                bio: L(
-                    'American power game redefined women’s tennis: crushing serve, aggressive returns, clutch mentality. Cultural icon beyond sport.',
-                    'Amerikan güç oyunu kadın tenisni yeniden tanımladı: ezici servis, agresif karşılama, kritik anlarda soğukkanlılık. Spor dışı kültür ikonu.',
-                    'Американка изменила женский теннис мощной подачей и агрессией. Икона культуры.',
-                    'US-Powergame: vernichtender Aufschlag, aggressive Returns. Ikone weit über den Sport hinaus.'
-                ),
-                achievements: L(
-                    '23 Grand Slam singles; 14 doubles with Venus; 4 Olympic golds; held #1; multiple “Serena Slam” runs.',
-                    '23 Grand Slam tekler; Venus ile 14 çiftler; 4 Olimpiyat altını; 1 numara; birden fazla “Serena Slam”.',
-                    '23 одиночных Grand Slam; 14 парных с Винус; 4 олимпийских золота.',
-                    '23 Grand-Slam-Einzel; 14 Doppel mit Venus; 4 Olympia-Gold.'
-                ),
-                links: [
-                    { label: L('Career reflection interview', 'Kariyer üzerine röportaj', 'Интервью о карьере', 'Karriere-Interview'), url: 'https://www.youtube.com/watch?v=8YjFO9CAKmY' },
-                ],
-            },
-            {
-                name: 'Steffi Graf',
-                years: '1969–',
-                bio: L(
-                    'German baseline assassin with lethal forehand and slice backhand. Completed the Golden Slam in 1988 (all four majors + Olympic gold in one year).',
-                    'Alman baseline avcısı; ölümcül forehand ve slice backhand. 1988’de Golden Slam (dört major + Olimpiyat altını aynı yıl).',
-                    'Немка с убийственным форхендом и слайс-бэкхендом. Golden Slam 1988.',
-                    'Deutsche mit tödlicher Vorhand und Slice-Rückhand. Golden Slam 1988.'
-                ),
-                achievements: L(
-                    '22 Grand Slam singles; 1988 Golden Slam; 377 weeks at #1 (long-time record).',
-                    '22 Grand Slam tekler; 1988 Golden Slam; 377 hafta 1 numara (uzun süre rekor).',
-                    '22 Grand Slam; Golden Slam 1988; 377 недель №1.',
-                    '22 Grand-Slam-Einzel; Golden Slam 1988; 377 Wochen Nr. 1.'
-                ),
-                links: [
-                    { label: L('Archive interview', 'Arşiv röportaj', 'Архивное интервью', 'Archiv-Interview'), url: 'https://www.youtube.com/results?search_query=Steffi+Graf+interview' },
-                ],
-            },
-        ],
+        // Sporcular: sportGuideAthletes.js (ATHLETES_BY_SUB.tennis)
         bonus: [
             {
                 title: L('Court zones (tactical map)', 'Kort bölgeleri (taktik harita)', 'Зоны корта (тактика)', 'Platzzonen (Taktik)'),
@@ -252,48 +213,7 @@ const SPORT_GUIDES = {
                     'Zählweise wie Tennis. Fast immer Doppel. Netzspiel, Bandeja/Vibora. Ball in der Ecke töten oder Smash nach Lob.'
                 ),
             },
-        ],
-        athletes: [
-            {
-                name: 'Fernando Belasteguín',
-                years: '1979–',
-                bio: L(
-                    'Argentine legend, long-time world #1, known as “Bela”. Precision at net and longevity defined modern padel’s first golden era.',
-                    'Arjantin efsanesi, uzun süre dünya 1 numarası, “Bela”. Filedeki isabet ve uzun kariyer modern padelin ilk altın çağını tanımladı.',
-                    'Аргентинская легенда, долго №1 мира — «Bela».',
-                    'Argentinische Legende, lange Welt-Nr. 1 — „Bela“.'
-                ),
-                achievements: L(
-                    'Record weeks at #1; dozens of World Padel Tour titles with multiple partners.',
-                    'Rekor hafta 1 numara; birçok partnerle onlarca WPT unvanı.',
-                    'Рекорд недель №1; десятки титулов WPT.',
-                    'Rekordwochen Nr. 1; Dutzende WPT-Titel.'
-                ),
-                links: [
-                    { label: L('Career highlights / talk', 'Kariyer / konuşma', 'Карьера / интервью', 'Karriere / Talk'), url: 'https://www.youtube.com/results?search_query=Fernando+Belasteguin+interview' },
-                ],
-            },
-            {
-                name: 'Alejandra Salazar',
-                years: '1985–',
-                bio: L(
-                    'Spanish pioneer of women’s padel; multiple world titles and a model of tactical left-side play.',
-                    'Kadın padelin İspanyol öncüsü; çoklu dünya unvanı, sol taraf taktiğinin modeli.',
-                    'Испанская пионерка женского падела.',
-                    'Spanische Pionierin des Damen-Padels.'
-                ),
-                achievements: L(
-                    'Multiple World Padel Tour #1 seasons; major titles with different partners.',
-                    'Birden fazla WPT 1 numara sezonu; farklı partnerlerle büyük unvanlar.',
-                    'Несколько сезонов №1 WPT.',
-                    'Mehrere WPT-Nr.-1-Saisons.'
-                ),
-                links: [
-                    { label: L('Interviews & matches', 'Röportaj ve maçlar', 'Интервью и матчи', 'Interviews & Matches'), url: 'https://www.youtube.com/results?search_query=Alejandra+Salazar+padel+interview' },
-                ],
-            },
-        ],
-        bonus: [
+        ],bonus: [
             {
                 title: L('Glass geometry', 'Cam geometrisi', 'Геометрия стекла', 'Glas-Geometrie'),
                 body: L(
@@ -330,48 +250,7 @@ const SPORT_GUIDES = {
                     'Bis 21, 2 Differenz, oft Cap 30. Seitenwechsel.'
                 ),
             },
-        ],
-        athletes: [
-            {
-                name: 'Lin Dan',
-                years: '1983–',
-                bio: L(
-                    'Chinese “Super Dan” — two Olympic golds, multiple World and All-England titles; flair and clutch reputation.',
-                    'Çinli “Super Dan” — iki Olimpiyat altını, çoklu Dünya ve All-England; flair ve kritik an efsanesi.',
-                    'Китаец «Super Dan» — два олимпийских золота.',
-                    'Chinese «Super Dan» — zwei Olympia-Gold.'
-                ),
-                achievements: L(
-                    'Olympic gold 2008 & 2012; multiple World Championships.',
-                    'Olimpiyat altın 2008 ve 2012; çoklu Dünya Şampiyonluğu.',
-                    'Олимпийское золото 2008 и 2012; несколько ЧМ.',
-                    'Olympia-Gold 2008 & 2012; mehrere WM.'
-                ),
-                links: [
-                    { label: L('Highlights / interviews', 'Özet / röportaj', 'Обзоры / интервью', 'Highlights / Interviews'), url: 'https://www.youtube.com/results?search_query=Lin+Dan+interview' },
-                ],
-            },
-            {
-                name: 'Carolina Marín',
-                years: '1993–',
-                bio: L(
-                    'Spanish lefty powerhouse; Olympic champion and multiple World titles — trailblazer for European women’s singles.',
-                    'İspanyol solak güç oyuncusu; Olimpiyat şampiyonu ve çoklu Dünya — Avrupa kadın teklerinde öncü.',
-                    'Испанская левша, олимпийская чемпионка.',
-                    'Spanische Linkshänderin, Olympiasiegerin.'
-                ),
-                achievements: L(
-                    'Olympic gold 2016; multiple World & European titles.',
-                    '2016 Olimpiyat altını; çoklu Dünya ve Avrupa unvanı.',
-                    'Олимпийское золото 2016; титулы ЧМ и ЧЕ.',
-                    'Olympia-Gold 2016; WM- und EM-Titel.'
-                ),
-                links: [
-                    { label: L('Talks & matches', 'Konuşma ve maçlar', 'Интервью и матчи', 'Talks & Matches'), url: 'https://www.youtube.com/results?search_query=Carolina+Marin+interview' },
-                ],
-            },
-        ],
-        bonus: [
+        ],bonus: [
             {
                 title: L('Deception & length', 'Aldatma ve derinlik', 'Обман и глубина', 'Täuschung & Länge'),
                 body: L(
@@ -407,48 +286,7 @@ const SPORT_GUIDES = {
                     'Topspin, Backspin, Sidespin. Schlägerwinkel anpassen.'
                 ),
             },
-        ],
-        athletes: [
-            {
-                name: 'Ma Long',
-                years: '1988–',
-                bio: L(
-                    'Chinese “Dictator” of the table — complete technique, legendary consistency, multiple Olympic and World titles.',
-                    'Masadaki Çinli “Diktatör” — tam teknik, efsane istikrar, çoklu Olimpiyat ve Dünya unvanı.',
-                    'Китайский «Диктатор» стола — техника и стабильность.',
-                    'Chinesischer „Diktator“ am Tisch — Technik und Konstanz.'
-                ),
-                achievements: L(
-                    'Multiple Olympic golds; World Championships; long reign at #1.',
-                    'Çoklu Olimpiyat altını; Dünya Şampiyonlukları; uzun 1 numara dönemi.',
-                    'Несколько олимпийских золота; ЧМ; долго №1.',
-                    'Mehrere Olympia-Gold; WM; lange Nr. 1.'
-                ),
-                links: [
-                    { label: L('Interviews / training', 'Röportaj / antrenman', 'Интервью / тренировки', 'Interviews / Training'), url: 'https://www.youtube.com/results?search_query=Ma+Long+table+tennis+interview' },
-                ],
-            },
-            {
-                name: 'Ding Ning',
-                years: '1990–',
-                bio: L(
-                    'Chinese lefty great of women’s table tennis; Olympic and World champion with a fierce forehand loop.',
-                    'Kadın masa tenisinde Çinli solak efsane; Olimpiyat ve Dünya şampiyonu, güçlü forehand loop.',
-                    'Китайская левша, олимпийская и мировая чемпионка.',
-                    'Chinesische Linkshänderin, Olympia- und Weltmeisterin.'
-                ),
-                achievements: L(
-                    'Olympic golds; multiple World titles.',
-                    'Olimpiyat altınları; çoklu Dünya unvanı.',
-                    'Олимпийские золота; титулы ЧМ.',
-                    'Olympia-Gold; mehrere WM-Titel.'
-                ),
-                links: [
-                    { label: L('Match talks', 'Maç konuşmaları', 'Интервью', 'Match-Talks'), url: 'https://www.youtube.com/results?search_query=Ding+Ning+interview' },
-                ],
-            },
-        ],
-        bonus: [
+        ],bonus: [
             {
                 title: L('Serve receive triangle', 'Servis karşılama üçgeni', 'Треугольник приёма', 'Return-Dreieck'),
                 body: L(
@@ -485,48 +323,7 @@ const SPORT_GUIDES = {
                     'Klassisch: nur Aufschläger punkten. Oft schon Rally-Scoring. Soft am Kitchen schlägt reine Power.'
                 ),
             },
-        ],
-        athletes: [
-            {
-                name: 'Ben Johns',
-                years: '1999–',
-                bio: L(
-                    'American face of modern pro pickleball; dominant mixed and men’s doubles, known for soft hands and transition speed.',
-                    'Modern pro pickleball’un Amerikan yüzü; mixed ve erkek çiftlerinde baskın, soft el ve geçiş hızı.',
-                    'Лицо современного про-пиклбола в США.',
-                    'Gesicht des modernen Pro-Pickleballs.'
-                ),
-                achievements: L(
-                    'Multiple major titles; long stretches as world #1 in doubles formats.',
-                    'Çoklu major unvan; çift formatlarında uzun süre dünya 1 numarası.',
-                    'Много крупных титулов; долго №1 в парах.',
-                    'Viele Major-Titel; lange Welt-Nr. 1 im Doppel.'
-                ),
-                links: [
-                    { label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Ben+Johns+pickleball+interview' },
-                ],
-            },
-            {
-                name: 'Anna Leigh Waters',
-                years: '2007–',
-                bio: L(
-                    'Prodigy of women’s and mixed pickleball; power + kitchen control at a very young age.',
-                    'Kadın ve mixed pickleball harikası; çok genç yaşta güç + kitchen kontrolü.',
-                    'Вундеркинд женского и смешанного пиклбола.',
-                    'Wunderkind im Damen- und Mixed-Pickleball.'
-                ),
-                achievements: L(
-                    'Youngest to reach #1; stack of gold medals on the pro tour.',
-                    '1 numaraya en genç ulaşanlardan; pro turda altın yığını.',
-                    'Одна из самых молодых №1; множество титулов.',
-                    'Eine der jüngsten Nr. 1; viele Tour-Titel.'
-                ),
-                links: [
-                    { label: L('Talks & highlights', 'Konuşma ve özet', 'Интервью и обзоры', 'Talks & Highlights'), url: 'https://www.youtube.com/results?search_query=Anna+Leigh+Waters+interview' },
-                ],
-            },
-        ],
-        bonus: [
+        ],bonus: [
             {
                 title: L('Dink battles', 'Dink savaşları', 'Битвы динков', 'Dink-Duelle'),
                 body: L(
@@ -572,67 +369,7 @@ const SPORT_GUIDES = {
                     'Bis 25 (2 Diff.); Entscheidungssatz oft bis 15.'
                 ),
             },
-        ],
-        athletes: [
-            {
-                name: 'Karch Kiraly',
-                years: '1960–',
-                bio: L(
-                    'American indoor and beach legend; only player with Olympic gold in both. Later a transformative coach for USA women.',
-                    'Amerikalı salon ve plaj efsanesi; ikisinde de Olimpiyat altını olan tek oyuncu. Sonra ABD kadın millisinin dönüştürücü koçu.',
-                    'Легенда зала и пляжа США; золото ОИ в обоих. Позже тренер женской сборной.',
-                    'US-Legende Halle & Beach; Olympia-Gold in beiden. Später Trainer der US-Frauen.'
-                ),
-                achievements: L(
-                    'Olympic golds indoor & beach; multiple world titles; Hall of Fame.',
-                    'Salon ve plaj Olimpiyat altınları; çoklu dünya unvanı; Hall of Fame.',
-                    'Олимпийское золото зал и пляж; Зал славы.',
-                    'Olympia-Gold Halle & Beach; Hall of Fame.'
-                ),
-                links: [
-                    { label: L('Interviews / coaching talks', 'Röportaj / koçluk', 'Интервью / о тренерстве', 'Interviews / Coaching'), url: 'https://www.youtube.com/results?search_query=Karch+Kiraly+interview' },
-                ],
-            },
-            {
-                name: 'Giba (Gilberto Godoy Filho)',
-                years: '1976–',
-                bio: L(
-                    'Brazilian outside hitter icon of the 2000s — charisma, leadership and clutch Olympic performances.',
-                    '2000’lerin Brezilyalı smaçör ikonu — karizma, liderlik ve kritik Olimpiyat performansları.',
-                    'Икона бразильского волейбола 2000-х.',
-                    'Ikone des brasilianischen Volleyballs der 2000er.'
-                ),
-                achievements: L(
-                    'Olympic gold 2004; World Championships; long-time face of Brazil’s golden generation.',
-                    '2004 Olimpiyat altını; Dünya Şampiyonlukları; Brezilya altın neslinin yüzü.',
-                    'Олимпийское золото 2004; ЧМ.',
-                    'Olympia-Gold 2004; WM-Titel.'
-                ),
-                links: [
-                    { label: L('Talks & highlights', 'Konuşma ve özet', 'Интервью и обзоры', 'Talks & Highlights'), url: 'https://www.youtube.com/results?search_query=Giba+volleyball+interview' },
-                ],
-            },
-            {
-                name: 'Kerri Walsh Jennings',
-                years: '1978–',
-                bio: L(
-                    'Beach volleyball GOAT conversation; three straight Olympic golds with Misty May-Treanor, then more medals.',
-                    'Plaj voleybolu GOAT tartışmasının merkezi; Misty May-Treanor ile üç ardışık Olimpiyat altını, sonra ek madalyalar.',
-                    'Легенда пляжного волейбола; три золота ОИ подряд с Misty May-Treanor.',
-                    'Beach-Volleyball-Legende; drei Olympia-Gold in Folge mit Misty May-Treanor.'
-                ),
-                achievements: L(
-                    '3× Olympic gold (2004–2012) + later bronze; dominant #1 partnership era.',
-                    '3× Olimpiyat altın (2004–2012) + sonra bronz; baskın 1 numara partner dönemi.',
-                    '3 олимпийских золота (2004–2012) + бронза.',
-                    '3× Olympia-Gold (2004–2012) + später Bronze.'
-                ),
-                links: [
-                    { label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Kerri+Walsh+Jennings+interview' },
-                ],
-            },
-        ],
-        bonus: [
+        ],bonus: [
             {
                 title: L('Block read & tip', 'Blok okuma ve tip', 'Чтение блока и скидка', 'Block lesen & Tip'),
                 body: L(

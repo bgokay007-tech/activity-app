@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import {
-    Modal, View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet,
+    Modal, View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
 import useT from '../hooks/useT';
-import { getSportGuide, hasSportGuide } from '../data/sportGuides';
+import api from '../services/api';
+import { getSportGuide, hasSportGuide, mergeAthleteRankings } from '../data/sportGuides';
 
 const TABS = ['how', 'athletes', 'bonus'];
 
@@ -132,19 +133,127 @@ function openUrl(url) {
     Linking.openURL(url).catch(() => {});
 }
 
+function DetailSection({ title, color, children }) {
+    if (!children) return null;
+    return (
+        <View style={s.detailBlock}>
+            <Text style={[s.detailBlockTitle, { color }]}>{title}</Text>
+            {typeof children === 'string' ? <Text style={s.cardBody}>{children}</Text> : children}
+        </View>
+    );
+}
+
+function AthleteDetailModal({ visible, athlete, onClose, accent, insets }) {
+    const t = useT();
+    if (!athlete) return null;
+    const rankTxt = athlete.worldRank != null
+        ? `#${athlete.worldRank}${athlete.tourLabel ? ` ${athlete.tourLabel}` : ''}`
+        : (athlete.status === 'legend' && athlete.peakRank
+            ? t.sportGuidePeakRank(athlete.peakRank)
+            : null);
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+            <View style={s.backdrop}>
+                <View style={[s.sheet, { paddingBottom: Math.max(16, insets.bottom + 8), maxHeight: '94%' }]}>
+                    <View style={s.head}>
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                            <Text style={s.title} numberOfLines={2}>
+                                {athlete.country ? `${athlete.country} ` : ''}{athlete.name}
+                            </Text>
+                            <Text style={s.subMeta}>
+                                {[athlete.years, rankTxt].filter(Boolean).join('  ·  ')}
+                            </Text>
+                        </View>
+                        <TouchableOpacity onPress={onClose} hitSlop={10}>
+                            <Text style={s.close}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.body}>
+                        {!!athlete.bio && (
+                            <View style={s.card}>
+                                <Text style={s.cardBody}>{athlete.bio}</Text>
+                            </View>
+                        )}
+                        <DetailSection title={t.sportGuideLife} color="#38bdf8">{athlete.detail?.life}</DetailSection>
+                        <DetailSection title={t.sportGuideAchievements} color="#fbbf24">{athlete.detail?.achievements}</DetailSection>
+                        <DetailSection title={t.sportGuideStyle} color="#c084fc">{athlete.detail?.style}</DetailSection>
+                        <DetailSection title={t.sportGuideAdvice} color="#4ade80">{athlete.detail?.advice}</DetailSection>
+                        {(athlete.links || []).length > 0 && (
+                            <DetailSection title={t.sportGuideTalks} color={accent}>
+                                {(athlete.links || []).map((l, j) => (
+                                    <TouchableOpacity
+                                        key={`dl-${j}`}
+                                        onPress={() => openUrl(l.url)}
+                                        style={[s.linkBtn, { borderColor: accent + '66' }]}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={[s.linkTxt, { color: accent }]}>▶  {l.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </DetailSection>
+                        )}
+                        <View style={{ height: 16 }} />
+                    </ScrollView>
+                </View>
+            </View>
+        </Modal>
+    );
+}
+
 export default function SportGuideModal({ visible, onClose, cfg, sub }) {
     const t = useT();
     const insets = useSafeAreaInsets();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const [tab, setTab] = useState('how');
+    const [tours, setTours] = useState({});
+    const [rankLoading, setRankLoading] = useState(false);
+    const [rankUpdatedAt, setRankUpdatedAt] = useState(null);
+    const [detailAthlete, setDetailAthlete] = useState(null);
     const accent = cfg?.color || colors.purple;
 
     useEffect(() => {
-        if (visible) setTab('how');
+        if (visible) {
+            setTab('how');
+            setDetailAthlete(null);
+        }
     }, [visible, sub]);
 
-    if (!hasSportGuide(sub)) return null;
-    const guide = getSportGuide(sub, lang) || getSportGuide(sub, 'en');
+    const guide = useMemo(
+        () => (hasSportGuide(sub) ? (getSportGuide(sub, lang) || getSportGuide(sub, 'en')) : null),
+        [sub, lang]
+    );
+
+    useEffect(() => {
+        if (!visible || !guide?.rankingSport) {
+            setTours({});
+            setRankUpdatedAt(null);
+            return undefined;
+        }
+        let cancelled = false;
+        setRankLoading(true);
+        api.get(`/sport-guide/rankings/${sub}`)
+            .then((res) => {
+                if (cancelled) return;
+                setTours(res.data?.tours || {});
+                setRankUpdatedAt(res.data?.updatedAt || null);
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setTours({});
+                    setRankUpdatedAt(null);
+                }
+            })
+            .finally(() => { if (!cancelled) setRankLoading(false); });
+        return () => { cancelled = true; };
+    }, [visible, sub, guide?.rankingSport]);
+
+    const athletes = useMemo(
+        () => mergeAthleteRankings(guide?.athletes || [], tours),
+        [guide?.athletes, tours]
+    );
+
+    if (!guide) return null;
 
     const tabLabel = (key) => {
         if (key === 'how') return t.sportGuideTabHow;
@@ -153,6 +262,7 @@ export default function SportGuideModal({ visible, onClose, cfg, sub }) {
     };
 
     return (
+        <>
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={s.backdrop}>
                 <View style={[s.sheet, { paddingBottom: Math.max(16, insets.bottom + 8) }]}>
@@ -190,28 +300,52 @@ export default function SportGuideModal({ visible, onClose, cfg, sub }) {
                             </View>
                         ))}
 
-                        {tab === 'athletes' && (guide.athletes || []).map((a, i) => (
-                            <View key={`a-${i}`} style={s.card}>
-                                <Text style={s.athleteName}>{a.name}{a.years ? `  ·  ${a.years}` : ''}</Text>
-                                <Text style={s.cardBody}>{a.bio}</Text>
-                                {!!a.achievements && (
-                                    <>
-                                        <Text style={s.achLabel}>{t.sportGuideAchievements}</Text>
-                                        <Text style={s.cardBody}>{a.achievements}</Text>
-                                    </>
-                                )}
-                                {(a.links || []).map((l, j) => (
-                                    <TouchableOpacity
-                                        key={`l-${i}-${j}`}
-                                        onPress={() => openUrl(l.url)}
-                                        style={[s.linkBtn, { borderColor: accent + '66' }]}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Text style={[s.linkTxt, { color: accent }]}>▶  {l.label}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        ))}
+                        {tab === 'athletes' && (
+                            <>
+                                {guide.rankingSport ? (
+                                    <Text style={s.rankNote}>
+                                        {rankLoading
+                                            ? t.sportGuideRankLoading
+                                            : (rankUpdatedAt
+                                                ? t.sportGuideRankUpdated(new Date(rankUpdatedAt).toLocaleDateString(lang === 'tr' ? 'tr-TR' : lang === 'de' ? 'de-DE' : lang === 'ru' ? 'ru-RU' : 'en-US'))
+                                                : t.sportGuideRankFallback)}
+                                    </Text>
+                                ) : null}
+                                {rankLoading && guide.rankingSport ? (
+                                    <ActivityIndicator color={accent} style={{ marginVertical: 12 }} />
+                                ) : null}
+                                {athletes.map((a) => {
+                                    const rankBadge = a.worldRank != null
+                                        ? `#${a.worldRank}`
+                                        : (a.status === 'legend' && a.peakRank ? t.sportGuidePeakShort(a.peakRank) : null);
+                                    return (
+                                        <View key={a.id || a.name} style={s.card}>
+                                            <View style={s.athleteRow}>
+                                                <View style={{ flex: 1, paddingRight: 8 }}>
+                                                    <Text style={s.athleteName} numberOfLines={1}>
+                                                        {a.country ? `${a.country} ` : ''}{a.name}
+                                                    </Text>
+                                                    <Text style={s.athleteMeta} numberOfLines={1}>
+                                                        {[a.years, a.tourLabel || a.tour].filter(Boolean).join(' · ')}
+                                                    </Text>
+                                                </View>
+                                                {rankBadge ? (
+                                                    <Text style={[s.rankBadge, { color: accent, borderColor: accent + '66' }]}>{rankBadge}</Text>
+                                                ) : null}
+                                                <TouchableOpacity
+                                                    onPress={() => setDetailAthlete(a)}
+                                                    style={[s.detailBtn, { borderColor: accent }]}
+                                                    activeOpacity={0.8}
+                                                >
+                                                    <Text style={[s.detailBtnTxt, { color: accent }]}>{t.sportGuideDetail}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            <Text style={s.cardBody} numberOfLines={3}>{a.bio}</Text>
+                                        </View>
+                                    );
+                                })}
+                            </>
+                        )}
 
                         {tab === 'bonus' && (guide.bonus || []).map((b, i) => (
                             <View key={`b-${i}`} style={s.card}>
@@ -232,6 +366,15 @@ export default function SportGuideModal({ visible, onClose, cfg, sub }) {
                 </View>
             </View>
         </Modal>
+
+        <AthleteDetailModal
+            visible={!!detailAthlete}
+            athlete={detailAthlete}
+            onClose={() => setDetailAthlete(null)}
+            accent={accent}
+            insets={insets}
+        />
+        </>
     );
 }
 
@@ -246,6 +389,7 @@ const s = StyleSheet.create({
         paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderColor: colors.border,
     },
     title: { color: '#fff', fontSize: moderateScale(15), fontWeight: '900', flex: 1, paddingRight: 12 },
+    subMeta: { color: colors.textMuted, fontSize: moderateScale(12), fontWeight: '600', marginTop: 4 },
     close: { color: colors.textMuted, fontSize: 18, fontWeight: '700' },
     tabs: { flexDirection: 'row', gap: 4, marginHorizontal: 12, marginTop: 10, marginBottom: 8 },
     tab: {
@@ -261,8 +405,24 @@ const s = StyleSheet.create({
     },
     cardTitle: { fontSize: moderateScale(13), fontWeight: '900', marginBottom: 8 },
     cardBody: { color: colors.textSecondary, fontSize: moderateScale(13), lineHeight: moderateScale(20) },
-    athleteName: { color: '#fff', fontSize: moderateScale(15), fontWeight: '900', marginBottom: 6 },
-    achLabel: { color: '#fbbf24', fontSize: moderateScale(12), fontWeight: '800', marginTop: 10, marginBottom: 4 },
+    athleteRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 6 },
+    athleteName: { color: '#fff', fontSize: moderateScale(14), fontWeight: '900' },
+    athleteMeta: { color: colors.textMuted, fontSize: moderateScale(11), fontWeight: '600', marginTop: 2 },
+    rankBadge: {
+        fontSize: moderateScale(12), fontWeight: '900', paddingHorizontal: 8, paddingVertical: 4,
+        borderRadius: 8, borderWidth: 1, overflow: 'hidden',
+    },
+    detailBtn: {
+        borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+        backgroundColor: '#ffffff08',
+    },
+    detailBtnTxt: { fontSize: moderateScale(11), fontWeight: '800' },
+    rankNote: { color: colors.textMuted, fontSize: moderateScale(11), marginBottom: 8, fontWeight: '600' },
+    detailBlock: {
+        backgroundColor: colors.surface2, borderRadius: 14, borderWidth: 1, borderColor: colors.border,
+        padding: 12, marginBottom: 10,
+    },
+    detailBlockTitle: { fontSize: moderateScale(13), fontWeight: '900', marginBottom: 8 },
     linkBtn: {
         marginTop: 8, borderRadius: 10, borderWidth: 1, paddingVertical: 9, paddingHorizontal: 12,
         backgroundColor: '#ffffff08',
