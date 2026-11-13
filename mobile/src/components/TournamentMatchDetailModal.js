@@ -7,6 +7,7 @@ import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
+import MatchResultShareModal from './MatchResultShareModal';
 
 const WEEKDAYS = [
     { key: 1, tr: 'Pzt', en: 'Mon', ru: 'Пн', de: 'Mo' },
@@ -53,6 +54,7 @@ export default function TournamentMatchDetailModal({
     myIsAdmin,
     tournMyJokerUsed,
     playersArrangeCourts,
+    standings = null,
     onOpenScore,
     onRequestExtend,
     onRefresh,
@@ -72,7 +74,9 @@ export default function TournamentMatchDetailModal({
     const [adminDate, setAdminDate] = useState('');
     const [adminFrom, setAdminFrom] = useState('');
     const [adminTo, setAdminTo] = useState('');
+    const [shareOpen, setShareOpen] = useState(false);
     const myUserId = useSelector(s => s.auth?.user?.id);
+    const canShare = !!(match?.p1Id && match?.p2Id && match?.status !== 'BYE');
 
     const iAmSide = !!match?._iAmMatchSide
         || (match && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId));
@@ -82,6 +86,10 @@ export default function TournamentMatchDetailModal({
     const oppSide = mySide === 'p1' ? 'p2' : mySide === 'p2' ? 'p1' : null;
     const isReady = match?.status === 'PENDING' && match?.p1Id && match?.p2Id;
     const canAct = iAmSide && isReady;
+
+    useEffect(() => {
+        if (!visible) setShareOpen(false);
+    }, [visible]);
 
     useEffect(() => {
         if (!visible || !match) return;
@@ -311,6 +319,7 @@ export default function TournamentMatchDetailModal({
     if (!match) return null;
 
     return (
+        <>
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={{ flex: 1, backgroundColor: '#000000aa', justifyContent: 'flex-end' }}>
                 <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={onClose} />
@@ -325,10 +334,28 @@ export default function TournamentMatchDetailModal({
                     borderWidth: 1,
                     borderColor: '#334155',
                 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 }}>
                         <Text style={{ color: '#fff', fontSize: moderateScale(15), fontWeight: '800', flex: 1 }} numberOfLines={2}>
                             {match.p1Name || 'TBD'} vs {match.p2Name || 'TBD'}
                         </Text>
+                        {canShare ? (
+                            <TouchableOpacity
+                                onPress={() => setShareOpen(true)}
+                                hitSlop={10}
+                                style={{
+                                    backgroundColor: '#7c3aed25',
+                                    borderRadius: 8,
+                                    paddingHorizontal: 10,
+                                    paddingVertical: 6,
+                                    borderWidth: 1,
+                                    borderColor: '#7c3aed60',
+                                }}
+                            >
+                                <Text style={{ color: '#c084fc', fontSize: 12, fontWeight: '800' }}>
+                                    {t.shareTournMatchShareBtn || t.shareMatchShareBtn || t.shareBtn || '📤'}
+                                </Text>
+                            </TouchableOpacity>
+                        ) : null}
                         <TouchableOpacity onPress={onClose} hitSlop={12}>
                             <Text style={{ color: colors.textMuted, fontSize: 20 }}>✕</Text>
                         </TouchableOpacity>
@@ -641,9 +668,40 @@ export default function TournamentMatchDetailModal({
                                 )}
                             </View>
                         )}
+
+                        {canShare && (
+                            <TouchableOpacity
+                                onPress={() => setShareOpen(true)}
+                                style={{
+                                    marginTop: 4,
+                                    marginBottom: 10,
+                                    backgroundColor: '#7c3aed25',
+                                    borderRadius: 10,
+                                    paddingVertical: 12,
+                                    borderWidth: 1,
+                                    borderColor: '#7c3aed60',
+                                    alignItems: 'center',
+                                }}
+                            >
+                                <Text style={{ color: '#c084fc', fontWeight: '800', fontSize: 13 }}>
+                                    {match.status === 'COMPLETED' || match.status === 'FORFEIT'
+                                        ? (t.shareTournMatchShareBtn || t.shareMatchShareBtn || '📤 Share')
+                                        : (t.shareTournMatchShareUpcomingBtn || t.shareTournMatchShareBtn || '📤 Share match')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </ScrollView>
                 </View>
             </View>
         </Modal>
+
+        <MatchResultShareModal
+            visible={shareOpen}
+            match={match}
+            tournament={tournament}
+            standings={standings}
+            onClose={() => setShareOpen(false)}
+        />
+        </>
     );
 }

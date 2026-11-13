@@ -20782,7 +20782,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             <TournamentMatchDetailModal
                 visible={!!detailMatch}
                 onClose={() => setDetailMatch(null)}
-                tournament={item}
+                tournament={(() => {
+                    const poRounds = tournMatches
+                        .filter(m => m.phase === 'PLAYOFF' && !m.isThirdPlaceMatch)
+                        .map(m => m.round);
+                    return {
+                        ...item,
+                        _maxPlayoffRound: poRounds.length ? Math.max(...poRounds) : null,
+                    };
+                })()}
                 match={detailMatch}
                 t={t}
                 lang={t.lang || 'tr'}
@@ -20796,6 +20804,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 myIsAdmin={myIsAdmin}
                 tournMyJokerUsed={tournMyJokerUsed}
                 playersArrangeCourts={!hasTournSpecificCourt(item)}
+                standings={standings}
                 onOpenScore={(m) => openScoreEntry(m)}
                 onRequestExtend={(m) => {
                     setExtendDaysInput('7');

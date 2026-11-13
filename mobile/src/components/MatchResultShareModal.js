@@ -10,6 +10,11 @@ import useT from '../hooks/useT';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
 import { buildMatchSharePayload, buildSharerDigimonPayload, matchShareMessage, BRAND_LETTER_COLORS, UTR_SHARE_SUBS } from '../utils/matchShareCard';
+import {
+    buildTournamentMatchSharePayload,
+    tournamentMatchShareMessage,
+    tournamentMatchToShareMatch,
+} from '../utils/tournamentMatchShareCard';
 import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
@@ -152,26 +157,40 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       ctx.fillStyle='#C8F54A'; ctx.fill();
       text(badge, W/2, TOP+52, 22, '#0B0C10', 'center', '900');
 
-      // Spor satırı yeterli — Tekler/Toprak kazananın üstünde tekrarlanmaz (altta zemin + oyuncu listesi var)
+      // Spor satırı — turnuvada isim + tur eklenir
+      var isUpcoming=${JSON.stringify(!!p.isUpcoming)};
+      var tournName=${JSON.stringify(p.tournamentName||'')};
+      var tournRound=${JSON.stringify(p.tournamentRound||'')};
       text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, TOP+110, 32, '#C8F54A', 'center', '800');
-
-      var name=${JSON.stringify(p.resultLabel||'')};
-      var won=${JSON.stringify(p.wonWord||'WON')};
-      var nLines=nameLines(name, 940, 52);
       var ny=TOP+168;
-      nLines.forEach(function(ln){ text(ln, 540, ny, 52, '#F4F1EA', 'center', '900'); ny+=58; });
-      text(won, 540, ny+6, 44, '#C8F54A', 'center', '900');
-      ny+=62;
+      if(tournName){
+        var tLines=nameLines(tournName, 940, 40);
+        tLines.forEach(function(ln){ text(ln, 540, ny, 40, '#F4F1EA', 'center', '900'); ny+=46; });
+        if(tournRound){ text(tournRound, 540, ny, 26, '#A8A29A', 'center', '800'); ny+=40; }
+        ny+=10;
+      }
+
+      var name=${JSON.stringify(p.isUpcoming ? '' : (p.resultLabel||''))};
+      var won=${JSON.stringify(p.isUpcoming ? (p.wonWord||'VS') : (p.wonWord||'WON'))};
+      if(!isUpcoming && name){
+        var nLines=nameLines(name, 940, 52);
+        nLines.forEach(function(ln){ text(ln, 540, ny, 52, '#F4F1EA', 'center', '900'); ny+=58; });
+        text(won, 540, ny+6, 44, '#C8F54A', 'center', '900');
+        ny+=62;
+      } else if(isUpcoming){
+        text(won, 540, ny+6, 48, '#C8F54A', 'center', '900');
+        ny+=62;
+      }
 
       // Skor tablosu — takımlar belliyse her oyuncu adı + format ELO'su (tekli/çiftler)
       var pairs=${JSON.stringify(setPairs)};
-      var leftRoster=${JSON.stringify(Array.isArray(p.leftRoster) && p.leftRoster.length ? p.leftRoster : [{ name: p.leftLabel || '', elo: p.leftElo || '' }])};
-      var rightRoster=${JSON.stringify(Array.isArray(p.rightRoster) && p.rightRoster.length ? p.rightRoster : [{ name: p.rightLabel || '', elo: p.rightElo || '' }])};
+      var leftRoster=${JSON.stringify(Array.isArray(p.leftRoster) && p.leftRoster.length ? p.leftRoster : [{ name: p.leftLabel || '', elo: p.leftElo || '', rank: p.leftRank || null }])};
+      var rightRoster=${JSON.stringify(Array.isArray(p.rightRoster) && p.rightRoster.length ? p.rightRoster : [{ name: p.rightLabel || '', elo: p.rightElo || '', rank: p.rightRank || null }])};
       var leftElo=${JSON.stringify(p.leftElo||'')};
       var rightElo=${JSON.stringify(p.rightElo||'')};
       function rosterHeight(roster, teamElo){
         var h=28;
-        (roster||[]).forEach(function(r){ h+=36; if(r&&r.elo) h+=26; });
+        (roster||[]).forEach(function(r){ h+=36; if(r&&r.elo) h+=26; if(r&&r.rank) h+=26; });
         if(!(roster&&roster.length) && teamElo) h+=26;
         return Math.max(96, h);
       }
@@ -182,12 +201,17 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 
       text(${JSON.stringify(p.colPlayer||'PLAYER')}, 180, ny+38, 20, '#78716C', 'left', '800');
       var setXs=[];
-      for(var s=0;s<Math.max(pairs.length,1);s++){
-        var sx=580+s*120;
-        setXs.push(sx);
-        text('S'+(s+1), sx, ny+38, 20, '#78716C', 'center', '800');
+      var showSets=!isUpcoming && pairs.length>0;
+      if(showSets){
+        for(var s=0;s<Math.max(pairs.length,1);s++){
+          var sx=580+s*120;
+          setXs.push(sx);
+          text('S'+(s+1), sx, ny+38, 20, '#78716C', 'center', '800');
+        }
+        text(${JSON.stringify(p.colSets||'SETS')}, 960, ny+38, 20, '#78716C', 'center', '800');
+      } else if(isUpcoming){
+        text('VS', 780, ny+38, 22, '#78716C', 'center', '800');
       }
-      text(${JSON.stringify(p.colSets||'SETS')}, 960, ny+38, 20, '#78716C', 'center', '800');
 
       function drawPlayerRow(y, roster, teamElo, scores, setsWon, highlight, h){
         if(highlight){
@@ -198,14 +222,17 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         (roster||[]).forEach(function(r){
           var nm=nameLines((r&&r.name)||'', 420, 30);
           nm.forEach(function(ln){ text(ln, 180, ty, 30, '#F4F1EA', 'left', '900'); ty+=34; });
+          if(r&&r.rank){ text('#'+String(r.rank), 180, ty+2, 22, '#FACC15', 'left', '900'); ty+=26; }
           if(r&&r.elo){ text(r.elo, 180, ty+2, 22, '#C8F54A', 'left', '800'); ty+=26; }
         });
         if((!roster||!roster.length) && teamElo) text(teamElo, 180, ty+2, 24, '#C8F54A', 'left', '800');
         var midY=y+Math.min(18, (h/2)-8);
-        for(var i=0;i<scores.length;i++){
-          text(String(scores[i]), setXs[i]||(580+i*120), midY, 38, '#F4F1EA', 'center', '900');
+        if(showSets){
+          for(var i=0;i<scores.length;i++){
+            text(String(scores[i]), setXs[i]||(580+i*120), midY, 38, '#F4F1EA', 'center', '900');
+          }
+          text(String(setsWon), 960, midY, 38, '#C8F54A', 'center', '900');
         }
-        text(String(setsWon), 960, midY, 38, '#C8F54A', 'center', '900');
       }
 
       var L=pairs.map(function(pr){return pr[0];});
@@ -427,7 +454,13 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 </script></body></html>`;
 }
 
-export default function MatchResultShareModal({ visible, match, onClose }) {
+export default function MatchResultShareModal({
+    visible,
+    match,
+    onClose,
+    tournament = null,
+    standings = null,
+}) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang) || 'tr';
     const myUser = useSelector(s => s.auth?.user);
@@ -439,22 +472,40 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
     });
     const [includeDigimon, setIncludeDigimon] = useState(false);
     const [avatarDataUrl, setAvatarDataUrl] = useState(null);
+    const shareMatch = useMemo(() => {
+        if (!match) return null;
+        if (tournament) return tournamentMatchToShareMatch(tournament, match) || match;
+        return match;
+    }, [match, tournament]);
     const payload = useMemo(() => {
         if (!visible || !match) return null;
-        const base = buildMatchSharePayload(match, t, lang);
+        const base = tournament
+            ? buildTournamentMatchSharePayload(tournament, match, standings, t, lang)
+            : buildMatchSharePayload(match, t, lang);
         if (!base) return null;
-        const sharerCard = buildSharerDigimonPayload(myUser, match.subCategory, tournamentWins, t, lang, ranks);
+        const sub = shareMatch?.subCategory || match.subCategory || tournament?.subCategory;
+        const sharerCard = buildSharerDigimonPayload(myUser, sub, tournamentWins, t, lang, ranks);
+        const isTourn = !!base.isTournament;
+        const isUpcoming = !!base.isUpcoming;
         return {
             ...base,
             sharerCard,
             includeDigimon,
             ctaLabel: t.shareMatchStoreCta || 'AcTiViTy · Uygulamayı indir',
-            wonWord: t.shareMatchWonWord || (lang === 'tr' ? 'KAZANDI' : lang === 'ru' ? 'ПОБЕДИЛ' : lang === 'de' ? 'GEWINNT' : 'WON'),
-            resultBadge: t.shareMatchResultBadge || (lang === 'tr' ? 'MAÇ SONUCU' : lang === 'ru' ? 'РЕЗУЛЬТАТ' : lang === 'de' ? 'ERGEBNIS' : 'MATCH RESULT'),
+            wonWord: isUpcoming
+                ? (t.shareTournMatchVsWord || 'VS')
+                : (t.shareMatchWonWord || (lang === 'tr' ? 'KAZANDI' : lang === 'ru' ? 'ПОБЕДИЛ' : lang === 'de' ? 'GEWINNT' : 'WON')),
+            resultBadge: isTourn
+                ? (isUpcoming
+                    ? (t.shareTournMatchUpcomingBadge
+                        || (lang === 'tr' ? 'YAKLAŞAN MAÇ' : lang === 'ru' ? 'ПРЕДСТОЯЩИЙ' : lang === 'de' ? 'NÄCHSTES SPIEL' : 'UPCOMING'))
+                    : (t.shareTournMatchResultBadge
+                        || (lang === 'tr' ? 'TURNUVA SONUCU' : lang === 'ru' ? 'ТУРНИР' : lang === 'de' ? 'TURNIER' : 'TOURNAMENT')))
+                : (t.shareMatchResultBadge || (lang === 'tr' ? 'MAÇ SONUCU' : lang === 'ru' ? 'РЕЗУЛЬТАТ' : lang === 'de' ? 'ERGEBNIS' : 'MATCH RESULT')),
             colPlayer: t.shareMatchColPlayer || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             colSets: t.shareMatchColSets || 'SETS',
         };
-    }, [visible, match, t, lang, myUser, tournamentWins, ranks, includeDigimon]);
+    }, [visible, match, tournament, standings, shareMatch, t, lang, myUser, tournamentWins, ranks, includeDigimon]);
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const [captureHtml, setCaptureHtml] = useState(null);
@@ -482,7 +533,8 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
 
     // Şampiyonluk + yerel/ulusal/uluslararası sıralama — UTR'de tekli ve çiftler ayrı
     useEffect(() => {
-        if (!visible || !myUser?.id || !match?.subCategory) {
+        const subCat = shareMatch?.subCategory || match?.subCategory || tournament?.subCategory;
+        if (!visible || !myUser?.id || !subCat) {
             setTournamentWins(0);
             setRanks({
                 singles: { local: null, national: null, international: null },
@@ -491,7 +543,7 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             return undefined;
         }
         let cancelled = false;
-        const sub = match.subCategory;
+        const sub = subCat;
         const isUtr = UTR_SHARE_SUBS.has(sub);
         const scopes = ['local', 'national', 'international'];
         const fetchScope = (scope, ratingType) =>
@@ -537,7 +589,7 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             }
         })();
         return () => { cancelled = true; };
-    }, [visible, myUser?.id, match?.subCategory]);
+    }, [visible, myUser?.id, shareMatch?.subCategory, match?.subCategory, tournament?.subCategory]);
 
     // Zemin/spor arka planı + avatar önceden yükle
     useEffect(() => {
@@ -574,7 +626,9 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
             const b64 = dataUrl.replace(/^data:image\/png;base64,/, '');
             const path = `${FileSystem.cacheDirectory}activity-match-${payload.id}.png`;
             await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
-            const message = matchShareMessage(payload, t);
+            const message = payload.isTournament
+                ? tournamentMatchShareMessage(payload, t)
+                : matchShareMessage(payload, t);
 
             if (action === 'save') {
                 const ok = await ensureGallerySave(path);
@@ -656,7 +710,13 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                 <View style={s.sheet}>
                     <View style={s.handle} />
                     <View style={s.header}>
-                        <Text style={s.title}>{t.shareMatchTitle}</Text>
+                        <Text style={s.title}>
+                            {payload.isTournament
+                                ? (payload.isUpcoming
+                                    ? (t.shareTournMatchTitleUpcoming || t.shareMatchTitle)
+                                    : (t.shareTournMatchTitle || t.shareMatchTitle))
+                                : t.shareMatchTitle}
+                        </Text>
                         <TouchableOpacity onPress={onClose} hitSlop={12}><Text style={s.close}>✕</Text></TouchableOpacity>
                     </View>
 
@@ -669,29 +729,53 @@ export default function MatchResultShareModal({ visible, match, onClose }) {
                             ))}
                         </View>
                         <Text style={s.sport}>{payload.emoji} {payload.sport}{payload.surface ? ` · ${payload.surface}` : ''}</Text>
-                        <Text style={s.winnerLine} numberOfLines={1}>
-                            <Text style={{ color: '#F4F1EA' }}>{payload.resultLabel} </Text>
-                            <Text style={{ color: '#C8F54A' }}>{payload.wonWord}</Text>
-                        </Text>
+                        {!!payload.tournamentName && (
+                            <Text style={[s.metaLine, { color: '#F4F1EA', fontWeight: '800', marginTop: 2 }]} numberOfLines={2}>
+                                {payload.tournamentName}
+                            </Text>
+                        )}
+                        {!!payload.tournamentRound && (
+                            <Text style={s.metaLine}>{payload.tournamentRound}</Text>
+                        )}
+                        {payload.isUpcoming ? (
+                            <Text style={s.winnerLine} numberOfLines={1}>
+                                <Text style={{ color: '#C8F54A' }}>{payload.wonWord}</Text>
+                            </Text>
+                        ) : (
+                            <Text style={s.winnerLine} numberOfLines={1}>
+                                <Text style={{ color: '#F4F1EA' }}>{payload.resultLabel} </Text>
+                                <Text style={{ color: '#C8F54A' }}>{payload.wonWord}</Text>
+                            </Text>
+                        )}
                         <View style={s.vsRow}>
                             <View style={{ flex: 1 }}>
-                                {(payload.leftRoster?.length ? payload.leftRoster : [{ name: payload.leftLabel, elo: payload.leftElo }]).map((r, i) => (
+                                {(payload.leftRoster?.length ? payload.leftRoster : [{ name: payload.leftLabel, elo: payload.leftElo, rank: payload.leftRank }]).map((r, i) => (
                                     <View key={`L${i}`} style={{ marginBottom: 2 }}>
                                         <Text style={s.side} numberOfLines={1}>{r.name}</Text>
+                                        {r.rank != null ? <Text style={[s.elo, { color: '#FACC15' }]}>#{r.rank}</Text> : null}
                                         {!!r.elo && <Text style={s.elo}>{r.elo}</Text>}
                                     </View>
                                 ))}
                             </View>
-                            <Text style={s.score}>{payload.leftSets}–{payload.rightSets}</Text>
+                            <Text style={s.score}>
+                                {payload.isUpcoming ? 'vs' : `${payload.leftSets}–${payload.rightSets}`}
+                            </Text>
                             <View style={{ flex: 1 }}>
-                                {(payload.rightRoster?.length ? payload.rightRoster : [{ name: payload.rightLabel, elo: payload.rightElo }]).map((r, i) => (
+                                {(payload.rightRoster?.length ? payload.rightRoster : [{ name: payload.rightLabel, elo: payload.rightElo, rank: payload.rightRank }]).map((r, i) => (
                                     <View key={`R${i}`} style={{ marginBottom: 2 }}>
                                         <Text style={[s.side, { textAlign: 'right' }]} numberOfLines={1}>{r.name}</Text>
+                                        {r.rank != null ? <Text style={[s.elo, { textAlign: 'right', color: '#FACC15' }]}>#{r.rank}</Text> : null}
                                         {!!r.elo && <Text style={[s.elo, { textAlign: 'right' }]}>{r.elo}</Text>}
                                     </View>
                                 ))}
                             </View>
                         </View>
+                        {!!payload.dateStr && (
+                            <Text style={s.metaLine}>📅 {payload.dateStr}</Text>
+                        )}
+                        {!!payload.place && (
+                            <Text style={s.metaLine}>📍 {payload.place}</Text>
+                        )}
                         {!!payload.durationLabel && (
                             <Text style={s.metaLine}>⏱ {payload.durationLabel}</Text>
                         )}
