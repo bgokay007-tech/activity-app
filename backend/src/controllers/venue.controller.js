@@ -1131,10 +1131,18 @@ export const reportExternalReservation = async (req, res, next) => {
                         notes: notes || existing.notes || 'Uygulama dışı rezervasyon (ilan)',
                     },
                 });
-                const userReuse = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+                const userReuse = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
+                // Takvim bildiriminde tarih/kort/saat + kullanıcı — işletme tıklayınca doğrudan
+                // o slota gitsin ve müsait/başkası aldı mı kontrol edebilsin.
                 createNotification(venue.userId, 'RESERVATION', '📋 Uygulama Dışı Rezervasyon',
                     `${userReuse?.username || 'Bir kullanıcı'}, ${venue.name} — ${court.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} saatinde uygulama dışında rezervasyonu olduğunu belirtti (ilan oluşturuyor). Lütfen takviminizi kontrol edin.`,
-                    { reservationId: existing.id, category: 'SPORTS', subCategory: venue.branch, isExternal: true }
+                    {
+                        reservationId: existing.id, venueId: id, courtId, date, startTime, endTime,
+                        courtName: court.name || null,
+                        claimerUserId: req.userId,
+                        claimerUsername: userReuse?.username || null,
+                        category: 'SPORTS', subCategory: venue.branch, isExternal: true,
+                    }
                 ).catch(() => {});
                 emitToUser(venue.userId, 'notification', {});
             }
@@ -1152,10 +1160,16 @@ export const reportExternalReservation = async (req, res, next) => {
             },
         });
 
-        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        const user = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true, fullName: true } });
         createNotification(venue.userId, 'RESERVATION', '📋 Uygulama Dışı Rezervasyon',
             `${user?.username || 'Bir kullanıcı'}, ${venue.name} — ${court.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} saatinde uygulama dışında rezervasyonu olduğunu belirtti (ilan oluşturuyor). Lütfen takviminizi kontrol edin.`,
-            { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch, isExternal: true }
+            {
+                reservationId: reservation.id, venueId: id, courtId, date, startTime, endTime,
+                courtName: court.name || null,
+                claimerUserId: req.userId,
+                claimerUsername: user?.username || null,
+                category: 'SPORTS', subCategory: venue.branch, isExternal: true,
+            }
         ).catch(() => {});
         emitToUser(venue.userId, 'notification', {});
 

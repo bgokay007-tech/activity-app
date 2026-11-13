@@ -633,7 +633,19 @@ export default function NotificationsScreen({ navigation }) {
                 // düşüyordu (kullanıcı raporu: "padel iptal talebi tenis kortlarını açtı").
                 // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp
                 // söner ve dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
-                navigation.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
+                navigation.navigate('BusinessApp', {
+                    openReservations: true,
+                    venueId: data.venueId || null,
+                    highlightReservationId: data.reservationId || null,
+                    highlightDate: data.date || null,
+                    highlightCourtId: data.courtId || null,
+                    highlightStartTime: data.startTime || null,
+                    highlightEndTime: data.endTime || null,
+                    highlightIsExternal: data.isExternal === true || data.isExternal === 'true',
+                    highlightClaimerUserId: data.claimerUserId || null,
+                    highlightClaimerUsername: data.claimerUsername || null,
+                    highlightCourtName: data.courtName || null,
+                });
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });
             }

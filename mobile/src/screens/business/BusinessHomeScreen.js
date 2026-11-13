@@ -1174,7 +1174,29 @@ function ManualReservationModal({ visible, venueId, court, date, initialStart, i
     );
 }
 
-function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpenBill, highlightReservationId = null, highlightDate = null, externalRefreshTick = 0, onApproveCancel, onRejectCancel }) {
+function timeToMin(t) {
+    if (!t || typeof t !== 'string') return null;
+    const [h, m] = t.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+}
+
+function slotOverlapsRange(slotStart, slotEnd, rangeStart, rangeEnd) {
+    const a0 = timeToMin(slotStart), a1 = timeToMin(slotEnd);
+    const b0 = timeToMin(rangeStart), b1 = timeToMin(rangeEnd || rangeStart);
+    if (a0 == null || a1 == null || b0 == null) return slotStart === rangeStart;
+    const bEnd = b1 == null ? b0 + 1 : b1;
+    return a0 < bEnd && a1 > b0;
+}
+
+function VenueScheduleModal({
+    visible, venue, isPro, onClose, onUserPress, onOpenBill,
+    highlightReservationId = null, highlightDate = null,
+    highlightCourtId = null, highlightStartTime = null, highlightEndTime = null,
+    highlightIsExternal = false, highlightClaimerUserId = null, highlightClaimerUsername = null,
+    highlightCourtName = null,
+    externalRefreshTick = 0, onApproveCancel, onRejectCancel,
+}) {
     const toDateStr = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const [selDate, setSelDate]   = useState(() => toDateStr(new Date()));
     const [schedule, setSchedule] = useState(null);
@@ -1182,26 +1204,33 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
     const [refreshTick, setRefreshTick] = useState(0);
     const [manualModal, setManualModal] = useState({ visible: false, court: null, startTime: '', endTime: '' });
     const [actionSlot, setActionSlot] = useState(null); // { slot, court } | null
-    // İptal talebi bildiriminden gelince ilgili saat kutucuğu yanıp sönsün diye (kullanıcı
-    // isteği) — sadece bu modal açıldığında BİR KEZ tetiklenir, kullanıcı elle başka bir
-    // tarihe geçerse bir daha üzerine yazılmaz (Değiştir'deki initialAppliedRef ile aynı mantık).
+    // İptal / uygulama dışı bildiriminden gelince ilgili saat kutucuğu yanıp sönsün —
+    // sadece bu modal açıldığında BİR KEZ tarih uygulanır (elle tarih değişince üzerine yazılmaz).
     const highlightAppliedRef = useRef(false);
+    const externalStatusShownRef = useRef(false);
     const highlightPulse = useRef(new Animated.Value(1)).current;
+    const hasSlotHighlight = !!(highlightReservationId || (highlightCourtId && highlightStartTime) || highlightStartTime);
     useEffect(() => {
-        if (!visible) { highlightAppliedRef.current = false; return; }
+        if (!visible) {
+            highlightAppliedRef.current = false;
+            externalStatusShownRef.current = false;
+            return;
+        }
         if (highlightAppliedRef.current) return;
         highlightAppliedRef.current = true;
-        if (highlightDate) setSelDate(highlightDate);
+        // highlightDate yoksa bugüne düş; varsa bildirilen güne git (bugüne sıfırlama
+        // highlightDate'i eziyordu — iptal/uygulama dışı bildirimleri yanlış güne açılıyordu).
+        setSelDate(highlightDate || toDateStr(new Date()));
     }, [visible, highlightDate]);
     useEffect(() => {
-        if (!visible || !highlightReservationId) return;
+        if (!visible || !hasSlotHighlight) return;
         const loop = Animated.loop(Animated.sequence([
             Animated.timing(highlightPulse, { toValue: 0.35, duration: 500, useNativeDriver: true }),
             Animated.timing(highlightPulse, { toValue: 1, duration: 500, useNativeDriver: true }),
         ]));
         loop.start();
         return () => loop.stop();
-    }, [visible, highlightReservationId]);
+    }, [visible, hasSlotHighlight]);
 
     const shiftDate = (n) => {
         const d = new Date(selDate + 'T12:00:00');
@@ -1222,9 +1251,12 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
         setManualModal({ visible: true, court, startTime: slot.start, endTime: defaultEnd });
     };
 
-    useEffect(() => {
-        if (visible) setSelDate(toDateStr(new Date()));
-    }, [visible]);
+    const isHighlightSlot = (slot, court) => {
+        if (highlightReservationId && slot.reservationId === highlightReservationId) return true;
+        if (!highlightStartTime) return false;
+        if (highlightCourtId && court.courtId !== highlightCourtId) return false;
+        return slotOverlapsRange(slot.start, slot.end, highlightStartTime, highlightEndTime);
+    };
     const fmtDate = (str) => new Date(str + 'T12:00:00').toLocaleDateString('tr-TR',
         { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -1301,7 +1333,59 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
             .finally(() => setLoading(false));
     }, [visible, venue?.id, selDate, refreshTick, externalRefreshTick]);
 
+    // Uygulama dışı rezervasyon bildirimi: takvim yüklendikten sonra o kort/saatin
+    // durumunu özetle — hâlâ müsaitse veya başka biri aldıysa işletme kullanıcıyla
+    // iletişime geçebilsin (profil tıklanabilir).
+    useEffect(() => {
+        if (!visible || !highlightIsExternal || loading || !schedule || externalStatusShownRef.current) return;
+        if (highlightDate && selDate !== highlightDate) return;
+        externalStatusShownRef.current = true;
+        const courtsList = schedule.courts || [];
+        const court = highlightCourtId
+            ? courtsList.find(c => c.courtId === highlightCourtId)
+            : null;
+        const claimer = highlightClaimerUsername ? `@${highlightClaimerUsername}` : 'Bildirilen kullanıcı';
+        const when = `${highlightDate || selDate} · ${highlightStartTime || '?'}${highlightEndTime ? `–${highlightEndTime}` : ''}`;
+        const courtLabel = court?.courtName || highlightCourtName || 'Kort';
+        if (!court) {
+            Alert.alert(
+                '📋 Uygulama Dışı Rezervasyon',
+                `${claimer} şu saati bildirdi:\n${courtLabel}\n${when}\n\nBu kort takvimde bulunamadı. Kullanıcıyla iletişime geçip kontrol edin.`,
+                [
+                    { text: 'Tamam', style: 'cancel' },
+                    ...(highlightClaimerUserId ? [{ text: 'Kullanıcıya Git', onPress: () => onUserPress?.({ id: highlightClaimerUserId, username: highlightClaimerUsername }) }] : []),
+                ],
+            );
+            return;
+        }
+        const slots = court.slots || [];
+        const byId = highlightReservationId
+            ? slots.find(s => s.reservationId === highlightReservationId)
+            : null;
+        const overlapping = slots.filter(s => slotOverlapsRange(s.start, s.end, highlightStartTime, highlightEndTime));
+        const match = byId || overlapping.find(s => s.isExternal && s.user?.id === highlightClaimerUserId) || overlapping[0] || null;
+        let body;
+        if (!match || match.status === 'FREE') {
+            body = `${claimer} şu saati uygulama dışı rezervasyon olarak bildirdi:\n${courtLabel}\n${when}\n\n⚠️ Takvimde bu saat hâlâ MÜSAİT görünüyor. Rezervasyonu kapatın veya kullanıcıyla iletişime geçip düzeltin.`;
+        } else if (match.user?.id && highlightClaimerUserId && match.user.id !== highlightClaimerUserId) {
+            body = `${claimer} şu saati bildirdi:\n${courtLabel}\n${when}\n\n⚠️ Takvimde bu saatte başka biri görünüyor: @${match.user.username}${match.isExternal ? ' (uygulama dışı)' : ''}.\nKullanıcılarla iletişime geçip düzeltin.`;
+        } else if (match.manualName && (!match.user || match.user.id !== highlightClaimerUserId)) {
+            body = `${claimer} şu saati bildirdi:\n${courtLabel}\n${when}\n\nTakvimde manuel kayıt: ${match.manualName}.\nGerekirse kullanıcıyla iletişime geçip doğrulayın.`;
+        } else {
+            body = `${claimer} şu saati bildirdi:\n${courtLabel}\n${when}\n\n✅ Takvimde bu kayıt görünüyor${match.isExternal ? ' (uygulama dışı)' : ''}. Yanıp sönen kutuya dokunarak detaya gidebilirsiniz.`;
+        }
+        Alert.alert('📋 Uygulama Dışı Rezervasyon', body, [
+            { text: 'Tamam', style: 'cancel' },
+            ...(highlightClaimerUserId ? [{ text: 'Kullanıcıya Git', onPress: () => onUserPress?.({ id: highlightClaimerUserId, username: highlightClaimerUsername }) }] : []),
+        ]);
+    }, [visible, highlightIsExternal, loading, schedule, selDate, highlightDate, highlightCourtId, highlightStartTime, highlightEndTime, highlightReservationId, highlightClaimerUserId, highlightClaimerUsername, highlightCourtName, onUserPress]);
+
     const courts = [...(schedule?.courts || [])].sort((a, b) => {
+        // Bildirimdeki kort solda görünsün.
+        if (highlightCourtId) {
+            if (a.courtId === highlightCourtId && b.courtId !== highlightCourtId) return -1;
+            if (b.courtId === highlightCourtId && a.courtId !== highlightCourtId) return 1;
+        }
         const nA = parseInt(a.courtName?.match(/\d+/)?.[0] ?? '', 10);
         const nB = parseInt(b.courtName?.match(/\d+/)?.[0] ?? '', 10);
         if (!isNaN(nA) && !isNaN(nB) && nA !== nB) return nA - nB;
@@ -1412,9 +1496,11 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                     // olsun (onaylı+ödenmiş dahil) her zaman dokunulabilir ve turuncu vurgulanır.
                                                     const isCancelRequested = !!slot.cancelRequested;
                                                     const isTappable = isCancelRequested || isPending || isConfirmedUnpaid || isFree || (isPro && isConfirmedPaid);
-                                                    const isHighlighted = isCancelRequested && slot.reservationId && slot.reservationId === highlightReservationId;
-                                                    const cellColor = isCancelRequested ? '#f59e0b' : color;
-                                                    const cellBg = isCancelRequested ? '#f59e0b18' : bg;
+                                                    // İptal talebi VEYA uygulama dışı / bildirimden gelen kort+saat vurgusu.
+                                                    const isHighlighted = isHighlightSlot(slot, court)
+                                                        && (isCancelRequested || highlightIsExternal || !!highlightReservationId || !!highlightStartTime);
+                                                    const cellColor = isCancelRequested ? '#f59e0b' : (isHighlighted && highlightIsExternal ? '#38bdf8' : color);
+                                                    const cellBg = isCancelRequested ? '#f59e0b18' : (isHighlighted && highlightIsExternal ? '#0ea5e918' : bg);
                                                     const Wrapper = isHighlighted ? Animated.View : View;
                                                     return (
                                                         <Wrapper key={si} style={isHighlighted ? { opacity: highlightPulse } : undefined}>
@@ -1424,8 +1510,8 @@ function VenueScheduleModal({ visible, venue, isPro, onClose, onUserPress, onOpe
                                                             style={{
                                                                 backgroundColor: cellBg,
                                                                 borderRadius: 6, paddingVertical: 5, paddingLeft: 1, paddingRight: 1, marginBottom: 1,
-                                                                borderWidth: isCancelRequested ? 2 : (isTappable ? 1.5 : 1),
-                                                                borderColor: isTappable ? cellColor : cellColor + '55',
+                                                                borderWidth: (isCancelRequested || isHighlighted) ? 2 : (isTappable ? 1.5 : 1),
+                                                                borderColor: isTappable || isHighlighted ? cellColor : cellColor + '55',
                                                                 minHeight: 44,
                                                                 overflow: 'hidden',
                                                             }}>
@@ -1859,7 +1945,14 @@ const groupBillItems = (items) => {
     });
 };
 
-function VenueCard({ venue, sub, onDelete, navigation, openReservations = false, highlightReservationId = null, highlightDate = null, openOrders = false, highlightActivityId = null, openClubs = false }) {
+function VenueCard({
+    venue, sub, onDelete, navigation,
+    openReservations = false, highlightReservationId = null, highlightDate = null,
+    highlightCourtId = null, highlightStartTime = null, highlightEndTime = null,
+    highlightIsExternal = false, highlightClaimerUserId = null, highlightClaimerUsername = null,
+    highlightCourtName = null,
+    openOrders = false, highlightActivityId = null, openClubs = false,
+}) {
     const insets = useSafeAreaInsets();
     const { height: winH } = useWindowDimensions();
     const isApproved = venue.status === 'APPROVED';
@@ -5146,6 +5239,13 @@ function VenueCard({ venue, sub, onDelete, navigation, openReservations = false,
                 isPro={isPro}
                 highlightReservationId={highlightReservationId}
                 highlightDate={highlightDate}
+                highlightCourtId={highlightCourtId}
+                highlightStartTime={highlightStartTime}
+                highlightEndTime={highlightEndTime}
+                highlightIsExternal={highlightIsExternal}
+                highlightClaimerUserId={highlightClaimerUserId}
+                highlightClaimerUsername={highlightClaimerUsername}
+                highlightCourtName={highlightCourtName}
                 externalRefreshTick={scheduleRefreshTick}
                 onApproveCancel={handleApproveCancelRequest}
                 onRejectCancel={handleRejectCancelRequest}
@@ -5817,6 +5917,13 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             // ile aynı venueId eşleşmesine bağlı.
                             const highlightReservationId = shouldOpen ? (route?.params?.highlightReservationId || null) : null;
                             const highlightDate = shouldOpen ? (route?.params?.highlightDate || null) : null;
+                            const highlightCourtId = shouldOpen ? (route?.params?.highlightCourtId || null) : null;
+                            const highlightStartTime = shouldOpen ? (route?.params?.highlightStartTime || null) : null;
+                            const highlightEndTime = shouldOpen ? (route?.params?.highlightEndTime || null) : null;
+                            const highlightIsExternal = shouldOpen ? !!route?.params?.highlightIsExternal : false;
+                            const highlightClaimerUserId = shouldOpen ? (route?.params?.highlightClaimerUserId || null) : null;
+                            const highlightClaimerUsername = shouldOpen ? (route?.params?.highlightClaimerUsername || null) : null;
+                            const highlightCourtName = shouldOpen ? (route?.params?.highlightCourtName || null) : null;
                             // Kullanıcı isteği: "Yeni Sipariş" bildirimine dokununca rezervasyon
                             // takvimi yerine doğrudan Siparişler sekmesi (o maçın siparişleri) açılsın.
                             const shouldOpenOrders = route?.params?.openOrders === true
@@ -5825,7 +5932,26 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             const shouldOpenClubs = route?.params?.openClubs === true
                                 && (!route?.params?.venueId || route.params.venueId === v.id);
                             return (
-                                <VenueCard key={v.id} venue={v} sub={sub} navigation={navigation} onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))} openReservations={shouldOpen} highlightReservationId={highlightReservationId} highlightDate={highlightDate} openOrders={shouldOpenOrders} highlightActivityId={highlightActivityId} openClubs={shouldOpenClubs} />
+                                <VenueCard
+                                    key={v.id}
+                                    venue={v}
+                                    sub={sub}
+                                    navigation={navigation}
+                                    onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))}
+                                    openReservations={shouldOpen}
+                                    highlightReservationId={highlightReservationId}
+                                    highlightDate={highlightDate}
+                                    highlightCourtId={highlightCourtId}
+                                    highlightStartTime={highlightStartTime}
+                                    highlightEndTime={highlightEndTime}
+                                    highlightIsExternal={highlightIsExternal}
+                                    highlightClaimerUserId={highlightClaimerUserId}
+                                    highlightClaimerUsername={highlightClaimerUsername}
+                                    highlightCourtName={highlightCourtName}
+                                    openOrders={shouldOpenOrders}
+                                    highlightActivityId={highlightActivityId}
+                                    openClubs={shouldOpenClubs}
+                                />
                             );
                         })
                     )}

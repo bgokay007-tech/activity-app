@@ -97,7 +97,21 @@ function navigateFromNotif(data, isBusiness) {
         // bildirimleri) eski davranış korunur, tüm tesis kartları açılmayı dener.
         // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp söner ve
         // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
-        navigationRef.navigate('BusinessApp', { openReservations: true, venueId: data.venueId || null, highlightReservationId: data.reservationId || null, highlightDate: data.date || null });
+        // Uygulama dışı rezervasyon: tarih/kort/saat + claimer — takvim o slota gitsin,
+        // müsait/başkası aldı mı kontrol edilebilsin.
+        navigationRef.navigate('BusinessApp', {
+            openReservations: true,
+            venueId: data.venueId || null,
+            highlightReservationId: data.reservationId || null,
+            highlightDate: data.date || null,
+            highlightCourtId: data.courtId || null,
+            highlightStartTime: data.startTime || null,
+            highlightEndTime: data.endTime || null,
+            highlightIsExternal: data.isExternal === true || data.isExternal === 'true',
+            highlightClaimerUserId: data.claimerUserId || null,
+            highlightClaimerUsername: data.claimerUsername || null,
+            highlightCourtName: data.courtName || null,
+        });
     } else if (type === 'SCORE_DISPUTED' && data.scoreAppeal) {
         goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'disputes' } });
     } else if (adminPortalParamsForNotif(type, data)) {
