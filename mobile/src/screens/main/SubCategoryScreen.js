@@ -18157,6 +18157,20 @@ const hasTournExplicitSurface = (item) => {
     return true;
 };
 
+/** İlan kartı: play-off öncesi maç + kalan sayısı — anlaşılır tek cümle. */
+const tournPlayoffCardText = (item, t) => {
+    const x = item?.matchesBeforePlayoff ? parseInt(item.matchesBeforePlayoff, 10) : 0;
+    const y = item?.playoffQualifiers ? parseInt(item.playoffQualifiers, 10) : 0;
+    if (!x && !y) return null;
+    const type = String(item?.type || '');
+    const swissLike = type === '5' || type === '7';
+    const doubles = type === '2' || type === '4' || item?.entryType === 'DOUBLES';
+    if (swissLike && x) return t.sc_1199(x);
+    if (x && y) return doubles ? t.sc_1198(x, y) : t.sc_1197(x, y);
+    if (x) return t.sc_1200(x);
+    return doubles ? t.sc_1202(y) : t.sc_1201(y);
+};
+
 /** Turnuva maç kartı: set skorları rakiplerin ORTASINDA (isim yanına değil). */
 function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
     const box = { flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: colors.border, fontSize: 13, textAlign: 'center' };
@@ -19722,18 +19736,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </Text>
                     </View>
                 ) : null}
-                {item.matchesBeforePlayoff ? (
-                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                            {(['5','7'].includes(String(item.type)) ? t.sc_0403 : t.sc_0404)}: {item.matchesBeforePlayoff}
-                        </Text>
-                    </View>
-                ) : null}
-                {item.playoffQualifiers ? (
-                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0405} {item.playoffQualifiers}</Text>
-                    </View>
-                ) : null}
+                {(() => {
+                    const playoffTxt = tournPlayoffCardText(item, t);
+                    if (!playoffTxt) return null;
+                    return (
+                        <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={3}>{playoffTxt}</Text>
+                        </View>
+                    );
+                })()}
                 <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
                     <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
                         {(() => {
@@ -22082,18 +22093,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </Text>
                                     </View>
                                 ) : null}
-                                {item.matchesBeforePlayoff ? (
-                                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
-                                            {(['5','7'].includes(String(item.type)) ? t.sc_0403 : t.sc_0404)}: {item.matchesBeforePlayoff}
-                                        </Text>
-                                    </View>
-                                ) : null}
-                                {item.playoffQualifiers ? (
-                                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0405} {item.playoffQualifiers}</Text>
-                                    </View>
-                                ) : null}
+                                {(() => {
+                                    const playoffTxt = tournPlayoffCardText(item, t);
+                                    if (!playoffTxt) return null;
+                                    return (
+                                        <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
+                                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={3}>{playoffTxt}</Text>
+                                        </View>
+                                    );
+                                })()}
                                 <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
                                     <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
                                         {(() => {
