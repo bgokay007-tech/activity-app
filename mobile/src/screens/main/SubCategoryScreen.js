@@ -73,6 +73,7 @@ import {
     deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
 } from '../../utils/liveMatchEngine';
 import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, DEFI_TEAM_SUBS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
+import { tournPlayoffCardText } from '../../utils/tournamentCardText';
 import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
 import MatchVideoAnalysisModal from '../../components/MatchVideoAnalysisModal';
 import SportGuideModal from '../../components/SportGuideModal';
@@ -18155,20 +18156,6 @@ const hasTournSpecificCourt = (item) => {
 const hasTournExplicitSurface = (item) => {
     if (!item?.surface || item.surface === 'PLAYERS_DECIDE') return false;
     return true;
-};
-
-/** İlan kartı: play-off öncesi maç + kalan sayısı — anlaşılır tek cümle. */
-const tournPlayoffCardText = (item, t) => {
-    const x = item?.matchesBeforePlayoff ? parseInt(item.matchesBeforePlayoff, 10) : 0;
-    const y = item?.playoffQualifiers ? parseInt(item.playoffQualifiers, 10) : 0;
-    if (!x && !y) return null;
-    const type = String(item?.type || '');
-    const swissLike = type === '5' || type === '7';
-    const doubles = type === '2' || type === '4' || item?.entryType === 'DOUBLES';
-    if (swissLike && x) return t.sc_1199(x);
-    if (x && y) return doubles ? t.sc_1198(x, y) : t.sc_1197(x, y);
-    if (x) return t.sc_1200(x);
-    return doubles ? t.sc_1202(y) : t.sc_1201(y);
 };
 
 /** Turnuva maç kartı: set skorları rakiplerin ORTASINDA (isim yanına değil). */

@@ -49,19 +49,44 @@ export function resolveShareBackgroundModule(subCategory, surface) {
     return BG.tennisFallback;
 }
 
+async function moduleToDataUrl(mod) {
+    const asset = Asset.fromModule(mod);
+    await asset.downloadAsync();
+    const uri = asset.localUri || asset.uri;
+    if (!uri) return null;
+    const b64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+    });
+    const mime = String(uri).toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    return `data:${mime};base64,${b64}`;
+}
+
 export async function shareBackgroundToDataUrl(subCategory, surface) {
     try {
         const mod = resolveShareBackgroundModule(subCategory, surface);
-        const asset = Asset.fromModule(mod);
-        await asset.downloadAsync();
-        const uri = asset.localUri || asset.uri;
-        if (!uri) return null;
-        const b64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
-        });
-        const mime = String(uri).toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-        return `data:${mime};base64,${b64}`;
+        return await moduleToDataUrl(mod);
     } catch {
         return null;
     }
+}
+
+/**
+ * PLAYERS_DECIDE: paylaşım kartı arka planı — sol yarı sert, sağ yarı toprak.
+ * EntityShareModal canvas iki görseli yan yana çizer.
+ */
+export async function shareHardClaySplitToDataUrls() {
+    try {
+        const [left, right] = await Promise.all([
+            moduleToDataUrl(BG.tennisHard),
+            moduleToDataUrl(BG.tennisClay),
+        ]);
+        if (!left || !right) return null;
+        return { left, right };
+    } catch {
+        return null;
+    }
+}
+
+export function isPlayersDecideSurface(surface) {
+    return String(surface || '').trim().toUpperCase() === 'PLAYERS_DECIDE';
 }

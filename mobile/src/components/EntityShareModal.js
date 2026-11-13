@@ -10,7 +10,7 @@ import { useSelector } from 'react-redux';
 import useT from '../hooks/useT';
 import colors from '../theme/colors';
 import { buildEntitySharePayload, BRAND_LETTER_COLORS } from '../utils/entityShareCard';
-import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
+import { shareBackgroundToDataUrl, shareHardClaySplitToDataUrls, isPlayersDecideSurface } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
     shareToWhatsAppStatus,
@@ -47,25 +47,35 @@ async function coverToDataUrl(remoteUrl) {
  * 9:16 hikâye kartı — spor/zemin arka planı (toprak/sert/salon/plaj/padel) +
  * yarı saydam overlay; marka ve başlık büyük.
  */
-function cardHtml(p, coverDataUrl, bgDataUrl) {
+function cardHtml(p, coverDataUrl, bgDataUrl, bgSplit) {
     const brand = p.brand || 'AcTiViTy';
     const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
+    const bgLeft = bgSplit?.left || '';
+    const bgRight = bgSplit?.right || '';
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=${W}, initial-scale=1"/>
 </head><body style="margin:0;background:#0B0C10">
 <canvas id="c" width="${W}" height="${H}"></canvas>
 <script>
 (function(){
-  function paint(coverImg, bgImg){
+  function coverDraw(ctx, img, x, y, w, h){
+    if(!img) return;
+    var s=Math.max(w/img.width, h/img.height);
+    var dw=img.width*s, dh=img.height*s;
+    ctx.drawImage(img, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
+  }
+  function paint(coverImg, bgImg, bgLeftImg, bgRightImg){
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
       var W=${W}, H=${H}, TOP=240;
 
-      if(bgImg){
-        var bs=Math.max(W/bgImg.width, H/bgImg.height);
-        var bdw=bgImg.width*bs, bdh=bgImg.height*bs;
-        ctx.drawImage(bgImg, (W-bdw)/2, (H-bdh)/2, bdw, bdh);
+      // PLAYERS_DECIDE: sol yarı sert, sağ yarı toprak zemin
+      if(bgLeftImg && bgRightImg){
+        coverDraw(ctx, bgLeftImg, 0, 0, W/2, H);
+        coverDraw(ctx, bgRightImg, W/2, 0, W/2, H);
+      } else if(bgImg){
+        coverDraw(ctx, bgImg, 0, 0, W, H);
       } else {
         ctx.fillStyle='#0B0C10'; ctx.fillRect(0,0,W,H);
       }
@@ -179,13 +189,19 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
         });
       }
       if(lines.length){
-        roundRect(56, ny-40, W-112, Math.max(140, 44+lines.length*54+44), 28);
+        // Turnuva gibi uzun listelerde satır boyutu küçültülür — CTA'nın üstüne taşmasın
+        var lineSize=lines.length>10?26:lines.length>7?30:34;
+        var lineStep=lines.length>10?32:lines.length>7?38:44;
+        var boxPad=lines.length>10?28:44;
+        var estH=boxPad+lines.length*(lineStep+6)+boxPad;
+        roundRect(56, ny-36, W-112, Math.max(120, Math.min(estH, 1710-(ny-36)-24)), 28);
         ctx.fillStyle='rgba(22,24,31,0.78)'; ctx.fill();
         ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.stroke();
         lines.forEach(function(ln){
-          var wl=wrap(ln, 900, 34);
-          wl.forEach(function(w){ text(w, 540, ny, 34, '#E7E5E4', 'center', '700'); ny+=44; });
-          ny+=8;
+          if(ny>1680) return;
+          var wl=wrap(ln, 900, lineSize);
+          wl.slice(0,2).forEach(function(w){ text(w, 540, ny, lineSize, '#E7E5E4', 'center', '700'); ny+=lineStep; });
+          ny+=4;
         });
       }
 
@@ -201,8 +217,10 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
 
   var coverData=${JSON.stringify(coverDataUrl||'')};
   var bgData=${JSON.stringify(bgDataUrl||'')};
-  var coverImg=null, bgImg=null, pending=0;
-  function maybeGo(){ if(pending===0) paint(coverImg, bgImg); }
+  var bgLeftData=${JSON.stringify(bgLeft||'')};
+  var bgRightData=${JSON.stringify(bgRight||'')};
+  var coverImg=null, bgImg=null, bgLeftImg=null, bgRightImg=null, pending=0;
+  function maybeGo(){ if(pending===0) paint(coverImg, bgImg, bgLeftImg, bgRightImg); }
   function load(src, assign){
     if(!src) return;
     pending++;
@@ -213,7 +231,9 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
   }
   load(coverData, function(i){ coverImg=i; });
   load(bgData, function(i){ bgImg=i; });
-  if(pending===0) setTimeout(function(){ paint(null,null); }, 60);
+  load(bgLeftData, function(i){ bgLeftImg=i; });
+  load(bgRightData, function(i){ bgRightImg=i; });
+  if(pending===0) setTimeout(function(){ paint(null,null,null,null); }, 60);
 })();
 </script></body></html>`;
 }
@@ -249,6 +269,7 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
     const pngPath = useRef(null);
     const coverDataRef = useRef(null);
     const bgDataRef = useRef(null);
+    const bgSplitRef = useRef(null); // { left, right } — PLAYERS_DECIDE yarı sert/toprak
 
     useEffect(() => {
         if (!visible) {
@@ -259,28 +280,36 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             pngPath.current = null;
             coverDataRef.current = null;
             bgDataRef.current = null;
+            bgSplitRef.current = null;
         }
     }, [visible]);
 
-    // Kapak + arka plan: ekipmanda 2. foto varsa o arka plan; yoksa spor/zemin görseli
+    // Kapak + arka plan: ekipmanda 2. foto varsa o arka plan; PLAYERS_DECIDE → yarı sert/toprak
     useEffect(() => {
         if (!visible || !payload) {
             coverDataRef.current = null;
             bgDataRef.current = null;
+            bgSplitRef.current = null;
             return undefined;
         }
         let cancelled = false;
         coverDataRef.current = null;
         bgDataRef.current = null;
+        bgSplitRef.current = null;
         pngPath.current = null;
         (async () => {
             const resolveBg = async () => {
-                // Kullanıcı isteği: ekipman paylaşımında 1. resim kapak, 2. resim arka plan
                 if (payload.bgUrl) {
                     const custom = await coverToDataUrl(payload.bgUrl);
-                    if (custom) return custom;
+                    if (custom) return { single: custom, split: null };
                 }
-                return shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
+                // Kullanıcı isteği: zemin “oyuncular seçer” → sol sert, sağ toprak
+                if (payload.bgSplitHardClay || isPlayersDecideSurface(payload.surfaceRaw)) {
+                    const split = await shareHardClaySplitToDataUrls();
+                    if (split) return { single: null, split };
+                }
+                const single = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
+                return { single, split: null };
             };
             const [cover, bg] = await Promise.all([
                 payload.coverUrl ? coverToDataUrl(payload.coverUrl) : Promise.resolve(null),
@@ -288,28 +317,32 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             ]);
             if (!cancelled) {
                 coverDataRef.current = cover;
-                bgDataRef.current = bg;
+                bgDataRef.current = bg?.single || null;
+                bgSplitRef.current = bg?.split || null;
             }
         })();
         return () => { cancelled = true; };
-    }, [visible, payload?.id, payload?.coverUrl, payload?.bgUrl, payload?.subCategory, payload?.surfaceRaw]);
+    }, [visible, payload?.id, payload?.coverUrl, payload?.bgUrl, payload?.subCategory, payload?.surfaceRaw, payload?.bgSplitHardClay]);
 
     const ensurePng = async () => {
         if (pngPath.current) return pngPath.current;
         if (payload?.coverUrl && !coverDataRef.current) {
             coverDataRef.current = await coverToDataUrl(payload.coverUrl);
         }
-        if (!bgDataRef.current) {
+        if (!bgDataRef.current && !bgSplitRef.current) {
             if (payload?.bgUrl) {
                 bgDataRef.current = await coverToDataUrl(payload.bgUrl);
             }
-            if (!bgDataRef.current && payload?.subCategory) {
+            if (!bgDataRef.current && (payload?.bgSplitHardClay || isPlayersDecideSurface(payload?.surfaceRaw))) {
+                bgSplitRef.current = await shareHardClaySplitToDataUrls();
+            }
+            if (!bgDataRef.current && !bgSplitRef.current && payload?.subCategory) {
                 bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
             }
         }
         return new Promise((resolve, reject) => {
             pendingAction.current = { type: 'capture', resolve, reject };
-            setCaptureHtml(cardHtml(payload, coverDataRef.current, bgDataRef.current));
+            setCaptureHtml(cardHtml(payload, coverDataRef.current, bgDataRef.current, bgSplitRef.current));
             setNeedCapture(true);
         });
     };
