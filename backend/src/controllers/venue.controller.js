@@ -492,7 +492,7 @@ function computeSlots(venue, reservations, date, courtId = null, maintWindows = 
 
 const VENUE_ALLOWED_PACKAGES = ['RAHATLATICI', 'PRO', 'PREMIUM'];
 const VALID_BRANCHES = ['football','tennis','padel','pickleball','squash','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness','cycling','running',
-    'table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','dodgeball','shooting_hunting','equestrian','golf',
+    'table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','dodgeball','rugby','shooting_hunting','equestrian','golf',
     'fitness_gym','skiing_snowboard','ice_skating','hiking','camping','motorcycle','extreme_sports','paintball','airsoft'];
 
 export const createVenue = async (req, res, next) => {

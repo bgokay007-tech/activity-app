@@ -14,12 +14,13 @@ const LOSS = '#f87171';
 const DRAW = '#facc15';
 
 // Skor "set" değil gol/sayı olarak tutulan dallar — set/oyun yerine atılan/yenilen göster.
-const GOAL_SUBS = ['football', 'basketball', 'handball', 'dodgeball', 'hockey', 'water_polo'];
+const GOAL_SUBS = ['football', 'basketball', 'handball', 'dodgeball', 'rugby', 'hockey', 'water_polo'];
 
 function venueTitle(sub, t) {
     if (sub === 'table_tennis') return t.sportAnVenuesTable;
     if (sub === 'football') return t.sportAnVenuesPitch;
     if (['volleyball', 'basketball', 'handball', 'dodgeball'].includes(sub)) return t.sportAnVenuesHall;
+    if (sub === 'rugby') return t.sportAnVenuesPitch;
     return t.sportAnVenuesCourt;
 }
 

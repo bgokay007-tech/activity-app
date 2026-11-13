@@ -28,6 +28,7 @@ export const SUBCATEGORIES = {
         { id: 'sup_kano', name: 'SUP & Canoe', emoji: '🛶' },
         { id: 'handball', name: 'Handball', emoji: '🤾' },
         { id: 'dodgeball', name: 'Dodgeball', emoji: '🟠' },
+        { id: 'rugby', name: 'Rugby', emoji: '🏉' },
         { id: 'badminton', name: 'Badminton', emoji: '🏸' },
         { id: 'shooting_hunting', name: 'Shooting & Hunting', emoji: '🔫' },
         { id: 'equestrian', name: 'Equestrian', emoji: '🐎' },

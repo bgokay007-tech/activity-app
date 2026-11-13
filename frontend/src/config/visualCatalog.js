@@ -16,7 +16,7 @@ const SUB_PHOTO_FILE = {
     tennis: 'sub-tennis', padel: 'sub-padel', pickleball: 'sub-pickleball', squash: 'sub-squash', football: 'sub-football',
     wellness: 'sub-yoga', basketball: 'sub-basketball', running: 'sub-running', climbing: 'sub-climbing',
     volleyball: 'sub-volleyball', badminton: 'sub-badminton', table_tennis: 'sub-table-tennis',
-    foot_tennis: 'sub-foot-tennis', handball: 'sub-handball', dodgeball: 'sub-dodgeball', golf: 'sub-golf', hiking: 'sub-hiking',
+    foot_tennis: 'sub-foot-tennis', handball: 'sub-handball', dodgeball: 'sub-dodgeball', rugby: 'sub-rugby', golf: 'sub-golf', hiking: 'sub-hiking',
     camping: 'sub-camping', walking: 'sub-walking', archery: 'sub-archery', equestrian: 'sub-equestrian',
     sup_kano: 'sub-sup-kano', fitness_gym: 'sub-fitness', ice_skating: 'sub-ice-skating',
     skiing_snowboard: 'sub-skiing', motorcycle: 'sub-motorcycle', extreme_sports: 'sub-extreme',
@@ -40,7 +40,7 @@ export function photoForSub(subId, category) {
 // ids sırası = ilan sayısı eşitken popülerlik (soldan sağa).
 export const SPORT_GROUPS = [
     { id: 'racket',  key: 'sport_group_racket',  ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash'] },
-    { id: 'team',    key: 'sport_group_team',    ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball'] },
+    { id: 'team',    key: 'sport_group_team',    ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball', 'rugby'] },
     { id: 'outdoor', key: 'sport_group_outdoor', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio',  key: 'sport_group_studio',  ids: ['wellness', 'fitness_gym', 'ice_skating'] },
     { id: 'motor',   key: 'sport_group_motor',   ids: ['motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting'] },
@@ -48,12 +48,12 @@ export const SPORT_GROUPS = [
 
 export const COURT_SUBS = new Set([
     'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash', 'football', 'basketball',
-    'volleyball', 'handball', 'golf', 'ice_skating', 'wellness', 'fitness_gym',
+    'volleyball', 'handball', 'rugby', 'golf', 'ice_skating', 'wellness', 'fitness_gym',
 ]);
 
 export const SUB_TINT = {
     tennis: '#166534', padel: '#3f6212', badminton: '#115e59', table_tennis: '#1e3a8a', pickleball: '#4d7c0f', squash: '#0f766e', foot_tennis: '#365314',
-    football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c',
+    football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c', rugby: '#14532d',
     running: '#854d0e', walking: '#57534e', hiking: '#3f6212', camping: '#44403c', climbing: '#9a3412',
     sup_kano: '#0e7490', archery: '#7f1d1d', equestrian: '#78350f', golf: '#166534',
     wellness: '#6b21a8', fitness_gym: '#334155', ice_skating: '#1e3a5f',
@@ -79,6 +79,7 @@ export const SUB_MAP = {
         { id: 'sup_kano',         en: 'SUP & Canoe',        tr: 'SUP & Kano',            ru: 'SUP и каноэ',               de: 'SUP & Kanu',              emoji: '🛶' },
         { id: 'handball',         en: 'Handball',           tr: 'Hentbol',               ru: 'Гандбол',                   de: 'Handball',                emoji: '🤾' },
         { id: 'dodgeball',        en: 'Dodgeball',          tr: 'Yakar Top',             ru: 'Доджбол',                   de: 'Dodgeball',               emoji: '🟠' },
+        { id: 'rugby',            en: 'Rugby',              tr: 'Ragbi',                 ru: 'Регби',                     de: 'Rugby',                   emoji: '🏉' },
         { id: 'badminton',        en: 'Badminton',          tr: 'Badminton',             ru: 'Бадминтон',                 de: 'Badminton',               emoji: '🏸' },
         { id: 'shooting_hunting', en: 'Shooting & Hunting', tr: 'Atıcılık & Avcılık',    ru: 'Стрельба и охота',          de: 'Schießen & Jagen',        emoji: '🔫' },
         { id: 'equestrian',       en: 'Equestrian',         tr: 'Binicilik',             ru: 'Конный спорт',              de: 'Reiten',                  emoji: '🐎' },

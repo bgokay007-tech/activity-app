@@ -23,6 +23,7 @@ const STATIC_CATS = [
             { key: 'sup_kano',          label: 'Supboard ve Kano',         emoji: '🛶' },
             { key: 'handball',          label: 'Hentbol',                  emoji: '🤾' },
             { key: 'dodgeball',         label: 'Yakar Top',                emoji: '🟠' },
+            { key: 'rugby',             label: 'Ragbi',                    emoji: '🏉' },
             { key: 'badminton',         label: 'Badminton',                emoji: '🏸' },
             { key: 'shooting_hunting',  label: 'Atıcılık ve Avcılık',      emoji: '🔫' },
             { key: 'equestrian',        label: 'Binicilik',                emoji: '🐎' },

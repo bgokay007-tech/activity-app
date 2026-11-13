@@ -1371,6 +1371,7 @@ const fc = StyleSheet.create({
 
 const SUB_EMOJI = {
     football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', pickleball:'🏓', squash:'🟡', volleyball:'🏐',
+    rugby:'🏉', handball:'🤾', dodgeball:'🟠',
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
     writing:'✍️', sculpture:'🗿', cinema:'🎬', poetry:'📜', illustration:'🖼️',
@@ -1392,6 +1393,7 @@ function reservationMatchesSport(reservation, subCategory) {
     if (s === 'football')   return b.includes('futbol') || b.includes('hali') || b.includes('halı');
     if (s === 'basketball') return b.includes('basketbol') || b.includes('basket');
     if (s === 'volleyball') return b.includes('voleybol') || b.includes('volley');
+    if (s === 'rugby')      return b.includes('ragbi') || b.includes('rugby');
     if (s === 'badminton')  return b.includes('badminton');
     return b.includes(s);
 }
@@ -1446,6 +1448,7 @@ const ALL_BRANCHES = [
     { key: 'sup_kano',          label: '🛶 Supboard ve Kano',         category: 'SPORTS', subCategory: 'sup_kano' },
     { key: 'handball',          label: '🤾 Hentbol',                  category: 'SPORTS', subCategory: 'handball' },
     { key: 'dodgeball',         label: '🟠 Yakar Top',                category: 'SPORTS', subCategory: 'dodgeball' },
+    { key: 'rugby',             label: '🏉 Ragbi',                    category: 'SPORTS', subCategory: 'rugby' },
     { key: 'badminton',         label: '🏸 Badminton',                category: 'SPORTS', subCategory: 'badminton' },
     { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      category: 'SPORTS', subCategory: 'shooting_hunting' },
     { key: 'equestrian',        label: '🐎 Binicilik',                category: 'SPORTS', subCategory: 'equestrian' },

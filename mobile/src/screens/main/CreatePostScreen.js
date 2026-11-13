@@ -38,6 +38,7 @@ const ALL_BRANCHES = [
     { key: 'sup_kano',          label: '🛶 Supboard ve Kano',         category: 'SPORTS', subCategory: 'sup_kano' },
     { key: 'handball',          label: '🤾 Hentbol',                  category: 'SPORTS', subCategory: 'handball' },
     { key: 'dodgeball',         label: '🟠 Yakar Top',                category: 'SPORTS', subCategory: 'dodgeball' },
+    { key: 'rugby',             label: '🏉 Ragbi',                    category: 'SPORTS', subCategory: 'rugby' },
     { key: 'badminton',         label: '🏸 Badminton',                category: 'SPORTS', subCategory: 'badminton' },
     { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      category: 'SPORTS', subCategory: 'shooting_hunting' },
     { key: 'equestrian',        label: '🐎 Binicilik',                category: 'SPORTS', subCategory: 'equestrian' },

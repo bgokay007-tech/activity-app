@@ -20,6 +20,7 @@ const LABELS = {
     sup_kano: { en: 'SUP & Canoe', tr: 'SUP & Kano', ru: 'SUP и каноэ', de: 'SUP & Kanu' },
     handball: { en: 'Handball', tr: 'Hentbol', ru: 'Гандбол', de: 'Handball' },
     dodgeball: { en: 'Dodgeball', tr: 'Yakar Top', ru: 'Доджбол', de: 'Dodgeball' },
+    rugby: { en: 'Rugby', tr: 'Ragbi', ru: 'Регби', de: 'Rugby' },
     badminton: { en: 'Badminton', tr: 'Badminton', ru: 'Бадминтон', de: 'Badminton' },
     shooting_hunting: { en: 'Shooting & Hunting', tr: 'Atıcılık & Avcılık', ru: 'Стрельба и охота', de: 'Schießen & Jagen' },
     equestrian: { en: 'Equestrian', tr: 'Binicilik', ru: 'Конный спорт', de: 'Reiten' },

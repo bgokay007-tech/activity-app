@@ -934,6 +934,7 @@ const BRANCH_MAP = {
     volleyball: 'voleybol',
     handball:   'hentbol',
     dodgeball:  'yakar top',
+    rugby:      'ragbi',
     baseball:   'beysbol',
     swimming:   'yüzme',
     badminton:  'badminton',

@@ -105,7 +105,7 @@ export function sportFacilityLabels(sub, t) {
 export function sportEquipmentTabLabel(sub, sportDisplayName, lang, t) {
     const fac = sportFacilityLabels(sub, t);
     if (sub === 'tennis') return t.equipmentTab;
-    if (fac.sportNamedEquipment || sub === 'basketball' || sub === 'dodgeball' || sub === 'handball') {
+    if (fac.sportNamedEquipment || sub === 'basketball' || sub === 'dodgeball' || sub === 'handball' || sub === 'rugby') {
         if (lang === 'tr') return `${sportDisplayName} Ekipmanları`;
         if (lang === 'ru') return `${sportDisplayName} инвентарь`;
         if (lang === 'de') return `${sportDisplayName} Ausrüstung`;

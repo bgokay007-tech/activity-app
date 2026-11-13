@@ -465,7 +465,7 @@ const TICKET_ENABLED_EXTRA_SUBS = new Set(['boxing', 'martial_arts', 'ice_hockey
 // söz konusu değil) — Etkinlik Oluştur formunda Mod/Format ve kort/il/ilçe/adres
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
 const SIMPLIFIED_FEE_SUBS = new Set([
-    'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball', 'dodgeball',
+    'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball', 'dodgeball', 'rugby',
     'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf', 'travel_explore',
 ]);
 

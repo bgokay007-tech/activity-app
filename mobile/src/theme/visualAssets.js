@@ -24,6 +24,7 @@ export const SUB_PHOTOS = {
     foot_tennis:      require('../../assets/visual/sub-foot-tennis.jpg'),
     handball:         require('../../assets/visual/sub-handball.jpg'),
     dodgeball:        require('../../assets/visual/sub-dodgeball.jpg'),
+    rugby:            require('../../assets/visual/sub-rugby.jpg'),
     golf:             require('../../assets/visual/sub-golf.jpg'),
     hiking:           require('../../assets/visual/sub-hiking.jpg'),
     camping:          require('../../assets/visual/sub-camping.jpg'),

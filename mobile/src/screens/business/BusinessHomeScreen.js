@@ -398,6 +398,7 @@ const VENUE_BRANCHES = [
     { key: 'sup_kano',          label: '🛶 Supboard ve Kano',         subCategory: 'sup_kano', color: '#0284c7' },
     { key: 'handball',          label: '🤾 Hentbol',                  subCategory: 'handball', color: '#ea580c' },
     { key: 'dodgeball',         label: '🟠 Yakar Top',                subCategory: 'dodgeball', color: '#c2410c' },
+    { key: 'rugby',             label: '🏉 Ragbi',                    subCategory: 'rugby', color: '#14532d' },
     { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      subCategory: 'shooting_hunting', color: '#57534e' },
     { key: 'equestrian',        label: '🐎 Binicilik',                subCategory: 'equestrian', color: '#92400e' },
     { key: 'golf',              label: '⛳ Golf',                     subCategory: 'golf', color: '#15803d' },

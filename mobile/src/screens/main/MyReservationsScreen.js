@@ -24,6 +24,7 @@ function branchToSub(branch) {
     if (b.includes('futbol') || b.includes('hali') || b.includes('halı')) return { sub: 'football',  cat: 'SPORTS' };
     if (b.includes('basketbol') || b.includes('basket')) return { sub: 'basketball', cat: 'SPORTS' };
     if (b.includes('voleybol') || b.includes('volley'))  return { sub: 'volleyball', cat: 'SPORTS' };
+    if (b.includes('ragbi') || b.includes('rugby'))      return { sub: 'rugby',      cat: 'SPORTS' };
     if (b.includes('badminton'))                         return { sub: 'badminton',  cat: 'SPORTS' };
     return { sub: b || 'tennis', cat: 'SPORTS' };
 }
