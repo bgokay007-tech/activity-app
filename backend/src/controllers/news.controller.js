@@ -5,6 +5,7 @@ const RSS_FEEDS_EN = {
     basketball: 'https://feeds.bbci.co.uk/sport/basketball/rss.xml',
     padel:      'https://news.google.com/rss/search?q=padel+sport&hl=en-US&gl=US&ceid=US:en',
     pickleball: 'https://news.google.com/rss/search?q=pickleball&hl=en-US&gl=US&ceid=US:en',
+    squash:     'https://news.google.com/rss/search?q=squash&hl=en-US&gl=US&ceid=US:en',
     volleyball: 'https://news.google.com/rss/search?q=volleyball&hl=en-US&gl=US&ceid=US:en',
     // Badminton / masa tenisi — tenis feed'ine düşmesin (kullanıcı raporu: alakasız tenis haberleri).
     // TR dilinde yerel (TR Google News), EN'de global arama — yerel/global ayrımı dil üzerinden.
@@ -37,6 +38,7 @@ const RSS_FEEDS_TR = {
     basketball: 'https://news.google.com/rss/search?q=basketbol+spor&hl=tr&gl=TR&ceid=TR:tr',
     padel:      'https://news.google.com/rss/search?q=padel+tenis&hl=tr&gl=TR&ceid=TR:tr',
     pickleball: 'https://news.google.com/rss/search?q=pickleball&hl=tr&gl=TR&ceid=TR:tr',
+    squash:     'https://news.google.com/rss/search?q=squash+OR+skua%C5%9F&hl=tr&gl=TR&ceid=TR:tr',
     volleyball: 'https://news.google.com/rss/search?q=voleybol+spor&hl=tr&gl=TR&ceid=TR:tr',
     badminton:     'https://news.google.com/rss/search?q=badminton+spor&hl=tr&gl=TR&ceid=TR:tr',
     table_tennis:  'https://news.google.com/rss/search?q=masa+tenisi&hl=tr&gl=TR&ceid=TR:tr',

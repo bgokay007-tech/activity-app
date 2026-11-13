@@ -125,7 +125,8 @@
       "padel": "Инвентарь для падела",
       "basketball": "Баскетбольный инвентарь",
       "volleyball": "Волейбольный инвентарь",
-      "pickleball": "Инвентарь для пиклбола"
+      "pickleball": "Инвентарь для пиклбола",
+      "squash": "Инвентарь для сквоша"
     },
     "condition_all": "Все",
     "chat_btn": "Открыть чат",
@@ -311,6 +312,7 @@
     "venue_res_table_tennis": "Бронь настольного тенниса",
     "venue_res_badminton": "Бронь бадминтона",
     "venue_res_pickleball": "Бронь пиклбола",
+    "venue_res_squash": "Бронь сквоша",
     "venue_res_ok": "Корт успешно забронирован",
     "hall_search": "Поиск зала",
     "venue_bookable": "Бронь",
@@ -1827,6 +1829,7 @@
     "biz_branch_padel": "🏓 Падел",
     "biz_branch_paintball": "🎯 Пейнтбол",
     "biz_branch_pickleball": "🏓 Пиклбол",
+    "biz_branch_squash": "🟡 Сквош",
     "biz_branch_running": "🏃 Бег",
     "biz_branch_shooting_hunting": "🔫 Стрельба и охота",
     "biz_branch_skiing_snowboard": "⛷️ Лыжи и сноуборд",

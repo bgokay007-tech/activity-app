@@ -4,7 +4,7 @@ import { SUB_PHOTOS } from '../theme/visualAssets';
 import { warmSportPhotos } from '../utils/warmSportPhotos';
 
 const SPORT_IDS = [
-    'tennis', 'padel', 'table_tennis', 'badminton', 'pickleball',
+    'tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash',
     'volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball',
     'running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano',
     'wellness', 'fitness_gym', 'ice_skating',

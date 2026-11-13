@@ -18,14 +18,14 @@ import { subCategoryTR } from './subCategoryLabels.js';
 // Kullanıcı isteği: badminton + masa tenisi tenis ile aynı UTR algoritması / turnuva çeşitleri /
 // puan kazanım-kayıp mantığını kullanır. Tekli/çiftler AYRI (tenis gibi; padel çiftler-öncelikli
 // istisnası bu iki dala uygulanmaz).
-export const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
+export const UTR_SUBCATEGORIES = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash'];
 
 // Bu dallarda çiftler ankete AYRI soru seti (assessments.js QUESTIONS.<dal>_doubles).
 // Tekli ve çiftler anketleri birbirinden bağımsız — çiftler ilanına katılırken / çiftler
 // değerlendirmesinde tekli anket şart değil (padel ile aynı bağımsızlık; padel'in varsayılan
 // anketi yine çiftler, bu dalların varsayılanı tekli).
 // Eski ad UTR_SINGLES_FIRST_*: "önce tekli" kuralı kaldırıldı; isim geriye uyumluluk için duruyor.
-export const UTR_SINGLES_FIRST_SUBCATEGORIES = ['tennis', 'badminton', 'table_tennis'];
+export const UTR_SINGLES_FIRST_SUBCATEGORIES = ['tennis', 'badminton', 'table_tennis', 'squash'];
 export const UTR_SEPARATE_DOUBLES_ASSESSMENT_SUBCATEGORIES = UTR_SINGLES_FIRST_SUBCATEGORIES;
 
 const D = 0.6;                 // lojistik beklenen-sonuç eğrisinin dikliği (0-5 skala) — tunable

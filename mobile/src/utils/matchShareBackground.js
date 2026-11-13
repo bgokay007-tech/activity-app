@@ -29,7 +29,7 @@ export function resolveShareBackgroundModule(subCategory, surface) {
     const sub = String(subCategory || '').toLowerCase();
     const sf = normSurface(surface);
 
-    if (sub === 'tennis' || sub === 'table_tennis' || sub === 'badminton' || sub === 'pickleball') {
+    if (sub === 'tennis' || sub === 'table_tennis' || sub === 'badminton' || sub === 'pickleball' || sub === 'squash') {
         if (sf === 'CLAY') return BG.tennisClay;
         if (sf === 'GRASS') return BG.tennisGrass;
         if (sf === 'HARD' || sf === 'CARPET' || sf === 'ARTIFICIAL' || sf === 'OTHER') return BG.tennisHard;

@@ -12,6 +12,7 @@ export const SUB_PHOTOS = {
     tennis:           require('../../assets/visual/sub-tennis.jpg'),
     padel:            require('../../assets/visual/sub-padel.jpg'),
     pickleball:       require('../../assets/visual/sub-pickleball.jpg'),
+    squash:           require('../../assets/visual/sub-squash.jpg'),
     football:         require('../../assets/visual/sub-football.jpg'),
     wellness:         require('../../assets/visual/sub-yoga.jpg'),
     basketball:       require('../../assets/visual/sub-basketball.jpg'),

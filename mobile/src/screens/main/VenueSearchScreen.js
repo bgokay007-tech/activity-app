@@ -928,6 +928,7 @@ const BRANCH_MAP = {
     tennis:     'tenis',
     padel:      'padel',
     pickleball: 'pickleball',
+    squash:     'squash',
     football:   'futbol',
     basketball: 'basketbol',
     volleyball: 'voleybol',

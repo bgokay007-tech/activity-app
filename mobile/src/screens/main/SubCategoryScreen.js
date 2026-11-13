@@ -83,7 +83,7 @@ import { hasSportGuide } from '../../data/sportGuides';
 // aynı liste (backend requireActiveInterest ile de tutarlı). İlan oluşturma/kort rezervasyonu
 // öncesi bu dallarda anket tamamlanmamışsa direkt anketi açıyoruz (bkz. requireActivity).
 const RATING_REQUIRED_SUBS = new Set([
-    'tennis', 'padel', 'pickleball', 'volleyball', 'basketball', 'football',
+    'tennis', 'padel', 'pickleball', 'squash', 'volleyball', 'basketball', 'football',
     'badminton', 'golf', 'handball', 'table_tennis',
 ]);
 
@@ -126,7 +126,7 @@ function matchFormatLabel(m, t, { teamFn } = {}) {
 // gelen istekler/gönderilen davetler ve digimon kartlarda kullanıcı adının yanında maçın
 // FORMATINA (tekli/çiftli) göre doğru puan, "T ELO"/"Ç ELO" (İngilizce "S ELO"/"D ELO") gibi
 // açıkça etiketlenmiş şekilde görünsün — hangi puanın gösterildiği belirsiz kalmasın diye.
-const UTR_MOBILE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
+const UTR_MOBILE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash']);
 function appLocale(lang) {
     if (lang === 'tr') return 'tr-TR';
     if (lang === 'ru') return 'ru-RU';
@@ -334,6 +334,7 @@ const SUB_CONFIG = {
     tennis:     { name:'Tennis',     nameTR:'Tenis',      nameRu:'Теннис',                      nameDe:'Tennis',                    emoji:'🎾', color: colors.yellow  || '#eab308' },
     padel:      { name:'Padel',      nameTR:'Padel',      nameRu:'Падел',                       nameDe:'Padel',                     emoji:'🏓', color: colors.cyan    || '#06b6d4' },
     pickleball: { name:'Pickleball', nameTR:'Pickleball', nameRu:'Пиклбол',                     nameDe:'Pickleball',                emoji:'🏓', color:'#4d7c0f' },
+    squash:     { name:'Squash',     nameTR:'Squash',     nameRu:'Сквош',                       nameDe:'Squash',                    emoji:'🟡', color:'#0f766e' },
     badminton:  { name:'Badminton',  nameTR:'Badminton',  nameRu:'Бадминтон',                   nameDe:'Badminton',                 emoji:'🏸', color:'#0d9488' },
     table_tennis: { name:'Table Tennis', nameTR:'Masa Tenisi', nameRu:'Настольный теннис',      nameDe:'Tischtennis',               emoji:'🏓', color:'#1d4ed8' },
     football:   { name:'Football',   nameTR:'Futbol',     nameRu:'Футбол',                      nameDe:'Fußball',                   emoji:'⚽', color: colors.green   || '#16a34a' },
@@ -523,7 +524,7 @@ function getTabs(sub, category) {
     if (sub === 'basketball')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'tickets', 'archive'];
     // Kullanıcı isteği: badminton ve masa tenisi, padel ile aynı sekme setini kullanıyor.
-    if (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball')
+    if (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
     if (TICKET_ENABLED_EXTRA_SUBS.has(sub))
         return ['rivals', 'tournaments', 'coaches', 'archive', 'media', 'tickets'];
@@ -4338,7 +4339,7 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                                 </>
                             );
                         })()}
-                        {isOwner && !isRefereeAd && !isFull && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && (
+                        {isOwner && !isRefereeAd && !isFull && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && (
                             <TouchableOpacity
                                 disabled={seedingDemoRival}
                                 style={[s.joinBtn, { backgroundColor:'#7c3aed20', borderWidth:1, borderColor:'#7c3aed50', marginBottom:6, borderRadius: moderateScale(8), paddingVertical: moderateScale(6), opacity: seedingDemoRival ? 0.6 : 1 }]}
@@ -9820,7 +9821,7 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                             Koşulu aynı: maç saati gelince (skor kilidi açılmadan çok önce), kamera
                             kaydı ve/ya da saatten canlı skor takibi başlatılabilir — sadece
                             tenis/padel/voleybolde, sadece maça dahil olanlar başlatabilir. */}
-                        {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'basketball'].includes(match.subCategory) && (
+                        {isParticipant && !hasScore && !scoreUnlocked && matchStart && new Date() >= matchStart && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'basketball'].includes(match.subCategory) && (
                             <TouchableOpacity
                                 style={{ paddingHorizontal:11, paddingVertical:6, borderRadius:10, borderWidth:1, borderColor: cfg.color+'60', backgroundColor: cfg.color+'20', alignItems:'center' }}
                                 onPress={() => setShowMatchStart(true)}>
@@ -14712,7 +14713,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // davranıyor (format seçimi, cinsiyet kısıtlaması, kort yüzeyi/tesis türü, hakem/bahis
     // alanları vb.) — bu tek boole'a bağlı ~35 yerin hepsine otomatik yansısın diye badminton
     // ve masa tenisi buraya eklendi.
-    const isPadel     = sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball';
+    // Squash: anket/ilan akışı raket gibi ama varsayılan çiftler değil (padel/pickleball'dan ayrı).
+    const isPadel     = sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash';
     const teamSizes   = isFootball ? FOOTBALL_SIZES : isVolleyball ? VOLLEYBALL_SIZES : [];
     const cfg         = getConfig(sub);
     // Format (tekli/çiftler) sadece hiç katılımcı/partner kabul edilmemişse
@@ -15619,8 +15621,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 courtFeePerPerson: f.courtFeePerPerson !== '' ? f.courtFeePerPerson : null,
                 courtFeePerPersonByMethod: f.courtFeePerPersonByMethod || null,
                 ...(SIMPLIFIED_FEE_SUBS.has(sub) && { feeIncludes: f.activityIsPaid ? (f.feeIncludes || null) : null }),
-                ...((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && { genderReq: f.genderReq || 'MIX', matchType: f.matchType }),
-                ...((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && f.matchType === 'DOUBLE' && {
+                ...((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && { genderReq: f.genderReq || 'MIX', matchType: f.matchType }),
+                ...((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' && {
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                     teamFlexibility: f.teamFlexibility,
                 }),
@@ -15629,7 +15631,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     minGenderReq: f.minGenderReq, minGenderCount: f.minGenderCount,
                 }),
                 ...(sub === 'airsoft' && { winsNeeded: f.winsNeeded }),
-                ...(['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && {
+                ...(['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && {
                     refereeRequested: !!f.refereeRequested,
                     refereePayment: f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== '' ? `${f.refereePayment}₺` : null,
                     refereeFeeIncluded: !!f.refereeFeeIncluded,
@@ -15821,10 +15823,10 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 subCount: isVolleyball ? (f.subCount || 0) : undefined,
                 founderTeamName: (isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && f.founderTeamName.trim() ? f.founderTeamName.trim() : undefined,
                 opponentTeamName: (isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && f.opponentTeamName.trim() ? f.opponentTeamName.trim() : undefined,
-                genderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') ? (f.genderReq || 'MIX') : undefined,
-                partnerGenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
-                opp1GenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
-                opp2GenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
+                genderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') ? (f.genderReq || 'MIX') : undefined,
+                partnerGenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
+                opp1GenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
+                opp2GenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
                 genderCountMode: (isVolleyball || sub === 'airsoft') && f.genderCountMode ? f.genderCountMode : undefined,
                 requiredMaleCount: (isVolleyball || sub === 'airsoft') && f.requiredMaleCount != null ? f.requiredMaleCount : undefined,
                 minGenderReq: (isVolleyball || sub === 'airsoft') && f.minGenderReq ? f.minGenderReq : undefined,
@@ -15846,18 +15848,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 venueId:            f.venueId       || undefined,
                 venueCourtId:       f.venueCourtId   || undefined,
                 venueReservationId,
-                refereeRequested: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) ? !!f.refereeRequested : undefined,
-                refereePayment: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== ''
+                refereeRequested: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) ? !!f.refereeRequested : undefined,
+                refereePayment: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.refereeRequested && !f.refereeFeeIncluded && f.refereePayment !== ''
                     ? `${f.refereePayment}₺` : undefined,
-                refereeFeeIncluded: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && f.refereeRequested ? !!f.refereeFeeIncluded : undefined,
-                refereeInvites: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
+                refereeFeeIncluded: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.refereeRequested ? !!f.refereeFeeIncluded : undefined,
+                refereeInvites: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.refereeRequested && f.refereeInvites.length > 0
                     ? f.refereeInvites.map(inv => ({ userId: inv.user.id, message: inv.message || undefined, price: inv.price || undefined }))
                     : undefined,
                 // Voleybolde hakem de uygulama üzerinden aranıp seçilmek zorunda — manuel isim
                 // burada gönderilmiyor (bkz. RefereeTypeContent, referee.allowManual).
                 manualRefereeName: undefined,
-                participantsCanInvite: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) ? !!f.participantsCanInvite : undefined,
-                extraServices: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
+                participantsCanInvite: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) ? !!f.participantsCanInvite : undefined,
+                extraServices: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
                 // Takım havuzu (voleybol + airsoft) — kartın arka yüzünde Kurucu/Rakip'e atanan
                 // slotlar (side) ilgili davet dizisine gider; gerçek kullanıcılar davet olur
                 // (kabul etmeden eklenmez), hesabı olmayanlar sadece bilgi amaçlı isim olarak
@@ -15885,7 +15887,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 // düşerler, hangi slota gideceğine ilan sahibi (ya da kendileri) sonradan karar verir.
                 unassignedInviteIds: (isVolleyball || sub === 'airsoft')
                     ? f.rosterSlots.filter(s => s?.type === 'user' && !s.side).map(s => s.userId)
-                    : (!isTeamSport && f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball'))
+                    : (!isTeamSport && f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash'))
                         ? [f.poolInvite1, f.poolInvite2, f.poolInvite3].filter(Boolean).map(u => u.id)
                         : undefined,
                 unassignedManualNames: undefined,
@@ -16096,8 +16098,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 satırında. Eski chip mantığı (tenis/padelde ikinciye dokununca BOTH'a
                                                 birleşme) hiç değişmeden, sadece her satır artık alt alta. */}
                                             <AnchoredMenu visible={activePopup === 'mode'} onClose={() => setActivePopup(null)} minWidth={140}>
-                                                    {((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map((mode, mi, arr) => {
-                                                        const isActive = (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball')
+                                                    {((sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') ? ['PRACTICE','COMPETITIVE'] : ['PRACTICE','COMPETITIVE','BOTH']).map((mode, mi, arr) => {
+                                                        const isActive = (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash')
                                                             ? (f.matchMode === mode || f.matchMode === 'BOTH')
                                                             : f.matchMode === mode;
                                                         const handleModePress = () => {
@@ -16261,7 +16263,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                             />
                                         );
                                     })()}
-                                    {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && f.flexibleSchedule && (
+                                    {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.flexibleSchedule && (
                                         <Text style={s.modeHint}>{t.multiSelectHint}</Text>
                                     )}
                                     <EloWarningModal visible={showEloWarning} onClose={() => setShowEloWarning(false)} onDismissForever={() => setEloWarningDismissed(true)} />
@@ -16547,9 +16549,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                 />
                                             </View>
                                         )}
-                                        {['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && (
+                                        {['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && (
                                             <ExtraServicesEditor services={f.extraServices} onChange={v => set('extraServices', v)}
-                                                referee={!isMatchedEdit && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) ? {
+                                                referee={!isMatchedEdit && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) ? {
                                                     requested: f.refereeRequested,
                                                     onToggleRequested: () => set('refereeRequested', !f.refereeRequested),
                                                     name: f.manualRefereeName,
@@ -17405,7 +17407,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 gelicek"). Önceden ayrı bir popup/overlay içindeydi — cinsiyet seçimi
                                 de (DoubleRosterCard'ın arka yüzünde) kartı çevirmeden görünmediği için
                                 "kapatılmış" gibi hissettiriyordu; artık formun normal akışında. */}
-                            {f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && (
+                            {f.matchType === 'DOUBLE' && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && (
                                 // zIndex/elevation: arka yüzdeki Takım 1/Takım 2 formalarından açılan
                                 // isim önerisi (TeamSlotInviteField) altındaki Mesaj/Ödül bölümünün
                                 // ARKASINDA kalıyordu (kullanıcı raporu, ekran görüntüsüyle doğrulandı)
@@ -17426,7 +17428,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 Digimon kart: ön yüz "Katılan Oyuncular" (1 satır, 2 forma — kurucu kilitli
                                 + rakip yazılabilir), arka yüz Kurucu/Rakip etiketli aynı 2 forma (kullanıcı
                                 isteği: "aynı mantık 1v1'e göre uyarla"). */}
-                            {f.matchType === 'SINGLE' && !isTeamSport && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && (
+                            {f.matchType === 'SINGLE' && !isTeamSport && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && (
                                 // Aynı zIndex/elevation düzeltmesi — bkz. yukarıdaki DoubleRosterCard notu.
                                 <View style={{ marginBottom:14, zIndex:30, elevation:30 }}>
                                     <SingleRosterCard
@@ -17536,7 +17538,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             {/* Hizmetler ekledikçe Mesaj'ın hemen üstünde özet görünsün — kullanıcı
                                 isteğiyle, HİZMETLER butonuna tekrar dokunmadan neyin eklendiği görülebiliyor.
                                 Açık ilana düştükten sonra aynı özet match kartında da gösteriliyor (bkz. 3440). */}
-                            {!isMatchedEdit && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && f.extraServices.length > 0 && (
+                            {!isMatchedEdit && ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.extraServices.length > 0 && (
                                 <View style={{ marginBottom:10 }}>
                                     <Text style={[s.fieldLabel, { marginBottom:2 }]}>{t.extraServicesSummaryLabel}</Text>
                                     {f.extraServices.map(sv => (
@@ -19343,7 +19345,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 prize2: editPrize2 || null,
                 prize3: editPrize3 || null,
                 surpriseGifts: editSurpriseGifts || null,
-                ...(['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball'].includes(item.subCategory) && { extraServices: editExtraServices }),
+                ...(['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash'].includes(item.subCategory) && { extraServices: editExtraServices }),
                 eventDate: fmtD(editEventDate),
                 eventTime: editEventTime || null,
                 eventEndDate: fmtD(editEventEndDate),
@@ -21095,7 +21097,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TextInput style={[s.fieldInput, { marginBottom:8 }]} value={editPrize3} onChangeText={setEditPrize3} placeholder={t.sc_0554} placeholderTextColor={colors.textMuted} />
                                 <TextInput style={s.fieldInput} value={editSurpriseGifts} onChangeText={setEditSurpriseGifts} placeholder={t.sc_0555} placeholderTextColor={colors.textMuted} />
 
-                                {['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball'].includes(item.subCategory) && (
+                                {['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash'].includes(item.subCategory) && (
                                     <ExtraServicesEditor services={editExtraServices} onChange={setEditExtraServices} />
                                 )}
 
@@ -22612,7 +22614,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                 endDate: fmtISO(f.regEndDate),
                 endTime: f.regEndTime || undefined,
                 rules: f.rules,
-                extraServices: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
+                extraServices: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
                 description: f.description.trim() || undefined,
             });
             reset();
@@ -23094,11 +23096,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </View>
                             )}
                             {/* Belirli kort yokken tenis (ve benzeri) için zemin detayı — sert/toprak/çim/diğer veya oyuncular karar verir */}
-                            {f.courtDecidedByPlayers && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && (
+                            {f.courtDecidedByPlayers && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && (
                                 <>
                                     <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel}</Text>
                                     <View style={[s.chipRow, { marginBottom:8 }]}>
-                                        {((sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball')
+                                        {((sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash')
                                             ? TOURN_NO_COURT_PADEL_SURFACES
                                             : TOURN_NO_COURT_TENNIS_SURFACES
                                         ).map(sf => {
@@ -23166,11 +23168,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                         </View>
                                     )}
                                     {/* Surface (tennis / padel) — belirli kort seçildiğinde tüm zeminler */}
-                                    {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') && (
+                                    {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && (
                                         <>
                                             <Text style={s.fieldLabelRed}>{t.tournSurfaceLabel}</Text>
                                             <View style={[s.chipRow, { marginBottom:8 }]}>
-                                                {((sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball') ? PADEL_SURFACES : TENNIS_SURFACES).map(sf => (
+                                                {((sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') ? PADEL_SURFACES : TENNIS_SURFACES).map(sf => (
                                                     <TouchableOpacity key={sf.id}
                                                         style={[s.chip, { paddingVertical:2, paddingHorizontal:5 }, f.surface === sf.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
                                                         onPress={() => set('surface', f.surface === sf.id ? '' : sf.id)}>
@@ -24599,7 +24601,7 @@ function SubCategoryScreen({ route, navigation }) {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
     }, []));
     useEffect(() => {
-        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'pickleball' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
+        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'pickleball' && sub !== 'squash' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
         const today = new Date().toISOString().slice(0, 10);
         const storageKey = `${sub}_spotlight_shown`;
         AsyncStorage.getItem(storageKey).then(raw => {
@@ -28721,7 +28723,7 @@ function SubCategoryScreen({ route, navigation }) {
                 ) : (
                     <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
-                {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'volleyball') ? (
+                {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash' || sub === 'volleyball') ? (
                     <View style={{ flexDirection:'row', alignItems:'center', gap: 5 }}>
                         {/* Kullanıcı isteği: sıralama şu düzende olsun — kupa (sıralama), digimon
                             kart (günün yıldızı), kortlar/salonlar, en sonda bilgilendirme (ℹ️).
@@ -29718,7 +29720,7 @@ function SubCategoryScreen({ route, navigation }) {
                     })()}
 
                     {activeTab === 'coaches' && (() => {
-                        const isCoachExpanded = ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball'].includes(sub);
+                        const isCoachExpanded = ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash'].includes(sub);
                         // Kullanıcı isteği: admin onaylayınca "sadece CV" kaydı (profileOnly) CV'ler
                         // sekmesinde görünsün diye backend artık bunu genel listeye de dahil ediyor
                         // (bkz. coach.controller.js getListings) — ama gerçek bir ders teklifi

@@ -46,7 +46,7 @@ import {
 } from '../../utils/matchReminders';
 
 // UTR dalları — tekli/çiftler ayrı puan + anket (bkz. backend utrRating.js).
-const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball'];
+const UTR_PROFILE_SUBS = ['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash'];
 
 // ─── Sport Card Flip Modal ────────────────────────────────────────────────────
 const { width: SW, height: SH } = Dimensions.get('window');
@@ -603,16 +603,16 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                                             <Text style={fc.eloChipRedTxt} numberOfLines={1}>{t.venueCancelReschedBtn || 'İptal/Değiştirme'}</Text>
                                                         </TouchableOpacity>
                                                         <TouchableOpacity
-                                                            onPress={() => (['tennis', 'padel', 'pickleball'].includes(item.subCategory) ? setShowRacquetFeedback(true) : openAssessPicker())}
+                                                            onPress={() => (['tennis', 'padel', 'pickleball', 'squash'].includes(item.subCategory) ? setShowRacquetFeedback(true) : openAssessPicker())}
                                                             style={fc.eloChipYellow}
                                                         >
-                                                            <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {['tennis', 'padel', 'pickleball'].includes(item.subCategory) ? t.myEvaluationsBtn : t.assessBtn}</Text>
+                                                            <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {['tennis', 'padel', 'pickleball', 'squash'].includes(item.subCategory) ? t.myEvaluationsBtn : t.assessBtn}</Text>
                                                         </TouchableOpacity>
                                                     </View>
                                                 )}
                                                 {!isOwnProfile && (
                                                     <View style={[fc.eloActionRow, { marginTop: moderateScale(4) }]}>
-                                                        {['tennis', 'padel', 'pickleball'].includes(item.subCategory) && (
+                                                        {['tennis', 'padel', 'pickleball', 'squash'].includes(item.subCategory) && (
                                                             <TouchableOpacity onPress={() => setShowRacquetFeedback(true)} style={fc.eloChipYellow}>
                                                                 <Text style={fc.eloChipYellowTxt} numberOfLines={1}>📋 {t.assessBtn}</Text>
                                                             </TouchableOpacity>
@@ -781,7 +781,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                             )}
 
                             {/* Tenis/padel/pickleball: kendi profilde alınan notlar, başkasında değerlendirme formu */}
-                            {(item.subCategory === 'tennis' || item.subCategory === 'padel' || item.subCategory === 'pickleball') && (
+                            {(item.subCategory === 'tennis' || item.subCategory === 'padel' || item.subCategory === 'pickleball' || item.subCategory === 'squash') && (
                                 <TouchableOpacity style={fc.actionBtnWide} onPress={() => setShowRacquetFeedback(true)}>
                                     <Text style={[fc.actionTxt, { color: item.subCategory === 'padel' || item.subCategory === 'pickleball' ? '#06b6d4' : '#22c55e', textAlign: 'center' }]}>
                                         {isOwnProfile ? t.myEvaluationsBtn : t.assessBtn}
@@ -923,7 +923,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                 ) : (
                     /* ── Arka Yüz ── */
                     <View style={[fc.face, fc.backFace]}>
-                        {(item?.subCategory === 'tennis' || item?.subCategory === 'padel' || item?.subCategory === 'pickleball') ? (
+                        {(item?.subCategory === 'tennis' || item?.subCategory === 'padel' || item?.subCategory === 'pickleball' || item?.subCategory === 'squash') ? (
                             <TennisDailyAnimation color={cfg.color} lang={lang} />
                         ) : (
                             <>
@@ -1370,7 +1370,7 @@ const fc = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SUB_EMOJI = {
-    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', pickleball:'🏓', volleyball:'🏐',
+    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', pickleball:'🏓', squash:'🟡', volleyball:'🏐',
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
     writing:'✍️', sculpture:'🗿', cinema:'🎬', poetry:'📜', illustration:'🖼️',
@@ -1388,6 +1388,7 @@ function reservationMatchesSport(reservation, subCategory) {
     if (s === 'tennis')     return b.includes('tenis') || b.includes('tennis');
     if (s === 'padel')      return b.includes('padel');
     if (s === 'pickleball') return b.includes('pickleball') || b.includes('pickleb');
+    if (s === 'squash')     return b.includes('squash') || b.includes('skuaş') || b.includes('skuas');
     if (s === 'football')   return b.includes('futbol') || b.includes('hali') || b.includes('halı');
     if (s === 'basketball') return b.includes('basketbol') || b.includes('basket');
     if (s === 'volleyball') return b.includes('voleybol') || b.includes('volley');
@@ -1430,6 +1431,7 @@ const ALL_BRANCHES = [
     { key: 'tennis',        label: '🎾 Tenis',            category: 'SPORTS', subCategory: 'tennis' },
     { key: 'padel',         label: '🏓 Padel',            category: 'SPORTS', subCategory: 'padel' },
     { key: 'pickleball',    label: '🏓 Pickleball',       category: 'SPORTS', subCategory: 'pickleball' },
+    { key: 'squash',        label: '🟡 Squash',           category: 'SPORTS', subCategory: 'squash' },
     { key: 'volleyball',    label: '🏐 Voleybol',         category: 'SPORTS', subCategory: 'volleyball' },
     { key: 'swimming',      label: '🏊 Yüzme',            category: 'SPORTS', subCategory: 'swimming' },
     { key: 'running',       label: '🏃 Koşu & Yürüyüş',   category: 'SPORTS', subCategory: 'running' },

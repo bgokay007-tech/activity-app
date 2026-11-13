@@ -13,7 +13,7 @@ export const CAT_PHOTOS = {
 };
 
 const SUB_PHOTO_FILE = {
-    tennis: 'sub-tennis', padel: 'sub-padel', pickleball: 'sub-pickleball', football: 'sub-football',
+    tennis: 'sub-tennis', padel: 'sub-padel', pickleball: 'sub-pickleball', squash: 'sub-squash', football: 'sub-football',
     wellness: 'sub-yoga', basketball: 'sub-basketball', running: 'sub-running', climbing: 'sub-climbing',
     volleyball: 'sub-volleyball', badminton: 'sub-badminton', table_tennis: 'sub-table-tennis',
     foot_tennis: 'sub-foot-tennis', handball: 'sub-handball', dodgeball: 'sub-dodgeball', golf: 'sub-golf', hiking: 'sub-hiking',
@@ -39,7 +39,7 @@ export function photoForSub(subId, category) {
 
 // ids sırası = ilan sayısı eşitken popülerlik (soldan sağa).
 export const SPORT_GROUPS = [
-    { id: 'racket',  key: 'sport_group_racket',  ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball'] },
+    { id: 'racket',  key: 'sport_group_racket',  ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash'] },
     { id: 'team',    key: 'sport_group_team',    ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball'] },
     { id: 'outdoor', key: 'sport_group_outdoor', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio',  key: 'sport_group_studio',  ids: ['wellness', 'fitness_gym', 'ice_skating'] },
@@ -47,12 +47,12 @@ export const SPORT_GROUPS = [
 ];
 
 export const COURT_SUBS = new Set([
-    'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'football', 'basketball',
+    'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash', 'football', 'basketball',
     'volleyball', 'handball', 'golf', 'ice_skating', 'wellness', 'fitness_gym',
 ]);
 
 export const SUB_TINT = {
-    tennis: '#166534', padel: '#3f6212', badminton: '#115e59', table_tennis: '#1e3a8a', pickleball: '#4d7c0f', foot_tennis: '#365314',
+    tennis: '#166534', padel: '#3f6212', badminton: '#115e59', table_tennis: '#1e3a8a', pickleball: '#4d7c0f', squash: '#0f766e', foot_tennis: '#365314',
     football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c',
     running: '#854d0e', walking: '#57534e', hiking: '#3f6212', camping: '#44403c', climbing: '#9a3412',
     sup_kano: '#0e7490', archery: '#7f1d1d', equestrian: '#78350f', golf: '#166534',
@@ -66,6 +66,7 @@ export const SUB_MAP = {
         { id: 'tennis',           en: 'Tennis',             tr: 'Tenis',                 ru: 'Теннис',                    de: 'Tennis',                  emoji: '🎾' },
         { id: 'padel',            en: 'Padel',              tr: 'Padel',                 ru: 'Падел',                     de: 'Padel',                   emoji: '🏓' },
         { id: 'pickleball',       en: 'Pickleball',         tr: 'Pickleball',            ru: 'Пиклбол',                   de: 'Pickleball',              emoji: '🏓' },
+        { id: 'squash',           en: 'Squash',             tr: 'Squash',                ru: 'Сквош',                     de: 'Squash',                  emoji: '🟡' },
         { id: 'volleyball',       en: 'Volleyball',         tr: 'Voleybol',              ru: 'Волейбол',                  de: 'Volleyball',              emoji: '🏐' },
         { id: 'football',         en: 'Football',           tr: 'Futbol',                ru: 'Футбол',                    de: 'Fußball',                 emoji: '⚽' },
         { id: 'basketball',       en: 'Basketball',         tr: 'Basketbol',             ru: 'Баскетбол',                 de: 'Basketball',              emoji: '🏀' },

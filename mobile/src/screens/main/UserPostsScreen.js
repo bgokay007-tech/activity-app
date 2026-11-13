@@ -18,7 +18,7 @@ import SavePostToListModal from '../../components/SavePostToListModal';
 const SCREEN_W = Dimensions.get('window').width;
 
 const SUB_EMOJI = {
-    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', volleyball:'🏐',
+    football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', pickleball:'🏓', squash:'🟡', volleyball:'🏐',
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     table_tennis:'🏓', climbing:'🧗', archery:'🏹', walking:'🚶', foot_tennis:'🦶',
     sup_kano:'🛶', handball:'🤾', dodgeball:'🟠', badminton:'🏸', shooting_hunting:'🔫', equestrian:'🐎',

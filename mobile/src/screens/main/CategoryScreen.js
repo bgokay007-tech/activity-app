@@ -34,7 +34,7 @@ const FAV_KEY = 'activity_fav_subs_SPORTS';
 const RECENT_KEY = 'activity_recent_subs_SPORTS';
 
 const COURT_SUBS = new Set([
-    'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'football', 'basketball',
+    'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash', 'football', 'basketball',
     'volleyball', 'handball', 'golf', 'ice_skating', 'wellness', 'fitness_gym',
 ]);
 
@@ -42,7 +42,7 @@ const COURT_SUBS = new Set([
 // ilan sayısı, eşitse bu sıra kullanılır.
 const SPORT_GROUPS = [
     // Sıra: tenis → padel → masa tenisi → badminton → pickleball (en sonda).
-    { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball'] },
+    { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash'] },
     { id: 'team', key: 'sportGroupTeam', emoji: '⚽', ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball'] },
     { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
     { id: 'studio', key: 'sportGroupStudio', emoji: '🧘', ids: ['wellness', 'fitness_gym', 'ice_skating'] },
@@ -52,7 +52,7 @@ const SPORT_GROUPS = [
 // Fotoğrafı olmayan kartlarda stok spor görseli yerine dal rengi — 19 dal aynı
 // stoğa düşünce hangisinin hangisi olduğu kayboluyordu.
 const SUB_TINT = {
-    tennis: '#166534', padel: '#3f6212', badminton: '#115e59', table_tennis: '#1e3a8a', pickleball: '#4d7c0f', foot_tennis: '#365314',
+    tennis: '#166534', padel: '#3f6212', badminton: '#115e59', table_tennis: '#1e3a8a', pickleball: '#4d7c0f', squash: '#0f766e', foot_tennis: '#365314',
     football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c',
     running: '#854d0e', walking: '#57534e', hiking: '#3f6212', camping: '#44403c', climbing: '#9a3412',
     sup_kano: '#0e7490', archery: '#7f1d1d', equestrian: '#78350f', golf: '#166534',
@@ -66,6 +66,7 @@ const SUB_MAP = {
         { id: 'tennis',      label: 'Tennis',           labelTR: 'Tenis',              labelRU: 'Теннис',                    labelDE: 'Tennis',                     emoji: '🎾' },
         { id: 'padel',       label: 'Padel',            labelTR: 'Padel',              labelRU: 'Падел',                     labelDE: 'Padel',                      emoji: '🏓', image: require('../../../assets/padel.png') },
         { id: 'pickleball',  label: 'Pickleball',       labelTR: 'Pickleball',         labelRU: 'Пиклбол',                   labelDE: 'Pickleball',                 emoji: '🏓', image: require('../../../assets/pickleball.jpg') },
+        { id: 'squash',      label: 'Squash',           labelTR: 'Squash',             labelRU: 'Сквош',                     labelDE: 'Squash',                     emoji: '🟡' },
         { id: 'volleyball',  label: 'Volleyball',       labelTR: 'Voleybol',           labelRU: 'Волейбол',                  labelDE: 'Volleyball',                 emoji: '🏐' },
         { id: 'football',    label: 'Football',         labelTR: 'Futbol',             labelRU: 'Футбол',                    labelDE: 'Fußball',                    emoji: '⚽' },
         { id: 'basketball',  label: 'Basketball',       labelTR: 'Basketbol',          labelRU: 'Баскетбол',                 labelDE: 'Basketball',                 emoji: '🏀' },

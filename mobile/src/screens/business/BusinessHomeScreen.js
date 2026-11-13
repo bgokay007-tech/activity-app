@@ -380,6 +380,7 @@ const VENUE_BRANCHES = [
     { key: 'tennis',      label: '🎾 Tenis',              subCategory: 'tennis', color: '#eab308' },
     { key: 'padel',       label: '🏓 Padel',              subCategory: 'padel', color: '#06b6d4' },
     { key: 'pickleball',  label: '🏓 Pickleball',         subCategory: 'pickleball', color: '#4d7c0f' },
+    { key: 'squash',      label: '🟡 Squash',             subCategory: 'squash', color: '#0f766e' },
     { key: 'basketball',  label: '🏀 Basketbol',          subCategory: 'basketball', color: '#f97316' },
     { key: 'volleyball',  label: '🏐 Voleybol',           subCategory: 'volleyball', color: '#a855f7' },
     { key: 'badminton',   label: '🏸 Badminton',          subCategory: 'badminton', color: '#14b8a6' },

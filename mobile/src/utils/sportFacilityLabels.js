@@ -46,6 +46,20 @@ export function sportFacilityLabels(sub, t) {
             sportNamedEquipment: true,
         };
     }
+    if (sub === 'squash') {
+        return {
+            noun: t.squashCourtLabel,
+            reserved: t.squashReservedLabel,
+            notReserved: t.squashNotReserved,
+            promptQ: t.squashReservedPromptQ,
+            searchPh: t.squashSearchPlaceholder,
+            manualLabel: t.squashManualLabel,
+            specifyBtn: t.squashSpecifyBtn,
+            feeLabel: t.squashFeeLabel,
+            resBtn: t.venueResBtnSquash,
+            sportNamedEquipment: true,
+        };
+    }
     if (sub === 'volleyball') {
         return {
             noun: t.volleyballHallLabel,

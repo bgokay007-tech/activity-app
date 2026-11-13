@@ -193,7 +193,7 @@ export default function SportAnalysisModal({ visible, onClose, userId, subCatego
 
         const singles = d.ratingTimeline.filter(p => p.matchType === 'singles');
         const doubles = d.ratingTimeline.filter(p => p.matchType === 'doubles');
-        const isUtr = ['tennis', 'padel', 'pickleball'].includes(subCategory);
+        const isUtr = ['tennis', 'padel', 'pickleball', 'squash', 'badminton', 'table_tennis'].includes(subCategory);
         const series = isUtr
             ? [{ pts: singles, label: t.sportAnSingles, col: '#facc15' }, { pts: doubles, label: t.sportAnDoubles, col: '#22d3ee' }]
             : [{ pts: d.ratingTimeline, label: 'ELO', col: '#facc15' }];

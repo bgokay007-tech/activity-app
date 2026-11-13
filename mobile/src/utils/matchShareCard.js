@@ -6,7 +6,7 @@ const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
 
 const SUB_EMOJI = {
     football: '⚽', basketball: '🏀', tennis: '🎾', padel: '🏓', volleyball: '🏐',
-    badminton: '🏸', table_tennis: '🏓', pickleball: '🥒', running: '🏃', climbing: '🧗',
+    badminton: '🏸', table_tennis: '🏓', pickleball: '🥒', squash: '🟡', running: '🏃', climbing: '🧗',
 };
 
 /** Navbar gökkuşağı döngüsünün sabit harf renkleri (animasyon yerine snapshot). */
@@ -16,8 +16,8 @@ export const BRAND_LETTER_COLORS = [
 ];
 
 /** Tenis/padel/badminton/masa tenisi/pickleball — tekli/çiftler ELO ayrı. */
-export const UTR_SHARE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
-const LEADERBOARD_SHARE_SUBS = new Set(['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis', 'volleyball']);
+export const UTR_SHARE_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash']);
+const LEADERBOARD_SHARE_SUBS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'badminton', 'table_tennis', 'volleyball']);
 
 function nameOf(p) {
     if (!p) return '';
@@ -434,7 +434,7 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
     }
 
     // Oyun toplamı — sadece raket sporlarında (voleybol set puanı toplamı "oyun" değil)
-    const racketSubs = new Set(['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis']);
+    const racketSubs = new Set(['tennis', 'padel', 'pickleball', 'squash', 'badminton', 'table_tennis']);
     let leftGames = null;
     let rightGames = null;
     if (racketSubs.has(sub)) {

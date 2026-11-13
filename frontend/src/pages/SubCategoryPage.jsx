@@ -57,9 +57,9 @@ const WELLNESS_BRANCHES = new Set(['wellness']);
 
 // Team sports — Player Wanted + Find Opponent tabs
 const TEAM_SPORTS = new Set(['volleyball', 'football']);
-const TICKET_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
-const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'volleyball']);
-const EQUIPMENT_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'basketball', 'volleyball']);
+const TICKET_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'volleyball']);
+const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'volleyball']);
+const EQUIPMENT_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'basketball', 'volleyball']);
 
 // 15-minute interval time select (06:00 – 23:45)
 const TIME_OPTIONS = (() => {
@@ -631,7 +631,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const isCompetitiveTeam = sub === 'football' && form.matchMode === 'COMPETITIVE' && form.teamSize > 1;
     // Tenis/Padel çiftler: ilanı oluştururken partner seçimi zorunlu (mevcut takım kurucu
     // arayüzü 1 partner aramak için tekrar kullanılıyor — teamSize zaten varsayılan 2).
-    const needsPartner     = (sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && form.matchType === 'DOUBLE';
+    const needsPartner     = (sub === 'tennis' || sub === 'padel' || sub === 'pickleball' || sub === 'squash' || sub === 'badminton' || sub === 'table_tennis') && form.matchType === 'DOUBLE';
     const isTeamBuilder     = (sub === 'football' && form.teamSize > 1) || needsPartner;
     const spotsLeft = form.teamSize - 1 - senderTeam.length; // how many more teammates needed
 
@@ -1063,7 +1063,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             )}
 
             {/* Gender restriction — tennis/padel only */}
-            {(sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && form.matchType === 'SINGLE' && (
+            {(sub === 'tennis' || sub === 'padel' || sub === 'pickleball' || sub === 'squash' || sub === 'badminton' || sub === 'table_tennis') && form.matchType === 'SINGLE' && (
                 <div>
                     <label className="text-gray-400 text-xs mb-2 block">{t('rival.gender_req_label')}</label>
                     <div className="flex gap-2">
@@ -4847,7 +4847,7 @@ function SubCategoryPage() {
                                 </div>
                                 <div className="flex items-center gap-2 flex-wrap justify-end">
                                     {/* Mobildeki Kort Rez. — aynı sayfada tesis ara + gerçek rezervasyon */}
-                                    {['tennis', 'padel', 'pickleball', 'table_tennis', 'badminton', 'volleyball'].includes(sub) && (
+                                    {['tennis', 'padel', 'pickleball', 'squash', 'table_tennis', 'badminton', 'volleyball'].includes(sub) && (
                                         <button
                                             type="button"
                                             onClick={() => setShowCourtResModal(true)}
@@ -4861,7 +4861,9 @@ function SubCategoryPage() {
                                                         ? (t('rival.venue_res_badminton') || 'Badminton Rezervasyonu')
                                                         : sub === 'pickleball'
                                                             ? (t('rival.venue_res_pickleball') || 'Pickleball Rezervasyonu')
-                                                            : (t('rival.venue_res_create') || 'Kort Rezervasyonu')}
+                                                            : sub === 'squash'
+                                                                ? (t('rival.venue_res_squash') || 'Squash Rezervasyonu')
+                                                                : (t('rival.venue_res_create') || 'Kort Rezervasyonu')}
                                         </button>
                                     )}
                                     <button
@@ -5118,7 +5120,7 @@ function SubCategoryPage() {
                                                                         </div>
                                                                     ))}
                                                                     <div className="pt-1 space-y-2">
-                                            {rival.senderId === myId && filled < required && (sub === 'tennis' || sub === 'padel' || sub === 'pickleball') && (
+                                            {rival.senderId === myId && filled < required && (sub === 'tennis' || sub === 'padel' || sub === 'pickleball' || sub === 'squash' || sub === 'badminton' || sub === 'table_tennis') && (
                                                 <button onClick={() => sendRivalDemoJoin(rival.id)} disabled={seedingDemoRivalId === rival.id}
                                                     className="w-full bg-purple-600/10 border border-purple-500/30 text-purple-400 hover:bg-purple-600/20 font-bold text-xs px-3 py-1.5 rounded-xl transition mb-3 disabled:opacity-50">
                                                     {seedingDemoRivalId === rival.id ? '...' : t('websc.demo_join')}

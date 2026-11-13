@@ -23,6 +23,7 @@ const ALL_BRANCHES = [
     { key: 'tennis',        label: '🎾 Tenis',            category: 'SPORTS', subCategory: 'tennis' },
     { key: 'padel',         label: '🏓 Padel',            category: 'SPORTS', subCategory: 'padel' },
     { key: 'pickleball',    label: '🏓 Pickleball',       category: 'SPORTS', subCategory: 'pickleball' },
+    { key: 'squash',        label: '🟡 Squash',           category: 'SPORTS', subCategory: 'squash' },
     { key: 'volleyball',    label: '🏐 Voleybol',         category: 'SPORTS', subCategory: 'volleyball' },
     { key: 'swimming',      label: '🏊 Yüzme',            category: 'SPORTS', subCategory: 'swimming' },
     { key: 'running',       label: '🏃 Koşu & Yürüyüş',   category: 'SPORTS', subCategory: 'running' },

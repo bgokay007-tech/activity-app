@@ -340,6 +340,43 @@ const SPORT_GUIDES = {
         ],
     },
 
+    squash: {
+        howToPlay: [
+            {
+                title: L('Court & tin', 'Kort ve tin', 'Корт и tin', 'Feld & Tin'),
+                body: L(
+                    'Four-wall indoor court. Ball must hit the front wall above the tin (metal strip) and below the out line. Side and back walls are in play. Serve from alternate boxes; after the serve, either player may volley.',
+                    'Dört duvarlı kapalı kort. Top ön duvara tin’in (metal şerit) üstünden ve out çizgisinin altından çarpmalı. Yan ve arka duvarlar oyunda. Servis sırayla kutulardan; servisten sonra vole serbest.',
+                    'Четыре стены. Мяч — в переднюю стену выше tin и ниже out. Боковые и задняя в игре. Подача из боксов по очереди.',
+                    'Vier-Wand-Halle. Ball an die Frontwand über dem Tin, unter der Out-Linie. Seiten- und Rückwand spielen. Aufschlag abwechselnd aus den Boxen.'
+                ),
+            },
+            {
+                title: L('PAR scoring to 11', 'PAR sayı 11’e', 'PAR до 11', 'PAR bis 11'),
+                body: L(
+                    'Point-a-rally (PAR) to 11 — every rally scores; must win by 2 if tied 10–10. Older “hand-in / hand-out” scoring still appears in some clubs; ask before you play.',
+                    'Point-a-rally (PAR) 11’e — her ralli sayı; 10–10’da 2 fark gerekir. Eski “hand-in / hand-out” bazı kulüplerde hâlâ var; oynamadan sorun.',
+                    'PAR до 11 — каждый розыгрыш очко; при 10–10 нужна разница 2. Старый hand-in/out ещё встречается.',
+                    'PAR bis 11 — jeder Ballwechsel zählt; bei 10–10 Differenz 2. Altes Hand-in/out gibt es noch in manchen Clubs.'
+                ),
+            },
+        ],
+        bonus: [
+            {
+                title: L('Boast, rails & length', 'Boast, ray ve uzunluk', 'Boast, рейлы и длина', 'Boast, Rails & Länge'),
+                body: L(
+                    'A boast uses a side wall then front wall to recover or create an angle. Drive deep to the back corners (length); volley when you can to take time away. Keep clear of your opponent’s swing — let calls and interference are part of the game.',
+                    'Boast: yan duvar → ön duvar (kurtarma veya açı). Derin arka köşelere (uzunluk) vur; vole ile rakibin zamanını çal. Rakibin vuruş alanını boş bırak — let / interference oyunun parçası.',
+                    'Boast: боковая → передняя. Длина в задние углы; волей, когда можно. Не мешайте замаху — let/interference норма.',
+                    'Boast: Seitenwand → Front. Länge in die hinteren Ecken; Volley nehmen Zeit. Freiraum lassen — Let/Interference gehört dazu.'
+                ),
+                tips: [
+                    L('Watch the tin — soft length beats a tin error', 'Tin’e dikkat — yumuşak uzunluk, tin hatasından iyidir', 'Смотрите tin — мягкая длина лучше ошибки в tin', 'Tin im Blick — weiche Länge schlägt Tin-Fehler'),
+                ],
+            },
+        ],
+    },
+
     volleyball: {
         howToPlay: [
             {

@@ -12,6 +12,7 @@ export const SUBCATEGORIES = {
         { id: 'tennis', name: 'Tennis', emoji: '🎾' },
         { id: 'padel', name: 'Padel', emoji: '🏓' },
         { id: 'pickleball', name: 'Pickleball', emoji: '🏓' },
+        { id: 'squash', name: 'Squash', emoji: '🟡' },
         { id: 'volleyball', name: 'Volleyball', emoji: '🏐' },
         { id: 'swimming', name: 'Swimming', emoji: '🏊' },
         // Yürüyüş ayrı dal değil — "Koşu & Yürüyüş" içinde tür seçeneği (bkz. mobil runActivityTypes)
@@ -663,7 +664,7 @@ export const getUsersByCategory = async (req, res, next) => {
 // sıralaması — yerel (şehir)/ulusal (ülke)/uluslararası (herkes) 3 kapsam. UTR dallarında
 // (tenis/padel/badminton/masa tenisi) `ratingType` (singles/doubles) query parametresi ile
 // hangi disiplin sıralanacağı seçilir (default singles). Voleybol hâlâ tek skillRating.
-const LEADERBOARD_SPORTS = ['tennis', 'padel', 'pickleball', 'badminton', 'table_tennis', 'volleyball'];
+const LEADERBOARD_SPORTS = ['tennis', 'padel', 'pickleball', 'squash', 'badminton', 'table_tennis', 'volleyball'];
 
 export const getLeaderboard = async (req, res, next) => {
     try {

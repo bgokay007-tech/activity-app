@@ -3,7 +3,7 @@ import { SUB_PHOTOS } from '../theme/visualAssets';
 
 // Spor ekranındaki dal kartları — ana sayfada çözülürse Spor girişi JPEG decode ile kilitlenmez.
 const SPORT_IDS = [
-    'tennis', 'padel', 'table_tennis', 'badminton', 'pickleball',
+    'tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash',
     'volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball',
     'running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano',
     'wellness', 'fitness_gym', 'ice_skating',

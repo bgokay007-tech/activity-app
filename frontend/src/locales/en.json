@@ -125,7 +125,8 @@
       "padel": "Padel Equipment",
       "basketball": "Basketball Equipment",
       "volleyball": "Volleyball Equipment",
-      "pickleball": "Pickleball Equipment"
+      "pickleball": "Pickleball Equipment",
+      "squash": "Squash Equipment"
     },
     "condition_all": "All",
     "chat_btn": "Open Chat",
@@ -311,6 +312,7 @@
     "venue_res_table_tennis": "Table Tennis Reservation",
     "venue_res_badminton": "Badminton Reservation",
     "venue_res_pickleball": "Pickleball Reservation",
+    "venue_res_squash": "Squash Reservation",
     "venue_res_ok": "Court reserved successfully",
     "hall_search": "Search Hall",
     "venue_bookable": "Bookable",
@@ -1826,6 +1828,7 @@
     "biz_branch_padel": "🏓 Padel",
     "biz_branch_paintball": "🎯 Paintball",
     "biz_branch_pickleball": "🏓 Pickleball",
+    "biz_branch_squash": "🟡 Squash",
     "biz_branch_running": "🏃 Running",
     "biz_branch_shooting_hunting": "🔫 Shooting and Hunting",
     "biz_branch_skiing_snowboard": "⛷️ Skiing and Snowboard",

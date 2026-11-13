@@ -16,6 +16,7 @@ const BRANCH_LABEL = {
     tennis: 'biz_branch_tennis',
     padel: 'biz_branch_padel',
     pickleball: 'biz_branch_pickleball',
+    squash: 'biz_branch_squash',
     basketball: 'biz_branch_basketball',
     volleyball: 'biz_branch_volleyball',
     badminton: 'biz_branch_badminton',
@@ -47,7 +48,7 @@ const BRANCH_LABEL = {
     airsoft: 'biz_branch_airsoft',
 };
 const BRANCHES = [
-    'football','tennis','padel','pickleball','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness',
+    'football','tennis','padel','pickleball','squash','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness',
     'cycling','running','table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','dodgeball',
     'shooting_hunting','equestrian','golf','fitness_gym','skiing_snowboard','ice_skating','hiking','camping',
     'motorcycle','extreme_sports','paintball','airsoft',

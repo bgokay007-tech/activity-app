@@ -63,7 +63,7 @@ export const toggleAlert = async (req, res, next) => {
 };
 
 const SUB_NAMES_TR = {
-    tennis: 'Tenis', padel: 'Padel', football: 'Futbol',
+    tennis: 'Tenis', padel: 'Padel', pickleball: 'Pickleball', squash: 'Squash', football: 'Futbol',
     basketball: 'Basketbol', volleyball: 'Voleybol',
     swimming: 'Yüzme', running: 'Koşu', cycling: 'Bisiklet',
     boxing: 'Boks', martial_arts: 'Dövüş Sanatları', wellness: 'Yoga/Pilates',
