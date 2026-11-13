@@ -18,6 +18,7 @@ const STATUS_COLOR = { PENDING: '#eab308', CONFIRMED: '#22c55e', CANCELLED: '#6b
 function branchToSub(branch) {
     const b = (branch || '').toLowerCase();
     if (b.includes('pickleball') || b.includes('pickleb')) return { sub: 'pickleball', cat: 'SPORTS' };
+    if (b.includes('squash') || b.includes('skuaş') || b.includes('skuas')) return { sub: 'squash', cat: 'SPORTS' };
     if (b.includes('padel'))                             return { sub: 'padel',      cat: 'SPORTS' };
     if (b.includes('tenis') || b.includes('tennis'))     return { sub: 'tennis',     cat: 'SPORTS' };
     if (b.includes('futbol') || b.includes('hali') || b.includes('halı')) return { sub: 'football',  cat: 'SPORTS' };

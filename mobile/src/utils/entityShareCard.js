@@ -7,7 +7,7 @@ const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
 
 const SUB_EMOJI = {
     football: '⚽', basketball: '🏀', tennis: '🎾', padel: '🏓', volleyball: '🏐',
-    badminton: '🏸', table_tennis: '🏓', pickleball: '🥒', running: '🏃', climbing: '🧗',
+    badminton: '🏸', table_tennis: '🏓', pickleball: '🥒', squash: '🟡', running: '🏃', climbing: '🧗',
 };
 
 function sportMeta(sub, lang) {

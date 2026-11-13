@@ -112,6 +112,8 @@ const CONFIG = {
     },
     tennis: racquetCfg('racquetFeedbackTitleTennis'),
     padel: racquetCfg('racquetFeedbackTitlePadel'),
+    pickleball: racquetCfg('racquetFeedbackTitlePadel'),
+    squash: racquetCfg('racquetFeedbackTitleTennis'),
 };
 
 function ScoreRow({ max, value, onChange }) {

@@ -27,14 +27,14 @@ const WAGERED_GAMES = new Set(['okey', 'batak']);
 // Bu dallarda derece anketi zorunlu — eklerken açılan anket kapatılamaz/atlanamaz
 // (backend'de de requireActiveInterest ile ayrıca korunuyor, bkz. rival.controller.js).
 const RATING_REQUIRED_SUBS = new Set([
-    'tennis', 'padel', 'pickleball', 'volleyball', 'basketball', 'football',
+    'tennis', 'padel', 'pickleball', 'squash', 'volleyball', 'basketball', 'football',
     'badminton', 'golf', 'handball', 'table_tennis',
 ]);
 
 // UTR-esinli sisteme geçen dallar (bkz. backend utrRating.js) — tekli/çiftler puanı AYRI,
 // değerlendirme de iki seçenekli (Tekli/Çiftler) açılıyor. Diğer dallarda tek "Değerlendir".
 // Çiftler anketi tekliden bağımsız (çiftler katılımı / çiftler değerlendirmesi için).
-const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball']);
+const SINGLES_DOUBLES_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash']);
 
 export default function ManageActivitiesModal({ visible, interests, onClose, onInterestsChange, privacyEmojiIcon, onPrivacyPress }) {
     const t = useT();

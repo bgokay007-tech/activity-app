@@ -383,7 +383,7 @@ async function ensureDemoRivalPlayer(demo, subCategory) {
     // + pickleball için zorunlu — sadece teniste true bırakınca diğer dallarda DOUBLE
     // demo başvurusu "uygun demo oyuncu kalmadı" ile düşüyordu.
     const isUtrSubCategory = subCategory === 'tennis' || subCategory === 'padel' || subCategory === 'pickleball'
-        || subCategory === 'badminton' || subCategory === 'table_tennis';
+        || subCategory === 'squash' || subCategory === 'badminton' || subCategory === 'table_tennis';
     // MID havuzu tekli/çiftler için AYRI değer taşıyor (bkz. demo.singlesRating/doublesRating) —
     // diğer havuzlar (ADA/HI vb.) bu alanları hiç taşımıyor, o zaman düz skillRating ikisine de
     // mirror'lanır (eski davranış, geriye dönük uyumlu).

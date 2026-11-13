@@ -7,8 +7,8 @@
 // side her zaman 'A' (ilanı açan/kurucu taraf) veya 'B' (rakip taraf) — mobile tarafında
 // çağıran kod A/B'yi sender/opponent'a çevirir.
 
-export const RACKET_SPORTS = new Set(['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball']);
-export const RALLY_RACKET_SPORTS = new Set(['table_tennis', 'badminton']); // deuce/avantaj yok, direkt sayı
+export const RACKET_SPORTS = new Set(['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash']);
+export const RALLY_RACKET_SPORTS = new Set(['table_tennis', 'badminton', 'squash']); // deuce/avantaj yok, direkt sayı (squash PAR)
 export const VOLLEYBALL_SPORTS = new Set(['volleyball']);
 export const BASKETBALL_SPORTS = new Set(['basketball']);
 // Tek telefon kamerasıyla otomatik hat yok; bu dallarda kullanıcı son 8 sn replay'den
@@ -40,7 +40,8 @@ export function recordLineCall(state, verdict) {
 // config: { sport, padelSimple?: bool, setsToWin: 2 (best-of-3) | 3 (best-of-5), rallyTarget?: 21|11 }
 export function createRacketMatch({ sport, padelSimple = false, setsToWin = 2, initialServer = 'A' }) {
     const isRally = RALLY_RACKET_SPORTS.has(sport) || (sport === 'padel' && padelSimple);
-    const rallyTarget = sport === 'table_tennis' ? 11 : sport === 'badminton' ? 21 : 21; // padel simple: 21 varsayılan
+    // Squash PAR ve masa tenisi 11; badminton 21; padel simple varsayılan 21.
+    const rallyTarget = (sport === 'table_tennis' || sport === 'squash') ? 11 : sport === 'badminton' ? 21 : 21;
     return {
         sport, profile: 'racket', isRally, rallyTarget, setsToWin, padelSimple, initialServer,
         pointsA: 0, pointsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
