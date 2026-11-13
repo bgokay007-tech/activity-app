@@ -582,119 +582,21 @@ export const TENNIS_ATHLETES = [
     }),
 ];
 
-export const PADEL_ATHLETES = [
-    A({
-        id: 'bela', name: 'Fernando Belasteguín', years: '1979–', country: '🇦🇷', status: 'legend', peakRank: 1,
-        bio: L('Argentine “Bela” — record weeks at #1, precision at net, first golden-era face of pro padel.', 'Arjantinli “Bela” — rekor 1 numara haftası, file isabeti, pro padelin ilk altın çağ yüzü.', 'Аргентинец «Bela» — рекорд №1, точность у сетки.', 'Argentinier „Bela“ — Rekord-Nr. 1, Netzpräzision.'),
-        life: L('Long partnership eras defined early World Padel Tour history; longevity rarely matched.', 'Erken WPT tarihini uzun partner dönemleri tanımladı; uzun ömür nadir.', 'Долгие пары определили ранний WPT.', 'Lange Partner-Äras prägten die frühe WPT.'),
-        achievements: L('Record #1 weeks; dozens of WPT titles.', 'Rekor 1 numara haftası; onlarca WPT unvanı.', 'Рекорд недель №1; десятки титулов WPT.', 'Rekordwochen Nr. 1; Dutzende WPT-Titel.'),
-        advice: L('Win the net first; bandeja to reset, vibora to finish.', 'Önce fileyi kazan; reset için bandeja, bitirmek için vibora.', 'Сначала сетка; бандеха — сброс, вибора — финиш.', 'Erst Netz; Bandeja zum Reset, Vibora zum Finish.'),
-        style: L('Right-side builder turned finisher; glass IQ.', 'Sağ taraf kurucu→bitirici; cam IQ.', 'Правый конструктор/финишёр; IQ стекла.', 'Rechte Seite Aufbau/Finish; Glas-IQ.'),
-        links: [{ label: L('Talks', 'Konuşmalar', 'Интервью', 'Talks'), url: 'https://www.youtube.com/results?search_query=Fernando+Belasteguin+interview' }],
-    }),
-    A({
-        id: 'salazar', name: 'Alejandra Salazar', years: '1985–', country: '🇪🇸', status: 'legend', peakRank: 1,
-        bio: L('Spanish pioneer of women’s padel; tactical left-side reference.', 'Kadın padelin İspanyol öncüsü; sol taraf taktik referansı.', 'Пионерка женского падела.', 'Pionierin des Damen-Padels.'),
-        life: L('Multiple #1 seasons; defined modern women’s pair dynamics.', 'Birden fazla 1 numara sezonu; modern kadın çift dinamiğini tanımladı.', 'Несколько сезонов №1.', 'Mehrere Nr.-1-Saisons.'),
-        achievements: L('Multiple world/WPT #1 seasons; major titles.', 'Çoklu dünya/WPT 1 numara; büyük unvanlar.', 'Несколько сезонов №1; крупные титулы.', 'Mehrere Nr.-1-Saisons; Major-Titel.'),
-        advice: L('Left finishes; communicate every glass rebound.', 'Sol bitirir; her cam sekmesini konuşun.', 'Левый завершает; говорите о каждом отскоке.', 'Links schließt ab; jeden Glas-Absprung ansagen.'),
-        style: L('Left-side attack; soft hands at net.', 'Sol taraf hücumu; filede yumuşak el.', 'Атака слева; мягкие руки у сетки.', 'Linke Attacke; weiche Hände am Netz.'),
-        links: [{ label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Alejandra+Salazar+padel' }],
-    }),
-];
+export {
+    PADEL_ATHLETES,
+    BADMINTON_ATHLETES,
+    TABLE_TENNIS_ATHLETES,
+    PICKLEBALL_ATHLETES,
+    VOLLEYBALL_ATHLETES,
+} from './sportGuideAthletesRest.js';
 
-export const BADMINTON_ATHLETES = [
-    A({
-        id: 'lindan', name: 'Lin Dan', years: '1983–', country: '🇨🇳', status: 'legend', peakRank: 1,
-        bio: L('“Super Dan” — two Olympic golds, flair and clutch reputation.', '“Super Dan” — iki Olimpiyat altını, flair ve kritik an efsanesi.', '«Super Dan» — два олимпийских золота.', '„Super Dan“ — zwei Olympia-Gold.'),
-        life: L('Chinese icon of the 2000s–2010s; rivalries with Lee Chong Wei defined the era.', '2000–2010 Çin ikonu; Lee Chong Wei rekabeti dönemi tanımladı.', 'Икона 2000–2010; соперничество с Ли Чонг Веем.', 'Ikone 2000–2010; Rivalität mit Lee Chong Wei.'),
-        achievements: L('Olympic gold 2008 & 2012; multiple Worlds & All-England.', 'Olimpiyat 2008 & 2012; çoklu Dünya ve All-England.', 'Золото ОИ 2008 и 2012; ЧМ и All-England.', 'Olympia 2008 & 2012; WM & All-England.'),
-        advice: L('Same prep for drop and clear — disguise late.', 'Drop ve clear aynı hazırlık — geç gizle.', 'Одинаковый замах для дропа и клира.', 'Gleicher Aushol für Drop und Clear.'),
-        style: L('Deceptive attack; net craft; lefty angles.', 'Aldatıcı hücum; file işçiliği; solak açılar.', 'Обманная атака; игра у сетки.', 'Täuschende Attacke; Netzspiel.'),
-        links: [{ label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Lin+Dan+interview' }],
-    }),
-    A({
-        id: 'marin', name: 'Carolina Marín', years: '1993–', country: '🇪🇸', status: 'legend', peakRank: 1,
-        bio: L('Spanish lefty Olympic champion; trailblazer for European women’s singles.', 'İspanyol solak Olimpiyat şampiyonu; Avrupa kadın teklerinde öncü.', 'Испанская левша, олимпийская чемпионка.', 'Spanische Linkshänderin, Olympiasiegerin.'),
-        life: L('Multiple injury comebacks; intensity and roar became her trademark.', 'Birden fazla sakatlık dönüşü; yoğunluk ve haykırış imzası oldu.', 'Возвращения после травм; интенсивность — визитка.', 'Comebacks nach Verletzungen; Intensität als Markenzeichen.'),
-        achievements: L('Olympic gold 2016; multiple World & European titles.', '2016 Olimpiyat altını; çoklu Dünya ve Avrupa.', 'Золото ОИ-2016; титулы ЧМ и ЧЕ.', 'Olympia-Gold 2016; WM- und EM-Titel.'),
-        advice: L('Push four corners; attack only when they are stretched.', 'Dört köşeye it; sadece gerildiğinde saldır.', 'Гоняйте по углам; атакуйте на растяжке.', 'Vier Ecken; nur bei Dehnung angreifen.'),
-        style: L('Lefty smash; steep attack; fierce defense.', 'Solak smaç; dik hücum; sert savunma.', 'Левый смэш; крутая атака; жёсткая защита.', 'Linker Smash; steile Attacke; harte Defence.'),
-        links: [{ label: L('Talks', 'Konuşmalar', 'Интервью', 'Talks'), url: 'https://www.youtube.com/results?search_query=Carolina+Marin+interview' }],
-    }),
-];
-
-export const TABLE_TENNIS_ATHLETES = [
-    A({
-        id: 'malong', name: 'Ma Long', years: '1988–', country: '🇨🇳', status: 'legend', peakRank: 1,
-        bio: L('“Dictator” of the table — complete technique and legendary consistency.', 'Masadaki “Diktatör” — tam teknik ve efsane istikrar.', '«Диктатор» стола — техника и стабильность.', '„Diktator“ am Tisch — Technik und Konstanz.'),
-        life: L('Chinese national team cornerstone across Olympic cycles; leadership by example.', 'Olimpiyat döngülerinde Çin millisinin omurgası; örnekle liderlik.', 'Опора сборной Китая; лидерство примером.', 'Rückgrat der chinesischen Auswahl; Führung durch Vorbild.'),
-        achievements: L('Multiple Olympic golds; Worlds; long #1 reign.', 'Çoklu Olimpiyat altını; Dünya; uzun 1 numara.', 'Несколько олимпийских золота; ЧМ; долго №1.', 'Mehrere Olympia-Gold; WM; lange Nr. 1.'),
-        advice: L('Attack half-long serves before the second bounce.', 'Yarı uzun servisi ikinci sektirmeden saldır.', 'Атакуйте полудлинные до второго отскока.', 'Halblange vor dem 2. Absprung angreifen.'),
-        style: L('Forehand loop dominance; elite footwork; calm presence.', 'Forehand loop baskını; elit ayak; sakin varlık.', 'Доминирование лупа ФХ; элитная работа ног.', 'VH-Loop-Dominanz; Elite-Fußarbeit.'),
-        links: [{ label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Ma+Long+interview' }],
-    }),
-    A({
-        id: 'dingning', name: 'Ding Ning', years: '1990–', country: '🇨🇳', status: 'legend', peakRank: 1,
-        bio: L('Chinese lefty great; Olympic and World champion with a fierce FH loop.', 'Çinli solak efsane; Olimpiyat ve Dünya, güçlü FH loop.', 'Китайская левша; ОИ и ЧМ, мощный луп.', 'Chinesische Linkshänderin; Olympia & WM, starker Loop.'),
-        life: L('Clutch performer in team and singles events for China.', 'Çin için takım ve teklerde kritik an oyuncusu.', 'Ключевой игрок Китая в команде и одиночке.', 'Schlüsselspielerin Chinas in Team und Einzel.'),
-        achievements: L('Olympic golds; multiple World titles.', 'Olimpiyat altınları; çoklu Dünya.', 'Олимпийские золота; титулы ЧМ.', 'Olympia-Gold; mehrere WM.'),
-        advice: L('Hide serve with shoulder; vary toss.', 'Servisi omuzla gizle; toss’u çeşitlendir.', 'Маскируйте подачу плечом; меняйте подброс.', 'Aufschlag mit Schulter tarne; Wurf variieren.'),
-        style: L('Lefty angles; aggressive third ball.', 'Solak açılar; agresif üçüncü top.', 'Левые углы; агрессивный третий мяч.', 'Linke Winkel; aggressiver dritter Ball.'),
-        links: [{ label: L('Talks', 'Konuşmalar', 'Интервью', 'Talks'), url: 'https://www.youtube.com/results?search_query=Ding+Ning+table+tennis' }],
-    }),
-];
-
-export const PICKLEBALL_ATHLETES = [
-    A({
-        id: 'johns', name: 'Ben Johns', years: '1999–', country: '🇺🇸', status: 'active', peakRank: 1, fallbackRank: 1,
-        bio: L('Face of modern pro pickleball; soft hands and transition speed.', 'Modern pro pickleball yüzü; soft el ve geçiş hızı.', 'Лицо про-пиклбола; мягкие руки и скорость перехода.', 'Gesicht des Pro-Pickleballs; weiche Hände, Transition.'),
-        life: L('Dominant across men’s and mixed; redefined third-shot and dink IQ.', 'Erkek ve mixed’te baskın; üçüncü vuruş ve dink IQ’sunu yeniden tanımladı.', 'Доминирует в мужском и миксте; IQ третьего удара и динка.', 'Dominant in Herren/Mixed; Third-Shot- und Dink-IQ.'),
-        achievements: L('Multiple majors; long #1 stretches in doubles formats.', 'Çoklu major; çift formatlarında uzun 1 numara.', 'Много мейджоров; долго №1 в парах.', 'Viele Majors; lange Nr. 1 im Doppel.'),
-        advice: L('Third-shot drop resets you to the kitchen line.', 'Üçüncü vuruş drop seni kitchen’a getirir.', 'Третий дроп возвращает к kitchen.', 'Third-Shot-Drop bringt euch an die Kitchen.'),
-        style: L('Soft game + selective speed-ups; elite anticipation.', 'Soft oyun + seçici hızlanma; elit öngörü.', 'Мягкая игра + точечные ускорения.', 'Softgame + selektive Tempo-Ups.'),
-        links: [{ label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Ben+Johns+pickleball' }],
-    }),
-    A({
-        id: 'waters', name: 'Anna Leigh Waters', years: '2007–', country: '🇺🇸', status: 'active', peakRank: 1, fallbackRank: 1,
-        bio: L('Prodigy of women’s/mixed; power + kitchen control very young.', 'Kadın/mixed harikası; genç yaşta güç + kitchen kontrolü.', 'Вундеркинд женского/микста.', 'Wunderkind Damen/Mixed.'),
-        life: L('Youngest to reach #1 conversations; stack of pro golds.', '1 numara tartışmalarına en genç girenlerden; pro altın yığını.', 'Одна из самых молодых у №1; куча золота.', 'Eine der jüngsten Nr. 1; viele Tour-Gold.'),
-        achievements: L('Major titles; #1 stretches; face of next-gen women’s game.', 'Major unvanlar; 1 numara dönemleri; yeni nesil kadın oyununun yüzü.', 'Мейджоры; отрезки №1; лицо нового поколения.', 'Major-Titel; Nr.-1-Phasen; Gesicht der Next-Gen.'),
-        advice: L('Keep dinks low so they cannot speed up cleanly.', 'Dink’leri alçak tut ki temiz hızlanamasınlar.', 'Держите динки низко.', 'Dinks flach halten.'),
-        style: L('Power from both sides; fearless speed-ups.', 'Her iki taraftan güç; korkusuz hızlanma.', 'Мощь с обеих сторон; смелые ускорения.', 'Power beidseitig; mutige Tempo-Ups.'),
-        links: [{ label: L('Talks', 'Konuşmalar', 'Интервью', 'Talks'), url: 'https://www.youtube.com/results?search_query=Anna+Leigh+Waters+interview' }],
-    }),
-];
-
-export const VOLLEYBALL_ATHLETES = [
-    A({
-        id: 'kiraly', name: 'Karch Kiraly', years: '1960–', country: '🇺🇸', status: 'legend', peakRank: 1,
-        bio: L('Only player with Olympic gold indoor and beach; later transformative USA coach.', 'Salon ve plajda Olimpiyat altını olan tek oyuncu; sonra ABD koçu.', 'Единственный с золотом ОИ в зале и на пляже; позже тренер США.', 'Einziger mit Olympia-Gold Halle & Beach; später US-Trainer.'),
-        life: L('Defined USA volleyball excellence across decades as player and coach.', 'Oyuncu ve koç olarak onyıllarca ABD voleybol mükemmelliğini tanımladı.', 'Десятилетия доминирования США как игрок и тренер.', 'Jahrzehnte US-Exzellenz als Spieler und Trainer.'),
-        achievements: L('Olympic golds indoor & beach; Worlds; Hall of Fame.', 'Salon ve plaj Olimpiyat altınları; Dünya; Hall of Fame.', 'Золото ОИ зал и пляж; ЧМ; Зал славы.', 'Olympia Halle & Beach; WM; Hall of Fame.'),
-        advice: L('Pass first: every great offense starts with a clean platform.', 'Önce pas: her büyük hücum temiz platformla başlar.', 'Сначала приём: атака начинается с чистой платформы.', 'Zuerst Annahme: jeder Angriff startet mit sauberer Plattform.'),
-        style: L('All-around excellence; leadership; beach IQ later career.', 'Çok yönlü mükemmellik; liderlik; kariyer sonunda plaj IQ.', 'Универсальность; лидерство; IQ пляжа.', 'Allround; Führung; später Beach-IQ.'),
-        links: [{ label: L('Coaching / interviews', 'Koçluk / röportaj', 'Тренерство / интервью', 'Coaching / Interviews'), url: 'https://www.youtube.com/results?search_query=Karch+Kiraly+interview' }],
-    }),
-    A({
-        id: 'giba', name: 'Giba', years: '1976–', country: '🇧🇷', status: 'legend', peakRank: 1,
-        bio: L('Brazilian outside icon of the 2000s — charisma and clutch Olympics.', '2000’ler Brezilya smaçör ikonu — karizma ve kritik Olimpiyatlar.', 'Икона Бразилии 2000-х — харизма и Олимпиады.', 'Brasilien-Ikone der 2000er — Charisma und Olympia.'),
-        life: L('Face of Brazil’s golden generation; leadership by energy.', 'Brezilya altın neslinin yüzü; enerjiyle liderlik.', 'Лицо золотого поколения Бразилии.', 'Gesicht der goldenen Generation Brasiliens.'),
-        achievements: L('Olympic gold 2004; World titles; global ambassador.', '2004 Olimpiyat altını; Dünya unvanları; küresel elçi.', 'Золото ОИ-2004; титулы ЧМ.', 'Olympia-Gold 2004; WM-Titel.'),
-        advice: L('Read the block seam; tip when the double is late.', 'Blok boşluğunu oku; çift geç kalırsa tip.', 'Читайте шов блока; скидка при позднем блоке.', 'Block-Naht lesen; Tip bei spätendem Doppelblock.'),
-        style: L('Power wing; celebration energy; high ball IQ.', 'Güç kanat; kutlama enerjisi; yüksek top IQ.', 'Мощный крайний; энергия; IQ мяча.', 'Power-Außen; Energie; Ball-IQ.'),
-        links: [{ label: L('Talks', 'Konuşmalar', 'Интервью', 'Talks'), url: 'https://www.youtube.com/results?search_query=Giba+volleyball+interview' }],
-    }),
-    A({
-        id: 'kerri', name: 'Kerri Walsh Jennings', years: '1978–', country: '🇺🇸', status: 'legend', peakRank: 1,
-        bio: L('Beach GOAT conversation; three straight Olympic golds with Misty May-Treanor.', 'Plaj GOAT tartışması; Misty ile üç ardışık Olimpiyat altını.', 'Легенда пляжа; три золота подряд с Misty.', 'Beach-Legende; drei Olympia-Gold in Folge mit Misty.'),
-        life: L('Partnership chemistry became the blueprint for beach dominance.', 'Partner kimyası plaj baskınının planı oldu.', 'Химия пары — чертёж доминирования на пляже.', 'Partner-Chemie als Blueprint der Beach-Dominanz.'),
-        achievements: L('3× Olympic gold (2004–2012) + later bronze; long #1 era.', '3× Olimpiyat altın (2004–2012) + bronz; uzun 1 numara.', '3 золота ОИ (2004–2012) + бронза; долгое №1.', '3× Olympia-Gold (2004–2012) + Bronze; lange Nr. 1.'),
-        advice: L('Talk every ball; trust the middle blocker read on digs.', 'Her topu konuş; dig’de orta blok okumasına güven.', 'Говорите о каждом мяче; доверяйте чтению блока.', 'Jeden Ball ansagen; Block-Lesen beim Dig vertrauen.'),
-        style: L('Block + defense IQ; sideout efficiency; leadership.', 'Blok + savunma IQ; sideout verimi; liderlik.', 'IQ блока и защиты; эффективность sideout.', 'Block-/Abwehr-IQ; Sideout-Effizienz.'),
-        links: [{ label: L('Interviews', 'Röportajlar', 'Интервью', 'Interviews'), url: 'https://www.youtube.com/results?search_query=Kerri+Walsh+Jennings+interview' }],
-    }),
-];
+import {
+    PADEL_ATHLETES,
+    BADMINTON_ATHLETES,
+    TABLE_TENNIS_ATHLETES,
+    PICKLEBALL_ATHLETES,
+    VOLLEYBALL_ATHLETES,
+} from './sportGuideAthletesRest.js';
 
 export const ATHLETES_BY_SUB = {
     tennis: TENNIS_ATHLETES,
