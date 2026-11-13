@@ -22470,7 +22470,17 @@ function formFromTournament(item, INIT) {
         pollEnabled: item.status === 'POLL',
         courtDecidedByPlayers: !item.location,
         courtSearchText: item.location || '',
-        selectedCourt: null,
+        selectedCourt: item.location
+            ? {
+                id: item.venueId ? `venue_${item.venueId}` : null,
+                name: item.location,
+                venueId: item.venueId || null,
+                venueCourtId: item.venueCourtId || null,
+                isBusinessVenue: !!item.venueId,
+                isProVenue: !!item.venueId,
+            }
+            : null,
+        venueCourtId: item.venueCourtId || null,
         showManualCourt: false,
         manualCourtName: '',
         manualCourtCity: '',
@@ -22733,6 +22743,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
+                venueId: f.courtDecidedByPlayers
+                    ? null
+                    : (f.selectedCourt?.venueId
+                        || (f.selectedCourt?.isBusinessVenue
+                            ? String(f.selectedCourt.id || '').replace(/^venue_/, '')
+                            : null)
+                        || null),
+                venueCourtId: f.courtDecidedByPlayers ? null : (f.selectedCourt?.venueCourtId || f.venueCourtId || null),
                 surface: f.surface || null,
                 isIndoor: f.courtDecidedByPlayers ? false : f.isIndoor,
                 isPaid: f.isPaid,

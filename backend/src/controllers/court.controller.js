@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { Prisma } from '@prisma/client';
 import { createNotification } from './notification.controller.js';
 import { emitToUser } from '../config/socket.js';
+import { getProVenueOwnerIds } from './venue.controller.js';
 
 export const addCourt = async (req, res, next) => {
     try {
@@ -171,6 +172,8 @@ export const searchCourts = async (req, res, next) => {
             return prices.length > 0 ? Math.min(...prices) : 0;
         };
 
+        const proOwnerIds = await getProVenueOwnerIds(venues.map(v => v.userId));
+
         // Her BusinessVenue tek satır olarak döner (kort bazlı değil tesis bazlı)
         const venueAsCourts = venues.map(v => ({
             id: `venue_${v.id}`,
@@ -181,6 +184,7 @@ export const searchCourts = async (req, res, next) => {
             courtCount: v.courts.length,
             isBusinessVenue: true,
             venueId: v.id,
+            isProVenue: proOwnerIds.has(v.userId),
             user: v.user,
             pricePerSlot: estimateVenueBasePrice(v),
             avgRating:   venueRatingMap[v.id]?.avg   ?? null,

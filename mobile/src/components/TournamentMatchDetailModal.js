@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     View, Text, Modal, ScrollView, TouchableOpacity, TextInput,
-    ActivityIndicator, Alert, Platform,
+    ActivityIndicator, Alert,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
-import { moderateScale } from '../theme/scale';
 import MatchResultShareModal from './MatchResultShareModal';
 
 const WEEKDAYS = [
@@ -37,6 +36,31 @@ function formatAgreed(agreed) {
         .filter(Boolean).join(' · ');
 }
 
+function courtKeyOf(c) {
+    if (!c) return null;
+    if (c.courtId) return `c:${c.courtId}`;
+    if (c.venueId) return `v:${c.venueId}`;
+    const name = String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    return name ? `n:${name}` : null;
+}
+
+function mapSearchCourt(court) {
+    if (!court) return null;
+    const venueId = court.venueId
+        || (court.isBusinessVenue ? String(court.id || '').replace(/^venue_/, '') : null)
+        || null;
+    return {
+        courtId: court.isBusinessVenue ? null : (court.id || null),
+        venueId,
+        venueCourtId: null,
+        name: court.isBusinessVenue
+            ? (court.venueName || court.name || '')
+            : ([court.venueName, court.name].filter(Boolean).join(' · ') || court.name || ''),
+        city: court.city || null,
+        isProVenue: court.isProVenue === true,
+    };
+}
+
 /**
  * Turnuva maç detayı: eşleşen taraflar müsaitlik + yer/zaman teklifi;
  * diğerleri yalnızca anlaşılmış yer/zamanı görür.
@@ -62,11 +86,22 @@ export default function TournamentMatchDetailModal({
     const [schedule, setSchedule] = useState(null);
     const [saving, setSaving] = useState(false);
     const [mySlots, setMySlots] = useState([]);
+    const [myPreferredCourts, setMyPreferredCourts] = useState([]);
+    const [courtQuery, setCourtQuery] = useState('');
+    const [courtResults, setCourtResults] = useState([]);
+    const [courtSearching, setCourtSearching] = useState(false);
+    const [manualCourtName, setManualCourtName] = useState('');
     const [propDate, setPropDate] = useState('');
     const [propFrom, setPropFrom] = useState('10:00');
     const [propTo, setPropTo] = useState('12:00');
     const [propVenue, setPropVenue] = useState('');
     const [propCourtId, setPropCourtId] = useState(null);
+    const [propVenueId, setPropVenueId] = useState(null);
+    const [propVenueCourtId, setPropVenueCourtId] = useState(null);
+    const [propIsProVenue, setPropIsProVenue] = useState(false);
+    const [propCourtQuery, setPropCourtQuery] = useState('');
+    const [propCourtResults, setPropCourtResults] = useState([]);
+    const [propCourtSearching, setPropCourtSearching] = useState(false);
     const [chatMsgs, setChatMsgs] = useState([]);
     const [chatText, setChatText] = useState('');
     const [reqDate, setReqDate] = useState('');
@@ -76,6 +111,9 @@ export default function TournamentMatchDetailModal({
     const [adminFrom, setAdminFrom] = useState('');
     const [adminTo, setAdminTo] = useState('');
     const [shareOpen, setShareOpen] = useState(false);
+    const [reserveCourts, setReserveCourts] = useState([]);
+    const [reserveCourtId, setReserveCourtId] = useState(null);
+    const [reserveLoading, setReserveLoading] = useState(false);
     const myUserId = useSelector(s => s.auth?.user?.id);
     const canShare = !!(match?.p1Id && match?.p2Id && match?.status !== 'BYE');
 
@@ -96,16 +134,29 @@ export default function TournamentMatchDetailModal({
         if (!visible || !match) return;
         const s = match.scheduleData && typeof match.scheduleData === 'object'
             ? match.scheduleData
-            : { availability: { p1: [], p2: [] }, proposals: [], agreed: null };
+            : { availability: { p1: [], p2: [] }, preferredCourts: { p1: [], p2: [] }, proposals: [], agreed: null };
         setSchedule(s);
-        if (mySide) setMySlots(Array.isArray(s.availability?.[mySide]) ? s.availability[mySide] : []);
-        else setMySlots([]);
+        if (mySide) {
+            setMySlots(Array.isArray(s.availability?.[mySide]) ? s.availability[mySide] : []);
+            setMyPreferredCourts(Array.isArray(s.preferredCourts?.[mySide]) ? s.preferredCourts[mySide] : []);
+        } else {
+            setMySlots([]);
+            setMyPreferredCourts([]);
+        }
         if (s.agreed) {
             setAdminDate(s.agreed.date || '');
             setAdminFrom(s.agreed.timeFrom || '');
             setAdminTo(s.agreed.timeTo || '');
+            setReserveCourtId(s.agreed.venueCourtId || tournament?.venueCourtId || null);
+        } else {
+            setReserveCourtId(tournament?.venueCourtId || null);
         }
-    }, [visible, match?.id, match?.scheduleData, mySide]);
+        if (!playersArrangeCourts && tournament?.location) {
+            setPropVenue(tournament.location);
+            setPropVenueId(tournament.venueId || null);
+            setPropVenueCourtId(tournament.venueCourtId || null);
+        }
+    }, [visible, match?.id, match?.scheduleData, mySide, playersArrangeCourts, tournament?.location, tournament?.venueId, tournament?.venueCourtId]);
 
     // Sadece admin gerçekten saat/kortu kilitlediyse (belirli kort + müsaitlik eşleştirme).
     // Belirli kort yoksa oyuncular ortak önerilerden nokta atışı seçer.
@@ -132,7 +183,95 @@ export default function TournamentMatchDetailModal({
 
     const agreedText = useMemo(() => formatAgreed(schedule?.agreed), [schedule?.agreed]);
     const oppSlots = oppSide ? (schedule?.availability?.[oppSide] || []) : [];
+    const oppPreferredCourts = oppSide ? (schedule?.preferredCourts?.[oppSide] || []) : [];
     const proposals = Array.isArray(schedule?.proposals) ? schedule.proposals : [];
+    const agreed = schedule?.agreed;
+    const canReservePro = !!(
+        canAct
+        && agreed
+        && !agreed.reservationId
+        && agreed.isProVenue === true
+        && (agreed.venueId || tournament?.venueId)
+    );
+
+    useEffect(() => {
+        if (!visible || !playersArrangeCourts) {
+            setCourtResults([]);
+            return undefined;
+        }
+        const q = courtQuery.trim();
+        if (q.length < 2) {
+            setCourtResults([]);
+            setCourtSearching(false);
+            return undefined;
+        }
+        setCourtSearching(true);
+        const task = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/courts/search', {
+                    params: { q, sport: tournament?.subCategory || undefined, verifiedOnly: 'true' },
+                });
+                setCourtResults((Array.isArray(data) ? data : []).slice(0, 12));
+            } catch {
+                setCourtResults([]);
+            } finally {
+                setCourtSearching(false);
+            }
+        }, 350);
+        return () => clearTimeout(task);
+    }, [courtQuery, playersArrangeCourts, tournament?.subCategory, visible]);
+
+    useEffect(() => {
+        if (!visible || !playersArrangeCourts) {
+            setPropCourtResults([]);
+            return undefined;
+        }
+        const q = propCourtQuery.trim();
+        if (q.length < 2) {
+            setPropCourtResults([]);
+            setPropCourtSearching(false);
+            return undefined;
+        }
+        setPropCourtSearching(true);
+        const task = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/courts/search', {
+                    params: { q, sport: tournament?.subCategory || undefined, verifiedOnly: 'true' },
+                });
+                setPropCourtResults((Array.isArray(data) ? data : []).slice(0, 12));
+            } catch {
+                setPropCourtResults([]);
+            } finally {
+                setPropCourtSearching(false);
+            }
+        }, 350);
+        return () => clearTimeout(task);
+    }, [propCourtQuery, playersArrangeCourts, tournament?.subCategory, visible]);
+
+    useEffect(() => {
+        if (!visible || !canReservePro) {
+            setReserveCourts([]);
+            return undefined;
+        }
+        const venueId = agreed?.venueId || tournament?.venueId;
+        if (!venueId) return undefined;
+        let cancelled = false;
+        (async () => {
+            setReserveLoading(true);
+            try {
+                const { data } = await api.get(`/venues/${venueId}`);
+                if (cancelled) return;
+                const courts = Array.isArray(data?.courts) ? data.courts : [];
+                setReserveCourts(courts);
+                if (!reserveCourtId && courts.length === 1) setReserveCourtId(courts[0].id);
+            } catch {
+                if (!cancelled) setReserveCourts([]);
+            } finally {
+                if (!cancelled) setReserveLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [visible, canReservePro, agreed?.venueId, tournament?.venueId]);
 
     const toggleWeekday = (weekday) => {
         setMySlots(prev => {
@@ -146,13 +285,60 @@ export default function TournamentMatchDetailModal({
         setMySlots(prev => prev.map(s => s.weekday === weekday ? { ...s, [field]: value } : s));
     };
 
+    const addPreferredCourt = (court) => {
+        const item = mapSearchCourt(court);
+        const key = courtKeyOf(item);
+        if (!key || !item?.name) return;
+        setMyPreferredCourts(prev => {
+            if (prev.some(c => courtKeyOf(c) === key)) return prev;
+            return [...prev, item].slice(0, 10);
+        });
+        setCourtQuery('');
+        setCourtResults([]);
+    };
+
+    const addManualPreferred = () => {
+        const name = manualCourtName.trim();
+        if (!name) return;
+        const item = { courtId: null, venueId: null, name, city: null, isProVenue: false };
+        const key = courtKeyOf(item);
+        setMyPreferredCourts(prev => {
+            if (prev.some(c => courtKeyOf(c) === key)) return prev;
+            return [...prev, item].slice(0, 10);
+        });
+        setManualCourtName('');
+    };
+
+    const removePreferredCourt = (key) => {
+        setMyPreferredCourts(prev => prev.filter(c => courtKeyOf(c) !== key));
+    };
+
+    const pickPropCourt = (court) => {
+        const item = mapSearchCourt(court);
+        if (!item?.name) return;
+        setPropVenue(item.name);
+        setPropCourtId(item.courtId);
+        setPropVenueId(item.venueId);
+        setPropVenueCourtId(item.venueCourtId);
+        setPropIsProVenue(item.isProVenue === true);
+        setPropCourtQuery('');
+        setPropCourtResults([]);
+    };
+
     const saveAvailability = async () => {
         if (!tournament?.id || !match?.id) return;
+        if (playersArrangeCourts && myPreferredCourts.length === 0) {
+            Alert.alert('', t.tournSchedNeedPreferredCourts || t.tournAvailNeedCourts || 'En az bir kort / mekan seçin');
+            return;
+        }
         setSaving(true);
         try {
             const { data } = await api.patch(
                 `/tournaments/${tournament.id}/matches/${match.id}/availability`,
-                { slots: mySlots },
+                {
+                    slots: mySlots,
+                    preferredCourts: playersArrangeCourts ? myPreferredCourts : [],
+                },
             );
             setSchedule(data.scheduleData);
             onRefresh?.();
@@ -169,7 +355,7 @@ export default function TournamentMatchDetailModal({
             Alert.alert('', t.tournSchedNeedDateTime || 'Tarih ve saat gerekli');
             return;
         }
-        if (playersArrangeCourts && !propVenue.trim()) {
+        if (playersArrangeCourts && !propVenue.trim() && !propVenueId && !propCourtId) {
             Alert.alert('', t.tournSchedNeedVenue || 'Kort / mekan adı gerekli');
             return;
         }
@@ -181,15 +367,47 @@ export default function TournamentMatchDetailModal({
                     date: propDate.trim(),
                     timeFrom: propFrom.trim(),
                     timeTo: propTo.trim(),
-                    venueName: playersArrangeCourts ? propVenue.trim() : undefined,
-                    courtId: playersArrangeCourts ? (propCourtId || undefined) : undefined,
+                    venueName: playersArrangeCourts ? propVenue.trim() : (tournament?.location || undefined),
+                    courtId: propCourtId || undefined,
+                    venueId: playersArrangeCourts ? (propVenueId || undefined) : (tournament?.venueId || undefined),
+                    venueCourtId: playersArrangeCourts
+                        ? (propVenueCourtId || undefined)
+                        : (tournament?.venueCourtId || propVenueCourtId || undefined),
+                    isProVenue: playersArrangeCourts ? propIsProVenue : undefined,
                 },
             );
             setSchedule(data.scheduleData);
-            setPropVenue('');
-            setPropCourtId(null);
+            if (playersArrangeCourts) {
+                setPropVenue('');
+                setPropCourtId(null);
+                setPropVenueId(null);
+                setPropVenueCourtId(null);
+                setPropIsProVenue(false);
+            }
             onRefresh?.();
             Alert.alert('', t.tournSchedProposed || 'Teklif gönderildi');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const reserveAgreed = async () => {
+        const venueCourtId = reserveCourtId || agreed?.venueCourtId || tournament?.venueCourtId;
+        if (!venueCourtId) {
+            Alert.alert('', t.tournSchedPickVenueCourt || 'Kort / saha seçin');
+            return;
+        }
+        setSaving(true);
+        try {
+            const { data } = await api.post(
+                `/tournaments/${tournament.id}/matches/${match.id}/reserve`,
+                { venueCourtId, paymentMethod: 'CASH' },
+            );
+            setSchedule(data.scheduleData);
+            onRefresh?.();
+            Alert.alert('', t.tournSchedReservedOk || 'Rezervasyon oluşturuldu');
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
         } finally {
@@ -392,7 +610,72 @@ export default function TournamentMatchDetailModal({
                                     {(t.tournSchedFixedVenue || 'Turnuva kortu')}: {tournament.location}
                                 </Text>
                             ) : null}
+                            {agreed?.reservationId ? (
+                                <Text style={{ color: '#4ade80', fontSize: 11, marginTop: 6, fontWeight: '700' }}>
+                                    {(t.tournSchedReservedBadge || 'Rezervasyon')}: {agreed.reservationStatus || 'OK'}
+                                </Text>
+                            ) : null}
                         </View>
+
+                        {canReservePro ? (
+                            <View style={{
+                                backgroundColor: '#0ea5e918',
+                                borderRadius: 10,
+                                padding: 10,
+                                marginBottom: 12,
+                                borderWidth: 1,
+                                borderColor: '#0ea5e950',
+                            }}>
+                                <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                    {t.tournSchedReserveTitle || 'Pro+ rezervasyon'}
+                                </Text>
+                                <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                                    {t.tournSchedReserveHint || 'Anlaşılan gün ve saatte Pro+ tesiste rezervasyon oluşturun.'}
+                                </Text>
+                                {reserveLoading ? (
+                                    <ActivityIndicator color="#38bdf8" style={{ marginBottom: 8 }} />
+                                ) : (
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                        {reserveCourts.map(c => {
+                                            const active = reserveCourtId === c.id;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={c.id}
+                                                    onPress={() => setReserveCourtId(c.id)}
+                                                    style={{
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 6,
+                                                        borderRadius: 8,
+                                                        backgroundColor: active ? '#0ea5e9' : '#1e293b',
+                                                        borderWidth: 1,
+                                                        borderColor: active ? '#0ea5e9' : '#334155',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{c.name}</Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                )}
+                                <TouchableOpacity
+                                    disabled={saving || reserveLoading}
+                                    onPress={reserveAgreed}
+                                    style={{
+                                        backgroundColor: '#0ea5e930',
+                                        borderRadius: 8,
+                                        paddingVertical: 10,
+                                        alignItems: 'center',
+                                        borderWidth: 1,
+                                        borderColor: '#0ea5e960',
+                                        opacity: saving ? 0.6 : 1,
+                                    }}
+                                >
+                                    <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 13 }}>
+                                        {t.tournSchedReserveBtn || 'Rezerve et'}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        ) : null}
 
                         {/* Ortak kort + ortak saat penceresi (belirli kort yok + müsaitlik eşleştirme) */}
                         {!agreedText && (suggestedCourts.length > 0 || suggestedWindows.length > 0) ? (
@@ -523,6 +806,38 @@ export default function TournamentMatchDetailModal({
                                         ))}
                                     </View>
                                 )}
+                                {playersArrangeCourts ? (
+                                    <>
+                                        <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                            {t.tournSchedOppCourts || 'Rakibin tercih ettiği kortlar'}
+                                        </Text>
+                                        {oppPreferredCourts.length === 0 ? (
+                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 10 }}>
+                                                {t.tournSchedOppCourtsEmpty || 'Rakip henüz kort tercihi girmedi'}
+                                            </Text>
+                                        ) : (
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                                {oppPreferredCourts.map((c) => (
+                                                    <View
+                                                        key={courtKeyOf(c)}
+                                                        style={{
+                                                            backgroundColor: '#1e293b',
+                                                            borderRadius: 999,
+                                                            paddingHorizontal: 10,
+                                                            paddingVertical: 5,
+                                                            borderWidth: 1,
+                                                            borderColor: '#334155',
+                                                        }}
+                                                    >
+                                                        <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                                            {c.name}{c.isProVenue ? ' · Pro+' : ''}
+                                                        </Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        )}
+                                    </>
+                                ) : null}
 
                                 {/* Benim müsaitliğim */}
                                 <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
@@ -572,6 +887,84 @@ export default function TournamentMatchDetailModal({
                                         />
                                     </View>
                                 ))}
+                                {playersArrangeCourts ? (
+                                    <View style={{ marginBottom: 12 }}>
+                                        <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 4 }}>
+                                            {t.tournSchedMyCourts || 'Tercih ettiğim kort / saha / salon'}
+                                        </Text>
+                                        <TextInput
+                                            value={courtQuery}
+                                            onChangeText={setCourtQuery}
+                                            placeholder={t.tournSchedCourtSearchPh || 'Kort / tesis ara…'}
+                                            placeholderTextColor="#64748b"
+                                            style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12, marginBottom: 6 }}
+                                        />
+                                        {courtSearching ? <ActivityIndicator color={infoColor} style={{ marginBottom: 6 }} /> : null}
+                                        {courtResults.length > 0 ? (
+                                            <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 140 }}>
+                                                <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+                                                    {courtResults.map((c) => {
+                                                        const label = c.isBusinessVenue
+                                                            ? (c.venueName || c.name)
+                                                            : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={c.id || label}
+                                                                onPress={() => addPreferredCourt(c)}
+                                                                style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
+                                                            >
+                                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                                                                    {label}{c.isProVenue ? ' · Pro+' : ''}
+                                                                </Text>
+                                                                {!!c.city && <Text style={{ color: '#64748b', fontSize: 10 }}>{c.city}</Text>}
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </ScrollView>
+                                            </View>
+                                        ) : null}
+                                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                            <TextInput
+                                                value={manualCourtName}
+                                                onChangeText={setManualCourtName}
+                                                placeholder={t.tournSchedCourtManualPh || 'Manuel kort adı'}
+                                                placeholderTextColor="#64748b"
+                                                style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
+                                            />
+                                            <TouchableOpacity
+                                                onPress={addManualPreferred}
+                                                style={{ backgroundColor: infoColor + '30', borderRadius: 8, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: infoColor + '60' }}
+                                            >
+                                                <Text style={{ color: infoColor, fontWeight: '800', fontSize: 12 }}>+</Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                            {myPreferredCourts.map((c) => (
+                                                <TouchableOpacity
+                                                    key={courtKeyOf(c)}
+                                                    onPress={() => removePreferredCourt(courtKeyOf(c))}
+                                                    style={{
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        gap: 4,
+                                                        backgroundColor: infoColor + '22',
+                                                        borderRadius: 999,
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 5,
+                                                        borderWidth: 1,
+                                                        borderColor: infoColor + '55',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: infoColor, fontSize: 11, fontWeight: '700', maxWidth: 180 }} numberOfLines={1}>
+                                                        {c.name}{c.isProVenue ? ' · Pro+' : ''}
+                                                    </Text>
+                                                    <Text style={{ color: '#f87171', fontWeight: '900', fontSize: 11 }}>✕</Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+                                ) : null}
+
                                 <TouchableOpacity
                                     disabled={saving}
                                     onPress={saveAvailability}
@@ -588,14 +981,61 @@ export default function TournamentMatchDetailModal({
                                 <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
                                     {t.tournSchedProposeTitle || 'Yer / zaman teklif et'}
                                 </Text>
-                                {playersArrangeCourts && (
-                                    <TextInput
-                                        value={propVenue}
-                                        onChangeText={(v) => { setPropVenue(v); setPropCourtId(null); }}
-                                        placeholder={t.tournSchedVenuePh || 'Kort / mekan adı'}
-                                        placeholderTextColor="#64748b"
-                                        style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
-                                    />
+                                {playersArrangeCourts ? (
+                                    <>
+                                        <TextInput
+                                            value={propCourtQuery}
+                                            onChangeText={setPropCourtQuery}
+                                            placeholder={t.tournSchedCourtSearchPh || 'Kort / tesis ara…'}
+                                            placeholderTextColor="#64748b"
+                                            style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                                        />
+                                        {propCourtSearching ? <ActivityIndicator color="#c4b5fd" style={{ marginBottom: 6 }} /> : null}
+                                        {propCourtResults.length > 0 ? (
+                                            <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 140 }}>
+                                                <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+                                                    {propCourtResults.map((c) => {
+                                                        const label = c.isBusinessVenue
+                                                            ? (c.venueName || c.name)
+                                                            : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={c.id || label}
+                                                                onPress={() => pickPropCourt(c)}
+                                                                style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
+                                                            >
+                                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                                                                    {label}{c.isProVenue ? ' · Pro+' : ''}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </ScrollView>
+                                            </View>
+                                        ) : null}
+                                        <TextInput
+                                            value={propVenue}
+                                            onChangeText={(v) => {
+                                                setPropVenue(v);
+                                                setPropCourtId(null);
+                                                setPropVenueId(null);
+                                                setPropVenueCourtId(null);
+                                                setPropIsProVenue(false);
+                                            }}
+                                            placeholder={t.tournSchedVenuePh || 'Kort / mekan adı'}
+                                            placeholderTextColor="#64748b"
+                                            style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                                        />
+                                        {propIsProVenue ? (
+                                            <Text style={{ color: '#4ade80', fontSize: 10, marginBottom: 6, fontWeight: '700' }}>
+                                                {t.tournSchedProVenueHint || 'Pro+ tesis — anlaşınca karttan rezerve edilebilir'}
+                                            </Text>
+                                        ) : null}
+                                    </>
+                                ) : (
+                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6 }}>
+                                        {(t.tournSchedFixedVenue || 'Turnuva kortu')}: {tournament?.location || '—'}
+                                    </Text>
                                 )}
                                 <TextInput
                                     value={propDate}
@@ -652,6 +1092,7 @@ export default function TournamentMatchDetailModal({
                                             }}>
                                                 <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
                                                     {[p.date, `${p.timeFrom}-${p.timeTo}`, p.venueName].filter(Boolean).join(' · ')}
+                                                    {p.isProVenue ? ' · Pro+' : ''}
                                                 </Text>
                                                 <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }}>
                                                     {mine ? (t.tournSchedYourProposal || 'Senin teklifin') : (t.tournSchedOppProposal || 'Rakip teklifi')}

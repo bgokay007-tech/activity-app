@@ -48,6 +48,7 @@ import {
     proposeMatchSchedule,
     agreeMatchSchedule,
     clearMatchScheduleAgreed,
+    reserveMatchSchedule,
 } from '../controllers/tournament.controller.js';
 import {
     getTournamentRounds,
@@ -107,6 +108,7 @@ router.patch('/:id/matches/:matchId/availability', setMatchAvailability);
 router.post('/:id/matches/:matchId/schedule-propose', proposeMatchSchedule);
 router.post('/:id/matches/:matchId/schedule-agree', agreeMatchSchedule);
 router.delete('/:id/matches/:matchId/schedule-agreed', clearMatchScheduleAgreed);
+router.post('/:id/matches/:matchId/reserve', reserveMatchSchedule);
 router.patch('/:id/matches/:matchId/admin-schedule', adminUpdateMatchSchedule);
 router.get('/:id/matches/:matchId/messages', getMatchMessages);
 router.post('/:id/matches/:matchId/messages', sendMatchMessage);

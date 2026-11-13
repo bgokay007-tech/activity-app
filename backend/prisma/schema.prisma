@@ -1411,6 +1411,9 @@ model Tournament {
   teamSize             Int?         // airsoft vb. takım tabanlı dallarda her takımın kişi sayısı (min/max oyuncu yerine)
   teamRequiredMaleCount Int?        // teamSize'ın kaçı erkek olmalı — null = kısıtlama yok (bkz. ActivityRequest.requiredMaleCount ile aynı mantık)
   location       String?
+  // Sabit seçilen Pro+ işletme tesisi (oyuncular eşleşme kartından rezervasyon yapabilir)
+  venueId        String?
+  venueCourtId   String?      // isteğe bağlı varsayılan VenueCourt
   city           String?      // il (YEREL) | ülke (ULUSAL) | Dünya (ULUSLARARASI)
   surface        String?      // clay | hard | grass | carpet | sand | artificial
   isIndoor       Boolean      @default(false)
@@ -1507,8 +1510,9 @@ model TournamentMatch {
   p2ThirdPlaceAccepted  Boolean?
   // Eşleşen tarafların ortak yer/zaman müzakeresi:
   // { availability:{p1:[{weekday,timeFrom,timeTo}],p2:[...]},
-  //   proposals:[{id,side,byUserId,venueName,courtId?,date,timeFrom,timeTo,createdAt}],
-  //   agreed:{venueName,courtId?,date,timeFrom,timeTo,proposalId?,agreedByUserId,agreedAt,lockedByAdmin?}|null,
+  //   preferredCourts:{p1:[{courtId?,venueId?,name,isProVenue?}],p2:[...]},
+  //   proposals:[{id,side,byUserId,venueName,courtId?,venueId?,venueCourtId?,isProVenue?,date,timeFrom,timeTo,createdAt}],
+  //   agreed:{venueName,courtId?,venueId?,venueCourtId?,isProVenue?,reservationId?,date,timeFrom,timeTo,proposalId?,agreedByUserId,agreedAt,lockedByAdmin?}|null,
   //   suggested:{windows:[{date,timeFrom,timeTo}],courts:[{courtId?,venueId?,name}]}|null }
   scheduleData          Json?
   // Müsaitliğe göre eşleştirme: hangi TournamentRound'tan üretildi (null = klasik kura)
