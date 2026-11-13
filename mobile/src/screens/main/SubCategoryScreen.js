@@ -350,6 +350,7 @@ const SUB_CONFIG = {
     fitness_gym:    { name:'Fitness & Gym',  nameTR:'Fitness & Spor Salonu', nameRu:'Фитнес и тренажёрный зал', nameDe:'Fitness & Fitnessstudio', emoji:'🏋️', color:'#f97316' },
     foot_tennis:    { name:'Foot Tennis',    nameTR:'Ayak Tenisi',     nameRu:'Футтеннис',                     nameDe:'Fußtennis',                  emoji:'🦶', color:'#0891b2' },
     dodgeball:      { name:'Dodgeball',      nameTR:'Yakar Top',       nameRu:'Доджбол',                       nameDe:'Dodgeball',                  emoji:'🟠', color:'#ea580c' },
+    rugby:          { name:'Rugby',          nameTR:'Ragbi',           nameRu:'Регби',                         nameDe:'Rugby',                      emoji:'🏉', color:'#14532d' },
     paintball:      { name:'Paintball',      nameTR:'Paintball',       nameRu:'Пейнтбол',                      nameDe:'Paintball',                  emoji:'🔫', color:'#7c3aed' },
     sup_kano:       { name:'SUP & Canoe',    nameTR:'SUP & Kano',      nameRu:'SUP и каноэ',                   nameDe:'SUP & Kanu',                 emoji:'🛶', color:'#0284c7' },
     running:        { name:'Running',        nameTR:'Koşu',            nameRu:'Бег',                           nameDe:'Laufen',                     emoji:'🏃', color:'#16a34a' },
@@ -446,7 +447,7 @@ function feeByMethodHint(byMethod, t) {
 // yapısı yok, sadece Etkinlik (rivals), Destek (coaches), Ekipman, Medya, Yazılar,
 // Bilet Al, Haberler, Arşiv.
 const SIMPLE_TAB_SUBS = new Set([
-    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'dodgeball', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
+    'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'dodgeball', 'rugby', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
     'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf',
 ]);
 
@@ -515,6 +516,9 @@ function getTabs(sub, category) {
         return ['rivals', 'media', 'posts', 'archive'];
     // Yakar Top: bilet envanteri yok (Ticketmaster/SeatGeek doğrulanmadı) — tickets sekmesi yok.
     if (sub === 'dodgeball')
+        return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'news', 'archive'];
+    // Ragbi: takım sporu altyapısı (ilan/turnuva/koç/ekipman/haber); bilet envanteri henüz yok.
+    if (sub === 'rugby')
         return ['rivals', 'tournaments', 'coaches', 'equipment', 'media', 'posts', 'news', 'archive'];
     if (SIMPLE_TAB_SUBS.has(sub))
         return ['rivals', 'coaches', 'equipment', 'media', 'posts', 'tickets', 'news', 'archive'];
@@ -18302,7 +18306,7 @@ function insertMatchCommentMention(text, tag) {
     return String(text || '').replace(/@([\p{L}\p{N}._]*)$/u, `@${tag} `);
 }
 
-function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, openExpiredResolve, onMatchOpened, onUserPress }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, onRequestEdit, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, openExpiredResolve, onMatchOpened, onUserPress }) {
     const insets = useSafeAreaInsets();
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
@@ -19218,15 +19222,17 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             }
         }
         setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
-        const initialCount = numSets >= 3 ? 2 : numSets;
+        // 2 veya 3 set: 2'ye ulaşmak (1-1 → 3. set); başlangıçta 2 set alanı.
+        const initialCount = (numSets === 2 || numSets >= 3) ? 2 : numSets;
         setScoreSets(Array.from({ length: initialCount }, () => ({ p1: '', p2: '' })));
     };
 
     const updateTournSet = (si, field, val) => {
         const clean = String(val || '').replace(/[^0-9]/g, '');
-        const racketBestOf3 = isRacketSetSport(item.subCategory) && numSets === 3;
+        // 2 set seçimi de 2'ye ulaşmak (= 1-1'de 3. set) — klasik 3 set ile aynı skor UI.
+        const racketBestOf3 = isRacketSetSport(item.subCategory) && (numSets === 2 || numSets === 3);
         setScoreSets(prev => {
-            if (numSets < 3) {
+            if (!racketBestOf3 && numSets < 3) {
                 return prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
             }
             if (si < 2) {
@@ -19251,7 +19257,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         let sets;
         let winner;
         if (isRacketSetSport(item.subCategory)) {
-            const deciding = !!item.decidingTiebreak && numSets === 3;
+            const deciding = !!item.decidingTiebreak && (numSets === 2 || numSets === 3);
             const checked = normalizeRacketSets(scoreSets, { decidingTiebreak: deciding, a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2' });
             if (!checked.ok) { Alert.alert('', racketAlertText(t, checked)); return; }
             sets = checked.sets;
@@ -19330,7 +19336,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 maxPlayers: parseInt(editMax) || item.maxPlayers,
                 setsPerMatch: editSetsPerMatch ? parseInt(editSetsPerMatch) : null,
                 advantageScoring: editAdvantageScoring,
-                decidingTiebreak: isRacketSetSport(item.subCategory) && String(editSetsPerMatch) === '3' && editDecidingTiebreak,
+                decidingTiebreak: isRacketSetSport(item.subCategory) && ['2', '3'].includes(String(editSetsPerMatch)) && editDecidingTiebreak,
                 matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
                 playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
                 location: editLocation || null,
@@ -21053,7 +21059,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </TouchableOpacity>
                                         ))}
                                     </View>
-                                    {isRacketSetSport(item.subCategory) && String(editSetsPerMatch) === '3' ? (
+                                    {isRacketSetSport(item.subCategory) && ['2', '3'].includes(String(editSetsPerMatch)) ? (
                                         <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                             {[{ v: false, l: t.tournThirdSetNormal }, { v: true, l: t.tournThirdSetTb }].map(({ v, l }) => (
                                                 <TouchableOpacity key={String(v)} onPress={() => setEditDecidingTiebreak(v)}
@@ -22122,7 +22128,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'700' }}>{t.sc_0608}</Text>
                             </View>
                         )}
-                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => setShowEditModal(true)}>
+                        <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => {
+                            // Kullanıcı isteği: düzenle = turnuva oluştur ekranı, alanlar seçili/dolu.
+                            if (onRequestEdit) onRequestEdit(item);
+                            else setShowEditModal(true);
+                        }}>
                             <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>{t.tournEditBtn}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item.id)}>
@@ -22412,7 +22422,87 @@ const TOURN_GENDERS = ['KADIN', 'ERKEK', 'MIX'];
 
 const TOURNAMENT_RULES = [];
 
-function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
+/** Mevcut turnuvayı oluştur formu alanlarına çevir (Düzenle = aynı ekran, seçili). */
+function formFromTournament(item, INIT) {
+    if (!item) return { ...INIT };
+    const city = String(item.city || '');
+    let scopeCity = '', scopeDistrict = '', scopeCountry = '';
+    if (item.scope === 'YEREL') {
+        const parts = city.split('/').map((s) => s.trim());
+        scopeCity = parts[0] || '';
+        scopeDistrict = parts[1] || '';
+    } else if (item.scope === 'ULUSAL') {
+        scopeCountry = city;
+    }
+    const toDate = (d) => (d ? new Date(d) : null);
+    const strOr = (v) => (v != null && v !== '' ? String(v) : '');
+    return {
+        ...INIT,
+        name: item.name || '',
+        scope: item.scope || '',
+        scopeCity,
+        scopeDistrict,
+        scopeCountry,
+        type: item.type != null ? String(item.type) : INIT.type,
+        presetId: item.formatConfig?.presetId || INIT.presetId,
+        entry: item.formatConfig?.entry || INIT.entry,
+        minPlayers: strOr(item.minPlayers),
+        maxPlayers: strOr(item.maxPlayers),
+        minRating: item.minRating != null ? String(item.minRating) : '',
+        maxRating: item.maxRating != null ? String(item.maxRating) : '',
+        ratingGenderSplit: !!item.ratingGenderSplit,
+        minRatingMale: item.minRatingMale != null ? String(item.minRatingMale) : '',
+        maxRatingMale: item.maxRatingMale != null ? String(item.maxRatingMale) : '',
+        minRatingFemale: item.minRatingFemale != null ? String(item.minRatingFemale) : '',
+        maxRatingFemale: item.maxRatingFemale != null ? String(item.maxRatingFemale) : '',
+        matchmakingType: item.matchmakingType || 'ELO',
+        matchFrequency: item.matchFrequency || 'FLEXIBLE',
+        matchTimeStart: item.matchTimeStart || '',
+        matchTimeEnd: item.matchTimeEnd || '',
+        dayTrip: !!item.dayTrip,
+        availabilityMatchEnabled: !!item.availabilityMatchEnabled,
+        eventStartDate: toDate(item.eventDate),
+        eventStartTime: item.eventTime || '',
+        eventEndDate: toDate(item.eventEndDate),
+        eventEndTime: item.eventEndTime || '',
+        regEndDate: toDate(item.endDate),
+        regEndTime: item.endTime || '',
+        pollEnabled: item.status === 'POLL',
+        courtDecidedByPlayers: !item.location,
+        courtSearchText: item.location || '',
+        selectedCourt: null,
+        showManualCourt: false,
+        manualCourtName: '',
+        manualCourtCity: '',
+        isIndoor: !!item.isIndoor,
+        genderType: item.genderType || '',
+        surface: item.surface || 'PLAYERS_DECIDE',
+        isPaid: !!item.isPaid,
+        feeType: item.feeType || 'SHARED',
+        playerFee: item.playerFee != null ? String(item.playerFee) : '',
+        paymentMethod: item.paymentMethod || '',
+        ibanNumber: item.ibanNumber || '',
+        ibanHolder: item.ibanHolder || '',
+        prize1: item.prize1 || '',
+        prize2: item.prize2 || '',
+        prize3: item.prize3 || '',
+        surpriseGifts: item.surpriseGifts || '',
+        contactPhone: item.contactPhone || '',
+        description: item.description || '',
+        setsPerMatch: item.setsPerMatch != null ? String(item.setsPerMatch) : '',
+        advantageScoring: item.advantageScoring !== undefined ? item.advantageScoring : undefined,
+        decidingTiebreak: !!item.decidingTiebreak,
+        matchesBeforePlayoff: strOr(item.matchesBeforePlayoff),
+        playoffQualifiers: strOr(item.playoffQualifiers),
+        rules: Array.isArray(item.rules) ? item.rules : [],
+        extraServices: Array.isArray(item.extraServices) ? item.extraServices : [],
+        teamSize: item.teamSize != null ? String(item.teamSize) : '',
+        teamRequiredMaleCount: item.teamRequiredMaleCount != null ? item.teamRequiredMaleCount : null,
+        defi: item.formatConfig?.defi ? { ...DEFI_DEFAULTS, ...item.formatConfig.defi } : { ...DEFI_DEFAULTS, entry: defiEntryFor(item.subCategory) },
+    };
+}
+
+function CreateTournamentModal({ visible, onClose, category, sub, onCreated, editItem = null }) {
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const cfg = getConfig(sub);
@@ -22420,6 +22510,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     // birkaç noktada özelleştiriliyor (mekan sözcüğü, sayı sistemi, playoff, takım
     // cinsiyet dağılımı, mekan ücreti kim öder, turnuva türü kaldırıldı — şimdilik sadece airsoft).
     const isAirsoft = sub === 'airsoft';
+    const isEdit = !!editItem?.id;
     const presets = activePresets(sub);
 
     const INIT = {
@@ -22466,6 +22557,15 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
     const scrollRef = useRef(null);
     const [scrollNudge, setScrollNudge] = useState(0);
     const set = (key, val) => setF(p => ({ ...p, [key]: val }));
+
+    // Düzenle: oluştur formu açılınca mevcut turnuva değerleriyle doldur.
+    useEffect(() => {
+        if (!visible) return;
+        if (editItem?.id) setF(formFromTournament(editItem, INIT));
+        else setF(INIT);
+        // INIT sabit referans değil; sadece açılışta hydrate.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [visible, editItem?.id]);
 
     const searchCityProvince = async (text) => {
         set('scopeCity', text);
@@ -22612,52 +22712,48 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
 
         setSubmitting(true);
         try {
-            await api.post('/tournaments', {
+            const payload = {
                 name: f.name.trim(), type: f.pollEnabled ? undefined : f.type, category, subCategory: sub,
                 pollEnabled: f.pollEnabled,
                 ...(f.pollEnabled && { pollEndDate: fmtISO(f.pollEndDate), pollEndTime: f.pollEndTime || undefined, pollTypes: f.pollTypes }),
                 scope: f.scope, genderType: isAirsoft ? 'MIX' : f.genderType, city: cityVal,
-                minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
-                maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
-                ratingGenderSplit: f.ratingGenderSplit || undefined,
-                minRatingMale: f.minRatingMale !== '' ? parseFloat(f.minRatingMale) : undefined,
-                maxRatingMale: f.maxRatingMale !== '' ? parseFloat(f.maxRatingMale) : undefined,
-                minRatingFemale: f.minRatingFemale !== '' ? parseFloat(f.minRatingFemale) : undefined,
-                maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : undefined,
+                minRating: f.minRating !== '' ? parseFloat(f.minRating) : null,
+                maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : null,
+                ratingGenderSplit: f.ratingGenderSplit || false,
+                minRatingMale: f.minRatingMale !== '' ? parseFloat(f.minRatingMale) : null,
+                maxRatingMale: f.maxRatingMale !== '' ? parseFloat(f.maxRatingMale) : null,
+                minRatingFemale: f.minRatingFemale !== '' ? parseFloat(f.minRatingFemale) : null,
+                maxRatingFemale: f.maxRatingFemale !== '' ? parseFloat(f.maxRatingFemale) : null,
                 matchmakingType: f.matchmakingType || 'ELO',
                 matchFrequency: f.matchFrequency || 'FLEXIBLE',
-                matchTimeStart: f.matchTimeStart || undefined,
-                matchTimeEnd: f.matchTimeEnd || undefined,
+                matchTimeStart: f.matchTimeStart || null,
+                matchTimeEnd: f.matchTimeEnd || null,
                 dayTrip: f.dayTrip,
                 availabilityMatchEnabled: f.availabilityMatchEnabled === true && f.type !== '9',
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
-                // Belirli kort yokken de oluşturan zemin detayı verebilir (sert/toprak/çim/diğer
-                // veya PLAYERS_DECIDE). Eski davranış surface'i tamamen silıyordu.
                 surface: f.surface || null,
                 isIndoor: f.courtDecidedByPlayers ? false : f.isIndoor,
                 isPaid: f.isPaid,
                 feeType: f.feeType,
-                ...(f.isPaid && {
-                    playerFee: f.playerFee ? parseFloat(f.playerFee) : undefined,
-                    paymentMethod: f.paymentMethod || undefined,
-                    ibanNumber: f.paymentMethod === 'EFT' ? f.ibanNumber.trim() || undefined : undefined,
-                    ibanHolder: f.paymentMethod === 'EFT' ? f.ibanHolder.trim() || undefined : undefined,
-                }),
-                prize1: f.prize1.trim() || undefined,
-                prize2: f.prize2.trim() || undefined,
-                prize3: f.prize3.trim() || undefined,
-                surpriseGifts: f.surpriseGifts.trim() || undefined,
-                contactPhone: f.contactPhone.trim() || undefined,
+                playerFee: f.isPaid && f.playerFee ? parseFloat(f.playerFee) : null,
+                paymentMethod: f.isPaid ? (f.paymentMethod || null) : null,
+                ibanNumber: f.isPaid && f.paymentMethod === 'EFT' ? (f.ibanNumber.trim() || null) : null,
+                ibanHolder: f.isPaid && f.paymentMethod === 'EFT' ? (f.ibanHolder.trim() || null) : null,
+                prize1: f.prize1.trim() || null,
+                prize2: f.prize2.trim() || null,
+                prize3: f.prize3.trim() || null,
+                surpriseGifts: f.surpriseGifts.trim() || null,
+                contactPhone: f.contactPhone.trim() || null,
                 ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9') && {
-                    setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : undefined,
+                    setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : null,
                     advantageScoring: f.advantageScoring,
-                    decidingTiebreak: isRacketSetSport(sub) && String(f.setsPerMatch) === '3' && !!f.decidingTiebreak,
-                    matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : undefined,
-                    playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : undefined,
+                    decidingTiebreak: isRacketSetSport(sub) && ['2', '3'].includes(String(f.setsPerMatch)) && !!f.decidingTiebreak,
+                    matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : null,
+                    playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : null,
                 }),
-                ...(!f.pollEnabled && f.presetId ? {
+                ...(!isEdit && !f.pollEnabled && f.presetId ? {
                     formatConfig: buildFormatConfig(getPresetById(f.presetId), { matchmakingType: f.matchmakingType, defi: f.defi }),
                 } : {}),
                 ...(isAirsoft && {
@@ -22665,18 +22761,25 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                     teamRequiredMaleCount: f.teamRequiredMaleCount,
                 }),
                 eventDate: fmtISO(f.eventStartDate),
-                eventTime: f.eventStartTime || undefined,
+                eventTime: f.eventStartTime || null,
                 eventEndDate: fmtISO(f.eventEndDate),
-                eventEndTime: f.eventEndTime || undefined,
+                eventEndTime: f.eventEndTime || null,
                 endDate: fmtISO(f.regEndDate),
-                endTime: f.regEndTime || undefined,
+                endTime: f.regEndTime || null,
                 rules: f.rules,
-                extraServices: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub) && f.extraServices.length > 0 ? f.extraServices : undefined,
-                description: f.description.trim() || undefined,
-            });
+                extraServices: ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash', 'airsoft'].includes(sub)
+                    ? f.extraServices
+                    : undefined,
+                description: f.description.trim() || null,
+            };
+            if (isEdit) {
+                await api.patch(`/tournaments/${editItem.id}`, payload);
+            } else {
+                await api.post('/tournaments', payload);
+            }
             reset();
             onClose();
-            onCreated();
+            onCreated?.();
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed);
         } finally { setSubmitting(false); }
@@ -22706,7 +22809,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                         belli bir noktadan öteye kaydırılamıyordu — sabit height bunu çözüyor. */}
                     <View style={[s.modalBox, { height: '92%' }]}>
                         <View style={s.modalHeader}>
-                            <Text style={s.modalTitle}>{t.createTournamentTitle}</Text>
+                            <Text style={s.modalTitle}>{isEdit ? (t.sc_0512 || t.tournEditBtn) : t.createTournamentTitle}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
                         <KeyboardAwareForm adjustWindow={false} ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
@@ -23464,7 +23567,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 </TouchableOpacity>
                             </View>
-                            {isRacketSetSport(sub) && String(f.setsPerMatch) === '3' ? (
+                            {isRacketSetSport(sub) && ['2', '3'].includes(String(f.setsPerMatch)) ? (
                                 <View style={{ marginTop: 8 }}>
                                     <Text style={{ color: '#ef4444', fontSize: 9, fontWeight: '700', marginBottom: 4 }}>{t.tournThirdSetLabel}</Text>
                                     <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -23513,7 +23616,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 title={t.tournSetsLabel}
                                 options={['1','2','3','4','5'].map(n => ({ value: n, label: n }))}
                                 value={f.setsPerMatch}
-                                onSelect={(v) => { set('setsPerMatch', v); if (v !== '3') set('decidingTiebreak', false); }}
+                                onSelect={(v) => { set('setsPerMatch', v); if (v !== '2' && v !== '3') set('decidingTiebreak', false); }}
                                 onClose={() => setShowSetsPicker(false)}
                             />
 
@@ -23674,8 +23777,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                 </>)}
                             </>)}
 
-                            {/* Prizes — required for paid, optional for free — 1./2. yan yana, 3./Sürpriz yan yana */}
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                            {/* Prizes — required for paid, optional for free — 1./2. yan yana, 3./Sürpriz yan yana.
+                                Üst satırla çakışmayı önlemek için satırlar arasında net boşluk (marginTop). */}
+                            <View style={{ flexDirection:'row', gap:3, marginTop:10, marginBottom:14 }}>
                                 {[
                                     { key:'prize1', label: f.isPaid ? t.tournPrize1 : t.tournPrize1Opt },
                                     { key:'prize2', label: f.isPaid ? t.tournPrize2 : t.tournPrize2Opt },
@@ -23688,7 +23792,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                                     </View>
                                 ))}
                             </View>
-                            <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
+                            <View style={{ flexDirection:'row', gap:3, marginTop:4, marginBottom:14 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{f.isPaid ? t.tournPrize3 : t.tournPrize3Opt}</Text>
                                     <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.prize3}
@@ -23721,7 +23825,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated }) {
                             <TouchableOpacity
                                 style={[s.submitBtn, { backgroundColor: cfg.color }, submitting && { opacity:0.6 }]}
                                 onPress={submit} disabled={submitting}>
-                                <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : t.tournSubmitBtn}</Text>
+                                <Text style={s.submitBtnText}>{submitting ? t.submittingBtn : (isEdit ? (t.tournSaveBtn || t.sc_0512) : t.tournSubmitBtn)}</Text>
                             </TouchableOpacity>
                             {/* İçerik boyutunu 1px değiştirip geri almak, scrollTo ile aksine
                                 Android'in ScrollView'ın gerçek kaydırma sınırını (contentSize)
@@ -25728,6 +25832,7 @@ function SubCategoryScreen({ route, navigation }) {
     const [teamNameReceiptUri, setTeamNameReceiptUri] = useState(null);
     const [submittingTeamName, setSubmittingTeamName] = useState(false);
     const [showCreateTournament, setShowCreateTournament] = useState(false);
+    const [editTournamentItem, setEditTournamentItem] = useState(null);
     const [showTournamentPermission, setShowTournamentPermission] = useState(false);
     const [tournamentPermStatus, setTournamentPermStatus] = useState(null);
     const [tournaments, setTournaments] = useState([]);
@@ -27748,6 +27853,17 @@ function SubCategoryScreen({ route, navigation }) {
 
     // Real-time: tournament deleted by creator → remove from list instantly
     useEffect(() => {
+        const offUpdated = onSocket('tournament:updated', ({ tournament }) => {
+            if (!tournament?.id) return;
+            if (tournament.category && tournament.category !== category) return;
+            if (tournament.subCategory && tournament.subCategory !== sub) return;
+            // Listeyi API beklemeden anında yama — yenilemeye gerek kalmasın.
+            setTournaments((prev) => prev.map((tn) => (tn.id === tournament.id ? { ...tn, ...tournament } : tn)));
+        });
+        return () => offUpdated();
+    }, [category, sub]);
+
+    useEffect(() => {
         const off = onSocket('tournament:deleted', ({ tournamentId }) => {
             setTournaments(prev => prev.filter(t => t.id !== tournamentId));
         });
@@ -29091,6 +29207,7 @@ function SubCategoryScreen({ route, navigation }) {
                                 onCancelJoin={handleCancelJoinTournament}
                                 onDelete={handleDeleteTournament}
                                 onUpdated={loadTournaments}
+                                onRequestEdit={(tourn) => setEditTournamentItem(tourn)}
                                 openChatTournamentId={openChatTournamentId}
                                 onChatOpened={() => navigation.setParams({ openChatTournamentId: undefined })}
                                 openMatchId={openMatchId}
@@ -33315,6 +33432,16 @@ function SubCategoryScreen({ route, navigation }) {
                 </View>
             </Modal>
             {showCreateTournament && <CreateTournamentModal visible onClose={() => setShowCreateTournament(false)} category={category} sub={sub} onCreated={loadTournaments} />}
+            {!!editTournamentItem && (
+                <CreateTournamentModal
+                    visible
+                    editItem={editTournamentItem}
+                    onClose={() => setEditTournamentItem(null)}
+                    category={category}
+                    sub={sub}
+                    onCreated={() => { setEditTournamentItem(null); loadTournaments(); }}
+                />
+            )}
             {showTournamentPermission && <TournamentPermissionModal visible onClose={() => setShowTournamentPermission(false)} onStatusChange={setTournamentPermStatus} />}
             {!!profileUserId && <UserProfileModal visible userId={profileUserId} onClose={() => setProfileUserId(null)} navigation={navigation} category={category} sub={sub} />}
 

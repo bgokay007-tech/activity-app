@@ -994,7 +994,10 @@ export const createTournament = async (req, res, next) => {
                 // true/false/null (serbest) istemciden geldiği gibi kaydedilir — sadece hiç
                 // gönderilmediyse (undefined) şema varsayılanı (true) devreye girsin diye dokunulmaz.
                 ...(advantageScoring !== undefined && { advantageScoring }),
-                decidingTiebreak: !!decidingTiebreak && isRacketSetSport(subCategory) && parseInt(setsPerMatch) === 3,
+                // 2 set = 2'ye ulaşmak (1-1 olursa 3. set); 3 set klasik best-of-3 — ikisinde de
+                // decidingTiebreak (normal / 10 sayı TB) seçilebilir.
+                decidingTiebreak: !!decidingTiebreak && isRacketSetSport(subCategory)
+                    && [2, 3].includes(parseInt(setsPerMatch)),
                 matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null,
                 playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null,
                 // Airsoft vb. takım tabanlı dallarda Min/Max Oyuncu yerine kullanılıyor — teamSize
@@ -1900,8 +1903,9 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
                 ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring }),
-                ...(b.setsPerMatch !== undefined && parseInt(b.setsPerMatch) !== 3 ? { decidingTiebreak: false } : {}),
-                ...(b.decidingTiebreak !== undefined && isRacketSetSport(tournament.subCategory) && parseInt(b.setsPerMatch ?? tournament.setsPerMatch) === 3
+                ...(b.setsPerMatch !== undefined && ![2, 3].includes(parseInt(b.setsPerMatch)) ? { decidingTiebreak: false } : {}),
+                ...(b.decidingTiebreak !== undefined && isRacketSetSport(tournament.subCategory)
+                    && [2, 3].includes(parseInt(b.setsPerMatch ?? tournament.setsPerMatch))
                     ? { decidingTiebreak: !!b.decidingTiebreak } : {}),
                 ...(b.matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: b.matchesBeforePlayoff ? parseInt(b.matchesBeforePlayoff) : null }),
                 ...(b.playoffQualifiers   !== undefined && { playoffQualifiers: b.playoffQualifiers ? parseInt(b.playoffQualifiers) : null }),
@@ -1913,6 +1917,20 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.endTime      !== undefined && { endTime:      b.endTime || null }),
             },
         });
+        // Liste/detay açık olan herkes anında görsün — yenilemeye gerek kalmasın.
+        const notifyIds = new Set([updated.creatorId]);
+        try {
+            const parts = await prisma.tournamentParticipant.findMany({
+                where: { tournamentId: id, status: { in: ['ACCEPTED', 'PENDING', 'WAITLIST'] } },
+                select: { userId: true },
+            });
+            parts.forEach((p) => { if (p.userId) notifyIds.add(p.userId); });
+        } catch { /* */ }
+        const payload = { tournament: updated };
+        notifyIds.forEach((uid) => {
+            if (uid && uid !== req.userId) emitToUser(uid, 'tournament:updated', payload);
+        });
+        broadcast('tournament:updated', payload);
         res.json(updated);
     } catch (e) { next(e); }
 };
@@ -2955,7 +2973,7 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         }
 
         if (isRacketSetSport(tournament.subCategory)) {
-            const deciding = !!tournament.decidingTiebreak && (tournament.setsPerMatch || 3) === 3;
+            const deciding = !!tournament.decidingTiebreak && [2, 3].includes(tournament.setsPerMatch || 3);
             const checked = normalizeRacketSets(sets, { decidingTiebreak: deciding, a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2' });
             if (!checked.ok) return res.status(400).json({ message: checked.message });
             sets = checked.sets;
