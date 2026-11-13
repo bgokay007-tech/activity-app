@@ -5363,6 +5363,32 @@ export const getMyPendingScoreCount = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+const AUTO_DRAW_CORRECT_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+/** Otomatik 0-0 berabere (skor unutulunca) — arşivden 48 saat gerçek skor düzeltilebilir. */
+function isCorrectableAutoDraw(request) {
+    const sc = request?.score;
+    if (!sc || request.scoreStatus !== 'CONFIRMED' || request.scoreAppeal) return false;
+    if (sc.autoDraw) return true;
+    // Eski kayıtlar: autoDraw bayrağı yoktu — skoru kimse girmedi + tek set 0-0 berabere
+    if (request.scoreEnteredBy) return false;
+    if (sc.winner !== 'draw') return false;
+    const sets = Array.isArray(sc.sets) ? sc.sets : [];
+    return sets.length === 1
+        && Number(sets[0]?.sender) === 0
+        && Number(sets[0]?.opponent) === 0;
+}
+
+function autoDrawWindowStart(request) {
+    const sc = request?.score;
+    if (sc?.autoDrawnAt) {
+        const t = new Date(sc.autoDrawnAt).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    if (request?.completedAt) return new Date(request.completedAt).getTime();
+    return 0;
+}
+
 export const enterScore = async (req, res, next) => {
     try {
         const { id } = req.params;
@@ -5387,6 +5413,21 @@ export const enterScore = async (req, res, next) => {
             || rosterPlayerIds(request.unassignedPlayers).includes(req.userId)
             || rosterPlayerIds(request.substitutePlayers).includes(req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
+
+        // Onaylı skor üzerine yazma sadece otomatik 0-0 (skor unutulunca) + 48 saat penceresinde.
+        // Aksi halde gerçek onaylı sonuç kalıcıdır (itiraz admin yolundan).
+        const correctingAutoDraw = isCorrectableAutoDraw(request);
+        if (request.scoreStatus === 'CONFIRMED' || request.scoreStatus === 'DISPUTED') {
+            if (!correctingAutoDraw) {
+                return res.status(400).json({ message: 'Bu maçın skoru zaten onaylandı; yalnızca itiraz edebilirsiniz.' });
+            }
+            const started = autoDrawWindowStart(request);
+            if (!started || Date.now() - started > AUTO_DRAW_CORRECT_WINDOW_MS) {
+                return res.status(400).json({ message: 'Otomatik beraberlik için skor düzeltme süresi (48 saat) doldu.' });
+            }
+        } else if (request.scoreStatus === 'PENDING') {
+            return res.status(400).json({ message: 'Skor zaten girildi, onay bekleniyor.' });
+        }
 
         if (request.venueReservationId) {
             const reservation = await prisma.courtReservation.findUnique({ where: { id: request.venueReservationId } });
@@ -5886,9 +5927,12 @@ export const appealScore = async (req, res, next) => {
         if (!isInvolved) return res.status(403).json({ message: 'Yetkisiz' });
         if (request.scoreStatus !== 'CONFIRMED') return res.status(400).json({ message: 'Yalnızca onaylanmış skorlara itiraz edilebilir' });
         if (request.scoreAppeal) return res.status(400).json({ message: 'Bu maç için zaten itiraz yapılmış' });
-        // Maç arşive düştükten (completedAt) 48 saat sonra itiraz hakkı kapanır — istemci
-        // butonu bu sürede zaten gizliyor, burası ikinci savunma hattı.
-        if (request.completedAt && Date.now() - new Date(request.completedAt).getTime() > APPEAL_WINDOW_MS) {
+        // 48 saat: otomatik 0-0'da autoDrawnAt, diğerlerinde completedAt (arşive düşüş).
+        // İstemci butonu da aynı pencereyi kullanır — burası ikinci savunma hattı.
+        const appealStart = isCorrectableAutoDraw(request)
+            ? autoDrawWindowStart(request)
+            : (request.completedAt ? new Date(request.completedAt).getTime() : 0);
+        if (appealStart && Date.now() - appealStart > APPEAL_WINDOW_MS) {
             return res.status(400).json({ message: 'Bu maç için itiraz süresi (48 saat) doldu.' });
         }
 

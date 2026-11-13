@@ -12954,7 +12954,35 @@ class ArchiveDetailErrorBoundary extends Component {
     }
 }
 
-function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview }) {
+/** Otomatik 0-0 (skor unutulunca) — arşivden 48s gerçek skor düzeltilebilir. */
+function isArchiveCorrectableAutoDraw(m) {
+    const sc = m?.score;
+    if (!sc || m.scoreStatus !== 'CONFIRMED' || m.scoreAppeal) return false;
+    if (sc.autoDraw) return true;
+    if (m.scoreEnteredBy) return false;
+    if (sc.winner !== 'draw') return false;
+    const sets = Array.isArray(sc.sets) ? sc.sets : [];
+    return sets.length === 1
+        && Number(sets[0]?.sender) === 0
+        && Number(sets[0]?.opponent) === 0;
+}
+
+function archiveScoreWindowStartMs(m) {
+    const sc = m?.score;
+    if (sc?.autoDrawnAt) {
+        const t = new Date(sc.autoDrawnAt).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    if (m?.completedAt) return new Date(m.completedAt).getTime();
+    return 0;
+}
+
+function isWithinArchiveScoreWindow(m) {
+    const start = archiveScoreWindowStartMs(m);
+    return !!(start && Date.now() - start <= 48 * 3600 * 1000);
+}
+
+function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview, onScoreCorrected }) {
     // Kullanıcı isteği: arşiv maç detayı bottom-sheet (%88) değil, tam ekran kullansın —
     // skor/istatistik/oyuncu listesi için alan yetmiyordu. Üst/alt insets ile notch ve
     // Android nav bar çakışmasın (ekran-güvenli-alan).
@@ -12982,7 +13010,7 @@ function ArchiveMatchDetailModal({ match, myId, onClose, onUserPress, onAppeal, 
                 >
                     {match && (
                         <ArchiveDetailErrorBoundary matchId={match.id} t={t}>
-                            <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onRatePlayer={onRatePlayer} onRefereeReview={onRefereeReview} />
+                            <ArchiveMatchDetailContent match={match} myId={myId} onClose={onClose} onUserPress={onUserPress} onAppeal={onAppeal} onRatePlayer={onRatePlayer} onRefereeReview={onRefereeReview} onScoreCorrected={onScoreCorrected} />
                         </ArchiveDetailErrorBoundary>
                     )}
                 </ScrollView>
@@ -13127,8 +13155,12 @@ function MatchStatsSection({ stats, iAmFounderSide, founderLabel, opponentLabel,
     );
 }
 
-function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview }) {
+function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal, onRatePlayer, onRefereeReview, onScoreCorrected }) {
     const [shareResultOpen, setShareResultOpen] = useState(false);
+    const [showCorrectScore, setShowCorrectScore] = useState(false);
+    const [correctSets, setCorrectSets] = useState([{ my: '', opp: '' }]);
+    const [correctDecidingTb, setCorrectDecidingTb] = useState(false);
+    const [correctSubmitting, setCorrectSubmitting] = useState(false);
     const t = useT();
     const m = match;
     const isOwner = m.senderId === myId;
@@ -13195,6 +13227,84 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
         matchFormatLabel(m, t),
         m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : null,
     ].filter(Boolean);
+
+    const isParticipant = isOwner
+        || senderTeamArr.some(st => st?.id === myId)
+        || parts.some(p => p?.id === myId)
+        || (Array.isArray(m.unassignedPlayers) && m.unassignedPlayers.some(p => p?.id === myId))
+        || (Array.isArray(m.substitutePlayers) && m.substitutePlayers.some(p => p?.id === myId));
+    const canCorrectAutoDraw = isParticipant && isArchiveCorrectableAutoDraw(m) && isWithinArchiveScoreWindow(m);
+    const canAppealScore = m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && isWithinArchiveScoreWindow(m);
+    const racketScore = isRacketSetSport(m.subCategory);
+    const myCorrectWins = correctSets.filter(r => (parseInt(r.my, 10) || 0) > (parseInt(r.opp, 10) || 0)).length;
+    const oppCorrectWins = correctSets.filter(r => (parseInt(r.opp, 10) || 0) > (parseInt(r.my, 10) || 0)).length;
+    const hasCorrectInput = correctSets.some(r => r.my !== '' || r.opp !== '');
+
+    const updateCorrectSet = (i, key, v) => {
+        setCorrectSets(prev => prev.map((row, idx) => idx === i ? { ...row, [key]: v.replace(/[^0-9]/g, '') } : row));
+    };
+
+    const submitCorrectScore = async () => {
+        if (!hasCorrectInput) { Alert.alert('', t.missingScore); return; }
+        let racketPayload = null;
+        if (racketScore) {
+            const checked = normalizeRacketSets(correctSets, {
+                decidingTiebreak: correctDecidingTb, a: 'my', b: 'opp', tbA: 'tbMy', tbB: 'tbOpp',
+            });
+            if (!checked.ok) { Alert.alert('', racketAlertText(t, checked)); return; }
+            const iWinSets = checked.winner === 'a';
+            racketPayload = {
+                sets: checked.sets.map(r => {
+                    const row = {
+                        sender: iAmFounderSide ? r.my : r.opp,
+                        opponent: iAmFounderSide ? r.opp : r.my,
+                    };
+                    if (r.matchTiebreak) row.matchTiebreak = true;
+                    else if (r.tbMy != null) {
+                        row.tbSender = iAmFounderSide ? r.tbMy : r.tbOpp;
+                        row.tbOpponent = iAmFounderSide ? r.tbOpp : r.tbMy;
+                    }
+                    return row;
+                }),
+                winner: (iWinSets === iAmFounderSide) ? 'sender' : 'opponent',
+            };
+        }
+        if (m.subCategory === 'volleyball') {
+            for (let i = 0; i < correctSets.length; i++) {
+                const p1 = parseInt(correctSets[i].my, 10) || 0;
+                const p2 = parseInt(correctSets[i].opp, 10) || 0;
+                if (p1 === 0 && p2 === 0) continue;
+                const hi = Math.max(p1, p2), lo = Math.min(p1, p2);
+                const target = i === 4 ? 15 : 25;
+                const valid = (hi === target && lo <= target - 2) || (hi > target && hi - lo === 2);
+                if (!valid) {
+                    Alert.alert(t.sc_0143, t.sc_0144(p1, p2, i === 4 ? t.sc_x_352e207365 : t.sc_set_nth(i + 1), target));
+                    return;
+                }
+            }
+        }
+        const apiSets = racketPayload ? racketPayload.sets : correctSets.map(r => ({
+            sender: iAmFounderSide ? (parseInt(r.my, 10) || 0) : (parseInt(r.opp, 10) || 0),
+            opponent: iAmFounderSide ? (parseInt(r.opp, 10) || 0) : (parseInt(r.my, 10) || 0),
+        }));
+        const autoWinner = myCorrectWins === oppCorrectWins ? 'draw'
+            : (myCorrectWins > oppCorrectWins)
+                ? (iAmFounderSide ? 'sender' : 'opponent')
+                : (iAmFounderSide ? 'opponent' : 'sender');
+        const scoreWinner = racketPayload ? racketPayload.winner : autoWinner;
+        setCorrectSubmitting(true);
+        try {
+            await api.patch(`/rivals/${m.id}/score`, { sets: apiSets, winner: scoreWinner });
+            Alert.alert('', t.scoreSent);
+            setShowCorrectScore(false);
+            onScoreCorrected?.(m.id);
+            onClose();
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.sendFailed);
+        } finally {
+            setCorrectSubmitting(false);
+        }
+    };
 
     const renderPlayer = (p, isFounderSidePlayer) => {
         const hist = snapshot[p.id];
@@ -13323,6 +13433,84 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                 </Text>
             )}
 
+            {canCorrectAutoDraw && (
+                <View style={{ backgroundColor:'#f9731620', borderRadius:10, padding:10, marginTop:12, borderWidth:1, borderColor:'#f9731650' }}>
+                    <Text style={{ color:'#fdba74', fontSize:12, fontWeight:'700', lineHeight:17, marginBottom:8 }}>
+                        {t.archiveAutoDrawHint}
+                    </Text>
+                    {!showCorrectScore ? (
+                        <TouchableOpacity onPress={() => setShowCorrectScore(true)}
+                            style={{ backgroundColor: colors.purple, borderRadius:8, paddingVertical:8, alignItems:'center' }}>
+                            <Text style={{ color:'#fff', fontSize:13, fontWeight:'800' }}>{t.enterScore}</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View>
+                            <View style={{ flexDirection:'row', marginBottom:8 }}>
+                                <Text style={{ flex:1, color:'#93c5fd', fontSize:11, fontWeight:'800', textAlign:'center' }}>{youLabel}</Text>
+                                <Text style={{ width:40 }} />
+                                <Text style={{ flex:1, color:'#fca5a5', fontSize:11, fontWeight:'800', textAlign:'center' }}>{themLabel}</Text>
+                            </View>
+                            {racketScore ? (
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                    <TouchableOpacity onPress={() => { setCorrectDecidingTb(false); setCorrectSets(p => p.filter(r => !r.matchTiebreak).map(r => ({ ...r, matchTiebreak: false }))); }}
+                                        style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor: correctDecidingTb ? colors.border : '#facc15', backgroundColor: correctDecidingTb ? 'transparent' : '#facc1520' }}>
+                                        <Text style={{ color: correctDecidingTb ? colors.textMuted : '#facc15', fontSize:11, fontWeight:'800' }}>{t.rivalFormatNormal}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity onPress={() => { setCorrectDecidingTb(true); setCorrectSets(p => syncSplitThirdSet(p.length ? p : [{ my:'', opp:'' }], { deciding: true, aKey: 'my', bKey: 'opp' })); }}
+                                        style={{ flex:1, borderRadius:8, paddingVertical:6, alignItems:'center', borderWidth:1, borderColor: correctDecidingTb ? '#facc15' : colors.border, backgroundColor: correctDecidingTb ? '#facc1520' : 'transparent' }}>
+                                        <Text style={{ color: correctDecidingTb ? '#facc15' : colors.textMuted, fontSize:11, fontWeight:'800' }}>{t.rivalFormatTb}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : null}
+                            {correctSets.map((row, i) => {
+                                const showTb = racketScore && !row.matchTiebreak && isSevenSix(parseInt(row.my, 10) || 0, parseInt(row.opp, 10) || 0);
+                                return (
+                                    <View key={i} style={{ marginBottom:4 }}>
+                                        <View style={sc.setInputRow}>
+                                            <TextInput style={sc.setInput} value={row.my} onChangeText={v => updateCorrectSet(i, 'my', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                            <Text style={[sc.colLabel, row.matchTiebreak && { color:'#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : t.sc_0193(i + 1)}</Text>
+                                            <TextInput style={sc.setInput} value={row.opp} onChangeText={v => updateCorrectSet(i, 'opp', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                            {correctSets.length > 1 && !(racketScore && correctDecidingTb) && (
+                                                <TouchableOpacity style={sc.removeBtn} onPress={() => setCorrectSets(p => p.filter((_, idx) => idx !== i))}>
+                                                    <Text style={sc.removeTxt}>✕</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
+                                        {showTb ? (
+                                            <View style={sc.setInputRow}>
+                                                <TextInput style={[sc.setInput, { fontSize:16, paddingVertical:4 }]} value={row.tbMy || ''} onChangeText={v => updateCorrectSet(i, 'tbMy', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                                <Text style={[sc.colLabel, { color:'#facc15' }]}>( )</Text>
+                                                <TextInput style={[sc.setInput, { fontSize:16, paddingVertical:4 }]} value={row.tbOpp || ''} onChangeText={v => updateCorrectSet(i, 'tbOpp', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                            </View>
+                                        ) : null}
+                                    </View>
+                                );
+                            })}
+                            {!(racketScore && correctDecidingTb) ? (
+                                <TouchableOpacity style={sc.addBtn} onPress={() => setCorrectSets(p => [...p, { my:'', opp:'' }])}>
+                                    <Text style={sc.addBtnTxt}>+ {t.addSet}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                            {hasCorrectInput && (
+                                <Text style={{ color: myCorrectWins === oppCorrectWins ? '#facc15' : myCorrectWins > oppCorrectWins ? '#4ade80' : '#f87171', fontSize:13, fontWeight:'800', textAlign:'center', marginTop:8 }}>
+                                    {myCorrectWins === oppCorrectWins ? t.drawResult : (myCorrectWins > oppCorrectWins ? t.winnerMe : t.winnerOpp)}
+                                </Text>
+                            )}
+                            <TouchableOpacity
+                                style={[s.joinBtn, { marginTop:10 }, correctSubmitting && { opacity:0.6 }]}
+                                onPress={submitCorrectScore}
+                                disabled={correctSubmitting}
+                            >
+                                <Text style={s.joinBtnText}>{correctSubmitting ? t.sending : t.sendScore}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => setShowCorrectScore(false)} style={{ marginTop:8, alignItems:'center' }}>
+                                <Text style={{ color: colors.textMuted, fontSize:12, fontWeight:'700' }}>{t.cancelBtn}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </View>
+            )}
+
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:14 }}>
                 {sets?.length > 0 && (
                     <TouchableOpacity onPress={() => setShareResultOpen(true)}
@@ -13330,8 +13518,7 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                         <Text style={{ color:'#c084fc', fontSize:12, fontWeight:'700' }}>{t.shareMatchShareBtn}</Text>
                     </TouchableOpacity>
                 )}
-                {m.scoreStatus === 'CONFIRMED' && !m.scoreAppeal && m.completedAt
-                    && (Date.now() - new Date(m.completedAt).getTime()) <= 48 * 3600 * 1000 && (
+                {canAppealScore && (
                     <TouchableOpacity onPress={() => { onAppeal(m); onClose(); }}
                         style={{ backgroundColor:'#f9731620', borderRadius:8, paddingVertical:6, paddingHorizontal:10, borderWidth:1, borderColor:'#f9731650' }}>
                         <Text style={{ color:'#f97316', fontSize:12, fontWeight:'700' }}>{t.sc_0312}</Text>
@@ -31511,6 +31698,13 @@ function SubCategoryScreen({ route, navigation }) {
                             onAppeal={handleAppeal}
                             onRatePlayer={(userId, subCategory) => { setArchiveDetailMatch(null); setRatingSubject({ userId, subCategory }); }}
                             onRefereeReview={(mm) => { setArchiveDetailMatch(null); openRefereeReview(mm); }}
+                            onScoreCorrected={(rivalId) => {
+                                // Otomatik 0-0 düzeltildi → PENDING; arşivden düşer, skor onay
+                                // bekleyen listesine geçer (getCompletedMatches).
+                                setArchiveRivals(prev => prev.filter(r => r.id !== rivalId));
+                                setArchiveDetailMatch(null);
+                                load({ fresh: true });
+                            }}
                         />
 
                         {/* Ekipmanlar arşivi (satılmış ilanlar) */}

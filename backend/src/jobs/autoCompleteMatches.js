@@ -93,16 +93,26 @@ export async function autoDrawUnscored() {
 
         if (unscored.length === 0) return;
 
-        const drawScore = { sets: [{ sender: 0, opponent: 0 }], winner: 'draw' };
+        // autoDraw + autoDrawnAt: arşivden 48 saat içinde gerçek skor düzeltmeye izin
+        // (bkz. enterScore override). updateMany JSON'a aynı timestamp yazamaz — tek tek.
+        const autoDrawnAt = new Date().toISOString();
+        const drawScore = {
+            sets: [{ sender: 0, opponent: 0 }],
+            winner: 'draw',
+            autoDraw: true,
+            autoDrawnAt,
+        };
 
-        await prisma.activityRequest.updateMany({
-            where: { id: { in: unscored.map(r => r.id) } },
-            data: {
-                score: drawScore,
-                scoreStatus: 'CONFIRMED',
-                archived: true,
-            },
-        });
+        for (const row of unscored) {
+            await prisma.activityRequest.update({
+                where: { id: row.id },
+                data: {
+                    score: drawScore,
+                    scoreStatus: 'CONFIRMED',
+                    archived: true,
+                },
+            });
+        }
 
         const updated = await prisma.activityRequest.findMany({
             where: { id: { in: unscored.map(r => r.id) } },
@@ -120,8 +130,8 @@ export async function autoDrawUnscored() {
                     uid,
                     'SCORE_CONFIRMED',
                     '🤝 Maç berabere kaydedildi',
-                    '4 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi.',
-                    { rivalId: r.id, category: r.category, subCategory: r.subCategory }
+                    '4 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi. 48 saat içinde Arşiv’den gerçek skoru girebilirsiniz.',
+                    { rivalId: r.id, category: r.category, subCategory: r.subCategory, autoDraw: true }
                 );
             }
         }
