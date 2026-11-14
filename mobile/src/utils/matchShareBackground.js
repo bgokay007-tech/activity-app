@@ -71,8 +71,8 @@ export async function shareBackgroundToDataUrl(subCategory, surface) {
 }
 
 /**
- * PLAYERS_DECIDE: paylaşım kartı arka planı — sol yarı sert, sağ yarı toprak.
- * EntityShareModal canvas iki görseli yan yana çizer.
+ * PLAYERS_DECIDE: paylaşım kartı — dikey 50/50 tek saha (sol sert, sağ toprak).
+ * Canvas tam ekran cover + clip ile çizer; overlay daha açık tutulur.
  */
 export async function shareHardClaySplitToDataUrls() {
     try {

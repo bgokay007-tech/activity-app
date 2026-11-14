@@ -70,22 +70,44 @@ function cardHtml(p, coverDataUrl, bgDataUrl, bgSplit) {
       var ctx=canvas.getContext('2d');
       var W=${W}, H=${H}, TOP=240;
 
-      // PLAYERS_DECIDE: sol yarı sert, sağ yarı toprak zemin
-      if(bgLeftImg && bgRightImg){
-        coverDraw(ctx, bgLeftImg, 0, 0, W/2, H);
-        coverDraw(ctx, bgRightImg, W/2, 0, W/2, H);
+      // PLAYERS_DECIDE: tek saha gibi dikey 50/50 — sol sert, sağ toprak.
+      // Tam ekran cover + clip: aksi halde yarım kutuya taşan toprak solun üstünü örtüyordu (~%20/%80).
+      var isSplit=!!(bgLeftImg&&bgRightImg);
+      if(isSplit){
+        ctx.save();
+        ctx.beginPath(); ctx.rect(0,0,W/2,H); ctx.clip();
+        coverDraw(ctx, bgLeftImg, 0, 0, W, H);
+        ctx.restore();
+        ctx.save();
+        ctx.beginPath(); ctx.rect(W/2,0,W/2,H); ctx.clip();
+        coverDraw(ctx, bgRightImg, 0, 0, W, H);
+        ctx.restore();
+        // Ortada ince çizgi — iki zemin tek kort gibi birleşsin
+        ctx.fillStyle='rgba(255,255,255,0.45)';
+        ctx.fillRect(W/2-2, 0, 4, H);
       } else if(bgImg){
         coverDraw(ctx, bgImg, 0, 0, W, H);
       } else {
         ctx.fillStyle='#0B0C10'; ctx.fillRect(0,0,W,H);
       }
-      ctx.fillStyle='rgba(8,10,14,0.72)';
-      ctx.fillRect(0,0,W,H);
-      var vg=ctx.createLinearGradient(0,0,0,H);
-      vg.addColorStop(0,'rgba(8,10,14,0.55)');
-      vg.addColorStop(0.4,'rgba(8,10,14,0.35)');
-      vg.addColorStop(1,'rgba(8,10,14,0.82)');
-      ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+      // Split'te zemin daha belirgin kalsın; normal kartlarda eski koyu okunabilirlik
+      if(isSplit){
+        ctx.fillStyle='rgba(8,10,14,0.22)';
+        ctx.fillRect(0,0,W,H);
+        var vgS=ctx.createLinearGradient(0,0,0,H);
+        vgS.addColorStop(0,'rgba(8,10,14,0.38)');
+        vgS.addColorStop(0.4,'rgba(8,10,14,0.08)');
+        vgS.addColorStop(1,'rgba(8,10,14,0.42)');
+        ctx.fillStyle=vgS; ctx.fillRect(0,0,W,H);
+      } else {
+        ctx.fillStyle='rgba(8,10,14,0.72)';
+        ctx.fillRect(0,0,W,H);
+        var vg=ctx.createLinearGradient(0,0,0,H);
+        vg.addColorStop(0,'rgba(8,10,14,0.55)');
+        vg.addColorStop(0.4,'rgba(8,10,14,0.35)');
+        vg.addColorStop(1,'rgba(8,10,14,0.82)');
+        ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+      }
 
       function text(str,x,y,size,color,align,weight){
         ctx.fillStyle=color||'#F4F1EA';
