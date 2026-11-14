@@ -1,4 +1,4 @@
-﻿import { useCallback, useState } from 'react';
+﻿import { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { setUser } from '../../store/slices/authSlice';
 import api from '../../services/api';
+import { onSocket } from '../../services/socket';
 import { prefetchBranchLists, prefetchCounts } from '../../services/branchCache';
 import { warmSportPhotos } from '../../utils/warmSportPhotos';
 import colors from '../../theme/colors';
@@ -249,6 +250,33 @@ export default function HomeScreen({ navigation }) {
         const tick = setInterval(() => { if (alive) setNowTick(n => n + 1); }, 1000);
         return () => { alive = false; clearInterval(tick); };
     }, [dispatch, loadOpenListingsForCity]));
+
+    // Ana sayfada da socket ile anlık ilan — focus beklemeden (dal ekranı kadar hızlı olsun)
+    useEffect(() => {
+        const mySubs = new Set(
+            (user?.interests || []).filter(i => i && !i.hidden && i.subCategory).map(i => i.subCategory)
+        );
+        const off = onSocket('rivalUpdate', (updated) => {
+            if (!updated?.id || updated.matchType === 'PLAYER_WANTED') return;
+            if (!mySubs.has(updated.subCategory)) return;
+            if (!listingInCity(updated, city)) return;
+            setOpenListings(prev => {
+                if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
+                    return prev.filter(r => r.id !== updated.id);
+                }
+                const exists = prev.some(r => r.id === updated.id);
+                if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
+                const next = [updated, ...prev];
+                const myId = user?.id;
+                return next.filter(r => !isOwnListing(r, myId)).concat(next.filter(r => isOwnListing(r, myId)));
+            });
+        });
+        const offDel = onSocket('rivalDeleted', ({ rivalId }) => {
+            if (!rivalId) return;
+            setOpenListings(prev => prev.filter(r => r.id !== rivalId));
+        });
+        return () => { off(); offDel(); };
+    }, [user?.id, user?.interests, city]);
 
     const applyCity = async (raw) => {
         const next = matchProvince(raw) || String(raw || '').split('/')[0].trim() || null;

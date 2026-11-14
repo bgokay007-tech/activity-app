@@ -206,10 +206,10 @@ export async function createNotification(userId, type, title, body, data = {}, p
 export async function notifyAllAdmins(type, title, body, data = {}, { excludeUserId = null, priority = 'default' } = {}) {
     try {
         const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        // createNotification zaten emitToUser(..., notif) yapıyor — id'siz {} ikinci emit
+        // istemcide yutuluyordu ama gereksiz gürültü / kafa karışıklığı yaratıyordu.
         await Promise.all(admins
             .filter(a => !excludeUserId || a.id !== excludeUserId)
-            .map(a => createNotification(a.id, type, title, body, data, priority)
-                .then(() => emitToUser(a.id, 'notification', {}))
-                .catch(() => {})));
+            .map(a => createNotification(a.id, type, title, body, data, priority).catch(() => {})));
     } catch { /* non-critical */ }
 }

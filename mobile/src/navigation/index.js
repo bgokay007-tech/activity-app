@@ -8,7 +8,7 @@ import { setCredentials, setUser } from '../store/slices/authSlice';
 import { setLang } from '../store/slices/langSlice';
 import { setUnreadCount, incrementUnread, clearUnread, decrementUnread } from '../store/slices/notificationSlice';
 import useT from '../hooks/useT';
-import { ActivityIndicator, View, Text, Platform, Animated } from 'react-native';
+import { ActivityIndicator, View, Text, Platform, Animated, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import RainbowLogo from '../components/RainbowLogo';
 import RainbowStar from '../components/RainbowStar';
@@ -17,7 +17,7 @@ import * as Notifications from 'expo-notifications';
 import * as ExpoLinking from 'expo-linking';
 import Constants from 'expo-constants';
 import api from '../services/api';
-import { connectSocket, disconnectSocket, onSocket } from '../services/socket';
+import { connectSocket, disconnectSocket, onSocket, onSocketReconnect } from '../services/socket';
 import { handleNotificationAction } from '../services/notificationActions';
 import { adminPortalParamsForNotif } from '../utils/adminNotifNav';
 
@@ -562,30 +562,42 @@ function AppTabs() {
         } catch { /* silent */ }
     }, []);
 
-    // Poll every 30s — keeps badge in sync with server after mark-all-read
+    // Anında + 15sn poll — eskiden ilk sync 2sn, sonra 30sn idi; push gelip rozet 4–5sn
+    // gecikiyordu (soket kaçınca HTTP yakalayana kadar).
     useEffect(() => {
-        const t = setTimeout(syncBadge, 2000);
-        pollRef.current = setInterval(syncBadge, 30000);
-        return () => { clearTimeout(t); clearInterval(pollRef.current); };
+        syncBadge();
+        pollRef.current = setInterval(syncBadge, 15000);
+        return () => { clearInterval(pollRef.current); };
     }, [syncBadge]);
 
     useEffect(() => {
-        const t = setTimeout(syncMessagesBadge, 2000);
-        messagesPollRef.current = setInterval(syncMessagesBadge, 30000);
-        return () => { clearTimeout(t); clearInterval(messagesPollRef.current); };
+        syncMessagesBadge();
+        messagesPollRef.current = setInterval(syncMessagesBadge, 15000);
+        return () => { clearInterval(messagesPollRef.current); };
     }, [syncMessagesBadge]);
 
     useEffect(() => {
-        const t = setTimeout(syncPendingScoreCount, 2000);
-        pendingScorePollRef.current = setInterval(syncPendingScoreCount, 30000);
-        return () => { clearTimeout(t); clearInterval(pendingScorePollRef.current); };
+        syncPendingScoreCount();
+        pendingScorePollRef.current = setInterval(syncPendingScoreCount, 15000);
+        return () => { clearInterval(pendingScorePollRef.current); };
     }, [syncPendingScoreCount]);
 
     useEffect(() => {
-        const t = setTimeout(syncUpcomingActivityCount, 2000);
-        upcomingActivityPollRef.current = setInterval(syncUpcomingActivityCount, 30000);
-        return () => { clearTimeout(t); clearInterval(upcomingActivityPollRef.current); };
+        syncUpcomingActivityCount();
+        upcomingActivityPollRef.current = setInterval(syncUpcomingActivityCount, 15000);
+        return () => { clearInterval(upcomingActivityPollRef.current); };
     }, [syncUpcomingActivityCount]);
+
+    // Uygulama öne gelince rozet/listeleri sunucuyla hizala (soket kopukken push gelmiş olabilir)
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state !== 'active') return;
+            syncBadge();
+            syncMessagesBadge();
+            syncPendingScoreCount();
+        });
+        return () => sub.remove();
+    }, [syncBadge, syncMessagesBadge, syncPendingScoreCount]);
 
     // Socket connection — instant badge increment on new notification/message
     useEffect(() => {
@@ -615,8 +627,13 @@ function AppTabs() {
         const offMsg = onSocket('newMessage', ({ message }) => {
             if (message?.senderId && message.senderId !== userId) setUnreadMessages(c => c + 1);
         });
-        return () => { off(); offRead(); offMsg(); disconnectSocket(); };
-    }, [userId, dispatch, syncPendingScoreCount]);
+        // Yeniden bağlanınca kaçırılan bildirimleri HTTP ile yakala
+        const offReconnect = onSocketReconnect(() => {
+            syncBadge();
+            syncMessagesBadge();
+        });
+        return () => { off(); offRead(); offMsg(); offReconnect(); disconnectSocket(); };
+    }, [userId, dispatch, syncPendingScoreCount, syncBadge, syncMessagesBadge]);
 
     return (
         <View style={{ flex: 1 }}>

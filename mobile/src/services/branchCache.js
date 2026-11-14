@@ -98,10 +98,18 @@ export function prefetchBranchLists(category, sub, { fresh = false } = {}) {
         rawCache.delete(key);
         inflight.delete(key);
     }
-    if (!fresh && rawCache.has(key)) return Promise.resolve(rawCache.get(key));
+    if (!fresh && rawCache.has(key)) {
+        const cached = Promise.resolve(rawCache.get(key));
+        // Ana sayfa hızlı, tenis 4–5sn: ilan sekmesi 7 API'yi bekliyordu.
+        // Cache'te de .rivalsPromise ver — load() önce ilanları boyayabilsin.
+        cached.rivalsPromise = Promise.resolve(rawCache.get(key)[0]);
+        return cached;
+    }
     if (!fresh && inflight.has(key)) return inflight.get(key);
+    // İlan listesi diğer (posts/stories/upcoming) isteklerinden bağımsız — önce gelsin.
+    const rivalsPromise = api.get(`/rivals?category=${category}&subCategory=${sub}`);
     const task = Promise.all([
-        api.get(`/rivals?category=${category}&subCategory=${sub}`),
+        rivalsPromise,
         api.get(`/rivals?category=${category}&subCategory=${sub}&matchType=PLAYER_WANTED`).catch(() => ({ data: [] })),
         api.get(`/posts?category=${category}&subCategory=${sub}&communityOnly=true&limit=30`).catch(() => ({ data: [] })),
         api.get(`/posts?category=${category}&subCategory=${sub}&mediaOnly=true&limit=50`).catch(() => ({ data: [] })),
@@ -116,6 +124,7 @@ export function prefetchBranchLists(category, sub, { fresh = false } = {}) {
         inflight.delete(key);
         throw err;
     });
+    task.rivalsPromise = rivalsPromise;
     inflight.set(key, task);
     return task;
 }

@@ -4544,13 +4544,44 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                                     </TouchableOpacity>
                                 )}
                             </View>
-                        ) : (Array.isArray(item.positions) && item.positions.includes('REFEREE')) || (item.refereeRequested && !item.refereeUser) ? (
-                            // Oyuncu katıl kutuları kaldırıldı — digimon arka yüz slotlarından başvurulur.
-                            // Burada sadece hakemlik başvurusu kalır.
+                        ) : (Array.isArray(item.positions) && item.positions.includes('REFEREE')) ? (
+                            // Saf hakem ilanı — oyuncu katılımı yok
                             <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
                                 <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
                             </TouchableOpacity>
-                        ) : null}
+                        ) : (item.matchType === 'DOUBLE' && item.teamFlexibility === 'STRICT') ? (
+                            // STRICT çift: slot seçmek zorunlu — genel Katıl backend'de reddedilir
+                            <View style={{ gap: 6 }}>
+                                <View style={[s.waitingBox, { borderRadius: moderateScale(8), paddingVertical: moderateScale(5) }]}>
+                                    <Text style={[s.waitingText, { fontSize: moderateScale(12) }]}>
+                                        {t.pickSlotToJoin || 'Katılmak için yukarıdan bir slot seçin'}
+                                    </Text>
+                                </View>
+                                {item.refereeRequested && !item.refereeUser && (
+                                    <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
+                                        <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        ) : (
+                            // Tek/çift(FLEXIBLE)/takım: detayda katılma isteği (ön yüzde vardı; detay
+                            // ternary `: null` ile düşmüştü).
+                            <View style={{ gap: 6 }}>
+                                <TouchableOpacity
+                                    style={[s.joinBtn, { backgroundColor: cfg.color, borderRadius: moderateScale(8), paddingVertical: moderateScale(8), alignItems: 'center' }]}
+                                    onPress={() => handleJoin()}
+                                >
+                                    <Text style={[s.joinBtnText, { fontSize: moderateScale(13), fontWeight: '800' }]}>
+                                        {t.joinRequestCtaShort || t.joinBtn || 'Katılma isteği gönder'}
+                                    </Text>
+                                </TouchableOpacity>
+                                {item.refereeRequested && !item.refereeUser && (
+                                    <TouchableOpacity style={{ backgroundColor:'#f59e0b20', borderRadius: moderateScale(8), paddingVertical: moderateScale(6), alignItems:'center', borderWidth:1, borderColor:'#f59e0b70' }} onPress={() => setRefereeApplyVisible(true)}>
+                                        <Text style={{ color:'#f59e0b', fontSize: moderateScale(12), fontWeight:'800' }}>{t.refereeApplyBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
                     </View>
 
                     {/* Kullanıcı isteği: bu sporda onaylı hakemliği olan biri, ilan sahibi hakem
@@ -26273,12 +26304,33 @@ function SubCategoryScreen({ route, navigation }) {
                     setListsReady(true);
                 }).catch(() => {});
             }
-            const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await prefetchBranchLists(category, sub, { fresh: !!opts.fresh });
+            const packPromise = prefetchBranchLists(category, sub, { fresh: !!opts.fresh });
+            // Ana sayfa ~anında, dal 4–5sn: 7 API bitmeden önce sadece ilanları boya.
+            if (packPromise.rivalsPromise) {
+                packPromise.rivalsPromise.then((rvEarly) => {
+                    if (freshApplied) return;
+                    const earlyOpen = (Array.isArray(rvEarly?.data) ? rvEarly.data : [])
+                        .filter(r => r.matchType !== 'PLAYER_WANTED');
+                    setRivals(prev => {
+                        const ids = new Set(earlyOpen.map(r => r.id));
+                        // Socket ile gelip henüz GET'te olmayan OPEN ilanı ezme
+                        const extras = prev.filter(r => !ids.has(r.id) && r.status === 'OPEN' && r.matchType !== 'PLAYER_WANTED');
+                        return [...extras, ...earlyOpen];
+                    });
+                    setListsReady(true);
+                    setLoading(false);
+                }).catch(() => {});
+            }
+            const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await packPromise;
             freshApplied = true;
 
             const allRivals = rvRes.data;
             const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED');
-            setRivals(openRivals);
+            setRivals(prev => {
+                const ids = new Set(openRivals.map(r => r.id));
+                const extras = prev.filter(r => !ids.has(r.id) && r.status === 'OPEN' && r.matchType !== 'PLAYER_WANTED');
+                return [...extras, ...openRivals];
+            });
             const isRefereeAd = p => Array.isArray(p.positions) &&
                 (p.positions.includes('REFEREE') || p.positions.includes('REFEREE_OFFER'));
             setPlayerWanted(pwRes.data.filter(p => !isRefereeAd(p)));
@@ -26357,21 +26409,14 @@ function SubCategoryScreen({ route, navigation }) {
         if (notifNavKey) autoOpenHandledRef.current = null;
     }, [notifNavKey]);
 
-    // Girişte fresh:true önbelleği ve dokunuşta başlayan prefetch'i siliyordu —
-    // dal 1 sn kilitleniyordu. Önce önbellek/prefetch ile boya; sonra arka planda taze çek.
+    // Girişte önce cache/prefetch ile boya; taze çekmeyi 1.2sn bekletmek tenis ilanlarını
+    // ana sayfadan 4–5sn geride bırakıyordu — hemen arkasından fresh başlat.
     useEffect(() => {
         let cancelled = false;
-        let refreshTimer = null;
         load({ fresh: false }).finally(() => {
-            if (cancelled) return;
-            refreshTimer = setTimeout(() => {
-                if (!cancelled) load({ fresh: true });
-            }, 1200);
+            if (!cancelled) load({ fresh: true });
         });
-        return () => {
-            cancelled = true;
-            if (refreshTimer) clearTimeout(refreshTimer);
-        };
+        return () => { cancelled = true; };
     }, [load]);
     // Kullanıcı isteği: skor girişi sonrası maç kartı, arkaplandaki liste yenilenene kadar
     // (yaklaşık 1sn) eski konumunda (ör. yedek arayan maçlar "Açık İlanlar" başlığı altında
