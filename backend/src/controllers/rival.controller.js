@@ -7621,6 +7621,17 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                 }) : [];
             const subReqsByRival = pendingSubReqs.reduce((acc, jr) => { (acc[jr.rivalId] ??= []).push(jr); return acc; }, {});
 
+            // Profil "Yaklaşan Aktivitelerim" kartında yorum sayısı gösterilsin (açık ilan listesiyle aynı kaynak).
+            const mineIds = mine.map(m => m.id);
+            const commentCounts = mineIds.length > 0
+                ? await prisma.matchComment.groupBy({
+                    by: ['rivalId'],
+                    where: { rivalId: { in: mineIds } },
+                    _count: { id: true },
+                })
+                : [];
+            const commentCountMap = Object.fromEntries(commentCounts.map(c => [c.rivalId, c._count.id]));
+
             const enriched = mine.map(m => {
                 const mIsDoubles = isDoublesFormat(m);
                 return {
@@ -7635,6 +7646,7 @@ export const getMyUpcomingMatches = async (req, res, next) => {
                     skillRating: ratingFor(p.id, m.subCategory, mIsDoubles),
                 })),
                 joinRequests: subReqsByRival[m.id] || [],
+                commentCount: commentCountMap[m.id] ?? 0,
                 };
             });
             return res.json(enriched);

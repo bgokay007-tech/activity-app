@@ -3368,14 +3368,26 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingActivitiesEmpty}</Text>
                                 );
                                 return filtered.map(m => {
-                                    const allP = [
-                                        { ...m.sender, skillRating: m.senderSkillRating },
-                                        ...(Array.isArray(m.participants) ? m.participants : []),
-                                        ...(Array.isArray(m.senderTeam) ? m.senderTeam : []),
-                                    ].filter(Boolean);
-                                    const isTeam = m.matchMode?.toUpperCase() === 'TEAM' || (m.teamSize || 1) > 1;
-                                    const sizeBadge2 = m.matchType === 'DOUBLE' ? '👥 2v2'
-                                        : isTeam ? `👥 ${m.teamSize || '?'}v${m.teamSize || '?'}` : '⚔️ 1v1';
+                                    // Kullanıcı isteği sıra: dal → tarih/saat → konum → açıklama → ücret → kort → cinsiyet → derece → yorum.
+                                    const place = [m.courtName, m.location].filter(Boolean).join(' · ');
+                                    const hasRating = m.ratingGenderSplit
+                                        ? (m.minRatingMale != null || m.maxRatingMale != null || m.minRatingFemale != null || m.maxRatingFemale != null)
+                                        : (m.minRating != null || m.maxRating != null);
+                                    const genderBits = [];
+                                    if (m.genderReq && m.genderReq !== 'MIX') {
+                                        genderBits.push(m.genderReq === 'MALE' ? (t.genderMale || '👨') : (t.genderFemale || '👩'));
+                                    }
+                                    if (m.matchType === 'DOUBLE') {
+                                        const gL = (g) => (g === 'MALE' ? (t.genderMaleShort || 'M') : g === 'FEMALE' ? (t.genderFemaleShort || 'F') : null);
+                                        const pg = gL(m.partnerGenderReq);
+                                        const o1 = gL(m.opp1GenderReq);
+                                        const o2 = gL(m.opp2GenderReq);
+                                        if (pg || o1 || o2) genderBits.push([pg, o1, o2].filter(Boolean).join(' · '));
+                                    }
+                                    const feeMain = m.courtFeePerPerson > 0
+                                        ? `${m.courtFeePerPerson}${m.refereeFeePerPerson > 0 ? `+${m.refereeFeePerPerson}` : ''}₺ / ${t.perPerson || 'kişi'}`
+                                        : null;
+                                    const lineMuted = { color: colors.textMuted, fontSize: 12, marginBottom: 4 };
                                     return (
                                         <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:11 }}>
                                             <TouchableOpacity
@@ -3390,60 +3402,49 @@ export default function ProfileScreen({ route, navigation }) {
                                                     });
                                                 }}
                                             >
-                                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                                                    <Text style={{ color:'#4ade80', fontSize:14, fontWeight:'800' }}>
-                                                        {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
-                                                    </Text>
-                                                </View>
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
-                                                    <View style={{ backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor: colors.border }}>
-                                                        <Text style={{ color: colors.purple, fontSize:11, fontWeight:'700' }}>{sizeBadge2}</Text>
-                                                    </View>
-                                                    {m.matchMode?.toUpperCase() === 'COMPETITIVE' && (
-                                                        <View style={{ backgroundColor:'#ef444420', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#ef444440' }}>
-                                                            <Text style={{ color:'#ef4444', fontSize:11, fontWeight:'700' }}>{t.competitiveMode || 'Competitive'}</Text>
-                                                        </View>
-                                                    )}
-                                                    {m.matchMode?.toUpperCase() === 'PRACTICE' && (
-                                                        <View style={{ backgroundColor:'#22c55e20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#22c55e40' }}>
-                                                            <Text style={{ color:'#22c55e', fontSize:11, fontWeight:'700' }}>{t.practiceMode || 'Practice'}</Text>
-                                                        </View>
-                                                    )}
-                                                    {m.flexibleSchedule && (
-                                                        <View style={{ backgroundColor:'#f59e0b20', borderRadius:8, paddingHorizontal:5, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b40' }}>
-                                                            <Text style={{ color:'#f59e0b', fontSize:11, fontWeight:'700' }}>{t.flexLabel || 'Flexible'}</Text>
-                                                        </View>
-                                                    )}
-                                                </View>
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:8 }}>
-                                                    {allP.map(p => (
-                                                        <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1, flexDirection:'row', alignItems:'center', gap:3 }}>
-                                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username || p.fullName || p.manualName}</Text>
-                                                            {p.skillRating != null && (
-                                                                <Text style={{ color:'#facc15', fontSize:12, fontWeight:'800' }}>{Number(p.skillRating).toFixed(2)} ★</Text>
-                                                            )}
-                                                        </View>
-                                                    ))}
-                                                </View>
-                                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 }}>
-                                                    {m.flexibleSchedule && !m.matchDate ? (
-                                                        <Text style={{ color:colors.textMuted, fontSize:12 }}>{t.flexLabel || 'Flexible'}</Text>
-                                                    ) : (
-                                                        <>
-                                                            {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day:'numeric', month:'short', weekday:'short' })}</Text> : null}
-                                                            {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
-                                                        </>
-                                                    )}
-                                                    {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
-                                                </View>
-                                                <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize:12, marginBottom: m.message ? 4 : 0 }}>
-                                                    {m.isCourtReserved ? `✅ ${t.courtReservedLabel || ''}` : `❌ ${t.courtNotReserved || ''}`}
+                                                <Text style={{ color:'#4ade80', fontSize:15, fontWeight:'800', marginBottom:6 }}>
+                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
                                                 </Text>
+                                                {m.flexibleSchedule && !m.matchDate ? (
+                                                    <Text style={lineMuted}>{t.flexLabel || 'Flexible'}</Text>
+                                                ) : (() => {
+                                                    const when = [
+                                                        m.matchDate ? `📅 ${new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day:'numeric', month:'short', weekday:'short' })}` : null,
+                                                        m.matchTime ? `🕐 ${m.matchTime}` : null,
+                                                    ].filter(Boolean).join('  ');
+                                                    return when ? <Text style={lineMuted}>{when}</Text> : null;
+                                                })()}
+                                                {place ? <Text style={lineMuted}>📍 {place}</Text> : null}
                                                 {m.message ? (
-                                                    <Text style={{ color:colors.textSecondary, fontSize:12, fontStyle:'italic', marginTop:2 }}>
-                                                        💬 {m.message}
+                                                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 4 }} numberOfLines={3}>
+                                                        {m.message}
                                                     </Text>
                                                 ) : null}
+                                                {feeMain ? (
+                                                    <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>💰 {feeMain}</Text>
+                                                ) : null}
+                                                {m.feeIncludes ? (
+                                                    <Text style={lineMuted}>{t.feeIncludesLabel || ''}: {m.feeIncludes}</Text>
+                                                ) : null}
+                                                <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 12, marginBottom: 4 }}>
+                                                    {m.isCourtReserved ? `✅ ${t.courtReservedLabel || ''}` : `❌ ${t.courtNotReserved || ''}`}
+                                                </Text>
+                                                {genderBits.length > 0 ? (
+                                                    <Text style={{ color: '#a78bfa', fontSize: 12, marginBottom: 4 }}>
+                                                        {t.genderReqLabel || 'Gender'}: {genderBits.join(' · ')}
+                                                    </Text>
+                                                ) : null}
+                                                {hasRating ? (
+                                                    <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
+                                                        {t.ratingLimitLabel || 'Rating'}:{' '}
+                                                        {m.ratingGenderSplit
+                                                            ? `👨${m.minRatingMale ?? 0}–${m.maxRatingMale ?? 5}  👩${m.minRatingFemale ?? 0}–${m.maxRatingFemale ?? 5}`
+                                                            : `${m.minRating ?? 0}–${m.maxRating ?? 5}★`}
+                                                    </Text>
+                                                ) : null}
+                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>
+                                                    💬 {t.matchCommentsBtn || 'Comments'} {m.commentCount ?? 0}
+                                                </Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
