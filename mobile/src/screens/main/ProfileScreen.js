@@ -1428,6 +1428,99 @@ function matchHasEnded(item, now = new Date()) {
     if (!d) return false;
     return now >= new Date(d.getTime() + (item.duration || 90) * 60 * 1000);
 }
+
+/** Yaklaşan / Arşiv hub: satırda 2 kart; dal|tarih, konum(+kısa açıklama), fiyat|kort. */
+function UpcomingHubMatchCard({ m, t, lang, accent = '#4ade80', onPress, onShare }) {
+    const place = [m.courtName, m.location].filter(Boolean).join(' · ');
+    const msg = (m.message || '').trim();
+    const msgShort = msg.length > 0 && msg.length <= 22;
+    const when = m.flexibleSchedule && !m.matchDate
+        ? (t.flexLabel || 'Flexible')
+        : [
+            m.matchDate ? new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day: 'numeric', month: 'short' }) : null,
+            m.matchTime || null,
+        ].filter(Boolean).join(' · ');
+    const feeMain = m.courtFeePerPerson > 0
+        ? `${m.courtFeePerPerson}${m.refereeFeePerPerson > 0 ? `+${m.refereeFeePerPerson}` : ''}₺`
+        : null;
+    const hasRating = m.ratingGenderSplit
+        ? (m.minRatingMale != null || m.maxRatingMale != null || m.minRatingFemale != null || m.maxRatingFemale != null)
+        : (m.minRating != null || m.maxRating != null);
+    const genderBits = [];
+    if (m.genderReq && m.genderReq !== 'MIX') {
+        genderBits.push(m.genderReq === 'MALE' ? (t.genderMale || '👨') : (t.genderFemale || '👩'));
+    }
+    const body = (
+        <>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginBottom: 4 }}>
+                <Text style={{ color: accent, fontSize: 12, fontWeight: '800', flex: 1 }} numberOfLines={2}>
+                    {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
+                </Text>
+                {when ? (
+                    <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '600', maxWidth: '46%', textAlign: 'right' }} numberOfLines={2}>
+                        {when}
+                    </Text>
+                ) : null}
+            </View>
+            {(place || msgShort) ? (
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginBottom: 3 }}>
+                    {place ? (
+                        <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1 }} numberOfLines={2}>📍 {place}</Text>
+                    ) : <View style={{ flex: 1 }} />}
+                    {msgShort ? (
+                        <Text style={{ color: colors.textSecondary, fontSize: 10, maxWidth: '48%', textAlign: 'right' }} numberOfLines={2}>{msg}</Text>
+                    ) : null}
+                </View>
+            ) : null}
+            {msg && !msgShort ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 10, marginBottom: 3 }} numberOfLines={2}>{msg}</Text>
+            ) : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3, flexWrap: 'wrap' }}>
+                {feeMain ? (
+                    <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }}>💰 {feeMain}</Text>
+                ) : null}
+                <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 10, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>
+                    {m.isCourtReserved ? `✅ ${t.courtReservedLabel || ''}` : `❌ ${t.courtNotReserved || ''}`}
+                </Text>
+            </View>
+            {genderBits.length > 0 ? (
+                <Text style={{ color: '#a78bfa', fontSize: 9, marginBottom: 2 }} numberOfLines={1}>{genderBits.join(' · ')}</Text>
+            ) : null}
+            {hasRating ? (
+                <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '700', marginBottom: 2 }} numberOfLines={1}>
+                    {m.ratingGenderSplit
+                        ? `⭐ 👨${m.minRatingMale ?? 0}–${m.maxRatingMale ?? 5} 👩${m.minRatingFemale ?? 0}–${m.maxRatingFemale ?? 5}`
+                        : `⭐ ${m.minRating ?? 0}–${m.maxRating ?? 5}`}
+                </Text>
+            ) : null}
+            <Text style={{ color: colors.textMuted, fontSize: 9 }}>💬 {m.commentCount ?? 0}</Text>
+        </>
+    );
+    return (
+        <View style={{
+            width: '48.5%',
+            backgroundColor: colors.surface2,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.border,
+            padding: 8,
+            marginBottom: 8,
+        }}>
+            {onPress ? (
+                <TouchableOpacity activeOpacity={0.85} onPress={onPress}>{body}</TouchableOpacity>
+            ) : body}
+            {onShare ? (
+                <TouchableOpacity
+                    onPress={onShare}
+                    style={{ marginTop: 6, alignSelf: 'stretch', paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.purple + '50', backgroundColor: colors.purple + '18', alignItems: 'center' }}
+                >
+                    <Text style={{ color: colors.purple, fontSize: 10, fontWeight: '700' }}>{t.shareBtn || '📤'}</Text>
+                </TouchableOpacity>
+            ) : null}
+        </View>
+    );
+}
+
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const LEVEL_COLORS = { BEGINNER:'#4ade80', INTERMEDIATE:'#facc15', ADVANCED:'#fb923c', PRO:'#f87171' };
 
@@ -3367,31 +3460,15 @@ export default function ProfileScreen({ route, navigation }) {
                                 if (filtered.length === 0) return (
                                     <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:30, fontSize:13 }}>{t.myUpcomingActivitiesEmpty}</Text>
                                 );
-                                return filtered.map(m => {
-                                    // Kullanıcı isteği sıra: dal → tarih/saat → konum → açıklama → ücret → kort → cinsiyet → derece → yorum.
-                                    const place = [m.courtName, m.location].filter(Boolean).join(' · ');
-                                    const hasRating = m.ratingGenderSplit
-                                        ? (m.minRatingMale != null || m.maxRatingMale != null || m.minRatingFemale != null || m.maxRatingFemale != null)
-                                        : (m.minRating != null || m.maxRating != null);
-                                    const genderBits = [];
-                                    if (m.genderReq && m.genderReq !== 'MIX') {
-                                        genderBits.push(m.genderReq === 'MALE' ? (t.genderMale || '👨') : (t.genderFemale || '👩'));
-                                    }
-                                    if (m.matchType === 'DOUBLE') {
-                                        const gL = (g) => (g === 'MALE' ? (t.genderMaleShort || 'M') : g === 'FEMALE' ? (t.genderFemaleShort || 'F') : null);
-                                        const pg = gL(m.partnerGenderReq);
-                                        const o1 = gL(m.opp1GenderReq);
-                                        const o2 = gL(m.opp2GenderReq);
-                                        if (pg || o1 || o2) genderBits.push([pg, o1, o2].filter(Boolean).join(' · '));
-                                    }
-                                    const feeMain = m.courtFeePerPerson > 0
-                                        ? `${m.courtFeePerPerson}${m.refereeFeePerPerson > 0 ? `+${m.refereeFeePerPerson}` : ''}₺ / ${t.perPerson || 'kişi'}`
-                                        : null;
-                                    const lineMuted = { color: colors.textMuted, fontSize: 12, marginBottom: 4 };
-                                    return (
-                                        <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:11 }}>
-                                            <TouchableOpacity
-                                                activeOpacity={0.85}
+                                return (
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                                        {filtered.map(m => (
+                                            <UpcomingHubMatchCard
+                                                key={m.id}
+                                                m={m}
+                                                t={t}
+                                                lang={lang}
+                                                accent="#4ade80"
                                                 onPress={() => {
                                                     setShowMyUpcoming(false);
                                                     navigation.navigate('SubCategory', {
@@ -3401,60 +3478,11 @@ export default function ProfileScreen({ route, navigation }) {
                                                         highlightRivalId: m.id,
                                                     });
                                                 }}
-                                            >
-                                                <Text style={{ color:'#4ade80', fontSize:15, fontWeight:'800', marginBottom:6 }}>
-                                                    {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
-                                                </Text>
-                                                {m.flexibleSchedule && !m.matchDate ? (
-                                                    <Text style={lineMuted}>{t.flexLabel || 'Flexible'}</Text>
-                                                ) : (() => {
-                                                    const when = [
-                                                        m.matchDate ? `📅 ${new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day:'numeric', month:'short', weekday:'short' })}` : null,
-                                                        m.matchTime ? `🕐 ${m.matchTime}` : null,
-                                                    ].filter(Boolean).join('  ');
-                                                    return when ? <Text style={lineMuted}>{when}</Text> : null;
-                                                })()}
-                                                {place ? <Text style={lineMuted}>📍 {place}</Text> : null}
-                                                {m.message ? (
-                                                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginBottom: 4 }} numberOfLines={3}>
-                                                        {m.message}
-                                                    </Text>
-                                                ) : null}
-                                                {feeMain ? (
-                                                    <Text style={{ color: '#fbbf24', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>💰 {feeMain}</Text>
-                                                ) : null}
-                                                {m.feeIncludes ? (
-                                                    <Text style={lineMuted}>{t.feeIncludesLabel || ''}: {m.feeIncludes}</Text>
-                                                ) : null}
-                                                <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 12, marginBottom: 4 }}>
-                                                    {m.isCourtReserved ? `✅ ${t.courtReservedLabel || ''}` : `❌ ${t.courtNotReserved || ''}`}
-                                                </Text>
-                                                {genderBits.length > 0 ? (
-                                                    <Text style={{ color: '#a78bfa', fontSize: 12, marginBottom: 4 }}>
-                                                        {t.genderReqLabel || 'Gender'}: {genderBits.join(' · ')}
-                                                    </Text>
-                                                ) : null}
-                                                {hasRating ? (
-                                                    <Text style={{ color: '#facc15', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>
-                                                        {t.ratingLimitLabel || 'Rating'}:{' '}
-                                                        {m.ratingGenderSplit
-                                                            ? `👨${m.minRatingMale ?? 0}–${m.maxRatingMale ?? 5}  👩${m.minRatingFemale ?? 0}–${m.maxRatingFemale ?? 5}`
-                                                            : `${m.minRating ?? 0}–${m.maxRating ?? 5}★`}
-                                                    </Text>
-                                                ) : null}
-                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                                                    💬 {t.matchCommentsBtn || 'Comments'} {m.commentCount ?? 0}
-                                                </Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
-                                                style={{ marginTop:8, alignSelf:'flex-start', paddingHorizontal:10, paddingVertical:6, borderRadius:8, borderWidth:1, borderColor: colors.purple+'50', backgroundColor: colors.purple+'18' }}
-                                            >
-                                                <Text style={{ color: colors.purple, fontSize:12, fontWeight:'700' }}>{t.shareBtn || '📤 Share'}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    );
-                                });
+                                                onShare={() => setEntityShareReq({ kind: 'rival', item: { ...m, status: m.status || 'MATCHED' } })}
+                                            />
+                                        ))}
+                                    </View>
+                                );
                             })() : (() => {
                                 if (loadingHistory) return <ActivityIndicator color={colors.purple} style={{ marginTop: 30 }} />;
                                 const filtered = upcomingSub ? myHistory.filter(m => m.subCategory === upcomingSub) : myHistory;
@@ -3463,29 +3491,17 @@ export default function ProfileScreen({ route, navigation }) {
                                 );
                                 return (
                                     <>
-                                        {filtered.map(m => {
-                                            const parts = Array.isArray(m.participants) ? m.participants : [];
-                                            const allP = [m.sender, ...parts].filter(Boolean);
-                                            return (
-                                                <View key={m.id} style={{ borderBottomWidth:1, borderBottomColor:colors.border, paddingVertical:11 }}>
-                                                    <Text style={{ color:'#a855f7', fontSize:14, fontWeight:'800', marginBottom:6 }}>
-                                                        {SUB_EMOJI[m.subCategory] || '🏅'} {getSubCategoryLabel(m.subCategory, lang)}
-                                                    </Text>
-                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:6 }}>
-                                                        {allP.map(p => (
-                                                            <View key={p.id || p.username} style={{ backgroundColor: colors.surface2, borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
-                                                                <Text style={{ color:'#fff', fontSize:12, fontWeight:'600' }}>{p.username || p.fullName}</Text>
-                                                            </View>
-                                                        ))}
-                                                    </View>
-                                                    <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
-                                                        {m.matchDate ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📅 {new Date(m.matchDate).toLocaleDateString(t.dateLocale || 'tr-TR', { day:'numeric', month:'short', year:'numeric' })}</Text> : null}
-                                                        {m.matchTime ? <Text style={{ color:colors.textMuted, fontSize:12 }}>🕐 {m.matchTime}</Text> : null}
-                                                        {m.location ? <Text style={{ color:colors.textMuted, fontSize:12 }}>📍 {m.location}</Text> : null}
-                                                    </View>
-                                                </View>
-                                            );
-                                        })}
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+                                            {filtered.map(m => (
+                                                <UpcomingHubMatchCard
+                                                    key={m.id}
+                                                    m={m}
+                                                    t={t}
+                                                    lang={lang}
+                                                    accent="#a855f7"
+                                                />
+                                            ))}
+                                        </View>
                                         {upcomingSub ? (
                                             <TouchableOpacity
                                                 onPress={() => { setShowMyUpcoming(false); openMyArchive(upcomingSub); }}
