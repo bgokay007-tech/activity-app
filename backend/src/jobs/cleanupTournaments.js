@@ -1,6 +1,7 @@
 import prisma from '../config/prisma.js';
-import { emitToUser } from '../config/socket.js';
+import { emitToUser, broadcast } from '../config/socket.js';
 import { createNotification } from '../controllers/notification.controller.js';
+import { registrationDeadlineMs } from '../controllers/tournament.controller.js';
 
 // ELO is already applied when the score is entered (enterTournamentMatchScore) — confirmation
 // just locks the score against further correction. If the opposing side doesn't confirm/dispute
@@ -94,11 +95,102 @@ async function cleanupExpiredTournaments() {
     }
 }
 
+/**
+ * Son başvuru geçti + kabul edilen < minPlayers:
+ * 1) İlk seferde underfillWarnedAt yaz + yaratıcıya 24s uyarı bildirimi
+ * 2) 24s dolunca sil + bildirim (ilan halkadan zaten gizlenmiş — getTournaments filtresi)
+ */
+async function processUnderfilledTournaments() {
+    try {
+        const now = Date.now();
+        const open = await prisma.tournament.findMany({
+            where: { status: 'OPEN', endDate: { not: null } },
+            select: {
+                id: true, name: true, creatorId: true, minPlayers: true,
+                endDate: true, endTime: true, underfillWarnedAt: true,
+                category: true, subCategory: true,
+            },
+        });
+
+        for (const t of open) {
+            const deadline = registrationDeadlineMs(t.endDate, t.endTime);
+            if (deadline == null || deadline > now) continue;
+
+            const accepted = await prisma.tournamentParticipant.count({
+                where: { tournamentId: t.id, status: 'ACCEPTED' },
+            });
+            const min = t.minPlayers || 2;
+            if (accepted >= min) {
+                // Min sağlandıysa eski uyarı damgasını temizle
+                if (t.underfillWarnedAt) {
+                    await prisma.tournament.update({
+                        where: { id: t.id },
+                        data: { underfillWarnedAt: null },
+                    });
+                }
+                continue;
+            }
+
+            if (!t.underfillWarnedAt) {
+                await prisma.tournament.update({
+                    where: { id: t.id },
+                    data: { underfillWarnedAt: new Date() },
+                });
+                createNotification(
+                    t.creatorId,
+                    'TOURNAMENT_UNDERFILL_WARNING',
+                    '⚠️ Yetersiz oyuncu — 24 saat',
+                    `"${t.name}" son başvuru tarihi geçti ve minimum oyuncu (${min}) sağlanamadı (${accepted}/${min}). `
+                    + '24 saat içinde son başvuru tarihini uzatın; aksi halde turnuva yetersiz oyuncudan silinecek. '
+                    + 'Bu süre boyunca ilan diğer kullanıcılara görünmez.',
+                    { tournamentId: t.id, category: t.category, subCategory: t.subCategory },
+                ).catch(() => {});
+                console.log(`[underfill] Warned creator for tournament ${t.id}`);
+                continue;
+            }
+
+            const warnMs = new Date(t.underfillWarnedAt).getTime();
+            if (now - warnMs < 24 * 60 * 60 * 1000) continue;
+
+            const parts = await prisma.tournamentParticipant.findMany({
+                where: { tournamentId: t.id, userId: { not: null } },
+                select: { userId: true },
+            });
+            await prisma.tournament.delete({ where: { id: t.id } });
+            broadcast('tournament:deleted', { tournamentId: t.id });
+            createNotification(
+                t.creatorId,
+                'TOURNAMENT_UNDERFILL_DELETED',
+                '🗑️ Turnuva silindi (yetersiz oyuncu)',
+                `"${t.name}" 24 saat içinde son başvuru uzatılmadığı için yetersiz oyuncu nedeniyle silindi.`,
+                { tournamentId: t.id, category: t.category, subCategory: t.subCategory },
+            ).catch(() => {});
+            for (const p of parts) {
+                if (!p.userId || p.userId === t.creatorId) continue;
+                emitToUser(p.userId, 'tournament:deleted', { tournamentId: t.id });
+                createNotification(
+                    p.userId,
+                    'TOURNAMENT_UNDERFILL_DELETED',
+                    '🗑️ Turnuva iptal',
+                    `"${t.name}" yetersiz oyuncu nedeniyle kaldırıldı.`,
+                    { tournamentId: t.id, category: t.category, subCategory: t.subCategory },
+                ).catch(() => {});
+            }
+            console.log(`[underfill] Deleted tournament ${t.id} after 24h grace`);
+        }
+    } catch (err) {
+        console.error('[underfill] Error:', err.message);
+    }
+}
+
 export function startTournamentCleanupJob() {
     cleanupExpiredTournaments();
     autoConfirmTournamentScores();
+    processUnderfilledTournaments();
     setInterval(cleanupExpiredTournaments, 2 * 60 * 1000); // every 2 minutes
     setInterval(autoConfirmTournamentScores, 5 * 60 * 1000); // every 5 minutes, 1h timeout
+    setInterval(processUnderfilledTournaments, 2 * 60 * 1000);
     console.log('🧹 Tournament cleanup job started (every 2 min)');
     console.log('⏰ Tournament auto-confirm score job started (every 5 min, 1h timeout)');
+    console.log('📉 Tournament underfill warn/delete job started (every 2 min, 24h grace)');
 }

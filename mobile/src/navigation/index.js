@@ -161,6 +161,13 @@ function navigateFromNotif(data, isBusiness) {
                     openMatchTournamentId: data.tournamentId || null,
                     openExpiredResolve: true,
                 }),
+                ...((type === 'TOURNAMENT_UNDERFILL_WARNING' || type === 'TOURNAMENT_UNDERFILL_DELETED') && {
+                    highlightTournamentId: data.tournamentId || null,
+                    initialTournSubTab: 'open',
+                }),
+                ...(type === 'TOURNAMENT_CHAT_MESSAGE' || type === 'TOURNAMENT_CHAT_MENTION'
+                    ? { openChatTournamentId: data.tournamentId || null }
+                    : {}),
                 ...(type === 'PEER_REVIEW_PROMPT' && { openPeerReviewRivalId: data.rivalId || null }),
                 // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildirimine dokununca
                 // doğrudan o maçın detayı, kadro kartında kendi "Adisyonu Var" ikonu otomatik

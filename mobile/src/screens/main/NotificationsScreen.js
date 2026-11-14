@@ -540,6 +540,18 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('tournaments', 'inprogress');
         } else if (type === 'TOURNAMENT_COMPLETED') {
             goToSub('archive', null, null, data.tournamentId || null);
+        } else if (type === 'TOURNAMENT_UNDERFILL_WARNING') {
+            if (!data.category || !data.subCategory) return;
+            navigation.push('SubCategory', {
+                category: String(data.category).toUpperCase(),
+                sub: data.subCategory,
+                initialTab: 'tournaments',
+                initialTournSubTab: 'open',
+                highlightTournamentId: data.tournamentId || null,
+            });
+        } else if (type === 'TOURNAMENT_UNDERFILL_DELETED') {
+            // Silindi — dal turnuva listesine git (kart yok)
+            goToSub('tournaments', 'open');
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE' || type === 'TOURNAMENT_CHAT_MENTION') {
             goToSub('tournaments', null, data.tournamentId || null);
         } else if (type === 'POST_MENTION' || type === 'REEL_MENTION' || type === 'STORY_MENTION') {

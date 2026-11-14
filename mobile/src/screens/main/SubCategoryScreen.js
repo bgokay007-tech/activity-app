@@ -18307,7 +18307,7 @@ function insertMatchCommentMention(text, tag) {
     return String(text || '').replace(/@([\p{L}\p{N}._]*)$/u, `@${tag} `);
 }
 
-function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, onRequestEdit, openChatTournamentId, onChatOpened, openMatchId, openMatchTournamentId, openExpiredResolve, onMatchOpened, onUserPress }) {
+function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, onRequestEdit, openChatTournamentId, onChatOpened, highlightTournamentId, onHighlightOpened, openMatchId, openMatchTournamentId, openExpiredResolve, onMatchOpened, onUserPress }) {
     const insets = useSafeAreaInsets();
     const myPart = item.participants?.[0];
     const [myStatus, setMyStatus] = useState(myPart?.status ?? null);
@@ -18731,6 +18731,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             onChatOpened?.();
         }
     }, [openChatTournamentId, item.id]);
+
+    // Ana sayfadan / uyarıdan: kartı aç (sohbet değil) + vurgula
+    useEffect(() => {
+        if (highlightTournamentId && highlightTournamentId === item.id) {
+            setCollapsed(false);
+            onHighlightOpened?.();
+        }
+    }, [highlightTournamentId, item.id]);
 
     // "Skor girildi, onaylar mısın?" bildirimine tıklanınca onay bekleyen maç otomatik açılsın
     useEffect(() => {
@@ -19638,7 +19646,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
 
     return (
         <>
-        <View style={[s.card, { marginBottom:10 }, (item.status === 'OPEN' || item.status === 'POLL') && { borderColor: infoColor + '55', borderWidth:1.5, paddingTop:10, paddingBottom:8 }]}>
+        <View style={[s.card, { marginBottom:10 }, (item.status === 'OPEN' || item.status === 'POLL') && { borderColor: infoColor + '55', borderWidth:1.5, paddingTop:10, paddingBottom:8 }, highlightTournamentId === item.id && { borderColor: '#a855f7', borderWidth: 2, backgroundColor: '#a855f712' }]}>
+            {isCreator && item.underfillWarnedAt && item.status === 'OPEN' ? (
+                <View style={{ backgroundColor: '#7f1d1d30', borderRadius: 8, padding: 8, marginBottom: 8, borderWidth: 1, borderColor: '#ef444460' }}>
+                    <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '800', marginBottom: 2 }}>
+                        {t.tournUnderfillTitle || '⚠️ Yetersiz oyuncu — 24 saat'}
+                    </Text>
+                    <Text style={{ color: '#fecaca', fontSize: 10, lineHeight: 14 }}>
+                        {t.tournUnderfillBody || 'Son başvuru geçti, minimum oyuncu yok. 24 saat içinde son başvuru tarihini uzatın; yoksa turnuva silinir. İlan diğer kullanıcılara görünmüyor.'}
+                    </Text>
+                    {onRequestEdit ? (
+                        <TouchableOpacity
+                            onPress={() => onRequestEdit(item)}
+                            style={{ marginTop: 6, alignSelf: 'flex-start', backgroundColor: '#ef444430', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: '#ef444460' }}
+                        >
+                            <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '800' }}>
+                                {t.tournUnderfillExtend || 'Son başvuruyu uzat'}
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
+            ) : null}
             {/* Üst satır: isim · tür · konum */}
             <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:2 }}>
                 {item.status === 'IN_PROGRESS' ? (
@@ -24721,7 +24749,7 @@ function StoryViewerContent({ group, storyViewer, setStoryViewer, mediaStories, 
 // ─── Main Screen ───────────────────────────────────────────────────────────────
 
 function SubCategoryScreen({ route, navigation }) {
-    const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, openMatchId, openMatchTournamentId,
+    const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, highlightTournamentId, openMatchId, openMatchTournamentId,
             openExpiredResolve,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
             openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter, notifNavKey } = route.params;
@@ -26007,6 +26035,15 @@ function SubCategoryScreen({ route, navigation }) {
             setTournSubTab((target.status === 'OPEN' || target.status === 'POLL') ? 'open' : 'inprogress');
         }
     }, [openChatTournamentId, tournaments]);
+
+    // Ana sayfa / uyarı bildirimi: sohbet açma — sadece ilgili turnuva kartına git
+    useEffect(() => {
+        if (!highlightTournamentId || tournaments.length === 0) return;
+        const target = tournaments.find(tn => tn.id === highlightTournamentId);
+        if (target) {
+            setTournSubTab((target.status === 'OPEN' || target.status === 'POLL') ? 'open' : 'inprogress');
+        }
+    }, [highlightTournamentId, tournaments]);
 
     // Skor onayı bildirimine tıklanınca doğru alt sekmeye geçip ilgili kartın render olmasını sağla
     useEffect(() => {
@@ -29410,6 +29447,8 @@ function SubCategoryScreen({ route, navigation }) {
                                 onRequestEdit={(tourn) => setEditTournamentItem(tourn)}
                                 openChatTournamentId={openChatTournamentId}
                                 onChatOpened={() => navigation.setParams({ openChatTournamentId: undefined })}
+                                highlightTournamentId={highlightTournamentId}
+                                onHighlightOpened={() => navigation.setParams({ highlightTournamentId: undefined })}
                                 openMatchId={openMatchId}
                                 openMatchTournamentId={openMatchTournamentId}
                                 openExpiredResolve={!!openExpiredResolve && openMatchTournamentId === item.id}

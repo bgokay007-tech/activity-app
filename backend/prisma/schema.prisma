@@ -1436,6 +1436,8 @@ model Tournament {
   ratingSnapshot Json?        // {userId: {username, fullName, totalPoints, skillRating}}
   completedAt    DateTime?
   startedAt      DateTime?
+  // Son başvuru geçti + min oyuncu yok → yaratıcıya 24s uyarı damgası; uzatırsa null'lanır, 24s dolunca silinir
+  underfillWarnedAt DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

@@ -70,7 +70,7 @@ export function tournamentPollDeadline(tournament) {
 }
 
 /** Son başvuru anı (TR UTC+3) — join kontrolüyle aynı mantık. */
-function registrationDeadlineMs(endDate, endTime) {
+export function registrationDeadlineMs(endDate, endTime) {
     if (!endDate) return null;
     const regEnd = new Date(endDate);
     if (endTime) {
@@ -1133,7 +1133,19 @@ export const getTournaments = async (req, res, next) => {
             },
             orderBy: { createdAt: 'desc' },
         });
-        res.json(tournaments);
+        // Son başvuru geçmiş + min oyuncu yok: halka açık listede gizle (hazırlayan hâlâ görür —
+        // 24s içinde uzatma / silinme uyarısı için). Home feed de aynı endpoint'i kullanır.
+        const nowMs = Date.now();
+        const visible = tournaments.filter(t => {
+            if (t.creatorId === myId) return true;
+            if (t.status !== 'OPEN') return true;
+            const deadline = registrationDeadlineMs(t.endDate, t.endTime);
+            if (deadline == null || deadline > nowMs) return true;
+            const accepted = t._count?.participants ?? 0;
+            if (accepted >= (t.minPlayers || 2)) return true;
+            return false;
+        });
+        res.json(visible);
     } catch (e) { next(e); }
 };
 
@@ -1956,6 +1968,10 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.eventEndTime !== undefined && { eventEndTime: b.eventEndTime || null }),
                 ...(b.endDate      !== undefined && { endDate:      b.endDate ? new Date(b.endDate) : null }),
                 ...(b.endTime      !== undefined && { endTime:      b.endTime || null }),
+                // Son başvuru uzatıldıysa yetersiz-oyuncu 24s uyarısını sıfırla
+                ...((b.endDate !== undefined || b.endTime !== undefined) && {
+                    underfillWarnedAt: null,
+                }),
             },
         });
         // Liste/detay açık olan herkes anında görsün — yenilemeye gerek kalmasın.
