@@ -72,12 +72,15 @@ export function photoForSub(subId, category) {
     return null;
 }
 
-/** Raket sporları — zemin belliyse o kort fotoğrafı; belirsizse yarı sert/toprak. */
+/**
+ * Ana sayfa 88×88 satır / hero — kare, yukarıdan tam kort (net+çizgi).
+ * Hikâye paylaşım arka planları share-bg/tennis-*.jpg (dikey); burada kullanılmaz.
+ */
 const SURFACE_PHOTOS = {
-    CLAY: require('../../assets/visual/share-bg/tennis-clay.jpg'),
-    HARD: require('../../assets/visual/share-bg/tennis-hard.jpg'),
-    GRASS: require('../../assets/visual/share-bg/tennis-grass.jpg'),
-    PLAYERS_DECIDE: require('../../assets/visual/share-bg/tennis-players-decide.jpg'),
+    CLAY: require('../../assets/visual/share-bg/tennis-thumb-clay.jpg'),
+    HARD: require('../../assets/visual/share-bg/tennis-thumb-hard.jpg'),
+    GRASS: require('../../assets/visual/share-bg/tennis-thumb-grass.jpg'),
+    PLAYERS_DECIDE: require('../../assets/visual/share-bg/tennis-thumb-decide.jpg'),
     VOLLEY_BEACH: require('../../assets/visual/share-bg/volleyball-beach.jpg'),
     VOLLEY_INDOOR: require('../../assets/visual/share-bg/volleyball-indoor.jpg'),
     PADEL: require('../../assets/visual/share-bg/padel.jpg'),

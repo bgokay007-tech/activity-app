@@ -403,6 +403,7 @@ export default function HomeScreen({ navigation }) {
                         <Image
                             source={photoForListing(heroMatch) || photoForSub(heroMatch.subCategory, heroMatch.category) || CAT_PHOTOS.SPORTS}
                             style={nv.heroImg}
+                            resizeMode="cover"
                         />
                         <View style={nv.heroShade} />
                         <View style={nv.heroBody}>
@@ -434,7 +435,7 @@ export default function HomeScreen({ navigation }) {
                             const meta = listingMeta(item);
                             return (
                                 <TouchableOpacity key={`joined-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
-                                    <Image source={photo} style={nv.rowImg} />
+                                    <Image source={photo} style={nv.rowImg} resizeMode="cover" />
                                     <View style={nv.rowBody}>
                                         <Text style={[nv.rowKicker, { color: playing ? '#4ade80' : colors.purple }]}>
                                             {playing ? t.featuredNowPlaying : t.homeJoinedKicker}
@@ -492,7 +493,7 @@ export default function HomeScreen({ navigation }) {
                             : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
                         return (
                             <TouchableOpacity key={`${isTourn ? 't' : 'r'}-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
-                                <Image source={photo} style={nv.rowImg} />
+                                <Image source={photo} style={nv.rowImg} resizeMode="cover" />
                                 <View style={nv.rowBody}>
                                     <Text style={nv.rowKicker}>{kicker}</Text>
                                     <Text style={nv.rowTitle} numberOfLines={1}>{title}</Text>
