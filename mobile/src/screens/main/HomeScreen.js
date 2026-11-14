@@ -85,13 +85,37 @@ function listingInCity(item, city) {
     if (!city) return true;
     const c = foldCity(city);
     if (!c) return true;
-    const hay = foldCity([item?.location, item?.courtAddress, item?.courtName].filter(Boolean).join(' '));
+    const hay = foldCity([
+        item?.location, item?.courtAddress, item?.courtName, item?.city,
+    ].filter(Boolean).join(' '));
     return hay.includes(c);
+}
+
+function tournamentInCity(item, city) {
+    if (!city) return true;
+    // Ulusal / uluslararası açık turnuvalar şehir filtresine takılmasın
+    if (item?.scope === 'ULUSAL' || item?.scope === 'ULUSLARARASI') return true;
+    return listingInCity(item, city);
 }
 
 function isOwnListing(item, userId) {
     if (!item || !userId) return false;
-    return item.senderId === userId || item.sender?.id === userId;
+    if (item.kind === 'tournament') {
+        return item.creatorId === userId || item.creator?.id === userId || item.senderId === userId;
+    }
+    return item.senderId === userId || item.sender?.id === userId || item.creatorId === userId;
+}
+
+function mapOpenTournament(t) {
+    return {
+        ...t,
+        kind: 'tournament',
+        // formatWhen / satır UI ile uyum
+        matchDate: t.eventDate || null,
+        matchTime: t.eventTime || null,
+        senderId: t.creatorId || t.creator?.id || null,
+        courtName: t.location || null,
+    };
 }
 
 function isMyMatch(item, userId) {
@@ -183,12 +207,24 @@ export default function HomeScreen({ navigation }) {
     };
 
     const loadOpenListingsForCity = useCallback(async (resolvedCity, myId, mySubs) => {
-        const rivalsRes = await api.get(resolvedCity ? `/rivals?city=${encodeURIComponent(resolvedCity)}` : '/rivals').catch(() => ({ data: [] }));
-        const pool = asList(rivalsRes).filter(r => {
+        if (mySubs.size === 0) {
+            setOpenListings([]);
+            return;
+        }
+        const [rivalsRes, tournRes] = await Promise.all([
+            api.get(resolvedCity ? `/rivals?city=${encodeURIComponent(resolvedCity)}` : '/rivals').catch(() => ({ data: [] })),
+            api.get('/tournaments').catch(() => ({ data: [] })),
+        ]);
+        const rivals = asList(rivalsRes).filter(r => {
             if (!listingInCity(r, resolvedCity)) return false;
-            if (mySubs.size === 0) return false;
             return mySubs.has(r.subCategory);
         });
+        const tournaments = asList(tournRes)
+            .filter(t => ['OPEN', 'POLL'].includes(String(t?.status || '')))
+            .filter(t => mySubs.has(t.subCategory))
+            .filter(t => tournamentInCity(t, resolvedCity))
+            .map(mapOpenTournament);
+        const pool = [...rivals, ...tournaments];
         setOpenListings(pool.filter(r => !isOwnListing(r, myId)).concat(pool.filter(r => isOwnListing(r, myId))));
     }, []);
 
@@ -247,6 +283,16 @@ export default function HomeScreen({ navigation }) {
     const openListing = (item) => {
         if (!item?.subCategory) return;
         prefetchBranchLists((item.category || 'SPORTS').toUpperCase(), item.subCategory);
+        if (item.kind === 'tournament') {
+            navigation.navigate('SubCategory', {
+                category: (item.category || 'SPORTS').toUpperCase(),
+                sub: item.subCategory,
+                initialTab: 'tournaments',
+                initialTournSubTab: 'open',
+                openChatTournamentId: item.id,
+            });
+            return;
+        }
         navigation.navigate('SubCategory', {
             category: (item.category || 'SPORTS').toUpperCase(),
             sub: item.subCategory,
@@ -434,20 +480,31 @@ export default function HomeScreen({ navigation }) {
                 ) : (
                     openOnly.slice(0, 12).map(item => {
                         const mine = isOwnListing(item, user?.id);
+                        const isTourn = item.kind === 'tournament';
                         const photo = photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
-                        const meta = listingMeta(item);
+                        const meta = isTourn ? null : listingMeta(item);
+                        const kicker = isTourn
+                            ? (mine ? (t.yourTournament || t.yourListing) : (t.nearbyTournament || t.nearbyListing))
+                            : (mine ? t.yourListing : t.nearbyListing);
+                        const title = isTourn
+                            ? (item.name || getSubCategoryLabel(item.subCategory, lang))
+                            : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
                         return (
-                            <TouchableOpacity key={item.id} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
+                            <TouchableOpacity key={`${isTourn ? 't' : 'r'}-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
                                 <Image source={photo} style={nv.rowImg} />
                                 <View style={nv.rowBody}>
-                                    <Text style={nv.rowKicker}>{mine ? t.yourListing : t.nearbyListing}</Text>
-                                    <Text style={nv.rowTitle} numberOfLines={1}>
-                                        {getSubCategoryLabel(item.subCategory, lang)}
-                                        {meta ? ` · ${meta}` : ''}
-                                    </Text>
-                                    <Text style={nv.rowMeta} numberOfLines={1}>{formatWhen(item, t) || item.location || ''}</Text>
-                                    {(item.courtName || item.location) ? (
-                                        <Text style={nv.rowPlace} numberOfLines={1}>{item.courtName || item.location}</Text>
+                                    <Text style={nv.rowKicker}>{kicker}</Text>
+                                    <Text style={nv.rowTitle} numberOfLines={1}>{title}</Text>
+                                    {isTourn ? (
+                                        <Text style={nv.rowMeta} numberOfLines={1}>
+                                            {getSubCategoryLabel(item.subCategory, lang)}
+                                            {formatWhen(item, t) ? ` · ${formatWhen(item, t)}` : ''}
+                                        </Text>
+                                    ) : (
+                                        <Text style={nv.rowMeta} numberOfLines={1}>{formatWhen(item, t) || item.location || ''}</Text>
+                                    )}
+                                    {(item.courtName || item.location || item.city) ? (
+                                        <Text style={nv.rowPlace} numberOfLines={1}>{item.courtName || item.location || item.city}</Text>
                                     ) : null}
                                 </View>
                             </TouchableOpacity>

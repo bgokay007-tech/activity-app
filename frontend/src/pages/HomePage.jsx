@@ -35,10 +35,33 @@ function foldCity(s) {
 function listingInCity(item, city) {
     const c = foldCity(city);
     if (!c) return true;
-    return foldCity([item?.location, item?.courtAddress, item?.courtName].filter(Boolean).join(' ')).includes(c);
+    return foldCity([item?.location, item?.courtAddress, item?.courtName, item?.city].filter(Boolean).join(' ')).includes(c);
 }
 
-const isOwnListing = (item, userId) => !!(item && userId && (item.senderId === userId || item.sender?.id === userId));
+function tournamentInCity(item, city) {
+    if (!city) return true;
+    if (item?.scope === 'ULUSAL' || item?.scope === 'ULUSLARARASI') return true;
+    return listingInCity(item, city);
+}
+
+const isOwnListing = (item, userId) => {
+    if (!item || !userId) return false;
+    if (item.kind === 'tournament') {
+        return item.creatorId === userId || item.creator?.id === userId || item.senderId === userId;
+    }
+    return item.senderId === userId || item.sender?.id === userId || item.creatorId === userId;
+};
+
+function mapOpenTournament(t) {
+    return {
+        ...t,
+        kind: 'tournament',
+        matchDate: t.eventDate || null,
+        matchTime: t.eventTime || null,
+        senderId: t.creatorId || t.creator?.id || null,
+        courtName: t.location || null,
+    };
+}
 
 function isMyMatch(item, userId) {
     if (!item || !userId) return false;
@@ -96,8 +119,21 @@ function HomePage() {
     const loadListings = useCallback(async (resolvedCity, me) => {
         const mySubs = new Set((me?.interests || []).filter(i => i && !i.hidden && i.subCategory).map(i => i.subCategory));
         setHasInterests(mySubs.size > 0);
-        const { data } = await api.get('/rivals', { params: resolvedCity ? { city: resolvedCity } : {} }).catch(() => ({ data: [] }));
-        const pool = asList(data).filter(r => mySubs.has(r.subCategory) && listingInCity(r, resolvedCity));
+        if (mySubs.size === 0) {
+            setOpenListings([]);
+            return;
+        }
+        const [rivalsRes, tournRes] = await Promise.all([
+            api.get('/rivals', { params: resolvedCity ? { city: resolvedCity } : {} }).catch(() => ({ data: [] })),
+            api.get('/tournaments').catch(() => ({ data: [] })),
+        ]);
+        const rivals = asList(rivalsRes.data ?? rivalsRes).filter(r => mySubs.has(r.subCategory) && listingInCity(r, resolvedCity));
+        const tournaments = asList(tournRes.data ?? tournRes)
+            .filter(t => ['OPEN', 'POLL'].includes(String(t?.status || '')))
+            .filter(t => mySubs.has(t.subCategory))
+            .filter(t => tournamentInCity(t, resolvedCity))
+            .map(mapOpenTournament);
+        const pool = [...rivals, ...tournaments];
         setOpenListings(pool.filter(r => !isOwnListing(r, me?.id)).concat(pool.filter(r => isOwnListing(r, me?.id))));
     }, []);
 
@@ -139,7 +175,12 @@ function HomePage() {
 
     const openListing = (item) => {
         if (!item?.subCategory) return;
-        navigate(`/category/${String(item.category || 'SPORTS').toLowerCase()}/${item.subCategory}`);
+        const base = `/category/${String(item.category || 'SPORTS').toLowerCase()}/${item.subCategory}`;
+        if (item.kind === 'tournament') {
+            navigate(`${base}?tab=tournaments&tournSub=open&tournamentId=${encodeURIComponent(item.id)}`);
+            return;
+        }
+        navigate(base);
     };
 
     const formatWhen = (item) => {
@@ -240,17 +281,28 @@ function HomePage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {openListings.slice(0, 12).map(item => {
                             const mine = isOwnListing(item, user?.id);
+                            const isTourn = item.kind === 'tournament';
                             const img = photoForSub(item.subCategory, item.category) || CAT_PHOTOS[String(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
-                            const meta = listingMeta(item);
+                            const meta = isTourn ? null : listingMeta(item);
+                            const kicker = isTourn
+                                ? (mine ? t('home.your_tournament') : t('home.open_tournament'))
+                                : (mine ? t('home.your_listing') : t('home.open_listing'));
+                            const title = isTourn
+                                ? (item.name || subLabel(item.subCategory, lang))
+                                : `${subLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
                             return (
-                                <button key={item.id} onClick={() => openListing(item)} className="flex bg-[#16181F] border border-[#2A2D36] hover:border-[#C8F54A]/60 rounded-[18px] overflow-hidden text-left transition">
+                                <button key={`${isTourn ? 't' : 'r'}-${item.id}`} onClick={() => openListing(item)} className="flex bg-[#16181F] border border-[#2A2D36] hover:border-[#C8F54A]/60 rounded-[18px] overflow-hidden text-left transition">
                                     <img src={img} alt="" loading="lazy" className="w-24 h-24 object-cover flex-shrink-0" />
                                     <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center">
-                                        <span className="text-[#C8F54A] text-[11px] font-bold">{mine ? t('home.your_listing') : t('home.open_listing')}</span>
-                                        <span className="text-[#F4F1EA] text-[15px] font-bold truncate">{subLabel(item.subCategory, lang)}{meta ? ` · ${meta}` : ''}</span>
-                                        <span className="text-[#A8A29A] text-xs truncate mt-0.5">{formatWhen(item) || item.location || ''}</span>
-                                        {(item.courtName || item.location) && (
-                                            <span className="text-[#78716C] text-xs truncate mt-0.5">{item.courtName || item.location}</span>
+                                        <span className="text-[#C8F54A] text-[11px] font-bold">{kicker}</span>
+                                        <span className="text-[#F4F1EA] text-[15px] font-bold truncate">{title}</span>
+                                        <span className="text-[#A8A29A] text-xs truncate mt-0.5">
+                                            {isTourn
+                                                ? `${subLabel(item.subCategory, lang)}${formatWhen(item) ? ` · ${formatWhen(item)}` : ''}`
+                                                : (formatWhen(item) || item.location || '')}
+                                        </span>
+                                        {(item.courtName || item.location || item.city) && (
+                                            <span className="text-[#78716C] text-xs truncate mt-0.5">{item.courtName || item.location || item.city}</span>
                                         )}
                                     </div>
                                 </button>

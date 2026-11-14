@@ -264,6 +264,8 @@
     "city_placeholder": "Type a city",
     "open_listing": "Open listing",
     "your_listing": "Your listing",
+    "open_tournament": "Open tournament",
+    "your_tournament": "Your tournament",
     "no_listings_city": "No open listings in your city for the activities you added yet.",
     "add_sports_profile": "Add sports in your profile →",
     "flexible": "Flexible schedule"

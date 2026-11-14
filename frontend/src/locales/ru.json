@@ -264,6 +264,8 @@
     "city_placeholder": "Введите город",
     "open_listing": "Открытое объявление",
     "your_listing": "Твоё объявление",
+    "open_tournament": "Открытый турнир",
+    "your_tournament": "Твой турнир",
     "no_listings_city": "В твоём городе пока нет объявлений по добавленным тобой видам спорта.",
     "add_sports_profile": "Добавь виды спорта в профиле →",
     "flexible": "Гибкое время"
