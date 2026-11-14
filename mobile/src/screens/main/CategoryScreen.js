@@ -17,6 +17,7 @@ import { NEW_VISUAL } from '../../theme/visual';
 import { photoForSub, SUB_PHOTOS } from '../../theme/visualAssets';
 import useT from '../../hooks/useT';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import UiIcon from '../../components/UiIcon';
 
 // Bu dallar "ilan" (rakip bul) mantığına değil kendi özel ekranlarına gider —
 // SubCategory yerine bu ekran adına yönlendirilir, ilan sayacı da gösterilmez.
@@ -198,7 +199,7 @@ function SportTile({ sub, label, count, favored, onOpen, onPressIn, onToggleFav,
             {photo ? <View style={sp.tileShade} /> : null}
             {count > 0 && <View style={sp.liveDot} />}
             <TouchableOpacity onPress={onToggleFav} hitSlop={10} style={sp.starBtn} delayPressIn={0} activeOpacity={0.7}>
-                <Text style={[sp.star, favored && { color: colors.purple }]}>{favored ? '★' : '☆'}</Text>
+                <UiIcon name={favored ? 'star' : 'star-outline'} size={16} color={favored ? colors.purple : '#fff'} />
             </TouchableOpacity>
             <Text style={[sp.tileName, count === 0 && { bottom: 12 }]} numberOfLines={2}>{label}</Text>
             {count > 0 ? <Text style={sp.tileMeta}>{t.listings(count)}</Text> : null}

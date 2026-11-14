@@ -1,0 +1,11 @@
+# Marka-bağımsız UI chrome (KAZINDI)
+
+Telefon markası (Samsung / Xiaomi / Pixel…) **emoji fontu** farklı çizer; alt sekme evi, mesaj balonu vb. telefona göre değişmesin.
+
+## Zorunlu
+
+1. **Alt sekme / header / aksiyon ikonları** — Unicode emoji (`🏠` `💬` `🔔` `👤` `★`…) **yasak**. `@expo/vector-icons` (Ionicons) veya `assets/` PNG/SVG. Yardımcı: `mobile/src/components/UiIcon.js`.
+2. **Renk** — `mobile/src/theme/colors.js` hex; OEM “emoji rengi”ne güvenme. Aktif sekme rengi `colors.purple` (NEW_VISUAL’da lime).
+3. **İçerik metnindeki spor emojileri** (🎾 liste satırı) henüz tamamen asset değil; yeni chrome ikonu eklerken emoji kullanma. Dal kapağı varsa foto (`visualAssets` / `SUB_PHOTOS`).
+
+Kullanıcı “marka farkı / stil farkı / kalite konuşsun” derse önce tab/chrome ikonlarına bak.

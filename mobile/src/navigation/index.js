@@ -9,6 +9,7 @@ import { setLang } from '../store/slices/langSlice';
 import { setUnreadCount, incrementUnread, clearUnread, decrementUnread } from '../store/slices/notificationSlice';
 import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform, Animated } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import RainbowLogo from '../components/RainbowLogo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
@@ -439,30 +440,38 @@ function NotificationsStackNav() {
     );
 }
 
+// Alt sekme: Unicode emoji YASAK — Samsung/Xiaomi/Pixel emoji fontu farklı çiziyor.
+// Ionicons APK içinde sabit; renk de colors.* hex → marka farkı yok.
+const TAB_ICON_NAMES = {
+    Home:          { on: 'home',              off: 'home-outline' },
+    Messages:      { on: 'chatbubble',        off: 'chatbubble-outline' },
+    Activity:      { on: 'star',              off: 'star-outline' },
+    Notifications: { on: 'notifications',     off: 'notifications-off-outline' },
+    Profile:       { on: 'person',            off: 'person-outline' },
+};
+
 function TabIcon({ label, active, blinking }) {
-    const icons = {
-        Home:         active ? '🏠' : '🏡',
-        Messages:     active ? '💬' : '💬',
-        Activity:     active ? '🌟' : '⭐',
-        Notifications:active ? '🔔' : '🔕',
-        Profile:      active ? '👤' : '👤',
-    };
     // Kullanıcı isteği: skor girilmesi gereken bir maç olduğu sürece zil ikonu yanıp sönsün —
     // sadece bildirimi okumak bunu durdurmaz, gerçekten skor girilene kadar sürer (bkz.
     // AppTabs'taki pendingScoreCount, getMyPendingScoreCount'tan gelir).
     const blinkOpacity = useRef(new Animated.Value(1)).current;
     useEffect(() => {
-        if (!blinking) { blinkOpacity.setValue(1); return; }
+        if (!blinking) { blinkOpacity.setValue(1); return undefined; }
         const loop = Animated.loop(Animated.sequence([
             Animated.timing(blinkOpacity, { toValue: 0.25, duration: 500, useNativeDriver: true }),
             Animated.timing(blinkOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
         ]));
         loop.start();
         return () => loop.stop();
-    }, [blinking]);
+    }, [blinking, blinkOpacity]);
+    const pair = TAB_ICON_NAMES[label] || TAB_ICON_NAMES.Home;
+    const name = active ? pair.on : pair.off;
+    const color = active ? colors.purple : colors.textMuted;
     return (
-        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Animated.Text style={{ fontSize: 20, opacity: blinkOpacity }}>{icons[label]}</Animated.Text>
+        <View style={{ alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
+            <Animated.View style={{ opacity: blinkOpacity }}>
+                <Ionicons name={name} size={22} color={color} />
+            </Animated.View>
         </View>
     );
 }
@@ -610,7 +619,9 @@ function AppTabs() {
                 },
                 tabBarActiveTintColor: colors.purple,
                 tabBarInactiveTintColor: colors.textMuted,
+                // allowFontScaling kapalı: erişilebilirlik yazı boyutu sekme etiketini telefona göre şişirmesin.
                 tabBarLabelStyle: { fontSize: 10, fontWeight: '700' },
+                tabBarAllowFontScaling: false,
             }}
         >
             <Tab.Screen
