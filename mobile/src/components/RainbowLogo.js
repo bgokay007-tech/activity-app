@@ -1,9 +1,8 @@
 import { useRef, useEffect } from 'react';
 import { Animated, Easing, Text } from 'react-native';
+import { ACTIVITY_RAINBOW, ACTIVITY_RAINBOW_CYCLE_MS } from '../theme/activityRainbow';
 
-const COLORS = ['#FF0000','#FF6600','#FFD700','#00CC00','#00CED1','#0099FF','#7B00FF','#FFFFFF'];
-const N = COLORS.length; // 8
-const CYCLE_MS = 2400;   // matches web
+const N = ACTIVITY_RAINBOW.length;
 
 export default function RainbowLogo({ style, text = 'AcTiViTy' }) {
     const anim = useRef(new Animated.Value(0)).current;
@@ -12,7 +11,7 @@ export default function RainbowLogo({ style, text = 'AcTiViTy' }) {
         Animated.loop(
             Animated.timing(anim, {
                 toValue: N,
-                duration: CYCLE_MS,
+                duration: ACTIVITY_RAINBOW_CYCLE_MS,
                 easing: Easing.linear,
                 useNativeDriver: false,
             })
@@ -29,7 +28,7 @@ export default function RainbowLogo({ style, text = 'AcTiViTy' }) {
                 const offset = N - 1 - i;
                 const inputRange  = Array.from({ length: N + 1 }, (_, k) => k);
                 const outputRange = Array.from({ length: N + 1 }, (_, k) =>
-                    COLORS[(k + offset) % N]
+                    ACTIVITY_RAINBOW[(k + offset) % N]
                 );
                 const color = anim.interpolate({ inputRange, outputRange });
                 return (

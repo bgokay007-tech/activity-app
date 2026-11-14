@@ -11,6 +11,7 @@ import useT from '../hooks/useT';
 import { ActivityIndicator, View, Text, Platform, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import RainbowLogo from '../components/RainbowLogo';
+import RainbowStar from '../components/RainbowStar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import * as ExpoLinking from 'expo-linking';
@@ -464,6 +465,16 @@ function TabIcon({ label, active, blinking }) {
         loop.start();
         return () => loop.stop();
     }, [blinking, blinkOpacity]);
+
+    // AkTiViTe yıldızı: lime dolgu değil — logo ile aynı 8 renk, aynı anda dalga.
+    if (label === 'Activity') {
+        return (
+            <View style={{ alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
+                <RainbowStar size={22} active={!!active} />
+            </View>
+        );
+    }
+
     const pair = TAB_ICON_NAMES[label] || TAB_ICON_NAMES.Home;
     const name = active ? pair.on : pair.off;
     const color = active ? colors.purple : colors.textMuted;
