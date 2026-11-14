@@ -131,6 +131,9 @@ function buildRival(rival, t, lang) {
     }
 
     const message = [intro, ...lines, url].filter(Boolean).join('\n');
+    const sfRaw = String(rival.surface || '').trim().toUpperCase();
+    // Zemin yok / oyuncular seçer → yarı sert-toprak görsel + daha açık overlay
+    const undecidedSurface = !sfRaw || sfRaw === 'PLAYERS_DECIDE' || sfRaw === 'UNKNOWN' || sfRaw === 'ANY';
     return {
         kind: 'rival',
         id: rival.id,
@@ -145,6 +148,7 @@ function buildRival(rival, t, lang) {
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
         brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
+        bgPlayersDecide: undecidedSurface,
         ...shareMeta(rival),
     };
 }

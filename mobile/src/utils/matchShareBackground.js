@@ -26,31 +26,40 @@ function normSurface(surface) {
     return String(surface || '').trim().toUpperCase();
 }
 
+/** Zemin bilinmiyor / oyuncular seçer → yarı sert + yarı toprak tek kort. */
+export function isUndecidedSurface(surface) {
+    const sf = normSurface(surface);
+    return !sf || sf === 'PLAYERS_DECIDE' || sf === 'UNKNOWN' || sf === 'ANY';
+}
+
 /** @returns {number} metro require module id */
 export function resolveShareBackgroundModule(subCategory, surface) {
     const sub = String(subCategory || '').toLowerCase();
     const sf = normSurface(surface);
+    const racket = sub === 'tennis' || sub === 'table_tennis' || sub === 'badminton'
+        || sub === 'pickleball' || sub === 'squash' || sub === 'padel';
 
-    if (sub === 'tennis' || sub === 'table_tennis' || sub === 'badminton' || sub === 'pickleball' || sub === 'squash') {
-        // Oyuncular zemin seçer → tek kort yarı sert / yarı toprak (ayrı iki resmi birleştirme yok)
-        if (sf === 'PLAYERS_DECIDE') return BG.tennisPlayersDecide;
+    // Açık ilan / turnuva: zemin belli → o kort; belirsiz → yarı yarıya tek kort
+    if (racket) {
+        if (isUndecidedSurface(sf)) return BG.tennisPlayersDecide;
         if (sf === 'CLAY') return BG.tennisClay;
         if (sf === 'GRASS') return BG.tennisGrass;
         if (sf === 'HARD' || sf === 'CARPET' || sf === 'ARTIFICIAL' || sf === 'OTHER') return BG.tennisHard;
-        return BG.tennisHard;
+        // Bilinen ama listede olmayan kod → yine yarı yarıya (uydurma sert varsayma)
+        return BG.tennisPlayersDecide;
     }
-    if (sf === 'PLAYERS_DECIDE' && (sub === 'padel' || !sub)) return BG.tennisPlayersDecide;
-    if (sub === 'padel') return BG.padel;
     if (sub === 'volleyball') {
         if (sf === 'BEACH') return BG.volleyballBeach;
         if (sf === 'INDOOR' || sf === 'PARQUET' || sf === 'SYNTHETIC') return BG.volleyballIndoor;
         if (sf === 'CLAY') return BG.tennisClay;
         if (sf === 'GRASS') return BG.tennisGrass;
+        if (isUndecidedSurface(sf)) return BG.tennisPlayersDecide;
         return BG.volleyballIndoor;
     }
     if (sub === 'basketball') return BG.basketball;
     if (sub === 'football') return BG.footballFallback;
     if (sub === 'running') return BG.runningFallback;
+    if (isUndecidedSurface(sf)) return BG.tennisPlayersDecide;
     return BG.tennisFallback;
 }
 
@@ -76,5 +85,5 @@ export async function shareBackgroundToDataUrl(subCategory, surface) {
 }
 
 export function isPlayersDecideSurface(surface) {
-    return String(surface || '').trim().toUpperCase() === 'PLAYERS_DECIDE';
+    return isUndecidedSurface(surface);
 }
