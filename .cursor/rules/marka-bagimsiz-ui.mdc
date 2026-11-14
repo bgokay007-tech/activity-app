@@ -1,11 +1,12 @@
 # Marka-bağımsız UI chrome (KAZINDI)
 
-Telefon markası (Samsung / Xiaomi / Pixel…) **emoji fontu** farklı çizer; alt sekme evi, mesaj balonu vb. telefona göre değişmesin.
+Telefon markası (Samsung / Xiaomi / Pixel…) **emoji fontu** farklı çizer; alt sekme, profil butonları (WhatsApp, e-posta, yaklaşan ⏰, rezervasyon 📅…) telefona göre değişmesin.
 
 ## Zorunlu
 
-1. **Alt sekme / header / aksiyon ikonları** — Unicode emoji (`🏠` `💬` `🔔` `👤` `★`…) **yasak**. `@expo/vector-icons` (Ionicons) veya `assets/` PNG/SVG. Yardımcı: `mobile/src/components/UiIcon.js`.
-2. **Renk** — `mobile/src/theme/colors.js` hex; OEM “emoji rengi”ne güvenme. Aktif sekme rengi `colors.purple` (NEW_VISUAL’da lime).
-3. **İçerik metnindeki spor emojileri** (🎾 liste satırı) henüz tamamen asset değil; yeni chrome ikonu eklerken emoji kullanma. Dal kapağı varsa foto (`visualAssets` / `SUB_PHOTOS`).
+1. **Alt sekme / header / aksiyon / profil buton ikonları** — Unicode emoji (`🏠` `💬` `🔔` `⏰` `📅` `📞`…) **yasak** (görünüm olarak). `@expo/vector-icons` veya `assets/`.
+2. **Metin + baş emoji** → `ChromeText` (`mobile/src/components/ChromeText.js`) — baştaki emojiyi Ionicons/FA’ya çevirir. Sadece ikon: `UiIcon`. WhatsApp: `WhatsAppIcon`, Telegram: `TelegramIcon`.
+3. **Renk** — `colors.js` hex; OEM emoji rengine güvenme.
+4. Yeni buton eklerken `Text` içine `⏰ Rezervasyon` yazma; `ChromeText` veya `UiIcon` + düz metin kullan.
 
-Kullanıcı “marka farkı / stil farkı / kalite konuşsun” derse önce tab/chrome ikonlarına bak.
+Dal kapağı / spor görseli: `visualAssets` foto. Liste içi spor emoji (🎾) hâlâ Unicode olabilir — chrome butonlara emoji koyma.

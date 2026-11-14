@@ -26,6 +26,9 @@ import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import TelegramIcon, { TELEGRAM_BLUE } from '../../components/TelegramIcon';
+import WhatsAppIcon, { WHATSAPP_GREEN } from '../../components/WhatsAppIcon';
+import ChromeText, { stripChromeEmoji } from '../../components/ChromeText';
+import UiIcon from '../../components/UiIcon';
 import KeyboardSafeModal from '../../components/KeyboardSafeModal';
 import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 import PaymentMethodsSection from '../../components/PaymentMethodsSection';
@@ -663,7 +666,7 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {isOwnProfile && (item.reservationCount > 0) && (
                                     <TouchableOpacity onPress={onReservations} style={fc.miniStatBtn}>
                                         <Text style={{ color: '#60a5fa', fontSize: moderateScale(16), fontWeight: '900' }}>{item.reservationCount}</Text>
-                                        <Text style={fc.miniStatLbl}>📅 Rezerv.</Text>
+                                        <ChromeText style={fc.miniStatLbl} iconSize={11}>{`📅 ${lang === 'tr' ? 'Rezerv.' : 'Res.'}`}</ChromeText>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -673,12 +676,17 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Sol: Yaklaşan / Arşiv / Takma Ad */}
                                 <View style={fc.actionCol}>
                                     <TouchableOpacity onPress={onUpcoming} style={fc.actionBtn}>
-                                        <Animated.Text style={[fc.actionTxt, { color: '#4ade80', opacity: upcomingBlink }]}>
-                                            {t.myUpcomingBtn}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
-                                        </Animated.Text>
+                                        <Animated.View style={{ opacity: upcomingBlink, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                                            <UiIcon name="time-outline" size={14} color="#4ade80" />
+                                            <Text style={[fc.actionTxt, { color: '#4ade80' }]}>
+                                                {stripChromeEmoji(t.myUpcomingBtn)}{item.upcomingCount > 0 ? ` (${item.upcomingCount})` : ''}
+                                            </Text>
+                                        </Animated.View>
                                     </TouchableOpacity>
                                     <TouchableOpacity onPress={onArchive} style={fc.actionBtn}>
-                                        <Text style={[fc.actionTxt, { color: '#a855f7' }]}>🗃️ {t.profileSportArchive}{item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}</Text>
+                                        <ChromeText style={[fc.actionTxt, { color: '#a855f7' }]} iconColor="#a855f7" iconSize={14}>
+                                            {`🗃️ ${t.profileSportArchive}${item.archiveCount > 0 ? ` (${item.archiveCount})` : ''}`}
+                                        </ChromeText>
                                     </TouchableOpacity>
                                     {isOwnProfile && (
                                         isEditingAlias ? (
@@ -699,7 +707,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                             </View>
                                         ) : (
                                             <TouchableOpacity onPress={onEditAlias} style={fc.actionBtn}>
-                                                <Text style={[fc.actionTxt, { color: '#9ca3af' }]}>✏️ {item.alias ? `${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}</Text>
+                                                <ChromeText style={[fc.actionTxt, { color: '#9ca3af' }]} iconColor="#9ca3af" iconSize={14}>
+                                                    {`✏️ ${item.alias ? `${item.alias}` : (t?.sportAliasLabel || 'Takma Ad')}`}
+                                                </ChromeText>
                                             </TouchableOpacity>
                                         )
                                     )}
@@ -708,7 +718,9 @@ function SportCardFlipModal({ item, visible, onClose, lang, t, onUpcoming, onArc
                                 {/* Sağ: Başarılar / Hedefler / Anket Ortalaması */}
                                 <View style={fc.actionCol}>
                                     <TouchableOpacity style={fc.actionBtn} onPress={() => setShowAchievements(true)}>
-                                        <Text style={[fc.actionTxt, { color: '#f59e0b' }]}>🏆 {lang==='tr' ? 'Başarılar' : lang==='ru' ? 'Достижения' : lang==='de' ? 'Erfolge' : 'Achievements'}</Text>
+                                        <ChromeText style={[fc.actionTxt, { color: '#f59e0b' }]} iconColor="#f59e0b" iconSize={14}>
+                                            {`🏆 ${lang==='tr' ? 'Başarılar' : lang==='ru' ? 'Достижения' : lang==='de' ? 'Erfolge' : 'Achievements'}`}
+                                        </ChromeText>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={fc.actionBtn} onPress={() => setShowGoals(true)}>
                                         <Text style={[fc.actionTxt, { color: '#38bdf8' }]}>🎯 {lang==='tr' ? 'Hedefler' : lang==='ru' ? 'Цели' : lang==='de' ? 'Ziele' : 'Goals'}</Text>
@@ -1465,7 +1477,7 @@ function UpcomingHubMatchCard({ m, t, lang, accent = '#4ade80', onPress, onShare
             {(place || msgShort) ? (
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4, marginBottom: 3 }}>
                     {place ? (
-                        <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1 }} numberOfLines={2}>📍 {place}</Text>
+                        <ChromeText style={{ color: colors.textMuted, fontSize: 10, flex: 1 }} iconSize={11} numberOfLines={2}>{`📍 ${place}`}</ChromeText>
                     ) : <View style={{ flex: 1 }} />}
                     {msgShort ? (
                         <Text style={{ color: colors.textSecondary, fontSize: 10, maxWidth: '48%', textAlign: 'right' }} numberOfLines={2}>{msg}</Text>
@@ -1477,23 +1489,31 @@ function UpcomingHubMatchCard({ m, t, lang, accent = '#4ade80', onPress, onShare
             ) : null}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 3, flexWrap: 'wrap' }}>
                 {feeMain ? (
-                    <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }}>💰 {feeMain}</Text>
+                    <ChromeText style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }} iconSize={11} iconColor="#fbbf24">{`💰 ${feeMain}`}</ChromeText>
                 ) : null}
-                <Text style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 10, fontWeight: '600', flexShrink: 1 }} numberOfLines={1}>
+                <ChromeText
+                    style={{ color: m.isCourtReserved ? '#4ade80' : '#f87171', fontSize: 10, fontWeight: '600', flexShrink: 1 }}
+                    iconSize={11}
+                    iconColor={m.isCourtReserved ? '#4ade80' : '#f87171'}
+                    numberOfLines={1}
+                >
                     {m.isCourtReserved ? `✅ ${t.courtReservedLabel || ''}` : `❌ ${t.courtNotReserved || ''}`}
-                </Text>
+                </ChromeText>
             </View>
             {genderBits.length > 0 ? (
                 <Text style={{ color: '#a78bfa', fontSize: 9, marginBottom: 2 }} numberOfLines={1}>{genderBits.join(' · ')}</Text>
             ) : null}
             {hasRating ? (
-                <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '700', marginBottom: 2 }} numberOfLines={1}>
-                    {m.ratingGenderSplit
-                        ? `⭐ 👨${m.minRatingMale ?? 0}–${m.maxRatingMale ?? 5} 👩${m.minRatingFemale ?? 0}–${m.maxRatingFemale ?? 5}`
-                        : `⭐ ${m.minRating ?? 0}–${m.maxRating ?? 5}`}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 }}>
+                    <UiIcon name="star" size={10} color="#facc15" />
+                    <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '700', flexShrink: 1 }} numberOfLines={1}>
+                        {m.ratingGenderSplit
+                            ? `👨${m.minRatingMale ?? 0}–${m.maxRatingMale ?? 5} 👩${m.minRatingFemale ?? 0}–${m.maxRatingFemale ?? 5}`
+                            : `${m.minRating ?? 0}–${m.maxRating ?? 5}`}
+                    </Text>
+                </View>
             ) : null}
-            <Text style={{ color: colors.textMuted, fontSize: 9 }}>💬 {m.commentCount ?? 0}</Text>
+            <ChromeText style={{ color: colors.textMuted, fontSize: 9 }} iconSize={10}>{`💬 ${m.commentCount ?? 0}`}</ChromeText>
         </>
     );
     return (
@@ -1514,7 +1534,9 @@ function UpcomingHubMatchCard({ m, t, lang, accent = '#4ade80', onPress, onShare
                     onPress={onShare}
                     style={{ marginTop: 6, alignSelf: 'stretch', paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderColor: colors.purple + '50', backgroundColor: colors.purple + '18', alignItems: 'center' }}
                 >
-                    <Text style={{ color: colors.purple, fontSize: 10, fontWeight: '700' }}>{t.shareBtn || '📤'}</Text>
+                    <ChromeText style={{ color: colors.purple, fontSize: 10, fontWeight: '700' }} iconColor={colors.purple} iconSize={12}>
+                        {t.shareBtn || '📤 Share'}
+                    </ChromeText>
                 </TouchableOpacity>
             ) : null}
         </View>
@@ -1699,14 +1721,14 @@ function StatRow({ emoji, label, count, onAdd, onPress }) {
 
 // ─── Stat Card (compact, for side-by-side layout) ────────────────────────────
 
-function StatCard({ emoji, label, count, onAdd, onPress }) {
+function StatCard({ icon = 'ellipse-outline', label, count, onAdd, onPress }) {
     return (
         <TouchableOpacity style={s.statCard} onPress={onPress} activeOpacity={onPress ? 0.7 : 1} disabled={!onPress}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Text style={s.statCardEmoji}>{emoji}</Text>
+                <UiIcon name={icon} size={22} color={colors.purple} />
                 {onAdd && (
                     <TouchableOpacity style={s.addBtnSm} onPress={onAdd}>
-                        <Text style={s.addBtnText}>+</Text>
+                        <UiIcon name="add" size={16} color={colors.purple} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -3125,16 +3147,18 @@ export default function ProfileScreen({ route, navigation }) {
                             )}
                             {(isOwnProfile || profile?.city) && (
                                 <View style={[s.infoItem, { gap: 3 }]}>
-                                    <Text style={s.infoItemText}>
-                                        {profile?.city ? `📍  ${profile.city}` : isOwnProfile ? '— Şehir' : ''}
-                                    </Text>
+                                    {profile?.city ? (
+                                        <ChromeText style={s.infoItemText} iconSize={13}>{`📍 ${profile.city}`}</ChromeText>
+                                    ) : (
+                                        <Text style={s.infoItemText}>{isOwnProfile ? '— Şehir' : ''}</Text>
+                                    )}
                                     {isOwnProfile && (
                                         <Text style={s.privacyDot}>{privacyEmoji(profile?.cityPrivacy)}</Text>
                                     )}
                                 </View>
                             )}
                             <View style={s.infoItem}>
-                                <Text style={s.infoItemText}>📅  {joinDate(profile?.createdAt, lang)}</Text>
+                                <ChromeText style={s.infoItemText} iconSize={13}>{`📅 ${joinDate(profile?.createdAt, lang)}`}</ChromeText>
                             </View>
                         </View>
                     </View>
@@ -3146,10 +3170,10 @@ export default function ProfileScreen({ route, navigation }) {
 
                     {/* 2×2 stat grid */}
                     <View style={s.statGrid}>
-                        <StatCard emoji="🔥" label={t.postsLabel}      count={postCount}        onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => { setPostsKind('media'); setShowPostsModal(true); }} />
-                        <StatCard emoji="🎬" label={t.reels}            count={reelCount}        onAdd={isOwnProfile ? handleCreateReel : null} onPress={() => setShowReelsModal(true)} />
-                        <StatCard emoji="👥" label={t.friendsLabel}     count={friendCount}      onAdd={isOwnProfile ? () => setShowAddFriendModal(true) : null} onPress={openFriendsList} />
-                        <StatCard emoji="🏃" label={t.activitiesLabel}  count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} onPress={() => isOwnProfile ? setManageOpen(true) : setShowActivitiesViewModal(true)} />
+                        <StatCard icon="flame-outline" label={t.postsLabel} count={postCount} onAdd={isOwnProfile ? handleCreatePost : null} onPress={() => { setPostsKind('media'); setShowPostsModal(true); }} />
+                        <StatCard icon="film-outline" label={t.reels} count={reelCount} onAdd={isOwnProfile ? handleCreateReel : null} onPress={() => setShowReelsModal(true)} />
+                        <StatCard icon="people-outline" label={t.friendsLabel} count={friendCount} onAdd={isOwnProfile ? () => setShowAddFriendModal(true) : null} onPress={openFriendsList} />
+                        <StatCard icon="walk-outline" label={t.activitiesLabel} count={interests.length} onAdd={isOwnProfile ? () => setManageOpen(true) : null} onPress={() => isOwnProfile ? setManageOpen(true) : setShowActivitiesViewModal(true)} />
                     </View>
 
 
@@ -3175,7 +3199,7 @@ export default function ProfileScreen({ route, navigation }) {
                                 onPress={handleBlockUser}
                                 style={{ flex: 0, width: 40, backgroundColor: colors.surface2, borderRadius: 14, paddingVertical: 10, alignItems: 'center' }}
                             >
-                                <Text style={s.actionBtnText}>🚫</Text>
+                                <UiIcon name="ban-outline" size={18} color={colors.text} />
                             </TouchableOpacity>
                             {friendStatus?.status === 'PENDING' && !friendStatus.isSender ? (
                                 <>
@@ -3201,12 +3225,12 @@ export default function ProfileScreen({ route, navigation }) {
                                 disabled={followLoading}
                                 onPress={handleToggleFollow}
                             >
-                                <Text style={s.actionBtnText}>
-                                    {followStatus.outgoing === 'ACCEPTED' ? '✓ Takip Ediliyor' : followStatus.outgoing === 'PENDING' ? '⏳ İstek Gönderildi' : '🔔 Takip Et'}
-                                </Text>
+                                <ChromeText style={s.actionBtnText}>
+                                    {followStatus.outgoing === 'ACCEPTED' ? `✓ ${lang === 'tr' ? 'Takip Ediliyor' : 'Following'}` : followStatus.outgoing === 'PENDING' ? `⏳ ${lang === 'tr' ? 'İstek Gönderildi' : 'Pending'}` : `🔔 ${lang === 'tr' ? 'Takip Et' : 'Follow'}`}
+                                </ChromeText>
                             </TouchableOpacity>
                             <TouchableOpacity style={[s.actionBtn, s.msgBtn]} onPress={sendMessage}>
-                                <Text style={s.actionBtnText}>{t.messageBtnProfile}</Text>
+                                <ChromeText style={s.actionBtnText}>{t.messageBtnProfile}</ChromeText>
                             </TouchableOpacity>
                         </View>
                     )}
@@ -3218,15 +3242,17 @@ export default function ProfileScreen({ route, navigation }) {
                         {profile.contactPhone && (
                             <TouchableOpacity
                                 onPress={() => { const num = (profile.contactPhone || '').replace(/\D/g, ''); Linking.openURL(`tel:+${num}`); }}
-                                style={s.contactBtn}>
-                                <Text style={s.contactBtnText}>📞 {t.callBtn}</Text>
+                                style={[s.contactBtn, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                                <UiIcon name="call-outline" size={15} color={colors.text} />
+                                <Text style={s.contactBtnText}>{t.callBtn}</Text>
                             </TouchableOpacity>
                         )}
                         {profile.contactPhone && (
                             <TouchableOpacity
                                 onPress={() => { const num = (profile.contactPhone || '').replace(/\D/g, ''); Linking.openURL(`https://wa.me/${num}`).catch(() => Linking.openURL(`whatsapp://send?phone=${num}`)); }}
-                                style={[s.contactBtn, { backgroundColor:'#25D366' }]}>
-                                <Text style={[s.contactBtnText, { color:'#fff' }]}>💬 {t.whatsappBtn}</Text>
+                                style={[s.contactBtn, { backgroundColor: WHATSAPP_GREEN, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                                <WhatsAppIcon size={15} color="#fff" />
+                                <Text style={[s.contactBtnText, { color:'#fff' }]}>{t.whatsappBtn}</Text>
                             </TouchableOpacity>
                         )}
                         {profile.contactTelegram && (
@@ -3243,8 +3269,9 @@ export default function ProfileScreen({ route, navigation }) {
                         {profile.contactEmail && (
                             <TouchableOpacity
                                 onPress={() => Linking.openURL(`mailto:${profile.contactEmail}`)}
-                                style={s.contactBtn}>
-                                <Text style={s.contactBtnText}>✉️ E-Posta</Text>
+                                style={[s.contactBtn, { flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                                <UiIcon name="mail-outline" size={15} color={colors.text} />
+                                <Text style={s.contactBtnText}>{t.contactEmail || 'E-Posta'}</Text>
                             </TouchableOpacity>
                         )}
                         {profile.contactInstagram && (
@@ -3254,8 +3281,8 @@ export default function ProfileScreen({ route, navigation }) {
                                     Linking.openURL(`instagram://user?username=${ig}`).catch(() =>
                                         Linking.openURL(`https://instagram.com/${ig}`));
                                 }}
-                                style={[s.contactBtn, { backgroundColor:'#E1306C' }]}>
-                                <Text style={[s.contactBtnText, { color:'#fff' }]}>📸 Instagram</Text>
+                                style={[s.contactBtn, { backgroundColor:'#E1306C', flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                                <ChromeText icon="instagram" brand="fa5" iconSize={15} iconColor="#fff" style={[s.contactBtnText, { color:'#fff' }]}>Instagram</ChromeText>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -3362,9 +3389,12 @@ export default function ProfileScreen({ route, navigation }) {
                             onPress={() => openMyUpcoming(null)}
                             activeOpacity={0.75}
                         >
-                            <Animated.Text style={[ap.reservBtnText, { color: '#4ade80', opacity: upcomingHubBlink }]}>
-                                {t.myUpcomingActivitiesBtn}{` (${activeUpcomingCount})`}
-                            </Animated.Text>
+                            <Animated.View style={{ opacity: upcomingHubBlink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                                <UiIcon name="time-outline" size={16} color="#4ade80" />
+                                <Text style={[ap.reservBtnText, { color: '#4ade80' }]}>
+                                    {stripChromeEmoji(t.myUpcomingActivitiesBtn)}{` (${activeUpcomingCount})`}
+                                </Text>
+                            </Animated.View>
                         </TouchableOpacity>
                         {/* Maç olmasa da açılır — varsayılan 1s/3s kala bildirim ayarları. */}
                         <TouchableOpacity
@@ -3372,9 +3402,12 @@ export default function ProfileScreen({ route, navigation }) {
                             onPress={openReminderSettings}
                             activeOpacity={0.75}
                         >
-                            <Text style={[ap.reservBtnText, { color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple }]}>
-                                {t.matchReminderSettingsBtn}{reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}
-                            </Text>
+                            <ChromeText
+                                style={[ap.reservBtnText, { color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple }]}
+                                iconColor={reminderDefaultCount > 0 ? '#4ade80' : colors.purple}
+                            >
+                                {`${t.matchReminderSettingsBtn}${reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}`}
+                            </ChromeText>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -3384,9 +3417,9 @@ export default function ProfileScreen({ route, navigation }) {
                         style={ap.reservBtn}
                         onPress={() => navigation.navigate('MyReservations')}
                     >
-                        <Text style={ap.reservBtnText}>
-                            {t.resSectionReservations}{myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}
-                        </Text>
+                        <ChromeText style={ap.reservBtnText} iconColor={colors.purple}>
+                            {`${t.resSectionReservations}${myReservations.filter(isReservActive).length > 0 ? ` (${myReservations.filter(isReservActive).length})` : ''}`}
+                        </ChromeText>
                     </TouchableOpacity>
                 )}
                 {isOwnProfile && (
@@ -3394,7 +3427,7 @@ export default function ProfileScreen({ route, navigation }) {
                         style={ap.reservBtn}
                         onPress={() => navigation.navigate('Saved')}
                     >
-                        <Text style={ap.reservBtnText}>{t.sv_profile}</Text>
+                        <ChromeText style={ap.reservBtnText} iconColor={colors.purple}>{t.sv_profile}</ChromeText>
                     </TouchableOpacity>
                 )}
 
@@ -3412,11 +3445,11 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={{ flex: 1, backgroundColor: colors.bg, paddingTop: insets.top }}>
                     <View style={{ flex: 1, paddingHorizontal: 16, paddingBottom: insets.bottom + 12 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12 }}>
-                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }} numberOfLines={2}>
+                            <ChromeText style={{ color: '#fff', fontSize: 16, fontWeight: '900', flex: 1 }} iconSize={18} numberOfLines={2}>
                                 {upcomingSub
-                                    ? `${SUB_EMOJI[upcomingSub] || '⏰'} ${getSubCategoryLabel(upcomingSub, lang)} ${t.myUpcomingActivitiesTitle}`
+                                    ? `${stripChromeEmoji(t.myUpcomingActivitiesTitle)} · ${getSubCategoryLabel(upcomingSub, lang)}`
                                     : t.myUpcomingActivitiesTitle}
-                            </Text>
+                            </ChromeText>
                             <TouchableOpacity
                                 onPress={openReminderSettings}
                                 style={{
@@ -3425,9 +3458,13 @@ export default function ProfileScreen({ route, navigation }) {
                                     backgroundColor: reminderDefaultCount > 0 ? '#4ade8018' : colors.surface2,
                                 }}
                             >
-                                <Text style={{ color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple, fontSize: 12, fontWeight: '800' }}>
-                                    {t.matchReminderBtn}{reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}
-                                </Text>
+                                <ChromeText
+                                    style={{ color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple, fontSize: 12, fontWeight: '800' }}
+                                    iconColor={reminderDefaultCount > 0 ? '#4ade80' : colors.purple}
+                                    iconSize={14}
+                                >
+                                    {`${t.matchReminderBtn}${reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}`}
+                                </ChromeText>
                             </TouchableOpacity>
                             <TouchableOpacity onPress={() => setShowMyUpcoming(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                 <Text style={{ color: '#6b7280', fontSize: 22 }}>✕</Text>
@@ -4057,7 +4094,7 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🔥 {t.postsLabel}</Text>
+                            <ChromeText style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }} iconSize={18}>{`🔥 ${t.postsLabel}`}</ChromeText>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('posts')}>
                                     <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.postsPrivacy)}</Text>
@@ -4124,7 +4161,7 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🎬 {t.reels}</Text>
+                            <ChromeText style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }} iconSize={18}>{`🎬 ${t.reels}`}</ChromeText>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('reels')}>
                                     <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.reelsPrivacy)}</Text>
@@ -4311,7 +4348,7 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'85%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>👥 {t.friendsLabel}</Text>
+                            <ChromeText style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }} iconSize={18}>{`👥 ${t.friendsLabel}`}</ChromeText>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('friendsList')}>
                                     <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.friendsListPrivacy)}</Text>
@@ -4489,7 +4526,7 @@ export default function ProfileScreen({ route, navigation }) {
                 <View style={{ flex:1, backgroundColor:'#000000bb', justifyContent:'flex-end' }}>
                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:24, borderTopRightRadius:24, height:'80%', padding:17 }}>
                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:14, gap:3 }}>
-                            <Text style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }}>🏃 Sporlar</Text>
+                            <ChromeText style={{ color:'#fff', fontSize:17, fontWeight:'900', flex:1 }} iconSize={18}>{`🏃 ${lang === 'tr' ? 'Sporlar' : lang === 'ru' ? 'Виды спорта' : lang === 'de' ? 'Sportarten' : 'Sports'}`}</ChromeText>
                             {isOwnProfile && (
                                 <TouchableOpacity onPress={() => setPrivacyPickerField('activities')}>
                                     <Text style={{ fontSize:18 }}>{privacyEmoji(infoForm.activitiesPrivacy)}</Text>
