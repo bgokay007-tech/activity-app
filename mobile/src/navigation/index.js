@@ -466,11 +466,11 @@ function TabIcon({ label, active, blinking }) {
         return () => loop.stop();
     }, [blinking, blinkOpacity]);
 
-    // AkTiViTe yıldızı: lime dolgu değil — logo ile aynı 8 renk, aynı anda dalga.
+    // AkTiViTe yıldızı: lime dolgu değil — tek yıldız içinde rainbow dalga GIF.
     if (label === 'Activity') {
         return (
             <View style={{ alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
-                <RainbowStar size={22} active={!!active} />
+                <RainbowStar size={24} active={!!active} />
             </View>
         );
     }
