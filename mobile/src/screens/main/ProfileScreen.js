@@ -1711,7 +1711,7 @@ function StatRow({ emoji, label, count, onAdd, onPress }) {
                 <Text style={s.statRowCount}>{count}</Text>
             </View>
             {onAdd && (
-                <TouchableOpacity style={s.addBtn} onPress={onAdd}>
+                <TouchableOpacity style={s.addBtn} onPress={onAdd} hitSlop={8}>
                     <Text style={s.addBtnText}>+</Text>
                 </TouchableOpacity>
             )}
@@ -1727,8 +1727,8 @@ function StatCard({ icon = 'ellipse-outline', label, count, onAdd, onPress }) {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <UiIcon name={icon} size={22} color={colors.purple} />
                 {onAdd && (
-                    <TouchableOpacity style={s.addBtnSm} onPress={onAdd}>
-                        <UiIcon name="add" size={16} color={colors.purple} />
+                    <TouchableOpacity style={s.addBtnSm} onPress={onAdd} hitSlop={8}>
+                        <UiIcon name="add" size={18} color={colors.ctaText || '#0B0C10'} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -5446,8 +5446,8 @@ const s = StyleSheet.create({
     statRowLabel:     { flex: 1, color: '#fff', fontSize: 14, fontWeight: '700' },
     statRowBadge:     { backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 0, minWidth: 32, alignItems: 'center' },
     statRowCount:     { color: '#fff', fontSize: 13, fontWeight: '800' },
-    addBtn:           { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center' },
-    addBtnText:       { color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 17 },
+    addBtn:           { width: 30, height: 30, borderRadius: 8, backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#FFFFFF55' },
+    addBtnText:       { color: colors.ctaText || '#0B0C10', fontSize: 18, fontWeight: '900', lineHeight: 20 },
 
     // Single-row stat cards
     statGrid:         { flexDirection: 'row', gap: 3 },
@@ -5455,7 +5455,8 @@ const s = StyleSheet.create({
     statCardEmoji:    { fontSize: 15 },
     statCardCount:    { color: '#fff', fontSize: 18, fontWeight: '900', marginBottom: 1 },
     statCardLabel:    { color: colors.textMuted, fontSize: 9, fontWeight: '700' },
-    addBtnSm:         { width: 18, height: 18, borderRadius: 5, backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center' },
+    // Lime zemin + koyu + — yeşil-üzerine-yeşil okunmuyordu
+    addBtnSm:         { width: 24, height: 24, borderRadius: 8, backgroundColor: colors.purple, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, borderColor: '#FFFFFF66' },
 
     metaLine:         { color: colors.textMuted, fontSize: 12, textAlign: 'center', marginBottom: 4 },
 
