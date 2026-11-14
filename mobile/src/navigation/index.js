@@ -484,7 +484,7 @@ function AppTabs() {
     // TabIcon). Bildirimlerin unreadCount'undan bağımsız: bildirimi okusa bile skoru gerçekten
     // girmeden bu sayaç 0'a düşmez, aynı unreadMessages gibi 30sn'de bir sunucudan çekilir.
     const [pendingScoreCount, setPendingScoreCount] = useState(0);
-    // Yaklaşan aktivite/maç varken Profil sekmesi yanıp sönsün — tarih/saat geçince dursun.
+    // Yaklaşan aktivite/maç varken Profil sekmesi yanıp sönsün — aktivite bitene kadar (süre dahil).
     const [upcomingActivityCount, setUpcomingActivityCount] = useState(0);
     const pollRef = useRef(null);
     const messagesPollRef = useRef(null);
@@ -521,13 +521,15 @@ function AppTabs() {
             const { data } = await api.get('/rivals/my-upcoming');
             const list = Array.isArray(data) ? data : [];
             const now = new Date();
+            // Başlangıç değil bitiş: duration bitene kadar profil sekmesi yanıp sönsün.
             const n = list.filter(m => {
                 if (!m?.matchDate || !m?.matchTime) return !!m?.flexibleSchedule || !m?.matchDate;
                 const [h, min] = String(m.matchTime).split(':').map(Number);
                 const d = new Date(m.matchDate);
                 if (isNaN(d.getTime()) || Number.isNaN(h)) return true;
                 d.setHours(h, min || 0, 0, 0);
-                return now < d;
+                const end = new Date(d.getTime() + (m.duration || 90) * 60 * 1000);
+                return now < end;
             }).length;
             setUpcomingActivityCount(n);
         } catch { /* silent */ }

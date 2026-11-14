@@ -7554,8 +7554,10 @@ export const cancelMatch = async (req, res, next) => {
 
 export const getMyUpcomingMatches = async (req, res, next) => {
     try {
+        // MATCHED + OPEN: kadroya kabul edilen / katıldığı OPEN ilanlar da "Yaklaşan
+        // Aktivitelerim"e düşsün — sadece MATCHED beklenince katılım sonrası listede yoktu.
         const all = await prisma.activityRequest.findMany({
-            where: { status: 'MATCHED', matchType: { not: 'PLAYER_WANTED' } },
+            where: { status: { in: ['MATCHED', 'OPEN'] }, matchType: { not: 'PLAYER_WANTED' } },
             include: { sender: { select: SENDER_SELECT }, refereeUser: { select: SENDER_SELECT } },
             orderBy: { matchDate: 'asc' },
         });
@@ -7568,17 +7570,26 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             m.flexibleSchedule && m.schedulingDeadline && now > new Date(m.schedulingDeadline) && !m.matchDate
         );
         const schedExpiredIds = new Set(schedExpired.map(m => m.id));
-        // Takım sporlarında (voleybol) kurucunun eklediği takım arkadaşları (senderTeam)
-        // buraya hiç dahil edilmiyordu — kabul ettikleri bir maç kendi "Yaklaşan Maçlar"
-        // listelerinde hiç görünmüyordu, dolayısıyla maçtan ayrılma/skor girme gibi hiçbir
-        // aksiyonu da göremiyorlardı. Atanmamış/yedek oyuncular da katılmış sayılır.
-        const mine = all.filter(r => {
-            if (schedExpiredIds.has(r.id)) return false;
-            if (r.senderId === myId) return true;
+        const inRoster = (r) => {
             if ((Array.isArray(r.participants) ? r.participants : []).some(p => p?.id === myId)) return true;
             if ((Array.isArray(r.senderTeam) ? r.senderTeam : []).some(p => p?.id === myId)) return true;
             if ((Array.isArray(r.unassignedPlayers) ? r.unassignedPlayers : []).some(p => p?.id === myId)) return true;
             return (Array.isArray(r.substitutePlayers) ? r.substitutePlayers : []).some(p => p?.id === myId);
+        };
+        // Takım sporlarında (voleybol) kurucunun eklediği takım arkadaşları (senderTeam)
+        // buraya hiç dahil edilmiyordu — kabul ettikleri bir maç kendi "Yaklaşan Maçlar"
+        // listelerinde hiç görünmüyordu, dolayısıyla maçtan ayrılma/skor girme gibi hiçbir
+        // aksiyonu da göremiyorlardı. Atanmamış/yedek oyuncular da katılmış sayılır.
+        // OPEN: sadece kadroya gerçekten girmiş olanlar (kurucunun kendi açık ilanı hariç —
+        // o zaten ana sayfa "Senin ilanın"da). MATCHED: kurucu + kadro.
+        const mine = all.filter(r => {
+            if (schedExpiredIds.has(r.id)) return false;
+            if (r.status === 'MATCHED') {
+                if (r.senderId === myId) return true;
+                return inRoster(r);
+            }
+            // OPEN — katılım sağladığı aktiviteler
+            return inRoster(r);
         });
 
         try {

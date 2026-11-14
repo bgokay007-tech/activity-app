@@ -1410,7 +1410,7 @@ function isReservActive(r) {
     return true;
 }
 
-// Profildeki "Benim Maçlarım" sayısı: katıldığın ve saati henüz gelmemiş maçlar.
+// Profildeki "Yaklaşan Aktivitelerim": aktivite BİTENE kadar (süre dahil) sayaç/yanıp sönme.
 function matchStartDate(item) {
     if (!item?.matchDate || !item?.matchTime) return null;
     const [h, min] = String(item.matchTime).split(':').map(Number);
@@ -1422,6 +1422,11 @@ function matchStartDate(item) {
 function matchHasStarted(item, now = new Date()) {
     const d = matchStartDate(item);
     return !!(d && now >= d);
+}
+function matchHasEnded(item, now = new Date()) {
+    const d = matchStartDate(item);
+    if (!d) return false;
+    return now >= new Date(d.getTime() + (item.duration || 90) * 60 * 1000);
 }
 const MONTHS_EN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const LEVEL_COLORS = { BEGINNER:'#4ade80', INTERMEDIATE:'#facc15', ADVANCED:'#fb923c', PRO:'#f87171' };
@@ -1957,12 +1962,12 @@ export default function ProfileScreen({ route, navigation }) {
             .then(async (res) => {
                 const list = Array.isArray(res.data) ? res.data : [];
                 setMyUpcoming(list);
-                await applyRemindersToList(list.filter(m => !matchHasStarted(m)));
+                await applyRemindersToList(list.filter(m => !matchHasEnded(m)));
             })
             .catch(() => {})
             .finally(() => setLoadingUpcoming(false));
         getDefaultReminderOffsets().then(d => setReminderDefaultCount(d.length)).catch(() => {});
-        // Aynı pencerede Arşiv sekmesi için geçmişi de hazırla — tarih geçince oraya düşer.
+        // Aynı pencerede Arşiv sekmesi için geçmişi de hazırla — aktivite bitince oraya düşer.
         if (myHistory.length === 0) {
             setLoadingHistory(true);
             api.get('/rivals/my-history')
@@ -1991,7 +1996,7 @@ export default function ProfileScreen({ route, navigation }) {
         setReminderSaving(true);
         try {
             const offsets = [...reminderSelected];
-            const live = (myUpcoming || []).filter(m => !matchHasStarted(m, new Date(upcomingNowMs)));
+            const live = (myUpcoming || []).filter(m => !matchHasEnded(m, new Date(upcomingNowMs)));
             const res = await saveReminderDefaultsAndApply(offsets, live, (item) => ({
                 title: t.matchReminderTitleShort,
                 bodyTpl: t.matchReminderBody,
@@ -2051,7 +2056,7 @@ export default function ProfileScreen({ route, navigation }) {
                 const list = Array.isArray(res.data) ? res.data : [];
                 if (!alive) return;
                 setMyUpcoming(list);
-                await applyRemindersToList(list.filter(m => !matchHasStarted(m)));
+                await applyRemindersToList(list.filter(m => !matchHasEnded(m)));
             })
             .catch(() => {});
         api.get('/rivals/my-history')
@@ -2063,7 +2068,8 @@ export default function ProfileScreen({ route, navigation }) {
         return () => { alive = false; };
     }, [isOwnProfile, applyRemindersToList]));
 
-    const activeUpcomingList = (myUpcoming || []).filter(m => !matchHasStarted(m, new Date(upcomingNowMs)));
+    // Aktivite bitiş saatine kadar (duration) hub + profil sekmesi yanıp sönsün.
+    const activeUpcomingList = (myUpcoming || []).filter(m => !matchHasEnded(m, new Date(upcomingNowMs)));
     const activeUpcomingCount = activeUpcomingList.length;
 
     useEffect(() => {
@@ -3254,7 +3260,7 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* Yaklaşan Aktivitelerim — rezervasyonların üstünde; sayaç + tarih geçene kadar yanıp söner.
+                {/* Yaklaşan Aktivitelerim — rezervasyonların üstünde; sayaç + aktivite bitene kadar yanıp söner.
                     İçinde Yaklaşan / Arşiv sekmeleri; süre bitince kayıt arşive düşer. */}
                 {isOwnProfile && (
                     <View style={{ marginHorizontal: 20, marginTop: 12, gap: 8 }}>

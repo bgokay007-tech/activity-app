@@ -295,7 +295,19 @@ export default function HomeScreen({ navigation }) {
 
     const name = firstNameOf(user);
     const listPad = Math.max(40, 56 + insets.bottom + 16);
-    const { match: heroMatch, phase: heroPhase } = pickHeroMatch(myMatches, user?.id, new Date(nowTick >= 0 ? Date.now() : Date.now()));
+    const now = new Date(nowTick >= 0 ? Date.now() : Date.now());
+    const { match: heroMatch, phase: heroPhase } = pickHeroMatch(myMatches, user?.id, now);
+    // Katıldığı / eşleştiği aktiviteler — açık ilanların ÜSTÜNDE; bitene kadar listede kalsın.
+    const joinedLive = (myMatches || [])
+        .filter(m => isMyMatch(m, user?.id) && !matchHasEnded(m, now))
+        .sort((a, b) => {
+            const aPlaying = matchHasStarted(a, now) && !matchHasEnded(a, now) ? 0 : 1;
+            const bPlaying = matchHasStarted(b, now) && !matchHasEnded(b, now) ? 0 : 1;
+            if (aPlaying !== bPlaying) return aPlaying - bPlaying;
+            return (matchStartDate(a)?.getTime() || Infinity) - (matchStartDate(b)?.getTime() || Infinity);
+        });
+    const joinedIds = new Set(joinedLive.map(m => m.id));
+    const openOnly = (openListings || []).filter(item => !joinedIds.has(item.id));
 
     return (
         <View style={s.container}>
@@ -364,6 +376,38 @@ export default function HomeScreen({ navigation }) {
                     </TouchableOpacity>
                 ) : null}
 
+                {joinedLive.length > 0 ? (
+                    <>
+                        <Text style={[nv.section, { marginBottom: 10 }]}>
+                            {t.homeJoinedActivities}
+                            {joinedLive.length ? ` (${joinedLive.length})` : ''}
+                        </Text>
+                        {joinedLive.slice(0, 12).map(item => {
+                            const playing = matchHasStarted(item, now) && !matchHasEnded(item, now);
+                            const photo = photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
+                            const meta = listingMeta(item);
+                            return (
+                                <TouchableOpacity key={`joined-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
+                                    <Image source={photo} style={nv.rowImg} />
+                                    <View style={nv.rowBody}>
+                                        <Text style={[nv.rowKicker, { color: playing ? '#4ade80' : colors.purple }]}>
+                                            {playing ? t.featuredNowPlaying : t.homeJoinedKicker}
+                                        </Text>
+                                        <Text style={nv.rowTitle} numberOfLines={1}>
+                                            {getSubCategoryLabel(item.subCategory, lang)}
+                                            {meta ? ` · ${meta}` : ''}
+                                        </Text>
+                                        <Text style={nv.rowMeta} numberOfLines={1}>{formatWhen(item, t) || item.location || ''}</Text>
+                                        {(item.courtName || item.location) ? (
+                                            <Text style={nv.rowPlace} numberOfLines={1}>{item.courtName || item.location}</Text>
+                                        ) : null}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </>
+                ) : null}
+
                 <View style={nv.sectionRow}>
                     <Text style={[nv.section, { marginBottom: 0, flexShrink: 1 }]}>
                         {t.homeOpenListings}
@@ -383,12 +427,12 @@ export default function HomeScreen({ navigation }) {
                     <TouchableOpacity style={nv.emptyHero} onPress={() => navigation.navigate('Profile')} activeOpacity={0.85}>
                         <Text style={nv.emptyHeroText}>{t.addSportsInProfile}</Text>
                     </TouchableOpacity>
-                ) : openListings.length === 0 ? (
+                ) : openOnly.length === 0 ? (
                     <View style={nv.emptyHero}>
                         <Text style={nv.emptyHeroText}>{t.noListingsInCities}</Text>
                     </View>
                 ) : (
-                    openListings.slice(0, 12).map(item => {
+                    openOnly.slice(0, 12).map(item => {
                         const mine = isOwnListing(item, user?.id);
                         const photo = photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
                         const meta = listingMeta(item);
