@@ -71,3 +71,46 @@ export function photoForSub(subId, category) {
     if (category && String(category).toUpperCase() !== 'SPORTS') return CAT_PHOTOS[category] || null;
     return null;
 }
+
+/** Raket sporları — zemin belliyse o kort fotoğrafı; belirsizse yarı sert/toprak. */
+const SURFACE_PHOTOS = {
+    CLAY: require('../../assets/visual/share-bg/tennis-clay.jpg'),
+    HARD: require('../../assets/visual/share-bg/tennis-hard.jpg'),
+    GRASS: require('../../assets/visual/share-bg/tennis-grass.jpg'),
+    PLAYERS_DECIDE: require('../../assets/visual/share-bg/tennis-players-decide.jpg'),
+    VOLLEY_BEACH: require('../../assets/visual/share-bg/volleyball-beach.jpg'),
+    VOLLEY_INDOOR: require('../../assets/visual/share-bg/volleyball-indoor.jpg'),
+    PADEL: require('../../assets/visual/share-bg/padel.jpg'),
+};
+
+const RACKET_SUBS = new Set(['tennis', 'table_tennis', 'badminton', 'pickleball', 'squash', 'padel']);
+
+/**
+ * Ana sayfa açık ilan / yaklaşan satır fotoğrafı.
+ * Nashira gibi toprak kort → clay; sert → hard; zemin yok/oyuncular seçer → yarı yarıya.
+ */
+export function photoForListing(item) {
+    if (!item) return null;
+    const sub = item.subCategory;
+    const sf = String(item.surface || '').trim().toUpperCase();
+    const undecided = !sf || sf === 'PLAYERS_DECIDE' || sf === 'UNKNOWN' || sf === 'ANY';
+
+    if (RACKET_SUBS.has(sub)) {
+        if (undecided) return SURFACE_PHOTOS.PLAYERS_DECIDE;
+        if (sf === 'CLAY') return SURFACE_PHOTOS.CLAY;
+        if (sf === 'GRASS') return SURFACE_PHOTOS.GRASS;
+        if (sf === 'HARD' || sf === 'CARPET' || sf === 'ARTIFICIAL' || sf === 'OTHER') {
+            return sub === 'padel' ? SURFACE_PHOTOS.PADEL : SURFACE_PHOTOS.HARD;
+        }
+        return SURFACE_PHOTOS.PLAYERS_DECIDE;
+    }
+    if (sub === 'volleyball') {
+        if (sf === 'BEACH') return SURFACE_PHOTOS.VOLLEY_BEACH;
+        if (sf === 'INDOOR' || sf === 'PARQUET' || sf === 'SYNTHETIC') return SURFACE_PHOTOS.VOLLEY_INDOOR;
+        if (sf === 'CLAY') return SURFACE_PHOTOS.CLAY;
+        if (sf === 'GRASS') return SURFACE_PHOTOS.GRASS;
+        if (undecided) return SURFACE_PHOTOS.PLAYERS_DECIDE;
+        return SURFACE_PHOTOS.VOLLEY_INDOOR;
+    }
+    return photoForSub(sub, item.category);
+}

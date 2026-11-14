@@ -11,7 +11,7 @@ import { prefetchBranchLists, prefetchCounts } from '../../services/branchCache'
 import { warmSportPhotos } from '../../utils/warmSportPhotos';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
-import { CAT_PHOTOS, photoForSub } from '../../theme/visualAssets';
+import { CAT_PHOTOS, photoForSub, photoForListing } from '../../theme/visualAssets';
 import RainbowLogo from '../../components/RainbowLogo';
 import CityPickerModal from '../../components/CityPickerModal';
 import SportPhotoWarmup from '../../components/SportPhotoWarmup';
@@ -401,7 +401,7 @@ export default function HomeScreen({ navigation }) {
                 {heroMatch ? (
                     <TouchableOpacity style={nv.hero} onPress={() => openListing(heroMatch)} activeOpacity={0.88}>
                         <Image
-                            source={photoForSub(heroMatch.subCategory, heroMatch.category) || CAT_PHOTOS.SPORTS}
+                            source={photoForListing(heroMatch) || photoForSub(heroMatch.subCategory, heroMatch.category) || CAT_PHOTOS.SPORTS}
                             style={nv.heroImg}
                         />
                         <View style={nv.heroShade} />
@@ -430,7 +430,7 @@ export default function HomeScreen({ navigation }) {
                         </Text>
                         {joinedLive.slice(0, 12).map(item => {
                             const playing = matchHasStarted(item, now) && !matchHasEnded(item, now);
-                            const photo = photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
+                            const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
                             const meta = listingMeta(item);
                             return (
                                 <TouchableOpacity key={`joined-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
@@ -481,7 +481,8 @@ export default function HomeScreen({ navigation }) {
                     openOnly.slice(0, 12).map(item => {
                         const mine = isOwnListing(item, user?.id);
                         const isTourn = item.kind === 'tournament';
-                        const photo = photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
+                        // Kullanıcı isteği: Nashira toprak → clay foto; zemin belirsiz turnuva → yarı yarıya
+                        const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
                         const meta = isTourn ? null : listingMeta(item);
                         const kicker = isTourn
                             ? (mine ? (t.yourTournament || t.yourListing) : (t.nearbyTournament || t.nearbyListing))
