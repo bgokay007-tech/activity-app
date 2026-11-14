@@ -18572,7 +18572,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } finally { setDrawingUnscored(false); }
     };
 
-    // Turnuva grup sohbeti — sahip + AS/yedek onaylanmış katılımcılar
+    // Turnuva grup sohbeti — sahip + ACCEPTED; OPEN iken son başvuruya kadar herkes
     const [showChatModal, setShowChatModal] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [loadingChat, setLoadingChat] = useState(false);
@@ -18587,22 +18587,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         setChatMessageCount(item._count?.messages ?? 0);
     }, [item.id, item._count?.messages]);
 
-    const fetchChat = useCallback(async () => {
-        setLoadingChat(true);
+    const loadChatMentionUsers = useCallback(async (messageList = []) => {
         try {
-            const { data } = await api.get(`/tournaments/${item.id}/chat`);
-            const list = Array.isArray(data) ? data : [];
-            setChatMessages(list);
-            // Liste en fazla 200 mesaj getiriyor; sunucudaki toplam sayacı küçültme.
-            setChatMessageCount(prev => Math.max(Number(prev) || 0, list.length));
-        } catch { /* silent */ }
-        finally { setLoadingChat(false); }
-    }, [item.id]);
-
-    const loadChatMentionUsers = useCallback(async () => {
-        try {
-            const { data } = await api.get(`/tournaments/${item.id}/participants`);
-            const rows = Array.isArray(data) ? data : [];
             const map = new Map();
             if (item.creator?.id && item.creator.id !== myId) {
                 map.set(item.creator.id, {
@@ -18611,15 +18597,31 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     fullName: item.creator.fullName,
                 });
             }
-            for (const p of rows) {
-                const u = p.user || p;
+            try {
+                const { data } = await api.get(`/tournaments/${item.id}/participants`);
+                const rows = Array.isArray(data) ? data : [];
+                for (const p of rows) {
+                    const u = p.user || p;
+                    if (!u?.id || u.id === myId || !u.username) continue;
+                    map.set(u.id, {
+                        id: u.id,
+                        username: u.username,
+                        fullName: u.fullName,
+                        alias: u.interests?.[0]?.alias || null,
+                    });
+                }
+            } catch { /* OPEN sohbetinde katılımcı listesi gelmese de mesaj gönderenler yeter */ }
+            // Açık kayıt penceresinde başvurusuz yazanlar da @listesinde olsun
+            for (const m of (Array.isArray(messageList) ? messageList : [])) {
+                const u = m?.sender;
                 if (!u?.id || u.id === myId || !u.username) continue;
-                map.set(u.id, {
-                    id: u.id,
-                    username: u.username,
-                    fullName: u.fullName,
-                    alias: u.interests?.[0]?.alias || null,
-                });
+                if (!map.has(u.id)) {
+                    map.set(u.id, {
+                        id: u.id,
+                        username: u.username,
+                        fullName: u.fullName,
+                    });
+                }
             }
             setChatMentionUsers([...map.values()].sort((a, b) =>
                 String(a.username || '').localeCompare(String(b.username || ''), 'tr', { sensitivity: 'base' }),
@@ -18627,10 +18629,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } catch { /* silent */ }
     }, [item.id, item.creator, myId]);
 
+    const fetchChat = useCallback(async () => {
+        setLoadingChat(true);
+        try {
+            const { data } = await api.get(`/tournaments/${item.id}/chat`);
+            const list = Array.isArray(data) ? data : [];
+            setChatMessages(list);
+            // Liste en fazla 200 mesaj getiriyor; sunucudaki toplam sayacı küçültme.
+            setChatMessageCount(prev => Math.max(Number(prev) || 0, list.length));
+            loadChatMentionUsers(list);
+        } catch { /* silent */ }
+        finally { setLoadingChat(false); }
+    }, [item.id, loadChatMentionUsers]);
+
     const openChatModal = () => {
         fetchChat();
         fetchChatNotifyPref();
-        loadChatMentionUsers();
         setShowChatModal(true);
     };
 
@@ -19478,6 +19492,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         return Date.now() >= regEnd.getTime();
     };
 
+    // OPEN + son başvuru geçmemişse katılım isteği olmadan da grup sohbeti açık.
+    const canOpenTournChat = isCreator || myStatus === 'ACCEPTED'
+        || (item.status === 'OPEN' && !isRegEnded());
+
     const handleCancelAttempt = () => {
         if (myStatus === 'ACCEPTED' && isEventWithin24h()) {
             setShowCancelModal(true);
@@ -19881,7 +19899,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
                 </TouchableOpacity>
                 )}
-                {(isCreator || myStatus === 'ACCEPTED') && (
+                {canOpenTournChat && (
                     <TouchableOpacity
                         style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
                         onPress={openChatModal}>
@@ -22161,7 +22179,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={{ color:'#cbd5e1', fontSize:12, lineHeight:18 }}>{item.description}</Text>
                             ) : null}
                             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginTop:4 }}>
-                                {(isCreator || myStatus === 'ACCEPTED') && (
+                                {canOpenTournChat && (
                                     <TouchableOpacity
                                         style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
                                         onPress={openChatModal}>
@@ -22331,6 +22349,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0065}</Text>
                                 </TouchableOpacity>
                             )}
+                        </>)}
+                        {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
+                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', justifyContent:'center' }}>
+                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.sc_0614}</Text>
+                            </View>
+                        )}
+                        {/* Son başvuruya kadar herkes (istek atmasa da) mesajlaşabilir */}
+                        {canOpenTournChat && (
                             <TouchableOpacity
                                 style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#16a34a40' }}
                                 onPress={openChatModal}>
@@ -22338,11 +22364,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     💬 {t.tournMessagesBtn}{chatMessageCount > 0 ? ` (${chatMessageCount})` : ''}
                                 </Text>
                             </TouchableOpacity>
-                        </>)}
-                        {myStatus === 'ACCEPTED' && myPart?.cancelRequested && (
-                            <View style={{ backgroundColor:'#f59e0b15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#f59e0b40', justifyContent:'center' }}>
-                                <Text style={{ color:'#fbbf24', fontSize:11, fontWeight:'700' }}>{t.sc_0614}</Text>
-                            </View>
                         )}
                         <TouchableOpacity
                             style={{ backgroundColor:'#1e40af15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#1e40af40' }}
