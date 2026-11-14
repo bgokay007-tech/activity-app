@@ -32,31 +32,104 @@ function isPastEntry(dateStr, timeStr) {
     return t !== null && t + PAST_GRACE_MS < Date.now();
 }
 
+function normalizePlayName(name) {
+    return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/** Aynı oyun adı (farklı salon/saat) → tek kart; altta konum + zaman listesi. */
+function groupPlaysByName(list) {
+    const map = new Map();
+    for (const p of list || []) {
+        const key = normalizePlayName(p.name) || p.id;
+        if (!map.has(key)) {
+            map.set(key, {
+                id: `grp_${key}`,
+                name: p.name,
+                imageUrl: p.imageUrl || null,
+                showtimes: [],
+            });
+        }
+        const g = map.get(key);
+        if (!g.imageUrl && p.imageUrl) g.imageUrl = p.imageUrl;
+        g.showtimes.push({
+            id: p.id,
+            venueName: p.venueName,
+            city: p.city,
+            date: p.date,
+            time: p.time,
+            priceMin: p.priceMin,
+            priceMax: p.priceMax,
+            currency: p.currency,
+            ticketUrl: p.ticketUrl,
+        });
+    }
+    for (const g of map.values()) {
+        g.showtimes.sort((a, b) => (toTime(a.date, a.time) || 0) - (toTime(b.date, b.time) || 0));
+    }
+    return [...map.values()];
+}
+
+function showMatchesCity(show, cityFilter) {
+    if (!cityFilter || !String(cityFilter).trim()) return true;
+    const c = String(cityFilter).trim().toLowerCase();
+    const city = String(show.city || '').toLowerCase();
+    const venue = String(show.venueName || '').toLowerCase();
+    return city.includes(c) || c.includes(city) || venue.includes(c);
+}
+
+function showMatchesDateRange(show, dateFrom, dateTo) {
+    if (!dateFrom && !dateTo) return true;
+    if (!show.date) return true;
+    const d = show.date.slice(0, 10);
+    const from = dateFrom ? fmtDate(dateFrom) : null;
+    const to = dateTo ? fmtDate(dateTo) : null;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+}
+
 function PlayCard({ item, t }) {
-    const priceLabel = item.priceMin != null
-        ? `${item.priceMin}${item.priceMax && item.priceMax !== item.priceMin ? '–' + item.priceMax : ''} ${item.currency || ''}`.trim()
-        : null;
+    // item: { name, imageUrl, showtimes: [...] } — filtre sonrası kalan seanslar
+    const shows = item.showtimes || [];
     return (
-        <View style={s.card}>
-            {item.imageUrl ? (
-                <Image source={{ uri: item.imageUrl }} style={s.cardImg} />
-            ) : (
-                <View style={[s.cardImg, s.cardImgFallback]}><Text style={{ fontSize: 22 }}>🎭</Text></View>
-            )}
-            <View style={s.cardBody}>
-                <Text style={s.cardTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{item.name}</Text>
-                <Text style={s.cardMeta} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                    {[item.venueName, item.city].filter(Boolean).join(' · ')}
-                </Text>
-                <Text style={s.cardMeta}>
-                    {item.date}{item.time ? ` · ${item.time.slice(0, 5)}` : ''}
-                </Text>
-                {priceLabel && <Text style={s.cardPrice}>{priceLabel}</Text>}
-                {item.ticketUrl && (
-                    <TouchableOpacity style={s.ticketBtn} onPress={() => Linking.openURL(item.ticketUrl)}>
-                        <Text style={s.ticketBtnText}>{t.theaterTicketBtn || 'Bilet Al'}</Text>
-                    </TouchableOpacity>
+        <View style={s.playGroupCard}>
+            <View style={s.playGroupTop}>
+                {item.imageUrl ? (
+                    <Image source={{ uri: item.imageUrl }} style={s.playGroupImg} />
+                ) : (
+                    <View style={[s.playGroupImg, s.cardImgFallback]}><Text style={{ fontSize: 28 }}>🎭</Text></View>
                 )}
+                <View style={s.playGroupTitleWrap}>
+                    <Text style={s.playGroupTitle} numberOfLines={3}>{item.name}</Text>
+                    <Text style={s.playGroupCount}>
+                        {typeof t.theaterShowtimesCount === 'function'
+                            ? t.theaterShowtimesCount(shows.length)
+                            : `${shows.length}`}
+                    </Text>
+                </View>
+            </View>
+            <View style={s.showList}>
+                {shows.map(show => {
+                    const place = [show.venueName, show.city].filter(Boolean).join(' · ');
+                    const when = [show.date, show.time ? String(show.time).slice(0, 5) : null].filter(Boolean).join(' · ');
+                    const priceLabel = show.priceMin != null
+                        ? `${show.priceMin}${show.priceMax && show.priceMax !== show.priceMin ? '–' + show.priceMax : ''} ${show.currency || ''}`.trim()
+                        : null;
+                    return (
+                        <View key={show.id} style={s.showRow}>
+                            <View style={{ flex: 1, gap: 2 }}>
+                                {place ? <Text style={s.showPlace} numberOfLines={2}>📍 {place}</Text> : null}
+                                {when ? <Text style={s.showWhen}>📅 {when}</Text> : null}
+                                {priceLabel ? <Text style={s.cardPrice}>{priceLabel}</Text> : null}
+                            </View>
+                            {show.ticketUrl ? (
+                                <TouchableOpacity style={s.ticketBtnSmInline} onPress={() => Linking.openURL(show.ticketUrl)}>
+                                    <Text style={s.ticketBtnSmText}>{t.theaterTicketBtn || 'Bilet Al'}</Text>
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
+                    );
+                })}
             </View>
         </View>
     );
@@ -139,12 +212,22 @@ export default function TheaterHomeScreen({ navigation }) {
     const [loaded, setLoaded] = useState(false);
     const [playsView, setPlaysView] = useState('current'); // 'current' | 'past'
 
+    // Aynı oyun adı tek kart; konum/tarih filtresi varsa alt listedeki seanslar daralır.
     const { currentPlays, pastPlays } = useMemo(() => {
+        const filtered = (plays || []).filter(p =>
+            showMatchesCity(p, city) && showMatchesDateRange(p, dateFrom, dateTo)
+        );
+        const groups = groupPlaysByName(filtered);
         const cur = [], past = [];
-        for (const p of plays) (isPastEntry(p.date, p.time) ? past : cur).push(p);
-        past.sort((a, b) => toTime(b.date, b.time) - toTime(a.date, a.time));
+        for (const g of groups) {
+            const curShows = g.showtimes.filter(s => !isPastEntry(s.date, s.time));
+            const pastShows = g.showtimes.filter(s => isPastEntry(s.date, s.time))
+                .sort((a, b) => (toTime(b.date, b.time) || 0) - (toTime(a.date, a.time) || 0));
+            if (curShows.length) cur.push({ ...g, showtimes: curShows });
+            if (pastShows.length) past.push({ ...g, showtimes: pastShows });
+        }
         return { currentPlays: cur, pastPlays: past };
-    }, [plays]);
+    }, [plays, city, dateFrom, dateTo]);
 
     const doSearch = useCallback(async () => {
         setLoading(true);
@@ -411,9 +494,7 @@ export default function TheaterHomeScreen({ navigation }) {
                         <FlatList
                             data={playsView === 'current' ? currentPlays : pastPlays}
                             keyExtractor={item => item.id}
-                            numColumns={4}
-                            columnWrapperStyle={s.gridRow}
-                            contentContainerStyle={s.grid}
+                            contentContainerStyle={s.playGroupList}
                             ListEmptyComponent={loaded ? <Text style={s.emptyText}>{playsView === 'past' ? (t.theaterNoPast || 'Geçmiş oyun yok.') : (t.theaterNoResults || 'Bu filtrelere uyan oyun bulunamadı.')}</Text> : null}
                             renderItem={({ item }) => <PlayCard item={item} t={t} />}
                         />
@@ -755,9 +836,23 @@ const s = StyleSheet.create({
     cardBody: { padding: 3, gap: 3 },
     cardTitle: { color: '#fff', fontSize: 10, fontWeight: '800' },
     cardMeta: { color: colors.textMuted, fontSize: 8 },
-    cardPrice: { color: colors.purple, fontSize: 8, fontWeight: '700' },
+    cardPrice: { color: colors.purple, fontSize: 11, fontWeight: '700' },
     ticketBtn: { backgroundColor: colors.purple, borderRadius: 6, paddingVertical: 3, paddingHorizontal: 3, alignItems: 'center' },
     ticketBtnText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+
+    // Aynı oyun tek kart — altta konum/saat seansları
+    playGroupList: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 30, gap: 10 },
+    playGroupCard: { backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginBottom: 10 },
+    playGroupTop: { flexDirection: 'row', gap: 12, padding: 12 },
+    playGroupImg: { width: 72, height: 96, borderRadius: 8, backgroundColor: colors.surface2 },
+    playGroupTitleWrap: { flex: 1, justifyContent: 'center', gap: 6 },
+    playGroupTitle: { color: '#fff', fontSize: 15, fontWeight: '900' },
+    playGroupCount: { color: colors.textMuted, fontSize: 11, fontWeight: '600' },
+    showList: { borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 10, paddingVertical: 4 },
+    showRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    showPlace: { color: colors.text, fontSize: 12, fontWeight: '700' },
+    showWhen: { color: colors.textMuted, fontSize: 11 },
+    ticketBtnSmInline: { backgroundColor: colors.purple + '20', borderWidth: 1, borderColor: colors.purple + '60', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 10 },
 
     eventCard: { backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.border, padding: 12, marginBottom: 10 },
     eventOwner: { color: '#fff', fontSize: 12, fontWeight: '800', flex: 1 },

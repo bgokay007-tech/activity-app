@@ -148,17 +148,6 @@ function matchHasEnded(item, now) {
     return now >= new Date(d.getTime() + (item.duration || 90) * 60 * 1000);
 }
 
-function pickHeroMatch(list, userId, now) {
-    const mine = (list || []).filter(m => isMyMatch(m, userId));
-    const playing = mine.filter(m => matchHasStarted(m, now) && !matchHasEnded(m, now))
-        .sort((a, b) => (matchStartDate(a)?.getTime() || 0) - (matchStartDate(b)?.getTime() || 0));
-    if (playing[0]) return { match: playing[0], phase: 'playing' };
-    const upcoming = mine.filter(m => !matchHasStarted(m, now))
-        .sort((a, b) => (matchStartDate(a)?.getTime() || Infinity) - (matchStartDate(b)?.getTime() || Infinity));
-    if (upcoming[0]) return { match: upcoming[0], phase: 'upcoming' };
-    return { match: null, phase: null };
-}
-
 async function detectProvince() {
     try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -284,12 +273,13 @@ export default function HomeScreen({ navigation }) {
         if (!item?.subCategory) return;
         prefetchBranchLists((item.category || 'SPORTS').toUpperCase(), item.subCategory);
         if (item.kind === 'tournament') {
+            // Kartı aç — sohbet değil (openChatTournamentId sadece mesaj bildirimi için)
             navigation.navigate('SubCategory', {
                 category: (item.category || 'SPORTS').toUpperCase(),
                 sub: item.subCategory,
                 initialTab: 'tournaments',
-                initialTournSubTab: 'open',
-                openChatTournamentId: item.id,
+                initialTournSubTab: item.status === 'IN_PROGRESS' ? 'inprogress' : 'open',
+                highlightTournamentId: item.id,
             });
             return;
         }
@@ -342,8 +332,7 @@ export default function HomeScreen({ navigation }) {
     const name = firstNameOf(user);
     const listPad = Math.max(40, 56 + insets.bottom + 16);
     const now = new Date(nowTick >= 0 ? Date.now() : Date.now());
-    const { match: heroMatch, phase: heroPhase } = pickHeroMatch(myMatches, user?.id, now);
-    // Katıldığı / eşleştiği aktiviteler — açık ilanların ÜSTÜNDE; bitene kadar listede kalsın.
+    // Kullanıcı isteği: ayrı "Yaklaşan" hero kartı yok — sadece katıldığın + açık ilanlar.
     const joinedLive = (myMatches || [])
         .filter(m => isMyMatch(m, user?.id) && !matchHasEnded(m, now))
         .sort((a, b) => {
@@ -397,31 +386,6 @@ export default function HomeScreen({ navigation }) {
                         </TouchableOpacity>
                     ))}
                 </View>
-
-                {heroMatch ? (
-                    <TouchableOpacity style={nv.hero} onPress={() => openListing(heroMatch)} activeOpacity={0.88}>
-                        <Image
-                            source={photoForListing(heroMatch) || photoForSub(heroMatch.subCategory, heroMatch.category) || CAT_PHOTOS.SPORTS}
-                            style={nv.heroImg}
-                            resizeMode="cover"
-                        />
-                        <View style={nv.heroShade} />
-                        <View style={nv.heroBody}>
-                            <Text style={nv.heroKicker}>{heroPhase === 'playing' ? t.featuredNowPlaying : t.featuredUpcoming}</Text>
-                            <Text style={nv.heroWhen}>{formatWhen(heroMatch, t)}</Text>
-                            <Text style={nv.heroTitle} numberOfLines={2}>
-                                {getSubCategoryLabel(heroMatch.subCategory, lang)}
-                                {listingMeta(heroMatch) ? ` · ${listingMeta(heroMatch)}` : ''}
-                            </Text>
-                            {(heroMatch.courtName || heroMatch.location) ? (
-                                <Text style={nv.heroPlace} numberOfLines={1}>{heroMatch.courtName || heroMatch.location}</Text>
-                            ) : null}
-                            <View style={nv.heroCta}>
-                                <Text style={nv.heroCtaText}>{heroPhase === 'playing' ? t.seeYourMatch : t.seeListing}</Text>
-                            </View>
-                        </View>
-                    </TouchableOpacity>
-                ) : null}
 
                 {joinedLive.length > 0 ? (
                     <>
