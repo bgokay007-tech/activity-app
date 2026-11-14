@@ -22274,7 +22274,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         }}>
                             <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>{t.tournEditBtn}</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item.id)}>
+                        <TouchableOpacity style={{ backgroundColor:'#dc262620', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#dc262650' }} onPress={() => onDelete(item)}>
                             <Text style={{ color:'#f87171', fontSize:11, fontWeight:'700' }}>{t.sc_0609}</Text>
                         </TouchableOpacity>
                         {item.status === 'OPEN' && participantCount >= (item.minPlayers || 2) && (
@@ -27997,17 +27997,57 @@ function SubCategoryScreen({ route, navigation }) {
         }
     }, [loadTournaments, t]);
 
-    const handleDeleteTournament = useCallback((id) => {
+    const handleDeleteTournament = useCallback((tournOrId) => {
+        const id = typeof tournOrId === 'string' ? tournOrId : tournOrId?.id;
+        const status = typeof tournOrId === 'string' ? null : tournOrId?.status;
+        if (!id) return;
+
+        const runDelete = async (voidMatches) => {
+            try {
+                await api.delete(`/tournaments/${id}`, { data: { voidMatches: !!voidMatches } });
+                loadTournaments();
+            } catch (e) {
+                Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            }
+        };
+
+        // Devam eden: iki aşama — 1) silmek istediğini onayla 2) maç/ELO seçeneği
+        if (status === 'IN_PROGRESS') {
+            Alert.alert(
+                t.tournDeleteBtn || t.sc_0609,
+                t.tournDeleteWarn1 || t.tournDeleteConfirm,
+                [
+                    { text: t.no, style: 'cancel' },
+                    {
+                        text: t.tournDeleteContinue || t.yes,
+                        style: 'destructive',
+                        onPress: () => {
+                            Alert.alert(
+                                t.tournDeleteWarn2Title || t.tournDeleteBtn,
+                                t.tournDeleteWarn2Body || t.tournDeleteConfirm,
+                                [
+                                    { text: t.no, style: 'cancel' },
+                                    {
+                                        text: t.tournDeleteKeepMatches || t.yes,
+                                        onPress: () => runDelete(false),
+                                    },
+                                    {
+                                        text: t.tournDeleteVoidMatches || t.yes,
+                                        style: 'destructive',
+                                        onPress: () => runDelete(true),
+                                    },
+                                ],
+                            );
+                        },
+                    },
+                ],
+            );
+            return;
+        }
+
         Alert.alert('', t.tournDeleteConfirm, [
             { text: t.no, style: 'cancel' },
-            { text: t.yes, style: 'destructive', onPress: async () => {
-                try {
-                    await api.delete(`/tournaments/${id}`);
-                    loadTournaments();
-                } catch (e) {
-                    Alert.alert('', e?.response?.data?.message || t.actionFailed);
-                }
-            }},
+            { text: t.yes, style: 'destructive', onPress: () => runDelete(false) },
         ]);
     }, [loadTournaments, t]);
 

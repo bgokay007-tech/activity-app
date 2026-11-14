@@ -1979,19 +1979,42 @@ export const updateTournament = async (req, res, next) => {
 export const deleteTournament = async (req, res, next) => {
     try {
         const { id } = req.params;
+        // voidMatches=true → oynanan maçlar yok hükmünde, ELO geri alınır.
+        // false/yok → maçlar ve ELO geçerli kalır; sadece turnuva kaydı silinir.
+        const voidRaw = req.body?.voidMatches ?? req.query?.voidMatches;
+        const voidMatches = voidRaw === true || voidRaw === 'true' || voidRaw === 1 || voidRaw === '1';
+
         const tournament = await prisma.tournament.findUnique({
             where: { id },
             include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId && !req.isAdmin) return res.status(403).json({ message: 'Not authorized' });
+
+        let reversed = 0;
+        if (voidMatches) {
+            const scored = await prisma.tournamentMatch.findMany({
+                where: { tournamentId: id, status: { in: ['COMPLETED', 'FORFEIT'] } },
+            });
+            for (const m of scored) {
+                await reverseCompletedMatchElo(tournament, m);
+                reversed += 1;
+            }
+        }
+
         await prisma.tournament.delete({ where: { id } });
         for (const p of tournament.participants) {
             if (p.userId && p.userId !== req.userId) {
-                emitToUser(p.userId, 'tournament:deleted', { tournamentId: id });
+                emitToUser(p.userId, 'tournament:deleted', { tournamentId: id, voidMatches });
             }
         }
-        res.json({ message: 'Tournament deleted' });
+        res.json({
+            message: voidMatches
+                ? 'Turnuva silindi; oynanan maçlar yok sayıldı ve ELO geri alındı.'
+                : 'Turnuva silindi; oynanan maçlar ve ELO geçerli kaldı.',
+            voidMatches,
+            reversed,
+        });
     } catch (e) { next(e); }
 };
 
