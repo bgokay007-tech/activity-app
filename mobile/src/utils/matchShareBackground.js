@@ -10,6 +10,8 @@ const BG = {
     tennisClay: require('../../assets/visual/share-bg/tennis-clay.jpg'),
     tennisHard: require('../../assets/visual/share-bg/tennis-hard.jpg'),
     tennisGrass: require('../../assets/visual/share-bg/tennis-grass.jpg'),
+    // PLAYERS_DECIDE: tek kort — sol sert / sağ toprak, manzaralı (Designer mantığı)
+    tennisPlayersDecide: require('../../assets/visual/share-bg/tennis-players-decide.jpg'),
     volleyballIndoor: require('../../assets/visual/share-bg/volleyball-indoor.jpg'),
     volleyballBeach: require('../../assets/visual/share-bg/volleyball-beach.jpg'),
     padel: require('../../assets/visual/share-bg/padel.jpg'),
@@ -30,11 +32,14 @@ export function resolveShareBackgroundModule(subCategory, surface) {
     const sf = normSurface(surface);
 
     if (sub === 'tennis' || sub === 'table_tennis' || sub === 'badminton' || sub === 'pickleball' || sub === 'squash') {
+        // Oyuncular zemin seçer → tek kort yarı sert / yarı toprak (ayrı iki resmi birleştirme yok)
+        if (sf === 'PLAYERS_DECIDE') return BG.tennisPlayersDecide;
         if (sf === 'CLAY') return BG.tennisClay;
         if (sf === 'GRASS') return BG.tennisGrass;
         if (sf === 'HARD' || sf === 'CARPET' || sf === 'ARTIFICIAL' || sf === 'OTHER') return BG.tennisHard;
         return BG.tennisHard;
     }
+    if (sf === 'PLAYERS_DECIDE' && (sub === 'padel' || !sub)) return BG.tennisPlayersDecide;
     if (sub === 'padel') return BG.padel;
     if (sub === 'volleyball') {
         if (sf === 'BEACH') return BG.volleyballBeach;
@@ -65,23 +70,6 @@ export async function shareBackgroundToDataUrl(subCategory, surface) {
     try {
         const mod = resolveShareBackgroundModule(subCategory, surface);
         return await moduleToDataUrl(mod);
-    } catch {
-        return null;
-    }
-}
-
-/**
- * PLAYERS_DECIDE: paylaşım kartı — dikey 50/50 tek saha (sol sert, sağ toprak).
- * Canvas tam ekran cover + clip ile çizer; overlay daha açık tutulur.
- */
-export async function shareHardClaySplitToDataUrls() {
-    try {
-        const [left, right] = await Promise.all([
-            moduleToDataUrl(BG.tennisHard),
-            moduleToDataUrl(BG.tennisClay),
-        ]);
-        if (!left || !right) return null;
-        return { left, right };
     } catch {
         return null;
     }

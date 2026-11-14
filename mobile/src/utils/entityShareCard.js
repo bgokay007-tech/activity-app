@@ -298,7 +298,6 @@ function buildTournament(tournament, t, lang) {
 
     // Turnuva kuralları (tournRules*) bilinçli olarak eklenmiyor.
     const message = [`${intro} 🏆 ${name}`.trim(), ...lines, url].filter(Boolean).join('\n');
-    const playersDecideBg = sf === 'PLAYERS_DECIDE';
     return {
         kind: 'tournament',
         id: tournament.id,
@@ -312,8 +311,8 @@ function buildTournament(tournament, t, lang) {
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
         brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
-        // Oyuncular zemin seçer → paylaşım kartı yarı sert / yarı toprak
-        bgSplitHardClay: playersDecideBg,
+        // Oyuncular zemin seçer → tek kort yarı sert/toprak görseli, daha açık overlay
+        bgPlayersDecide: sf === 'PLAYERS_DECIDE',
         ...shareMeta(tournament),
     };
 }

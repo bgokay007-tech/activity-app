@@ -10,7 +10,7 @@ import { useSelector } from 'react-redux';
 import useT from '../hooks/useT';
 import colors from '../theme/colors';
 import { buildEntitySharePayload, BRAND_LETTER_COLORS } from '../utils/entityShareCard';
-import { shareBackgroundToDataUrl, shareHardClaySplitToDataUrls, isPlayersDecideSurface } from '../utils/matchShareBackground';
+import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
     shareToWhatsAppStatus,
@@ -47,11 +47,11 @@ async function coverToDataUrl(remoteUrl) {
  * 9:16 hikâye kartı — spor/zemin arka planı (toprak/sert/salon/plaj/padel) +
  * yarı saydam overlay; marka ve başlık büyük.
  */
-function cardHtml(p, coverDataUrl, bgDataUrl, bgSplit) {
+function cardHtml(p, coverDataUrl, bgDataUrl) {
     const brand = p.brand || 'AcTiViTy';
     const colorsArr = p.brandColors || BRAND_LETTER_COLORS;
-    const bgLeft = bgSplit?.left || '';
-    const bgRight = bgSplit?.right || '';
+    // Tek kort yarı sert/toprak görseli — koyu perdeyi azalt, zemin net kalsın
+    const vividBg = !!(p.bgPlayersDecide || p.bgSplitHardClay);
     return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=${W}, initial-scale=1"/>
 </head><body style="margin:0;background:#0B0C10">
@@ -64,40 +64,26 @@ function cardHtml(p, coverDataUrl, bgDataUrl, bgSplit) {
     var dw=img.width*s, dh=img.height*s;
     ctx.drawImage(img, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
   }
-  function paint(coverImg, bgImg, bgLeftImg, bgRightImg){
+  function paint(coverImg, bgImg){
     try{
       var canvas=document.getElementById('c');
       var ctx=canvas.getContext('2d');
       var W=${W}, H=${H}, TOP=240;
+      var vividBg=${vividBg ? 'true' : 'false'};
 
-      // PLAYERS_DECIDE: tek saha gibi dikey 50/50 — sol sert, sağ toprak.
-      // Tam ekran cover + clip: aksi halde yarım kutuya taşan toprak solun üstünü örtüyordu (~%20/%80).
-      var isSplit=!!(bgLeftImg&&bgRightImg);
-      if(isSplit){
-        ctx.save();
-        ctx.beginPath(); ctx.rect(0,0,W/2,H); ctx.clip();
-        coverDraw(ctx, bgLeftImg, 0, 0, W, H);
-        ctx.restore();
-        ctx.save();
-        ctx.beginPath(); ctx.rect(W/2,0,W/2,H); ctx.clip();
-        coverDraw(ctx, bgRightImg, 0, 0, W, H);
-        ctx.restore();
-        // Ortada ince çizgi — iki zemin tek kort gibi birleşsin
-        ctx.fillStyle='rgba(255,255,255,0.45)';
-        ctx.fillRect(W/2-2, 0, 4, H);
-      } else if(bgImg){
+      if(bgImg){
         coverDraw(ctx, bgImg, 0, 0, W, H);
       } else {
         ctx.fillStyle='#0B0C10'; ctx.fillRect(0,0,W,H);
       }
-      // Split'te zemin daha belirgin kalsın; normal kartlarda eski koyu okunabilirlik
-      if(isSplit){
-        ctx.fillStyle='rgba(8,10,14,0.22)';
+      // PLAYERS_DECIDE tek-kort görselinde zemin daha belirgin; diğerlerinde eski koyu overlay
+      if(vividBg){
+        ctx.fillStyle='rgba(8,10,14,0.18)';
         ctx.fillRect(0,0,W,H);
         var vgS=ctx.createLinearGradient(0,0,0,H);
-        vgS.addColorStop(0,'rgba(8,10,14,0.38)');
-        vgS.addColorStop(0.4,'rgba(8,10,14,0.08)');
-        vgS.addColorStop(1,'rgba(8,10,14,0.42)');
+        vgS.addColorStop(0,'rgba(8,10,14,0.32)');
+        vgS.addColorStop(0.4,'rgba(8,10,14,0.06)');
+        vgS.addColorStop(1,'rgba(8,10,14,0.36)');
         ctx.fillStyle=vgS; ctx.fillRect(0,0,W,H);
       } else {
         ctx.fillStyle='rgba(8,10,14,0.72)';
@@ -239,10 +225,8 @@ function cardHtml(p, coverDataUrl, bgDataUrl, bgSplit) {
 
   var coverData=${JSON.stringify(coverDataUrl||'')};
   var bgData=${JSON.stringify(bgDataUrl||'')};
-  var bgLeftData=${JSON.stringify(bgLeft||'')};
-  var bgRightData=${JSON.stringify(bgRight||'')};
-  var coverImg=null, bgImg=null, bgLeftImg=null, bgRightImg=null, pending=0;
-  function maybeGo(){ if(pending===0) paint(coverImg, bgImg, bgLeftImg, bgRightImg); }
+  var coverImg=null, bgImg=null, pending=0;
+  function maybeGo(){ if(pending===0) paint(coverImg, bgImg); }
   function load(src, assign){
     if(!src) return;
     pending++;
@@ -253,9 +237,7 @@ function cardHtml(p, coverDataUrl, bgDataUrl, bgSplit) {
   }
   load(coverData, function(i){ coverImg=i; });
   load(bgData, function(i){ bgImg=i; });
-  load(bgLeftData, function(i){ bgLeftImg=i; });
-  load(bgRightData, function(i){ bgRightImg=i; });
-  if(pending===0) setTimeout(function(){ paint(null,null,null,null); }, 60);
+  if(pending===0) setTimeout(function(){ paint(null,null); }, 60);
 })();
 </script></body></html>`;
 }
@@ -291,7 +273,6 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
     const pngPath = useRef(null);
     const coverDataRef = useRef(null);
     const bgDataRef = useRef(null);
-    const bgSplitRef = useRef(null); // { left, right } — PLAYERS_DECIDE yarı sert/toprak
 
     useEffect(() => {
         if (!visible) {
@@ -302,36 +283,27 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             pngPath.current = null;
             coverDataRef.current = null;
             bgDataRef.current = null;
-            bgSplitRef.current = null;
         }
     }, [visible]);
 
-    // Kapak + arka plan: ekipmanda 2. foto varsa o arka plan; PLAYERS_DECIDE → yarı sert/toprak
+    // Kapak + arka plan: ekipmanda 2. foto varsa o; PLAYERS_DECIDE → tek kort yarı sert/toprak görseli
     useEffect(() => {
         if (!visible || !payload) {
             coverDataRef.current = null;
             bgDataRef.current = null;
-            bgSplitRef.current = null;
             return undefined;
         }
         let cancelled = false;
         coverDataRef.current = null;
         bgDataRef.current = null;
-        bgSplitRef.current = null;
         pngPath.current = null;
         (async () => {
             const resolveBg = async () => {
                 if (payload.bgUrl) {
                     const custom = await coverToDataUrl(payload.bgUrl);
-                    if (custom) return { single: custom, split: null };
+                    if (custom) return custom;
                 }
-                // Kullanıcı isteği: zemin “oyuncular seçer” → sol sert, sağ toprak
-                if (payload.bgSplitHardClay || isPlayersDecideSurface(payload.surfaceRaw)) {
-                    const split = await shareHardClaySplitToDataUrls();
-                    if (split) return { single: null, split };
-                }
-                const single = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
-                return { single, split: null };
+                return shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
             };
             const [cover, bg] = await Promise.all([
                 payload.coverUrl ? coverToDataUrl(payload.coverUrl) : Promise.resolve(null),
@@ -339,32 +311,28 @@ export default function EntityShareModal({ visible, kind, item, onClose }) {
             ]);
             if (!cancelled) {
                 coverDataRef.current = cover;
-                bgDataRef.current = bg?.single || null;
-                bgSplitRef.current = bg?.split || null;
+                bgDataRef.current = bg;
             }
         })();
         return () => { cancelled = true; };
-    }, [visible, payload?.id, payload?.coverUrl, payload?.bgUrl, payload?.subCategory, payload?.surfaceRaw, payload?.bgSplitHardClay]);
+    }, [visible, payload?.id, payload?.coverUrl, payload?.bgUrl, payload?.subCategory, payload?.surfaceRaw]);
 
     const ensurePng = async () => {
         if (pngPath.current) return pngPath.current;
         if (payload?.coverUrl && !coverDataRef.current) {
             coverDataRef.current = await coverToDataUrl(payload.coverUrl);
         }
-        if (!bgDataRef.current && !bgSplitRef.current) {
+        if (!bgDataRef.current) {
             if (payload?.bgUrl) {
                 bgDataRef.current = await coverToDataUrl(payload.bgUrl);
             }
-            if (!bgDataRef.current && (payload?.bgSplitHardClay || isPlayersDecideSurface(payload?.surfaceRaw))) {
-                bgSplitRef.current = await shareHardClaySplitToDataUrls();
-            }
-            if (!bgDataRef.current && !bgSplitRef.current && payload?.subCategory) {
+            if (!bgDataRef.current && payload?.subCategory) {
                 bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
             }
         }
         return new Promise((resolve, reject) => {
             pendingAction.current = { type: 'capture', resolve, reject };
-            setCaptureHtml(cardHtml(payload, coverDataRef.current, bgDataRef.current, bgSplitRef.current));
+            setCaptureHtml(cardHtml(payload, coverDataRef.current, bgDataRef.current));
             setNeedCapture(true);
         });
     };
