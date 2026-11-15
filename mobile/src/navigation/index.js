@@ -761,8 +761,8 @@ export default function Navigation() {
             if (navigationRef.isReady()) navigateFromNotif(data, isBusiness);
             else pendingNavRef.current = data;
             if (data.notificationId) {
-                api.patch(`/notifications/${data.notificationId}/read`, { read: true })
-                    .then(() => dispatch(decrementUnread()))
+                markNotificationReadDurable(data.notificationId)
+                    .then((ok) => { if (ok) dispatch(decrementUnread()); })
                     .catch(() => {});
             }
         }).catch(() => {});
@@ -783,10 +783,10 @@ export default function Navigation() {
             if (navigationRef.isReady()) navigateFromNotif(data, isBusiness);
             else pendingNavRef.current = data;
             // Kullanıcı isteği: OS bildirimine dokununca da okundu — listeye dönünce yenilemeden
-            // okundu görünsün, rozet anında düşsün.
+            // okundu görünsün, rozet anında düşsün. Ağ düşerse pending kuyruk tamamlar.
             if (data.notificationId) {
-                api.patch(`/notifications/${data.notificationId}/read`, { read: true })
-                    .then(() => dispatch(decrementUnread()))
+                markNotificationReadDurable(data.notificationId)
+                    .then((ok) => { if (ok) dispatch(decrementUnread()); })
                     .catch(() => {});
             }
         });

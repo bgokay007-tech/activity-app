@@ -101,11 +101,13 @@ async function healStaleScoreEntryRequired(userId) {
 
 export const markAllRead = async (req, res, next) => {
     try {
-        await prisma.notification.updateMany({
+        const result = await prisma.notification.updateMany({
             where: { userId: req.userId, read: false },
             data: { read: true },
         });
-        res.json({ message: 'All marked as read' });
+        // Başka oturum / yeniden bağlanma rozeti hemen hizalasın
+        emitToUser(req.userId, 'notificationsReadAll', { updated: result.count });
+        res.json({ message: 'All marked as read', updated: result.count });
     } catch (error) { next(error); }
 };
 
@@ -114,11 +116,26 @@ export const markOneRead = async (req, res, next) => {
         // İstemci { read: false } gönderirse tek bildirimi tekrar okunmadı yapabilir —
         // "hepsini okundu" zorlamadan, diğerlerini unutmamak için seçici kullanım.
         const read = req.body?.read === false ? false : true;
-        await prisma.notification.updateMany({
+        const result = await prisma.notification.updateMany({
             where: { id: req.params.id, userId: req.userId },
             data: { read },
         });
-        res.json({ message: read ? 'Marked as read' : 'Marked as unread', read });
+        // updated:0 → istemci pending kuyruğunu temizler (yanlış/eski id ile sonsuz retry olmasın)
+        if (result.count > 0) {
+            const row = await prisma.notification.findFirst({
+                where: { id: req.params.id, userId: req.userId },
+                select: { id: true, type: true, data: true },
+            });
+            if (row) {
+                emitToUser(req.userId, 'notificationRead', {
+                    id: row.id,
+                    type: row.type,
+                    data: row.data,
+                    read,
+                });
+            }
+        }
+        res.json({ message: read ? 'Marked as read' : 'Marked as unread', read, updated: result.count });
     } catch (error) { next(error); }
 };
 

@@ -1,4 +1,5 @@
 import api from './api';
+import { markNotificationReadDurable } from './pendingNotificationReads';
 
 // Bildirim tepsisindeki (OS push) "Okundu İşaretle" ve "Cevapla" aksiyon butonlarının ortak
 // işleyicisi. Bu fonksiyon İKİ AYRI bağlamdan çağrılır:
@@ -11,7 +12,8 @@ export async function handleNotificationAction(actionIdentifier, userText, data)
     if (!data) return;
     try {
         if (actionIdentifier === 'MARK_READ') {
-            if (data.notificationId) await api.patch(`/notifications/${data.notificationId}/read`);
+            // Ağ/IP değişiminde PATCH düşerse pending kuyruk bir sonraki açılışta tamamlar
+            if (data.notificationId) await markNotificationReadDurable(data.notificationId);
             // Mesaj bildirimi ise sohbetteki mesajlar da okundu sayılsın — aksi halde Mesajlar
             // sekmesindeki okunmamış rozeti (uygulama içi ayrı bir sayaç) düşmeden kalırdı.
             if (data.type === 'MESSAGE' && data.conversationId) {
@@ -20,7 +22,7 @@ export async function handleNotificationAction(actionIdentifier, userText, data)
         } else if (actionIdentifier === 'REPLY') {
             if (data.senderId && userText?.trim()) {
                 await api.post(`/messages/send/${data.senderId}`, { content: userText.trim() });
-                if (data.notificationId) await api.patch(`/notifications/${data.notificationId}/read`).catch(() => {});
+                if (data.notificationId) await markNotificationReadDurable(data.notificationId);
             }
         }
     } catch { /* headless/arka plan bağlamı — gösterecek UI yok, sessizce yut */ }
