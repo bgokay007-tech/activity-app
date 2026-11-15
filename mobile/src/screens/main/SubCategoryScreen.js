@@ -1226,7 +1226,7 @@ const [inlineUnlocked, setInlineUnlocked] = useState(false);
     );
 }
 
-function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null, autoOpenOrder = false }) {
+function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigation, handleJoin, handleCancel, handleRespondJoin, handleWithdraw, onEdit, onRefresh, onRivalMatched, myRefereeListing, onConfirmLateJoin, highlightSlot: highlightSlotFromNotif = null, autoOpenOrder = false }) {
     const insets = useSafeAreaInsets();
     // Tenis/padel'de gelen istekler/gönderilen davetlerde tekli/çiftli ELO etiketini bu ilanın
     // FORMATINA göre seçmek için (bkz. eloSuffix) — kullanıcı isteği.
@@ -2082,7 +2082,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                 Alert.alert(t.lateAcceptTitle, t.lateAcceptMsg);
                 onRefresh();
             } else if (res.data?.matched) {
-                setTimeout(onRefresh, 1200);
+                // 1.2sn gecikmeli yenileme bayat load ile soket güncellemesini eziyordu —
+                // MATCHED ilanı hemen üst listeye bildir, taze çekmeyi geciktirme.
+                onRivalMatched?.(res.data.request);
+                onRefresh();
             } else {
                 onRefresh();
             }
@@ -5103,7 +5106,7 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
 
 // ─── Rival Card ────────────────────────────────────────────────────────────────
 
-function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [], highlightSlot = null, autoOpenOrder = false }) {
+function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, autoOpen, onAutoOpened, myRating = 0, refereeListings = [], highlightSlot = null, autoOpenOrder = false }) {
     const t = useT();
     const cfg = getConfig(sub);
     const isOwner = item.senderId === myId;
@@ -5303,9 +5306,12 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             setLocalJoinStatus(null);
             onRefresh();
         });
-        const offAccepted = onSocket('joinAccepted', ({ rivalId }) => {
+        const offAccepted = onSocket('joinAccepted', ({ rivalId, matched }) => {
             if (rivalId !== item.id) return;
             setLocalJoinStatus('ACCEPTED');
+            // Kabul eden tarafın dışında (istek atan, örn. Buro telefonda açık): kadro
+            // dolduysa bayat load beklemeden Yaklaşan Maçlar'a taşı.
+            if (matched) onRivalMatched?.({ ...item, status: 'MATCHED' });
             onRefresh();
         });
         const offLate = onSocket('joinLateAccepted', ({ rivalId }) => {
@@ -5314,7 +5320,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             onRefresh();
         });
         return () => { offRejected(); offAccepted(); offLate(); };
-    }, [item.id]);
+    }, [item.id, item, onRivalMatched, onRefresh]);
 
     const handleConfirmLateJoin = async (action) => {
         try {
@@ -5328,7 +5334,10 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 // varsa) yedeğe alınıyor — bu durumda sessizce geçmek yerine kullanıcıya
                 // ayrıca haber verilir (createNotification zaten kalıcı bildirim de gönderiyor).
                 if (data?.toSubstitute) Alert.alert('🔄', t.lateAcceptSubstitutedMsg || t.sc_0121);
-                setTimeout(onRefresh, 1200);
+                if (data?.matched || data?.request?.status === 'MATCHED') {
+                    onRivalMatched?.(data.request || { ...item, status: 'MATCHED' });
+                }
+                onRefresh();
             }
             else { setLocalJoinStatus(null); onRefresh(); }
         } catch (e) {
@@ -5452,7 +5461,8 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
                 Alert.alert(t.lateAcceptTitle, t.lateAcceptMsg);
                 onRefresh();
             } else if (action === 'accept' && res.data?.matched) {
-                setTimeout(onRefresh, 1200);
+                onRivalMatched?.(res.data.request || { ...item, status: 'MATCHED' });
+                onRefresh();
             } else {
                 onRefresh();
             }
@@ -5939,6 +5949,7 @@ function RivalCard({ item, myId, sub, onRefresh, navigation, autoOpen, onAutoOpe
             handleRespondJoin={handleRespondJoin}
             handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
             onRefresh={onRefresh}
+            onRivalMatched={onRivalMatched}
             onEdit={() => { editOpenedFromDetailRef.current = true; setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
             myRefereeListing={refereeListings.find(r => r.userId === myId)}
             onConfirmLateJoin={handleConfirmLateJoin}
@@ -26287,16 +26298,52 @@ function SubCategoryScreen({ route, navigation }) {
         return off;
     }, [commentMatch?.id]);
 
+    // Kabul → MATCHED sonrası soket Yaklaşan'a taşır; eşzamanlı bayat load() eski upcoming
+    // ile ezip kullanıcıyı 1–2 kez yenilemeye zorluyordu (Buro telefonda).
+    const loadGenRef = useRef(0);
+    const matchedUpcomingIdsRef = useRef(new Set(
+        (cachedBranch?.matchedUpcoming || []).filter(m => m?.status === 'MATCHED').map(m => m.id)
+    ));
+    const applyRivalMatched = useCallback((rival) => {
+        if (!rival?.id) return;
+        setRivals(prevOpen => {
+            const fromOpen = prevOpen.find(r => r.id === rival.id);
+            setMatchedUpcoming(prevUp => {
+                const fromUp = prevUp.find(r => r.id === rival.id);
+                // joinAccepted çoğu zaman sadece {id,matched} taşır — açık listedeki
+                // dolu kartı / mevcut upcoming kaydını ezmeden birleştir.
+                const matched = { ...(fromOpen || {}), ...(fromUp || {}), ...rival, status: 'MATCHED' };
+                matchedUpcomingIdsRef.current.add(matched.id);
+                const exists = prevUp.some(r => r.id === matched.id);
+                const next = exists
+                    ? prevUp.map(r => r.id === matched.id ? { ...r, ...matched } : r)
+                    : [matched, ...prevUp];
+                matchedUpcomingIdsRef.current = new Set(next.filter(m => m?.status === 'MATCHED').map(m => m.id));
+                return next;
+            });
+            return prevOpen.filter(r => r.id !== rival.id);
+        });
+    }, []);
     const load = useCallback(async (opts = {}) => {
+        const gen = ++loadGenRef.current;
         try {
             let freshApplied = false;
             if (!opts.fresh) {
                 hydrateBranch(category, sub).then((disk) => {
-                    if (freshApplied || !disk) return;
-                    setRivals(disk.rivals || []);
+                    if (gen !== loadGenRef.current || freshApplied || !disk) return;
+                    setRivals((disk.rivals || []).filter(r => !matchedUpcomingIdsRef.current.has(r.id)));
                     setPlayerWanted(disk.playerWanted || []);
                     setRefereeMatches(disk.refereeMatches || []);
-                    setMatchedUpcoming(disk.matchedUpcoming || []);
+                    setMatchedUpcoming(prev => {
+                        const diskList = disk.matchedUpcoming || [];
+                        const byId = new Map(diskList.map(m => [m.id, m]));
+                        for (const m of prev) {
+                            if (m?.status === 'MATCHED' && m.id && !byId.has(m.id)) byId.set(m.id, m);
+                        }
+                        const next = Array.from(byId.values());
+                        matchedUpcomingIdsRef.current = new Set(next.filter(m => m?.status === 'MATCHED').map(m => m.id));
+                        return next;
+                    });
                     setPendingScore(disk.pendingScore || []);
                     setTextPosts(disk.textPosts || []);
                     setMediaPosts(disk.mediaPosts || []);
@@ -26308,13 +26355,13 @@ function SubCategoryScreen({ route, navigation }) {
             // Ana sayfa ~anında, dal 4–5sn: 7 API bitmeden önce sadece ilanları boya.
             if (packPromise.rivalsPromise) {
                 packPromise.rivalsPromise.then((rvEarly) => {
-                    if (freshApplied) return;
+                    if (gen !== loadGenRef.current || freshApplied) return;
                     const earlyOpen = (Array.isArray(rvEarly?.data) ? rvEarly.data : [])
-                        .filter(r => r.matchType !== 'PLAYER_WANTED');
+                        .filter(r => r.matchType !== 'PLAYER_WANTED' && r.status !== 'MATCHED' && !matchedUpcomingIdsRef.current.has(r.id));
                     setRivals(prev => {
                         const ids = new Set(earlyOpen.map(r => r.id));
                         // Socket ile gelip henüz GET'te olmayan OPEN ilanı ezme
-                        const extras = prev.filter(r => !ids.has(r.id) && r.status === 'OPEN' && r.matchType !== 'PLAYER_WANTED');
+                        const extras = prev.filter(r => !ids.has(r.id) && r.status === 'OPEN' && r.matchType !== 'PLAYER_WANTED' && !matchedUpcomingIdsRef.current.has(r.id));
                         return [...extras, ...earlyOpen];
                     });
                     setListsReady(true);
@@ -26322,13 +26369,15 @@ function SubCategoryScreen({ route, navigation }) {
                 }).catch(() => {});
             }
             const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await packPromise;
+            if (gen !== loadGenRef.current) return;
             freshApplied = true;
 
             const allRivals = rvRes.data;
-            const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED');
+            const openRivals = allRivals.filter(r => r.matchType !== 'PLAYER_WANTED' && r.status !== 'MATCHED' && !matchedUpcomingIdsRef.current.has(r.id));
             setRivals(prev => {
                 const ids = new Set(openRivals.map(r => r.id));
-                const extras = prev.filter(r => !ids.has(r.id) && r.status === 'OPEN' && r.matchType !== 'PLAYER_WANTED');
+                // MATCHED olmuş ilanı bayat OPEN listesine geri koyma
+                const extras = prev.filter(r => !ids.has(r.id) && r.status === 'OPEN' && r.matchType !== 'PLAYER_WANTED' && !matchedUpcomingIdsRef.current.has(r.id));
                 return [...extras, ...openRivals];
             });
             const isRefereeAd = p => Array.isArray(p.positions) &&
@@ -26336,7 +26385,16 @@ function SubCategoryScreen({ route, navigation }) {
             setPlayerWanted(pwRes.data.filter(p => !isRefereeAd(p)));
             setRefereeMatches(pwRes.data.filter(isRefereeAd));
             const upcomingList = Array.isArray(upcomingRes.data) ? upcomingRes.data : [];
-            setMatchedUpcoming(upcomingList);
+            setMatchedUpcoming(prev => {
+                const byId = new Map(upcomingList.map(m => [m.id, m]));
+                // Soketin eklediği MATCHED, bayat upcoming yanıtında yoksa kaybolmasın
+                for (const m of prev) {
+                    if (m?.status === 'MATCHED' && m.id && !byId.has(m.id)) byId.set(m.id, m);
+                }
+                const next = Array.from(byId.values());
+                matchedUpcomingIdsRef.current = new Set(next.filter(m => m?.status === 'MATCHED').map(m => m.id));
+                return next;
+            });
             setPendingScore(Array.isArray(pendingRes.data) ? pendingRes.data : []);
 
             const allPosts = Array.isArray(postsRes.data) ? postsRes.data : [];
@@ -26424,6 +26482,16 @@ function SubCategoryScreen({ route, navigation }) {
     // return eklenerek submitScore artık bu yenilemeyi (Alert.alert'ten ÖNCE) await edebiliyor,
     // kullanıcı uyarıyı kapattığında liste zaten doğru yerde.
     const onRefresh = () => { setRefreshing(true); return load({ fresh: true }); };
+
+    // Screen-level: kart unmount olsa bile joinAccepted(matched) Yaklaşan'a taşısın.
+    useEffect(() => {
+        const off = onSocket('joinAccepted', ({ rivalId, matched }) => {
+            if (!matched || !rivalId) return;
+            applyRivalMatched({ id: rivalId, status: 'MATCHED' });
+            load({ fresh: true });
+        });
+        return off;
+    }, [applyRivalMatched, load]);
 
     useEffect(() => {
         // 5 paralel istek giriş karesiyle yarışmasın
@@ -28193,13 +28261,20 @@ function SubCategoryScreen({ route, navigation }) {
             setRivals(prev => {
                 const exists = prev.some(r => r.id === updated.id);
                 if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
+                    if (updated.status === 'MATCHED') matchedUpcomingIdsRef.current.add(updated.id);
+                    else matchedUpcomingIdsRef.current.delete(updated.id);
                     return prev.filter(r => r.id !== updated.id);
                 }
                 if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
                 return [updated, ...prev];
             });
             setMatchedUpcoming(prev => {
+                if (updated.status === 'CANCELLED') {
+                    matchedUpcomingIdsRef.current.delete(updated.id);
+                    return prev.filter(r => r.id !== updated.id);
+                }
                 if (updated.status !== 'MATCHED') return prev;
+                matchedUpcomingIdsRef.current.add(updated.id);
                 const exists = prev.some(r => r.id === updated.id);
                 if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
                 return [updated, ...prev];
@@ -29305,7 +29380,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             viewportW={rivalPageW}
                                             items={filteredRivals}
                                             renderCard={(item) => (
-                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
+                                                <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} onRivalMatched={applyRivalMatched} navigation={navigation} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} myRating={myRating} refereeListings={refereeListings} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                             )}
                                         />
                                         {/* Yedek kadrosu (substituteCount) henüz dolmamış eşleşmiş maçlar — kullanıcı isteği:
@@ -29461,7 +29536,7 @@ function SubCategoryScreen({ route, navigation }) {
                                         viewportW={rivalPageW}
                                         items={playerWanted}
                                         renderCard={(item) => (
-                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
+                                            <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} onRivalMatched={applyRivalMatched} navigation={navigation} myRating={myRating} refereeListings={refereeListings} />
                                         )}
                                     />
                                 )
@@ -30473,7 +30548,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 viewportW={rivalPageW}
                                                 items={refereeMatches}
                                                 renderCard={(item) => (
-                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
+                                                    <RivalCard key={item.id} item={item} myId={myId} sub={sub} onRefresh={onRefresh} onRivalMatched={applyRivalMatched} navigation={navigation} myRating={myRating} refereeListings={refereeListings} autoOpen={item.id === autoOpenId} onAutoOpened={() => setAutoOpenId(null)} highlightSlot={item.id === highlightRivalId ? autoHighlightSlot : null} autoOpenOrder={item.id === highlightRivalId && !!autoOpenOrder} />
                                                 )}
                                             />
                                         )
