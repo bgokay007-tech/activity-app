@@ -4,7 +4,7 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
-import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT } from '../utils/tennisElo.js';
+import { TENNIS_PADEL_SUBCATEGORIES, TENNIS_PADEL_DOMINANT_THRESHOLD, getTennisPadelEloDelta, getReassessmentFlags, MIN_MATCHES_FOR_TOURNAMENT, interestMatchCount } from '../utils/tennisElo.js';
 import { UTR_SUBCATEGORIES, applyUtrRatingForTournamentMatch, revertUtrMatchRecords, getDisplayRating, isDoublesFormat, buildPenaltyUpdate } from '../utils/utrRating.js';
 import { computeTournamentPlacement } from './achievement.controller.js';
 import { sanitizeExtraServices } from '../utils/extraServices.js';
@@ -31,6 +31,58 @@ function sportDisplayName(userOrPlayer, interest) {
     const alias = interest?.alias ?? userOrPlayer?.alias ?? null;
     if (alias) return alias;
     return userOrPlayer?.fullName || userOrPlayer?.username || 'Oyuncu';
+}
+
+function rosterHasUser(arr, userId) {
+    return (Array.isArray(arr) ? arr : []).some(p => p?.id === userId);
+}
+
+/**
+ * Turnuva min-maç kapısı: wins/losses yalnız sonuçlu rekabetçi maçlarda artar.
+ * Arşivde görünen beraberlik / pratik / UTR kayıtları da "uygulama üzerinden maç" sayılır.
+ */
+async function countAppMatchesForTournament(userId, category, subCategory, interest) {
+    const fromInterest = interestMatchCount(interest);
+    if (fromInterest >= MIN_MATCHES_FOR_TOURNAMENT) return fromInterest;
+
+    const [utrRecords, rivals] = await Promise.all([
+        prisma.ratingMatchRecord.count({
+            where: { userId, subCategory },
+        }).catch(() => 0),
+        prisma.activityRequest.findMany({
+            where: {
+                category,
+                subCategory,
+                status: 'COMPLETED',
+            },
+            select: {
+                senderId: true,
+                receiverId: true,
+                participants: true,
+                senderTeam: true,
+                unassignedPlayers: true,
+                substitutePlayers: true,
+            },
+            orderBy: { completedAt: 'desc' },
+            take: 400,
+        }).catch(() => []),
+    ]);
+
+    let rivalPlayed = 0;
+    for (const r of rivals) {
+        if (
+            r.senderId === userId
+            || r.receiverId === userId
+            || rosterHasUser(r.participants, userId)
+            || rosterHasUser(r.senderTeam, userId)
+            || rosterHasUser(r.unassignedPlayers, userId)
+            || rosterHasUser(r.substitutePlayers, userId)
+        ) {
+            rivalPlayed += 1;
+        }
+    }
+
+    return Math.max(fromInterest, utrRecords || 0, rivalPlayed);
 }
 
 // UTR dalları (tenis/padel/badminton/masa tenisi): tekli ve çiftler anketleri BAĞIMSIZ.
@@ -1218,8 +1270,11 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
     if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && isDoublesFormat({ tournamentType: tournament.type }) && !interest.doublesAssessmentCompleted) {
         return { ok: false, message: 'Çiftler derecelendirme anketini tamamlamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
-    if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) && (interest.wins + interest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
-        return { ok: false, message: `Bu spor dalında en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmadığınız için otomatik başvurunuz oluşturulamadı.` };
+    if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
+        const played = await countAppMatchesForTournament(userId, tournament.category, tournament.subCategory, interest);
+        if (played < MIN_MATCHES_FOR_TOURNAMENT) {
+            return { ok: false, message: `Bu spor dalında en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmadığınız için otomatik başvurunuz oluşturulamadı.` };
+        }
     }
     if (userRec?.tournamentBanRemaining > 0) {
         return { ok: false, message: 'Geç iptal cezası nedeniyle şu anda turnuvalara katılamadığınız için otomatik başvurunuz oluşturulamadı.' };
@@ -1255,7 +1310,15 @@ export const joinTournament = async (req, res, next) => {
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
             const partnerInterest = await prisma.userInterest.findUnique({
                 where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
-                select: { assessmentCompleted: true, doublesAssessmentCompleted: true, wins: true, losses: true },
+                select: {
+                    assessmentCompleted: true,
+                    doublesAssessmentCompleted: true,
+                    wins: true,
+                    losses: true,
+                    singlesMatchCount: true,
+                    doublesMatchCount: true,
+                    matchesSinceAssessment: true,
+                },
             });
             if (!hasGeneralAssessment(partnerInterest, tournament.subCategory)) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
@@ -1263,15 +1326,27 @@ export const joinTournament = async (req, res, next) => {
             if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && !partnerInterest.doublesAssessmentCompleted) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner henüz çiftler derecelendirme anketini tamamlamamış' });
             }
-            if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
-                (partnerInterest.wins + partnerInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
-                return res.status(400).json({ message: `Seçtiğiniz partner bu spor dalında henüz en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmamış` });
+            if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
+                const partnerPlayed = await countAppMatchesForTournament(
+                    partnerId, tournament.category, tournament.subCategory, partnerInterest,
+                );
+                if (partnerPlayed < MIN_MATCHES_FOR_TOURNAMENT) {
+                    return res.status(400).json({ message: `Seçtiğiniz partner bu spor dalında henüz en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmamış` });
+                }
             }
         }
 
         const myInterest = await prisma.userInterest.findUnique({
             where: { userId_category_subCategory: { userId: req.userId, category: tournament.category, subCategory: tournament.subCategory } },
-            select: { assessmentCompleted: true, doublesAssessmentCompleted: true, wins: true, losses: true },
+            select: {
+                assessmentCompleted: true,
+                doublesAssessmentCompleted: true,
+                wins: true,
+                losses: true,
+                singlesMatchCount: true,
+                doublesMatchCount: true,
+                matchesSinceAssessment: true,
+            },
         });
         if (!hasGeneralAssessment(myInterest, tournament.subCategory)) {
             return res.status(403).json({ message: 'Bu spor dalında maçlara katılabilmek için önce derecelendirme anketini tamamlamanız gerekiyor.' });
@@ -1283,9 +1358,13 @@ export const joinTournament = async (req, res, next) => {
         if (UTR_SUBCATEGORIES.includes(tournament.subCategory) && !tIsDoubles(tournament) && !myInterest.assessmentCompleted) {
             return res.status(403).json({ message: 'Bu turnuvaya katılabilmek için önce tekli derecelendirme anketini tamamlamanız gerekiyor.' });
         }
-        if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory) &&
-            (myInterest.wins + myInterest.losses) < MIN_MATCHES_FOR_TOURNAMENT) {
-            return res.status(403).json({ message: `Bu turnuvaya katılabilmek için bu spor dalında uygulama üzerinden en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmış olmanız gerekiyor.` });
+        if (TENNIS_PADEL_SUBCATEGORIES.includes(tournament.subCategory)) {
+            const played = await countAppMatchesForTournament(
+                req.userId, tournament.category, tournament.subCategory, myInterest,
+            );
+            if (played < MIN_MATCHES_FOR_TOURNAMENT) {
+                return res.status(403).json({ message: `Bu turnuvaya katılabilmek için bu spor dalında uygulama üzerinden en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmış olmanız gerekiyor.` });
+            }
         }
 
         if (!['OPEN', 'IN_PROGRESS'].includes(tournament.status)) {

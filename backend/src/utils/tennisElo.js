@@ -49,6 +49,19 @@ export const ASSESSMENT_GRACE_RATING_GAP = 1.0;
 // oyuncuların rekabetçi bir turnuvaya doğrudan girmesini önler.
 export const MIN_MATCHES_FOR_TOURNAMENT = 3;
 
+/**
+ * UserInterest üzerindeki hızlı sayaçlar.
+ * wins+losses yalnız sonucu belli rekabetçi maçlarda artar; beraberlik / pratik /
+ * UTR singlesMatchCount burada ayrıca okunur — arşivde görünen maçlarla tutarlı olsun.
+ */
+export function interestMatchCount(interest) {
+    if (!interest) return 0;
+    const wl = (interest.wins || 0) + (interest.losses || 0);
+    const utr = (interest.singlesMatchCount || 0) + (interest.doublesMatchCount || 0);
+    const since = interest.matchesSinceAssessment || 0;
+    return Math.max(wl, utr, since);
+}
+
 // winnerInterests/loserInterests: o taraftaki oyuncuların UserInterest kayıtları
 // (matchesSinceAssessment alanı dahil). winnerAvg/loserAvg: taraf ortalama skillRating.
 // Dönüş: anketi tekrar doldurması gereken kazanan taraf UserInterest kayıtları (boşsa flag yok).
