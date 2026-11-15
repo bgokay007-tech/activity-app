@@ -13,6 +13,7 @@ import { startDefiLadder, isDefi, defiSettingsOf } from './defiLeague.controller
 import { DEFI_SUBS } from '../utils/defiLadder.js';
 import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 import { ensureTournamentChatTables, isMissingChatTable } from '../utils/ensureTournamentChatTables.js';
+import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
 import {
     swissRoundCount,
     americanoRoundCount,
@@ -2483,6 +2484,33 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
     }
 
+    // Maç eşleşmeleri: her oyuncuya rakip adı + turnuva sahibine özet
+    // (müsaitlik motorunda TOURNAMENT_STARTED yerine bu gider; klasik kurada ikisi de gider)
+    try {
+        const createdMatches = await prisma.tournamentMatch.findMany({
+            where: {
+                tournamentId: id,
+                status: 'PENDING',
+                p1Id: { not: null },
+                p2Id: { not: null },
+            },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+            take: 200,
+        });
+        // Sadece ilk tur / ilk maç seti — playoff iskeleti TBD'leri spam etmesin
+        const firstRound = createdMatches.length
+            ? Math.min(...createdMatches.map(m => m.round || 1))
+            : 1;
+        const pairingBatch = createdMatches.filter(m => (m.round || 1) === firstRound);
+        await notifyTournamentMatchPairings({
+            tournament: { ...tournament, id },
+            matches: pairingBatch,
+            roundIndex: firstRound,
+            actorUserId,
+            notifyOwner: true,
+        });
+    } catch { /* non-critical */ }
+
     return prisma.tournament.findUnique({
         where: { id },
         include: {
@@ -2672,6 +2700,28 @@ export const rematchTournament = async (req, res, next) => {
 
         if (!newMatches.length) return res.status(400).json({ message: 'Eşleşecek oyuncu bulunamadı' });
         await prisma.tournamentMatch.createMany({ data: newMatches });
+
+        // Yeniden eşleştirme: oyuncular + sahip bildirimi
+        try {
+            const justCreated = await prisma.tournamentMatch.findMany({
+                where: {
+                    tournamentId: id,
+                    phase: 'GROUP',
+                    round: maxRound,
+                    status: 'PENDING',
+                    p1Id: { not: null },
+                    p2Id: { not: null },
+                },
+                orderBy: { matchIndex: 'asc' },
+            });
+            await notifyTournamentMatchPairings({
+                tournament,
+                matches: justCreated,
+                roundIndex: maxRound,
+                actorUserId: req.userId,
+                notifyOwner: true,
+            });
+        } catch { /* non-critical */ }
 
         const matches = await prisma.tournamentMatch.findMany({
             where: { tournamentId: id },
@@ -2972,12 +3022,14 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                 : maxRound >= matchesPerPlayer;
 
             if (!preGenerated && maxRound < matchesPerPlayer && !existingPlayoff && !nextRoundAlreadyExists) {
+                let nextCreated = [];
                 if (tournament.type === '5') {
                     const playerIds = tournament.participants.map(p => p.userId).filter(Boolean);
                     const players = await getCurrentPlayerRatings(tournament, playerIds);
                     const nextRoundMatches = await generateNextSwissRound(tournament, players, maxRound + 1, allGroupMatches);
                     if (nextRoundMatches.length > 0) {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
+                        nextCreated = nextRoundMatches;
                     }
                 } else if (tournament.type === '7') {
                     const playerIds = tournament.participants.map(p => p.userId).filter(Boolean);
@@ -2992,6 +3044,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                             where: { id },
                             data: { bracketData: { ...bracketMeta, americano: nextHistory } },
                         });
+                        nextCreated = nextMatches;
                     }
                 } else {
                     // Sonraki GROUP turunu güncel ELO ile oluştur (sadece type '1')
@@ -3001,7 +3054,28 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     const nextRoundMatches = await generateNextEloRound(tournament, maxRound + 1, playedPairKeys);
                     if (nextRoundMatches.length > 0) {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
+                        nextCreated = nextRoundMatches;
                     }
+                }
+                if (nextCreated.length > 0) {
+                    try {
+                        const fresh = await prisma.tournamentMatch.findMany({
+                            where: {
+                                tournamentId: id,
+                                phase: 'GROUP',
+                                round: maxRound + 1,
+                                status: 'PENDING',
+                                p1Id: { not: null },
+                                p2Id: { not: null },
+                            },
+                        });
+                        await notifyTournamentMatchPairings({
+                            tournament,
+                            matches: fresh,
+                            roundIndex: maxRound + 1,
+                            notifyOwner: true,
+                        });
+                    } catch { /* non-critical */ }
                 }
             } else if (currentRoundDone && groupPhaseFullyDone && !existingPlayoff && !nextRoundAlreadyExists) {
                 // Swiss / Americano: play-off yok — turlar bitince turnuva tamamlanır (PENDING kalmazsa aşağıda).
@@ -3054,6 +3128,24 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
                         ).catch(() => {});
                     }
+                    try {
+                        const freshExtra = await prisma.tournamentMatch.findMany({
+                            where: {
+                                tournamentId: id,
+                                phase: 'GROUP',
+                                round: maxRound + 1,
+                                status: 'PENDING',
+                                p1Id: { not: null },
+                                p2Id: { not: null },
+                            },
+                        });
+                        await notifyTournamentMatchPairings({
+                            tournament,
+                            matches: freshExtra,
+                            roundIndex: maxRound + 1,
+                            notifyOwner: true,
+                        });
+                    } catch { /* non-critical */ }
                 } else {
                 const topStandings = standings.slice(0, Math.min(qualifiers, standings.length));
 

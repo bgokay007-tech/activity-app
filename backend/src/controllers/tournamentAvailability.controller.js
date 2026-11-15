@@ -13,6 +13,7 @@ import {
     toYmd,
     isPlayersArrangeCourts,
 } from '../utils/tournamentAvailabilityMatch.js';
+import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -552,34 +553,27 @@ export const approveRoundMatching = async (req, res, next) => {
             },
         });
 
-        // Bildirim: yeni maçlardaki oyunculara
-        const created = await prisma.tournamentMatch.findMany({
-            where: { roundId, tournamentId: id },
-            orderBy: { createdAt: 'desc' },
-            take: toCreate.length || 0,
-        });
-        const notifyIds = new Set();
-        for (const m of created) {
-            if (m.p1Id) notifyIds.add(m.p1Id);
-            if (m.p2Id) notifyIds.add(m.p2Id);
-        }
-        // Çiftlerde p1Id takım id olabilir — bracketData.sides member'larına da bildir
-        const sides = await loadSides(tournament);
-        const sideMap = Object.fromEntries(sides.map(s => [s.id, s]));
-        for (const sid of [...notifyIds]) {
-            const side = sideMap[sid];
-            const users = side?.memberUserIds || [sid];
-            for (const uid of users) {
-                if (!uid) continue;
-                emitToUser(uid, 'tournament:matching_approved', { tournamentId: id, roundId });
-                createNotification(
-                    uid,
-                    'TOURNAMENT_MATCH',
-                    '🎾 Eşleşmeniz hazır',
-                    `"${tournament.name}" — ${round.roundIndex}. tur eşleşmeniz onaylandı.`,
-                    { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
-                ).catch(() => {});
-            }
+        // Bildirim: eşleşen oyuncular + turnuva sahibi (rakip adı / maç sayısı)
+        if (toCreate.length) {
+            const created = await prisma.tournamentMatch.findMany({
+                where: {
+                    roundId,
+                    tournamentId: id,
+                    // createMany sonrası bu turun yeni PENDING maçları
+                    status: 'PENDING',
+                    p1Id: { not: null },
+                    p2Id: { not: null },
+                },
+                orderBy: { createdAt: 'desc' },
+                take: toCreate.length,
+            });
+            await notifyTournamentMatchPairings({
+                tournament,
+                matches: created,
+                roundIndex: round.roundIndex,
+                actorUserId: req.userId,
+                notifyOwner: true,
+            });
         }
 
         const matches = await prisma.tournamentMatch.findMany({

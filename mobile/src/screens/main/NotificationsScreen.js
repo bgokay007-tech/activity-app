@@ -3,7 +3,6 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Alert, Animated } from 'react-native';
 import { useSelector, useDispatch } from 'react-redux';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import { onSocket, getSocket } from '../../services/socket';
 import colors from '../../theme/colors';
@@ -16,22 +15,13 @@ import NotificationSettingsModal from '../../components/NotificationSettingsModa
 import { sharePost } from '../../utils/share';
 import { adminPortalParamsForNotif } from '../../utils/adminNotifNav';
 import { STATIC_CATS as NOTIF_ALERT_CATS } from '../../constants/activityStaticCats';
-
-// "Okundu" işareti PATCH isteği, kullanıcı bildirime dokunduktan hemen sonra
-// uygulamayı kapatırsa yarıda kesilip sunucuya hiç ulaşmayabiliyordu — bu durumda
-// bildirim saatler/günler sonra tekrar "okunmamış" görünüyordu, çünkü kaybolan
-// isteği tekrar deneyecek hiçbir mekanizma yoktu. Artık "okundu" niyeti önce
-// cihaza kalıcı olarak yazılıyor (AsyncStorage), her ekran yüklemesinde bekleyen
-// istekler tekrar denenip başarılı olunca kuyruktan siliniyor — uygulama kapansa/
-// internet gitse bile bir sonraki açılışta otomatik tamamlanır.
-const PENDING_READS_KEY = 'pending_notification_reads';
-const loadPendingReads = async () => {
-    try { return JSON.parse(await AsyncStorage.getItem(PENDING_READS_KEY)) || []; }
-    catch { return []; }
-};
-const savePendingReads = async (ids) => {
-    try { await AsyncStorage.setItem(PENDING_READS_KEY, JSON.stringify(ids)); } catch {}
-};
+import {
+    loadPendingReads,
+    savePendingReads,
+    enqueuePendingRead,
+    removePendingRead,
+    flushPendingReads,
+} from '../../services/pendingNotificationReads';
 
 const TYPE_ICON = {
     RIVAL_REQUEST: '⚔️',
@@ -106,6 +96,7 @@ const TYPE_ICON = {
     TOURNAMENT_STARTED: '🚀',
     TOURNAMENT_EXTRA_ROUND: '⚖️',
     TOURNAMENT_COMPLETED: '🏆',
+    TOURNAMENT_MATCH: '🎾',
     TOURNAMENT_MATCH_DEADLINE_WARNING: '⏳',
     TOURNAMENT_MATCH_AUTO_DRAW: '🤝',
     TOURNAMENT_ROUND_SCORE_NEEDED: '⚠️',
@@ -271,20 +262,6 @@ export default function NotificationsScreen({ navigation }) {
         }
     };
 
-    // Daha önce tamamlanamamış "okundu" isteklerini tekrar dener — bu, ekran her
-    // yüklendiğinde (mount, focus, pull-to-refresh) çalışır ki hiçbir bekleyen
-    // istek sonsuza kadar unutulmasın.
-    const flushPendingReads = async () => {
-        const pending = await loadPendingReads();
-        if (pending.length === 0) return;
-        const stillPending = [];
-        for (const id of pending) {
-            try { await api.patch(`/notifications/${id}/read`, { read: true }); }
-            catch { stillPending.push(id); }
-        }
-        await savePendingReads(stillPending);
-    };
-
     const load = async () => {
         try {
             await flushPendingReads();
@@ -300,7 +277,7 @@ export default function NotificationsScreen({ navigation }) {
                 pending.includes(n.id) || locallyReadRef.current.has(n.id) ? { ...n, read: true } : n
             ));
             for (const n of list) {
-                if (n.read) locallyReadRef.current.delete(n.id);
+                if (n.read && !pending.includes(n.id)) locallyReadRef.current.delete(n.id);
             }
             setNotifications(list);
             const unreadFromList = list.filter(n => !n.read).length;
@@ -350,18 +327,23 @@ export default function NotificationsScreen({ navigation }) {
 
     const markRead = async (id) => {
         const wasUnread = notifications.find(n => n.id === id)?.read === false;
+        // Önce kalıcı kuyruk — ağ/IP değişince PATCH düşse bile bir sonraki açılışta tamamlanır
+        await enqueuePendingRead(id);
         locallyReadRef.current.add(id);
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
         if (wasUnread) dispatch(decrementUnread());
-        const pending = await loadPendingReads();
-        if (!pending.includes(id)) await savePendingReads([...pending, id]);
         try {
-            await api.patch(`/notifications/${id}/read`, { read: true });
-            const after = await loadPendingReads();
-            await savePendingReads(after.filter(pid => pid !== id));
+            const { data } = await api.patch(`/notifications/${id}/read`, { read: true });
+            if (data && data.updated === 0) {
+                await removePendingRead(id);
+                locallyReadRef.current.delete(id);
+                return;
+            }
+            await removePendingRead(id);
             locallyReadRef.current.delete(id);
         } catch (e) {
             console.warn(e?.message);
+            // pending kuyrukta kalsın — flushPendingReads tamamlar
         }
     };
 
@@ -371,8 +353,7 @@ export default function NotificationsScreen({ navigation }) {
         setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: false } : n));
         if (wasRead) dispatch(incrementUnread());
         // Okunmadıya çevirince kuyruktaki "okundu" niyetini de iptal et
-        const pending = await loadPendingReads();
-        await savePendingReads(pending.filter(pid => pid !== id));
+        await removePendingRead(id);
         try {
             await api.patch(`/notifications/${id}/read`, { read: false });
         } catch (e) {
@@ -388,6 +369,8 @@ export default function NotificationsScreen({ navigation }) {
     const markAllRead = async () => {
         try {
             await api.patch('/notifications/read-all');
+            await savePendingReads([]);
+            locallyReadRef.current.clear();
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
             dispatch(clearUnread());
         } catch (e) { console.warn(e?.message); }
@@ -538,6 +521,18 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('equipment');
         } else if (type === 'TOURNAMENT_STARTED' || type === 'TOURNAMENT_EXTRA_ROUND') {
             goToSub('tournaments', 'inprogress');
+        } else if (type === 'TOURNAMENT_MATCH') {
+            if (data.tournamentId) {
+                navigation.push('SubCategory', {
+                    category: data.category,
+                    sub: data.subCategory,
+                    initialTab: 'tournaments',
+                    openMatchId: data.matchId || null,
+                    openMatchTournamentId: data.tournamentId,
+                });
+            } else {
+                goToSub('tournaments', 'inprogress');
+            }
         } else if (type === 'TOURNAMENT_COMPLETED') {
             goToSub('archive', null, null, data.tournamentId || null);
         } else if (type === 'TOURNAMENT_UNDERFILL_WARNING') {

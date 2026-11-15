@@ -19,6 +19,7 @@ import Constants from 'expo-constants';
 import api from '../services/api';
 import { connectSocket, disconnectSocket, onSocket, onSocketReconnect } from '../services/socket';
 import { handleNotificationAction } from '../services/notificationActions';
+import { flushPendingReads, markNotificationReadDurable } from '../services/pendingNotificationReads';
 import { adminPortalParamsForNotif } from '../utils/adminNotifNav';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
@@ -160,6 +161,12 @@ function navigateFromNotif(data, isBusiness) {
                 ...(type === 'TOURNAMENT_ROUND_SCORE_NEEDED' && {
                     openMatchTournamentId: data.tournamentId || null,
                     openExpiredResolve: true,
+                }),
+                ...((type === 'TOURNAMENT_MATCH'
+                    || type === 'TOURNAMENT_MATCH_DEADLINE_WARNING'
+                    || type === 'TOURNAMENT_MATCH_AUTO_DRAW') && {
+                    openMatchTournamentId: data.tournamentId || null,
+                    openMatchId: data.matchId || null,
                 }),
                 ...((type === 'TOURNAMENT_UNDERFILL_WARNING' || type === 'TOURNAMENT_UNDERFILL_DELETED') && {
                     highlightTournamentId: data.tournamentId || null,
@@ -518,9 +525,12 @@ function AppTabs() {
     const pendingScorePollRef = useRef(null);
     const upcomingActivityPollRef = useRef(null);
 
-    // Fetch unread count from backend — source of truth
+    // Fetch unread count from backend — source of truth.
+    // Önce pending "okundu" kuyruğunu boşalt: IP/ağ değişince yarım kalan PATCH'ler
+    // sunucuya gitmeden rozet eski okunmamış sayıyı geri getirmesin.
     const syncBadge = useCallback(async () => {
         try {
+            await flushPendingReads();
             const { data } = await api.get('/notifications');
             const count = data.unreadCount || 0;
             dispatch(setUnreadCount(count));
@@ -621,8 +631,13 @@ function AppTabs() {
         // zil yanıp sönmesini de bekleyen skor sayacını tazele (poll'u beklemesin).
         const offRead = onSocket('notificationRead', (payload) => {
             if (!payload?.id) return;
-            dispatch(decrementUnread());
+            // Mark-as-read kendi oturumumuzdan da emit edilir — rozeti sunucudan hizala
+            // (çift decrementUnread ile negatif/yanlış sayı olmasın).
+            syncBadge();
             if (payload.type === 'SCORE_ENTRY_REQUIRED') syncPendingScoreCount();
+        });
+        const offReadAll = onSocket('notificationsReadAll', () => {
+            dispatch(clearUnread());
         });
         const offMsg = onSocket('newMessage', ({ message }) => {
             if (message?.senderId && message.senderId !== userId) setUnreadMessages(c => c + 1);
@@ -632,7 +647,7 @@ function AppTabs() {
             syncBadge();
             syncMessagesBadge();
         });
-        return () => { off(); offRead(); offMsg(); offReconnect(); disconnectSocket(); };
+        return () => { off(); offRead(); offReadAll(); offMsg(); offReconnect(); disconnectSocket(); };
     }, [userId, dispatch, syncPendingScoreCount, syncBadge, syncMessagesBadge]);
 
     return (
