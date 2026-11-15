@@ -6,6 +6,7 @@ import {
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
+import { moderateScale } from '../theme/scale';
 import MatchResultShareModal from './MatchResultShareModal';
 
 const WEEKDAYS = [
