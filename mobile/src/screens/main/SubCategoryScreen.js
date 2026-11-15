@@ -38,6 +38,7 @@ import { NEW_VISUAL } from '../../theme/visual';
 import { moderateScale, touchSize } from '../../theme/scale';
 import TournamentMatchDetailModal from '../../components/TournamentMatchDetailModal';
 import TournamentAvailabilityPanel from '../../components/TournamentAvailabilityPanel';
+import { buildMatchCardScheduleLines } from '../../utils/tournamentMatchCardSchedule';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
@@ -20206,31 +20207,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </View>
                                 )}
-                                {(() => {
-                                    const agreed = match.scheduleData?.agreed;
-                                    if (agreed) {
-                                        const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
-                                        if (!txt) return null;
-                                        return (
-                                            <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
-                                                📍 {txt}
-                                            </Text>
-                                        );
-                                    }
-                                    const sug = match.scheduleData?.suggested;
-                                    if (!sug) return null;
-                                    const w = Array.isArray(sug.windows) && sug.windows[0];
-                                    const courts = Array.isArray(sug.courts) ? sug.courts.map(c => c.name).filter(Boolean).slice(0, 2) : [];
-                                    const bits = [];
-                                    if (w) bits.push(`${w.date} ${w.timeFrom || ''}-${w.timeTo || ''}`);
-                                    if (courts.length) bits.push(courts.join(' · '));
-                                    if (!bits.length) return null;
-                                    return (
-                                        <Text style={{ color: '#c4b5fd', fontSize: 9, fontWeight: '700', marginTop: 4 }} numberOfLines={2}>
-                                            🤝 {bits.join(' · ')}
-                                        </Text>
-                                    );
-                                })()}
+                                {buildMatchCardScheduleLines(match.scheduleData, {
+                                    p1Name: match.p1Name,
+                                    p2Name: match.p2Name,
+                                    lang: t.lang || 'tr',
+                                    t,
+                                }).map((line, idx) => (
+                                    <Text
+                                        key={`${match.id}-sched-${idx}`}
+                                        style={{ color: line.color, fontSize: 9, fontWeight: '700', marginTop: idx === 0 ? 4 : 2 }}
+                                        numberOfLines={2}
+                                    >
+                                        {line.text}
+                                    </Text>
+                                ))}
                             </TouchableOpacity>
                         );
                     };
@@ -20931,31 +20921,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             </View>
                                                         </View>
                                                     )}
-                                                    {(() => {
-                                                        const agreed = match.scheduleData?.agreed;
-                                                        if (agreed) {
-                                                            const txt = [agreed.date, `${agreed.timeFrom || ''}-${agreed.timeTo || ''}`, agreed.venueName].filter(Boolean).join(' · ');
-                                                            if (!txt) return null;
-                                                            return (
-                                                                <Text style={{ color: '#4ade80', fontSize: 8, fontWeight: '700', marginTop: 3 }} numberOfLines={2}>
-                                                                    📍 {txt}
-                                                                </Text>
-                                                            );
-                                                        }
-                                                        const sug = match.scheduleData?.suggested;
-                                                        if (!sug) return null;
-                                                        const w = Array.isArray(sug.windows) && sug.windows[0];
-                                                        const courts = Array.isArray(sug.courts) ? sug.courts.map(c => c.name).filter(Boolean).slice(0, 2) : [];
-                                                        const bits = [];
-                                                        if (w) bits.push(`${w.date} ${w.timeFrom || ''}-${w.timeTo || ''}`);
-                                                        if (courts.length) bits.push(courts.join(' · '));
-                                                        if (!bits.length) return null;
-                                                        return (
-                                                            <Text style={{ color: '#c4b5fd', fontSize: 8, fontWeight: '700', marginTop: 3 }} numberOfLines={2}>
-                                                                🤝 {bits.join(' · ')}
-                                                            </Text>
-                                                        );
-                                                    })()}
+                                                    {buildMatchCardScheduleLines(match.scheduleData, {
+                                                        p1Name: match.p1Name,
+                                                        p2Name: match.p2Name,
+                                                        lang: t.lang || 'tr',
+                                                        t,
+                                                    }).map((line, idx) => (
+                                                        <Text
+                                                            key={`${match.id}-gsched-${idx}`}
+                                                            style={{ color: line.color, fontSize: 8, fontWeight: '700', marginTop: idx === 0 ? 3 : 1 }}
+                                                            numberOfLines={2}
+                                                        >
+                                                            {line.text}
+                                                        </Text>
+                                                    ))}
                                                         </View>
                                                 </TouchableOpacity>
                                             );

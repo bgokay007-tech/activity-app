@@ -2509,6 +2509,8 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             actorUserId,
             notifyOwner: true,
         });
+        // TEST: demo_ botlara random müsaitlik/teklif — test bitince kaldırılacak
+        await seedDemoSchedulesForMatches({ ...tournament, id }, createdMatches).catch(() => 0);
     } catch { /* non-critical */ }
 
     return prisma.tournament.findUnique({
@@ -2721,6 +2723,8 @@ export const rematchTournament = async (req, res, next) => {
                 actorUserId: req.userId,
                 notifyOwner: true,
             });
+            // TEST: demo_ botlara random müsaitlik/teklif
+            await seedDemoSchedulesForMatches(tournament, justCreated).catch(() => 0);
         } catch { /* non-critical */ }
 
         const matches = await prisma.tournamentMatch.findMany({
@@ -2740,7 +2744,7 @@ export const getTournamentMatches = async (req, res, next) => {
         const { id } = req.params;
         const tournament = await prisma.tournament.findUnique({
             where: { id },
-            select: { id: true, category: true, subCategory: true, type: true },
+            select: { id: true, category: true, subCategory: true, type: true, location: true },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
 
@@ -2761,6 +2765,10 @@ export const getTournamentMatches = async (req, res, next) => {
                 select: { id: true, player1Id: true, player1Name: true, player2Id: true, player2Name: true },
             }),
         ]);
+        // TEST: mevcut eşleşmelerde boş kalan demo_ taraflarını doldur (playoff sonradan dolduysa vb.)
+        try {
+            await seedDemoSchedulesForMatches(tournament, matchesRaw);
+        } catch { /* non-critical */ }
         const myTeam = myTeams[0] || null;
         const matches = await attachSanitizedSchedules(tournament, matchesRaw, req.userId);
 
@@ -4560,16 +4568,141 @@ async function resolveUserMatchSide(tournament, match, userId) {
 
 function sanitizeScheduleForViewer(scheduleData, isMatchParticipant) {
     const s = normalizeSchedule(scheduleData);
+    // Eşleşme kartında herkes hangi tarafın müsaitlik / teklif bildirdiğini görsün
+    // (önceden sadece katılımcıya açılıyordu; kartta "kim ne bildirdi" boş kalıyordu).
     if (isMatchParticipant) return s;
-    // Diğerleri: anlaşılmış yer/zaman (+ önerilen ortak kort/pencere özeti)
-    if (!s.agreed && !s.suggested) return null;
+    if (!s.agreed && !s.suggested
+        && !(s.availability.p1?.length || s.availability.p2?.length)
+        && !(s.proposals?.length)
+        && !(s.preferredCourts.p1?.length || s.preferredCourts.p2?.length)) {
+        return null;
+    }
+    return s;
+}
+
+const DEMO_AVAIL_WINDOWS = [
+    ['09:00', '12:00'], ['10:00', '13:00'], ['14:00', '17:00'],
+    ['16:00', '19:00'], ['18:00', '21:00'],
+];
+
+function pickRandomDemo(arr, n) {
+    const copy = [...arr];
+    const out = [];
+    while (out.length < n && copy.length) {
+        out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+    }
+    return out;
+}
+
+function randomDemoSlots() {
+    const days = pickRandomDemo([1, 2, 3, 4, 5, 6, 7], 2 + Math.floor(Math.random() * 3));
+    return days.map((weekday) => {
+        const [timeFrom, timeTo] = DEMO_AVAIL_WINDOWS[Math.floor(Math.random() * DEMO_AVAIL_WINDOWS.length)];
+        return { weekday, timeFrom, timeTo };
+    });
+}
+
+function randomDemoProposal(side, byUserId, venueName) {
+    const d = new Date();
+    d.setDate(d.getDate() + 1 + Math.floor(Math.random() * 6));
+    const [timeFrom, timeTo] = DEMO_AVAIL_WINDOWS[Math.floor(Math.random() * DEMO_AVAIL_WINDOWS.length)];
     return {
-        availability: { p1: [], p2: [] },
-        preferredCourts: { p1: [], p2: [] },
-        proposals: [],
-        agreed: s.agreed,
-        suggested: s.suggested,
+        id: crypto.randomUUID(),
+        side,
+        byUserId,
+        venueName: venueName || 'Demo Kort',
+        courtId: null,
+        venueId: null,
+        venueCourtId: null,
+        isProVenue: false,
+        date: d.toISOString().slice(0, 10),
+        timeFrom,
+        timeTo,
+        createdAt: new Date().toISOString(),
     };
+}
+
+/**
+ * TEST: demo_ bot taraflarına anında random müsaitlik + teklif yazar.
+ * Test bitince kaldırılacak — gerçek kullanıcı tarafına dokunmaz / dolu tarafı ezmez.
+ */
+async function seedDemoSchedulesForMatches(tournament, matches) {
+    if (!tournament?.id || !Array.isArray(matches) || !matches.length) return 0;
+    const pending = matches.filter(m => m.status === 'PENDING' && m.p1Id && m.p2Id);
+    if (!pending.length) return 0;
+
+    const isTeam = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+    const sideIds = [...new Set(pending.flatMap(m => [m.p1Id, m.p2Id].filter(Boolean)))];
+    const sideMembers = new Map();
+
+    if (isTeam) {
+        const teams = await prisma.tournamentTeam.findMany({
+            where: { id: { in: sideIds } },
+            select: { id: true, player1Id: true, player2Id: true },
+        });
+        const userIds = [...new Set(teams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean)))];
+        const users = userIds.length
+            ? await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, username: true } })
+            : [];
+        const byId = Object.fromEntries(users.map(u => [u.id, u]));
+        for (const t of teams) {
+            sideMembers.set(t.id, [byId[t.player1Id], byId[t.player2Id]].filter(Boolean));
+        }
+    } else {
+        const users = await prisma.user.findMany({
+            where: { id: { in: sideIds } },
+            select: { id: true, username: true },
+        });
+        for (const u of users) sideMembers.set(u.id, [u]);
+    }
+
+    const isDemoSide = (sideId) => {
+        const members = sideMembers.get(sideId) || [];
+        return members.length > 0 && members.every(u => u.username?.startsWith('demo_'));
+    };
+
+    const playersArrange = tournamentPlayersArrangeCourts(tournament);
+    const venueName = String(tournament.location || '').trim() || 'Demo Kort';
+    let updatedCount = 0;
+
+    for (const match of pending) {
+        const schedule = normalizeSchedule(match.scheduleData);
+        let changed = false;
+        for (const side of ['p1', 'p2']) {
+            const sideId = side === 'p1' ? match.p1Id : match.p2Id;
+            if (!isDemoSide(sideId)) continue;
+            if ((schedule.availability[side] || []).length > 0) continue;
+            const members = sideMembers.get(sideId) || [];
+            const byUserId = members[0]?.id || sideId;
+            schedule.availability[side] = randomDemoSlots();
+            if (playersArrange && !(schedule.preferredCourts[side] || []).length) {
+                schedule.preferredCourts[side] = [{
+                    courtId: null,
+                    venueId: null,
+                    venueCourtId: null,
+                    name: `Demo Kort ${side === 'p1' ? 'A' : 'B'}`,
+                    city: null,
+                    isProVenue: false,
+                }];
+            }
+            const hasProposal = (schedule.proposals || []).some(p => p.side === side);
+            if (!hasProposal) {
+                schedule.proposals = [
+                    ...(schedule.proposals || []),
+                    randomDemoProposal(side, byUserId, venueName),
+                ].slice(-30);
+            }
+            changed = true;
+        }
+        if (!changed) continue;
+        await prisma.tournamentMatch.update({
+            where: { id: match.id },
+            data: { scheduleData: schedule },
+        });
+        match.scheduleData = schedule;
+        updatedCount += 1;
+    }
+    return updatedCount;
 }
 
 function tournamentPlayersArrangeCourts(tournament) {

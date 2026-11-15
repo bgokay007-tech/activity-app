@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     View, Text, Modal, ScrollView, TouchableOpacity, TextInput,
-    ActivityIndicator, Alert,
+    ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
@@ -115,8 +115,11 @@ export default function TournamentMatchDetailModal({
     const [reserveCourts, setReserveCourts] = useState([]);
     const [reserveCourtId, setReserveCourtId] = useState(null);
     const [reserveLoading, setReserveLoading] = useState(false);
+    const scrollRef = useRef(null);
+    const availSectionY = useRef(0);
     const myUserId = useSelector(s => s.auth?.user?.id);
     const canShare = !!(match?.p1Id && match?.p2Id && match?.status !== 'BYE');
+    const hasResult = match?.status === 'COMPLETED' || match?.status === 'FORFEIT';
 
     const iAmSide = !!match?._iAmMatchSide
         || (match && mySideId && (match.p1Id === mySideId || match.p2Id === mySideId));
@@ -130,6 +133,12 @@ export default function TournamentMatchDetailModal({
     useEffect(() => {
         if (!visible) setShareOpen(false);
     }, [visible]);
+
+    const scrollToAvailability = () => {
+        if (scrollRef.current && typeof scrollRef.current.scrollTo === 'function') {
+            scrollRef.current.scrollTo({ y: Math.max(0, availSectionY.current - 8), animated: true });
+        }
+    };
 
     useEffect(() => {
         if (!visible || !match) return;
@@ -567,21 +576,22 @@ export default function TournamentMatchDetailModal({
                         <Text style={{ color: '#fff', fontSize: moderateScale(15), fontWeight: '800', flex: 1 }} numberOfLines={2}>
                             {match.p1Name || 'TBD'} vs {match.p2Name || 'TBD'}
                         </Text>
-                        {canShare ? (
+                        {/* Sonuç yokken "Sonucu Paylaş" yanlıştı — müsaitlik/teklif buradan */}
+                        {canAct ? (
                             <TouchableOpacity
-                                onPress={() => setShareOpen(true)}
+                                onPress={scrollToAvailability}
                                 hitSlop={10}
                                 style={{
-                                    backgroundColor: '#7c3aed25',
+                                    backgroundColor: '#0ea5e925',
                                     borderRadius: 8,
                                     paddingHorizontal: 10,
                                     paddingVertical: 6,
                                     borderWidth: 1,
-                                    borderColor: '#7c3aed60',
+                                    borderColor: '#0ea5e960',
                                 }}
                             >
-                                <Text style={{ color: '#c084fc', fontSize: 12, fontWeight: '800' }}>
-                                    {t.shareTournMatchShareBtn || t.shareMatchShareBtn || t.shareBtn || '📤'}
+                                <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800' }}>
+                                    {t.tournSchedAvailNotifyBtn || '📅 Müsaitlik Bildir'}
                                 </Text>
                             </TouchableOpacity>
                         ) : null}
@@ -590,7 +600,11 @@ export default function TournamentMatchDetailModal({
                         </TouchableOpacity>
                     </View>
 
-                    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                    <ScrollView
+                        ref={scrollRef}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                    >
                         {/* Anlaşılan yer / zaman — herkese */}
                         <View style={{
                             backgroundColor: agreedText ? '#16a34a18' : '#1e293b',
@@ -789,7 +803,9 @@ export default function TournamentMatchDetailModal({
                         )}
 
                         {canAct && !lockedByAdmin && (
-                            <>
+                            <View
+                                onLayout={(e) => { availSectionY.current = e.nativeEvent.layout.y; }}
+                            >
                                 {/* Rakip müsaitliği */}
                                 <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
                                     {t.tournSchedOppAvail || 'Rakibin müsaitliği'}
@@ -1112,7 +1128,7 @@ export default function TournamentMatchDetailModal({
                                         );
                                     })
                                 )}
-                            </>
+                            </View>
                         )}
 
                         {/* Maç kartı sohbet + talep */}
@@ -1203,6 +1219,7 @@ export default function TournamentMatchDetailModal({
                             </View>
                         )}
 
+                        {/* Aynı yer: skor yokken Şuanki Maçı Paylaş → skor girilince Skoru Paylaş */}
                         {canShare && (
                             <TouchableOpacity
                                 onPress={() => setShareOpen(true)}
@@ -1218,9 +1235,9 @@ export default function TournamentMatchDetailModal({
                                 }}
                             >
                                 <Text style={{ color: '#c084fc', fontWeight: '800', fontSize: 13 }}>
-                                    {match.status === 'COMPLETED' || match.status === 'FORFEIT'
-                                        ? (t.shareTournMatchShareBtn || t.shareMatchShareBtn || '📤 Share')
-                                        : (t.shareTournMatchShareUpcomingBtn || t.shareTournMatchShareBtn || '📤 Share match')}
+                                    {hasResult
+                                        ? (t.shareTournMatchShareBtn || '📤 Skoru Paylaş')
+                                        : (t.shareTournMatchShareUpcomingBtn || '📤 Şuanki Maçı Paylaş')}
                                 </Text>
                             </TouchableOpacity>
                         )}
