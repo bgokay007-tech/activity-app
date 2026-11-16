@@ -18203,26 +18203,44 @@ const hasTournExplicitSurface = (item) => {
 
 /** Turnuva maç kartı: set skorları rakiplerin ORTASINDA (isim yanına değil). */
 function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
-    const box = { flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1, borderWidth: 1, borderColor: colors.border, fontSize: 13, textAlign: 'center' };
+    // Kullanıcı: sayı formu sadece rakam kadar geniş olsun — flex ile sağ-sol boşluk olmasın
+    const box = {
+        width: 34,
+        backgroundColor: '#1e293b',
+        color: '#fff',
+        borderRadius: 6,
+        paddingHorizontal: 2,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: colors.border,
+        fontSize: 13,
+        textAlign: 'center',
+    };
     return (
-        <>
-            <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-                <Text style={{ color: colors.textMuted, fontSize: 10, width: 62 }}>{t.sc_0216}</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1, textAlign: 'center' }} numberOfLines={1}>{p1Name}</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 10, flex: 1, textAlign: 'center' }} numberOfLines={1}>{p2Name}</Text>
+        <View style={{ alignSelf: 'flex-start' }}>
+            <View style={{ flexDirection: 'row', marginBottom: 4, alignItems: 'center' }}>
+                <Text style={{ color: colors.textMuted, fontSize: 10, width: 44 }}>{t.sc_0216}</Text>
+                <Text style={{ color: colors.textMuted, fontSize: 9, width: 34, textAlign: 'center' }} numberOfLines={1}>
+                    {p1Name || 'A'}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 9, width: 10, textAlign: 'center' }}> </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 9, width: 34, textAlign: 'center' }} numberOfLines={1}>
+                    {p2Name || 'B'}
+                </Text>
             </View>
             {scoreSets.map((set, si) => {
                 const showTb = !set.matchTiebreak && isSevenSix(parseInt(set.p1, 10) || 0, parseInt(set.p2, 10) || 0);
                 return (
                     <View key={si} style={{ marginBottom: 4 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={{ color: set.matchTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, width: 62 }} numberOfLines={1}>
+                            <Text style={{ color: set.matchTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, width: 44 }} numberOfLines={1}>
                                 {set.matchTiebreak ? t.racketMatchTbLabel : (si === 2 ? t.sc_0359 : t.sc_0360(si + 1))}
                             </Text>
                             <TextInput
-                                style={[box, { marginRight: 6 }]}
+                                style={box}
                                 value={set.p1} onChangeText={v => onChange(si, 'p1', v)}
                                 keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                            <Text style={{ color: colors.textMuted, width: 10, textAlign: 'center', fontSize: 11 }}>-</Text>
                             <TextInput
                                 style={box}
                                 value={set.p2} onChangeText={v => onChange(si, 'p2', v)}
@@ -18230,11 +18248,12 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
                         </View>
                         {showTb ? (
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                                <Text style={{ color: '#facc15', fontSize: 10, width: 62 }}>( )</Text>
+                                <Text style={{ color: '#facc15', fontSize: 10, width: 44 }}>( )</Text>
                                 <TextInput
-                                    style={[box, { marginRight: 6, fontSize: 12 }]}
+                                    style={[box, { fontSize: 12 }]}
                                     value={set.tb1 || ''} onChangeText={v => onChange(si, 'tb1', v)}
                                     keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                <Text style={{ color: '#facc15', width: 10, textAlign: 'center', fontSize: 11 }}>-</Text>
                                 <TextInput
                                     style={[box, { fontSize: 12 }]}
                                     value={set.tb2 || ''} onChangeText={v => onChange(si, 'tb2', v)}
@@ -18244,7 +18263,7 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
                     </View>
                 );
             })}
-        </>
+        </View>
     );
 }
 
@@ -20166,56 +20185,60 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 onPress={() => { if (!isBye) setDetailMatch(match); }}
                                 style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}
                             >
-                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p1Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
+                                {/* İsimler yan yana: X  vs  Y */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p1Win ? '800' : '600', flex: 1, textAlign: 'right' }} numberOfLines={1}>
+                                        {match.p1Name || 'TBD'}
+                                    </Text>
+                                    {isDone && mSets.length > 0
+                                        ? (
+                                            <View style={{ flexShrink: 0, maxWidth: '42%' }}>
+                                                <TournMatchCenterScore sets={mSets} compact />
+                                            </View>
+                                        )
+                                        : <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '800', flexShrink: 0 }}>vs</Text>}
+                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p2Win ? '800' : '600', flex: 1, textAlign: 'left' }} numberOfLines={1}>
+                                        {match.p2Name || 'TBD'}
+                                    </Text>
                                 </View>
-                                {isDone && mSets.length > 0
-                                    ? <TournMatchCenterScore sets={mSets} compact />
-                                    : <Text style={{ color: colors.textMuted, fontSize:9, marginVertical:3, textAlign:'center' }}>vs</Text>}
-                                <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop: isDone && mSets.length ? 0 : 0 }}>
-                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize:12, fontWeight: p2Win ? '800' : '600', flex:1 }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
-                                </View>
-                                {isBye && <Text style={{ color: colors.textMuted, fontSize:9, marginTop:3 }}>BYE</Text>}
-                                {/* Kullanıcı isteği: skor girişi artık "Maçlar" sekmesine gitmeden
-                                    doğrudan burada — openScoreEntry/submitScore/confirmTournamentScore
-                                    üstteki "Maçlar" sekmesindeki kartla AYNI fonksiyonlar. */}
+                                {isBye && <Text style={{ color: colors.textMuted, fontSize: 9, marginTop: 3 }}>BYE</Text>}
+                                {/* Skor Gir → kartın altında set formları açılır */}
                                 {!isEntering && (
-                                    <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:6, marginTop:6 }}>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
                                         {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && (
                                             <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor: infoColor+'50' }}>
-                                                <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0440}</Text>
+                                                style={{ backgroundColor: infoColor + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: infoColor + '50' }}>
+                                                <Text style={{ color: infoColor, fontSize: 10, fontWeight: '700' }}>{t.sc_0440}</Text>
                                             </TouchableOpacity>
                                         )}
                                         {isDone && !bothConfirmed && myUnconfirmedSide && (
                                             <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
-                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                <Text style={{ color:'#4ade80', fontSize:10, fontWeight:'700' }}>{t.sc_0441}</Text>
+                                                style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60' }}>
+                                                <Text style={{ color: '#4ade80', fontSize: 10, fontWeight: '700' }}>{t.sc_0441}</Text>
                                             </TouchableOpacity>
                                         )}
                                         {isDone && !bothConfirmed && (isCreator || myIsAdmin) && (
                                             <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:7, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b50' }}>
-                                                <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'700' }}>{t.sc_0442}</Text>
+                                                style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50' }}>
+                                                <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }}>{t.sc_0442}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
                                 )}
                                 {isEntering && (
-                                    <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
+                                    <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 5 }}>
                                         <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
-                                        <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
+                                        <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                                             <TouchableOpacity onPress={submitScore} disabled={submittingScore}
-                                                style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:5, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : t.sc_0118}</Text>
+                                                style={{ backgroundColor: '#16a34a30', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 5, borderWidth: 1, borderColor: '#16a34a60' }}>
+                                                <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>{submittingScore ? '...' : t.sc_0118}</Text>
                                             </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:5 }}>
-                                                <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.sc_0190}</Text>
+                                            <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
+                                                <Text style={{ color: colors.textMuted, fontSize: 12 }}>{t.sc_0190}</Text>
                                             </TouchableOpacity>
                                         </View>
                                     </View>
                                 )}
-                                {/* Müsaitlik/teklif tur kartında yazılmaz — maç detayında */}
                             </TouchableOpacity>
                         );
                     };
@@ -20678,6 +20701,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     {t.sc_0481} {match._carriedOverFromRound} {t.sc_0482}
                                                                 </Text>
                                                             )}
+                                                            {/* İsimler yan yana: X  vs  Y (takımda alt satırlar aynı kolonda) */}
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                                            <View style={{ flex: 1, alignItems: 'flex-end' }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
                                                                 if (item.type === '2' || item.type === '4' || item.type === '7') {
@@ -20693,15 +20719,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         ? t.sc_0483(rB.toFixed(2), rA.toFixed(2))
                                                                         : (team?.avgRating != null ? t.sc_0484(Number(team.avgRating).toFixed(2)) : '');
                                                                     return (
-                                                                        <View>
+                                                                        <View style={{ alignItems: 'flex-end' }}>
                                                                             {team ? (
                                                                                 <>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player1Id, team.player1Name)}</Text>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player2Id, team.player2Name)}</Text>
-                                                                                    {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800' }}>{avgLine}</Text> : null}
+                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign:'right' }} numberOfLines={1}>{playerLine(team.player1Id, team.player1Name)}</Text>
+                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign:'right' }} numberOfLines={1}>{playerLine(team.player2Id, team.player2Name)}</Text>
+                                                                                    {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800', textAlign:'right' }}>{avgLine}</Text> : null}
                                                                                 </>
                                                                             ) : (
-                                                                                <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>{match.p1Name || 'TBD'}</Text>
+                                                                                <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign:'right' }} numberOfLines={1}>{match.p1Name || 'TBD'}</Text>
                                                                             )}
                                                                         </View>
                                                                     );
@@ -20713,17 +20739,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}  ${rA.toFixed(2)}`
                                                                     : (match.p1Id && skillRatingMap[match.p1Id] != null ? `${starEmoji(Number(skillRatingMap[match.p1Id]))} ${Number(skillRatingMap[match.p1Id]).toFixed(2)}` : '');
                                                                 return (
-                                                                    <View>
-                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>
+                                                                    <View style={{ alignItems: 'flex-end' }}>
+                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign:'right' }} numberOfLines={1}>
                                                                             {match.p1Name || 'TBD'}
                                                                         </Text>
-                                                                        {eloStr ? <Text style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:10, flexWrap:'wrap' }}>{eloStr}</Text> : null}
+                                                                        {eloStr ? <Text style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:9, textAlign:'right' }} numberOfLines={1}>{eloStr}</Text> : null}
                                                                     </View>
                                                                 );
                                                             })()}
+                                                            </View>
                                                             {isDone && mSets.length > 0
-                                                                ? <TournMatchCenterScore sets={mSets} compact />
-                                                                : <Text style={{ color: colors.textMuted, fontSize:9, marginVertical:3, textAlign:'center' }}>vs</Text>}
+                                                                ? (
+                                                                    <View style={{ flexShrink: 0, maxWidth: '36%' }}>
+                                                                        <TournMatchCenterScore sets={mSets} compact />
+                                                                    </View>
+                                                                )
+                                                                : <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'800', flexShrink:0, paddingHorizontal:2 }}>vs</Text>}
+                                                            <View style={{ flex: 1, alignItems: 'flex-start' }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p2Id;
                                                                 if (item.type === '2' || item.type === '4' || item.type === '7') {
@@ -20739,15 +20771,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         ? t.sc_0483(rB.toFixed(2), rA.toFixed(2))
                                                                         : (team?.avgRating != null ? t.sc_0484(Number(team.avgRating).toFixed(2)) : '');
                                                                     return (
-                                                                        <View>
+                                                                        <View style={{ alignItems: 'flex-start' }}>
                                                                             {team ? (
                                                                                 <>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player1Id, team.player1Name)}</Text>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', flexWrap:'wrap' }}>{playerLine(team.player2Id, team.player2Name)}</Text>
-                                                                                    {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800' }}>{avgLine}</Text> : null}
+                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>{playerLine(team.player1Id, team.player1Name)}</Text>
+                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>{playerLine(team.player2Id, team.player2Name)}</Text>
+                                                                                    {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800', textAlign:'left' }}>{avgLine}</Text> : null}
                                                                                 </>
                                                                             ) : (
-                                                                                <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>{match.p2Name || 'TBD'}</Text>
+                                                                                <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>{match.p2Name || 'TBD'}</Text>
                                                                             )}
                                                                         </View>
                                                                     );
@@ -20759,14 +20791,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     ? `${starEmoji(rA)} ${rB.toFixed(2)}  ${diff >= 0 ? '+' : ''}${diff.toFixed(2)}  ${rA.toFixed(2)}`
                                                                     : (match.p2Id && skillRatingMap[match.p2Id] != null ? `${starEmoji(Number(skillRatingMap[match.p2Id]))} ${Number(skillRatingMap[match.p2Id]).toFixed(2)}` : '');
                                                                 return (
-                                                                    <View>
-                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', flexWrap:'wrap' }}>
+                                                                    <View style={{ alignItems: 'flex-start' }}>
+                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>
                                                                             {match.p2Name || 'TBD'}
                                                                         </Text>
-                                                                        {eloStr ? <Text style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:10, flexWrap:'wrap' }}>{eloStr}</Text> : null}
+                                                                        {eloStr ? <Text style={{ color: isW ? '#4ade80' : '#94a3b8', fontSize:9, textAlign:'left' }} numberOfLines={1}>{eloStr}</Text> : null}
                                                                     </View>
                                                                 );
                                                             })()}
+                                                            </View>
+                                                            </View>
                                                         {(() => {
                                                             if (isDone || isBye || isTBD || !match.deadline) return null;
                                                             const roundDefaultTime = roundDefaultDeadline[`${match.phase}|${match.round}`];
