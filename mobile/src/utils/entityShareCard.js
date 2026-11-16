@@ -51,17 +51,47 @@ function shareMeta(item, extra = {}) {
  * Ortak kart payload — EntityShareModal canvas + metin paylaşımı.
  * { kind, id, url, title, badge, emoji, sport, lines[], message, ctaLabel, brand, brandColors, coverUrl? }
  */
-export function buildEntitySharePayload(kind, item, t, lang = 'tr') {
+export function buildEntitySharePayload(kind, item, t, lang = 'tr', options = {}) {
     if (!item?.id) return null;
     switch (kind) {
         case 'rival': return buildRival(item, t, lang);
-        case 'tournament': return buildTournament(item, t, lang);
+        case 'tournament': return buildTournament(item, t, lang, options);
         case 'equipment': return buildEquipment(item, t, lang);
         case 'coach': return buildCoach(item, t, lang, false);
         case 'course': return buildCoach(item, t, lang, true);
         case 'club': return buildClub(item, t, lang);
         default: return null;
     }
+}
+
+/** Derece kısıtlaması satırı — cinsiyete göre ayrılmış veya düz aralık. Yoksa null. */
+function tournRatingRestrictionLine(tournament) {
+    if (tournament?.ratingGenderSplit) {
+        const has = tournament.minRatingMale != null || tournament.maxRatingMale != null
+            || tournament.minRatingFemale != null || tournament.maxRatingFemale != null;
+        if (!has) return null;
+        return `⭐ 👨${tournament.minRatingMale ?? 0}–${tournament.maxRatingMale ?? 5}  👩${tournament.minRatingFemale ?? 0}–${tournament.maxRatingFemale ?? 5}`;
+    }
+    if (tournament?.minRating != null || tournament?.maxRating != null) {
+        return `⭐ ${tournament.minRating != null ? tournament.minRating : '0'}–${tournament.maxRating != null ? tournament.maxRating : '5'}★`;
+    }
+    return null;
+}
+
+function tournLocationLine(tournament, t) {
+    const placeRaw = tournament.location || tournament.city || '';
+    const place = placeRaw === 'Dünya'
+        ? (t?.sc_0395 || placeRaw)
+        : (placeRaw || (tournament.scope === 'ULUSLARARASI' ? t?.sc_0395 : tournament.scope === 'ULUSAL' ? t?.sc_0396 : t?.sc_0397) || '');
+    const noSpecificCourt = !String(tournament.location || '').trim()
+        || /ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(String(tournament.location || ''));
+    if (place && !noSpecificCourt) return `📍 ${place}`;
+    if (noSpecificCourt) {
+        return `📍 ${tournament.subCategory === 'airsoft'
+            ? (t?.tournCourtPlayersArrange || t?.sc_0402 || '')
+            : (t?.tournCourtPlayersArrange || t?.tournCourtPlayersDecide || '')}`;
+    }
+    return '';
 }
 
 function buildRival(rival, t, lang) {
@@ -164,10 +194,69 @@ function fmtTournDateTime(d, tm, lang) {
 }
 
 /**
+ * Puan tablosundan paylaşım: isim + konum + tür + derece kısıtlaması (+ sıra özeti).
+ */
+function buildTournamentStandings(tournament, t, lang, standings = []) {
+    const { sport, emoji } = sportMeta(tournament.subCategory, lang);
+    const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
+    const intro = t?.shareTournamentStandingsIntro || 'Tournament standings';
+    const name = tournament.name || sport;
+    const badge = t?.shareEntityBadgeStandings
+        || (lang === 'tr' ? 'PUAN TABLOSU' : lang === 'ru' ? 'ТАБЛИЦА' : lang === 'de' ? 'TABELLE' : 'STANDINGS');
+    const lines = [];
+
+    const format = tournFormatLabel(tournament, t);
+    if (format) lines.push(`🏆 ${format}`);
+
+    const loc = tournLocationLine(tournament, t);
+    if (loc) lines.push(loc);
+
+    const rating = tournRatingRestrictionLine(tournament);
+    if (rating) lines.push(rating);
+
+    const rows = Array.isArray(standings) ? standings : [];
+    if (rows.length) {
+        lines.push(`📊 ${t?.sc_0429 || 'Standings'}`);
+        rows.slice(0, 12).forEach((row, i) => {
+            const nm = row?.name || row?.fullName || row?.username || '?';
+            const pts = row?.points != null ? row.points : '';
+            lines.push(`${i + 1}. ${nm}${pts !== '' ? ` · ${pts}` : ''}`);
+        });
+        if (rows.length > 12) lines.push(`… +${rows.length - 12}`);
+    }
+
+    const message = [`${intro} 🏆 ${name}`.trim(), ...lines, url].filter(Boolean).join('\n');
+    const sf = String(tournament.surface || '').toUpperCase();
+    return {
+        kind: 'tournament',
+        id: tournament.id,
+        url,
+        title: name,
+        badge,
+        emoji: '🏆',
+        sport: `${emoji} ${sport}`.trim(),
+        lines: [intro, ...lines],
+        message,
+        ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
+        brandColors: BRAND_LETTER_COLORS,
+        bgPlayersDecide: sf === 'PLAYERS_DECIDE',
+        ...shareMeta(tournament),
+    };
+}
+
+/**
  * Turnuva paylaşımı: ilan kartındaki bilgiler (EFT IBAN + turnuva kuralları HARİÇ).
  * PLAYERS_DECIDE zeminde kart arka planı yarı sert / yarı toprak olur (EntityShareModal).
+ * options.mode === 'standings' → puan tablosu odaklı kısa kart.
  */
-function buildTournament(tournament, t, lang) {
+function buildTournament(tournament, t, lang, options = {}) {
+    const standingsMode = options?.mode === 'standings' || tournament?._shareMode === 'standings';
+    if (standingsMode) {
+        const rows = options?.standings || tournament?._standings || [];
+        return buildTournamentStandings(tournament, t, lang, rows);
+    }
+
     const { sport, emoji } = sportMeta(tournament.subCategory, lang);
     const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
     const intro = t?.shareTournamentIntro || 'Join the tournament!';
@@ -178,19 +267,8 @@ function buildTournament(tournament, t, lang) {
     const format = tournFormatLabel(tournament, t);
     if (format) lines.push(`🏆 ${format}`);
 
-    const placeRaw = tournament.location || tournament.city || '';
-    const place = placeRaw === 'Dünya'
-        ? (t?.sc_0395 || placeRaw)
-        : (placeRaw || (tournament.scope === 'ULUSLARARASI' ? t?.sc_0395 : tournament.scope === 'ULUSAL' ? t?.sc_0396 : t?.sc_0397) || '');
-    // Belirli kort yoksa “oyuncular seçer” metni
-    const noSpecificCourt = !String(tournament.location || '').trim()
-        || /ortaklaşa|oyuncular|players decide|gemeinsam|соглас/i.test(String(tournament.location || ''));
-    if (place && !noSpecificCourt) lines.push(`📍 ${place}`);
-    else if (noSpecificCourt) {
-        lines.push(`📍 ${tournament.subCategory === 'airsoft'
-            ? (t?.tournCourtPlayersArrange || t?.sc_0402 || '')
-            : (t?.tournCourtPlayersArrange || t?.tournCourtPlayersDecide || '')}`);
-    }
+    const loc = tournLocationLine(tournament, t);
+    if (loc) lines.push(loc);
 
     const creator = tournament.creator?.fullName || tournament.creator?.username || '';
     if (creator) lines.push(`👤 ${creator}${tournament.contactPhone ? ` · 📞 ${tournament.contactPhone}` : ''}`);
@@ -205,9 +283,8 @@ function buildTournament(tournament, t, lang) {
         const gKey = `tournGender${tournament.genderType.charAt(0)}${String(tournament.genderType).slice(1).toLowerCase()}`;
         metaBits.push(stripLeadEmoji(t?.[gKey] || tournament.genderType));
     }
-    if (tournament.minRating != null || tournament.maxRating != null) {
-        metaBits.push(`⭐ ${tournament.minRating != null ? tournament.minRating : '0'}–${tournament.maxRating != null ? tournament.maxRating : '5'}★`);
-    }
+    const ratingLine = tournRatingRestrictionLine(tournament);
+    if (ratingLine) metaBits.push(ratingLine);
     if (tournament.setsPerMatch) {
         metaBits.push(`${t?.sc_0401 || 'Sets:'} ${tournament.setsPerMatch}${tournament.decidingTiebreak ? ` · ${t?.tournThirdSetTb || 'TB'}` : ''}`);
     }

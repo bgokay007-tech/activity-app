@@ -18,9 +18,9 @@ export async function shareRival(rival, t) {
     await shareTextFallback(buildEntitySharePayload('rival', rival, t));
 }
 
-export async function shareTournament(tournament, t) {
-    if (tryOpenEntityShare('tournament', tournament)) return;
-    await shareTextFallback(buildEntitySharePayload('tournament', tournament, t));
+export async function shareTournament(tournament, t, options = {}) {
+    if (tryOpenEntityShare('tournament', tournament, options)) return;
+    await shareTextFallback(buildEntitySharePayload('tournament', tournament, t, t?.lang || 'tr', options));
 }
 
 export async function shareEquipment(eq, t) {

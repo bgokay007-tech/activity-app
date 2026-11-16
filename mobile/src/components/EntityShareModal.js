@@ -257,14 +257,14 @@ async function openOrFallback(url, fallbackFn) {
  * İlan / turnuva / ekipman / antrenör / kurs / kulüp — görsel kart + metin,
  * WhatsApp / Durum / IG Hikâye / Telegram / FB / galeri / kopyala / diğer.
  */
-export default function EntityShareModal({ visible, kind, item, onClose }) {
+export default function EntityShareModal({ visible, kind, item, extra, onClose }) {
     const t = useT();
     const lang = useSelector((s) => s.lang?.lang) || 'tr';
     const insets = useSafeAreaInsets();
     const payload = useMemo(() => {
         if (!visible || !kind || !item) return null;
-        return buildEntitySharePayload(kind, item, t, lang);
-    }, [visible, kind, item, t, lang]);
+        return buildEntitySharePayload(kind, item, t, lang, extra || {});
+    }, [visible, kind, item, extra, t, lang]);
 
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);

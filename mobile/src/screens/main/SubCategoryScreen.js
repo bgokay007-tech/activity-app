@@ -20039,9 +20039,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         </TouchableOpacity>
                     </View>
                 ) : matchTab === 'standings' ? (
-                    standings.length === 0
-                        ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>{t.sc_0433}</Text>
-                        : <View>
+                    <View>
+                        <TouchableOpacity
+                            onPress={() => shareTournament(item, t, { mode: 'standings', standings })}
+                            style={{ alignSelf:'flex-start', backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '40', marginBottom:8 }}
+                        >
+                            <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareStandingsBtn || t.shareBtn || t.sc_0086}</Text>
+                        </TouchableOpacity>
+                        {standings.length === 0
+                            ? <Text style={{ color: colors.textMuted, fontSize:12, textAlign:'center', paddingVertical:3 }}>{t.sc_0433}</Text>
+                            : <>
                             <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor: colors.border, marginBottom:2 }}>
                                 <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>{t.sc_0434}</Text>
                                 {[t.sc_st_played, t.sc_st_won, t.sc_st_draw, t.sc_st_lost, t.sc_st_avg, t.sc_st_pts].map(h => (
@@ -20058,6 +20065,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     ))}
                                 </View>
                             ))}
+                            </>}
                           </View>
                 ) : matchTab === 'playoffs' ? (() => {
                     // Kullanıcı isteği: Play-Off'lar sekmesi — en üstte kaç kişi/takım play-off'a
@@ -22267,12 +22275,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 )}
 
                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6 }}>
-                    <TouchableOpacity
-                        style={{ backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '40' }}
-                        onPress={() => shareTournament(item, t)}
-                    >
-                        <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareBtn || t.sc_0086}</Text>
-                    </TouchableOpacity>
+                    {/* Başladıktan sonra paylaşım puan tablosundan — kartta gereksiz */}
+                    {item.status !== 'IN_PROGRESS' && item.status !== 'COMPLETED' && (
+                        <TouchableOpacity
+                            style={{ backgroundColor: infoColor + '15', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '40' }}
+                            onPress={() => shareTournament(item, t)}
+                        >
+                            <Text style={{ color: infoColor, fontSize:11, fontWeight:'800' }}>{t.shareBtn || t.sc_0086}</Text>
+                        </TouchableOpacity>
+                    )}
                     {isDefiTourn(item) && (<>
                         <DefiLadderModal visible={showDefi} onClose={() => setShowDefi(false)} tournament={item} myId={myId} onChanged={onUpdated} />
                         <DefiTeamNameModal visible={showDefiTeamName} onClose={() => setShowDefiTeamName(false)}
@@ -34295,9 +34306,16 @@ function SubCategoryScreen({ route, navigation }) {
                                         {archiveModalTab === 'standings' && (
                                             archiveModalLoading
                                                 ? <ActivityIndicator color="#c084fc" style={{ marginTop:20 }} />
-                                                : archiveStandings.length === 0
-                                                    ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.sc_0433}</Text>
-                                                    : <View>
+                                                : <View>
+                                                    <TouchableOpacity
+                                                        onPress={() => shareTournament(tourn, t, { mode: 'standings', standings: archiveStandings })}
+                                                        style={{ alignSelf:'flex-start', backgroundColor:'#a855f715', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor:'#a855f740', marginBottom:8 }}
+                                                    >
+                                                        <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800' }}>{t.shareStandingsBtn || t.shareBtn || t.sc_0086}</Text>
+                                                    </TouchableOpacity>
+                                                    {archiveStandings.length === 0
+                                                        ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.sc_0433}</Text>
+                                                        : <>
                                                         <View style={{ flexDirection:'row', paddingVertical:1, borderBottomWidth:1, borderBottomColor:colors.border, marginBottom:2 }}>
                                                             <Text style={{ color:colors.textMuted, fontSize:10, fontWeight:'700', flex:1 }}>{t.sc_0434}</Text>
                                                             {[t.sc_st_played, t.sc_st_won, t.sc_st_draw, t.sc_st_lost, t.sc_st_avg, t.sc_st_pts].map(h => (
@@ -34312,7 +34330,8 @@ function SubCategoryScreen({ route, navigation }) {
                                                                 ))}
                                                             </View>
                                                         ))}
-                                                    </View>
+                                                        </>}
+                                                </View>
                                         )}
                                         {archiveModalTab === 'topfour' && (
                                             <View>
@@ -34352,6 +34371,7 @@ function SubCategoryScreen({ route, navigation }) {
                 visible={!!entityShareReq}
                 kind={entityShareReq?.kind}
                 item={entityShareReq?.item}
+                extra={entityShareReq?.extra}
                 onClose={() => setEntityShareReq(null)}
             />
             <SharePostToFriendModal
