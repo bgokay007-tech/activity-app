@@ -11477,8 +11477,9 @@ function CityAlertInfoContent({ desc, active, cities, onClose, onToggle, onPickC
     );
 }
 const ew = StyleSheet.create({
-    overlay: { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', padding:24 },
-    box:     { backgroundColor: colors.surface, borderRadius:16, padding:17, width:'100%', maxWidth:320 },
+    // Bildirim formu: sağ/sol boşluk küçültüldü (padding 24→8, maxWidth 320→%96).
+    overlay: { flex:1, backgroundColor:'#000000cc', justifyContent:'center', alignItems:'center', paddingHorizontal:8, paddingVertical:24 },
+    box:     { backgroundColor: colors.surface, borderRadius:16, paddingVertical:17, paddingHorizontal:14, width:'96%', maxWidth:420 },
     header:  { flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:10 },
     title:   { color:'#fff', fontSize:15, fontWeight:'900' },
     close:   { color: colors.textMuted, fontSize:20 },
@@ -28646,7 +28647,7 @@ function SubCategoryScreen({ route, navigation }) {
                     style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: touchSize(40), backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
                 >
                     <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        🔍 {filterSummaryLabel()}
+                        {filterSummaryLabel()}
                     </Text>
                     <Text style={{ color: colors.textMuted, fontSize: moderateScale(12) }}>▾</Text>
                 </TouchableOpacity>

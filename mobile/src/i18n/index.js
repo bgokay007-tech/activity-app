@@ -1168,7 +1168,7 @@ const en = {
     refereeDisputeResolvedMsg: 'The majority of the match roster reported the referee — they have been removed from this match and notified.',
 
     // SubCategory — tournament creation
-    createTournamentBtn: '+ Create Tournament',
+    createTournamentBtn: 'Create Tournament',
     createTournamentTitle: '🏆 Create Tournament',
     tournScopeLabel: 'Scope',
     tournScopeYerel: '📍 Local',
@@ -4093,7 +4093,7 @@ const tr = {
     refereeDisputeResolvedMsg: 'Maç kadrosunun çoğunluğu hakeme itiraz etti — hakem bu maçtan çıkarıldı ve kendisine bilgi verildi.',
 
     // SubCategory — tournament creation
-    createTournamentBtn: '+ Turnuva Oluştur',
+    createTournamentBtn: 'Turnuva Oluştur',
     createTournamentTitle: '🏆 Turnuva Oluştur',
     tournScopeLabel: 'Kapsam',
     tournScopeYerel: '📍 Yerel',
@@ -7015,7 +7015,7 @@ const ru = {
     refereeDisputeResolvedMsg: 'Большинство состава матча пожаловалось на судью — он удалён из этого матча и уведомлён.',
 
     // SubCategory — tournament creation
-    createTournamentBtn: '+ Создать турнир',
+    createTournamentBtn: 'Создать турнир',
     createTournamentTitle: '🏆 Создать турнир',
     tournScopeLabel: 'Охват',
     tournScopeYerel: '📍 Местный',
@@ -9936,7 +9936,7 @@ const de = {
     refereeDisputeResolvedMsg: 'Die Mehrheit des Match-Kaders hat den Schiedsrichter gemeldet — er wurde aus diesem Match entfernt und benachrichtigt.',
 
     // SubCategory — tournament creation
-    createTournamentBtn: '+ Turnier erstellen',
+    createTournamentBtn: 'Turnier erstellen',
     createTournamentTitle: '🏆 Turnier erstellen',
     tournScopeLabel: 'Umfang',
     tournScopeYerel: '📍 Lokal',
