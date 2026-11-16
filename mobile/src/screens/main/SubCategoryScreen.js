@@ -24405,7 +24405,8 @@ function getSpotlightMeta(sub, cfg, t) {
     return { title: t[row.title], emoji: row.emoji, comingSoon: t[row.soon] };
 }
 
-const SPOTLIGHT_SKIP_AUTO_KEY = 'spotlight_skip_auto';
+// Digimon otomatik açmayı kapatma tercihi — spor dalına özel (teniste tik = sadece tenis).
+const spotlightSkipAutoKey = (sub) => `${sub}_spotlight_skip_auto`;
 
 function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
         const t = useT();
@@ -24413,8 +24414,8 @@ const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
-    // Kullanıcı isteği: "Ben kendim bakarım" — işaretlenince digimon kart spor dalına
-    // girince otomatik açılmaz; header'daki 🃏 ile elle bakılabilir.
+    // Kullanıcı isteği: "Ben kendim bakarım" — sadece BU dalda otomatik açılmaz;
+    // diğer sporlarda hâlâ otomatik açılabilir. Header'daki 🃏 ile elle bakılabilir.
     const [skipAuto, setSkipAuto] = useState(false);
     const meta = getSpotlightMeta(sub, cfg, t);
 
@@ -24422,7 +24423,7 @@ const insets = useSafeAreaInsets();
         if (!visible) return;
         setFlipped(false);
         setLoading(true);
-        AsyncStorage.getItem(SPOTLIGHT_SKIP_AUTO_KEY)
+        AsyncStorage.getItem(spotlightSkipAutoKey(sub))
             .then(v => setSkipAuto(v === '1'))
             .catch(() => setSkipAuto(false));
         api.get('/spotlight/daily', { params: { subCategory: sub } })
@@ -24434,7 +24435,9 @@ const insets = useSafeAreaInsets();
     const toggleSkipAuto = () => {
         const next = !skipAuto;
         setSkipAuto(next);
-        AsyncStorage.setItem(SPOTLIGHT_SKIP_AUTO_KEY, next ? '1' : '0').catch(() => {});
+        AsyncStorage.setItem(spotlightSkipAutoKey(sub), next ? '1' : '0').catch(() => {});
+        // Eski global anahtar varsa temizle — tercih artık dal başına.
+        AsyncStorage.removeItem('spotlight_skip_auto').catch(() => {});
     };
 
     return (
@@ -24960,7 +24963,7 @@ function SubCategoryScreen({ route, navigation }) {
     }, [openCreateRival]);
 
     // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster —
-    // kullanıcı "Ben kendim bakarım" işaretlediyse (SPOTLIGHT_SKIP_AUTO_KEY) bir daha otomatik açılmaz.
+    // kullanıcı "Ben kendim bakarım" işaretlediyse sadece O dalda bir daha otomatik açılmaz.
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
     const [showSportGuide, setShowSportGuide] = useState(false);
@@ -24997,7 +25000,7 @@ function SubCategoryScreen({ route, navigation }) {
         let cancelled = false;
         (async () => {
             try {
-                const skip = await AsyncStorage.getItem(SPOTLIGHT_SKIP_AUTO_KEY);
+                const skip = await AsyncStorage.getItem(spotlightSkipAutoKey(sub));
                 if (cancelled || skip === '1') return;
                 const today = new Date().toISOString().slice(0, 10);
                 const storageKey = `${sub}_spotlight_shown`;
