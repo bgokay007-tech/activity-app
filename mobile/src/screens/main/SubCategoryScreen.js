@@ -20219,10 +20219,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155',
                                 }}
                             >
-                                {/* Tek satır: X vs Y + Skor Gir / Joker — PENDING sol baştan; ELO isim yanında (puan) */}
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p1Win ? '800' : '600', flex: 1, textAlign: (!isDone && !isBye) ? 'left' : 'right', minWidth: 0 }} numberOfLines={1}>
-                                        {`${match.p1Name || 'TBD'}${match.p1Id && skillRatingMap[match.p1Id] != null ? ` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})` : ''}`}
+                                {/* Tek satır: X [5] vs [5] Y — ELO sarı parantez; flex:1 yok (boşluk şişmesin) */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
+                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p1Win ? '800' : '600', flexShrink: 1, minWidth: 0, textAlign: (!isDone && !isBye) ? 'left' : 'right' }} numberOfLines={1}>
+                                        {match.p1Name || 'TBD'}
+                                        {match.p1Id && skillRatingMap[match.p1Id] != null ? (
+                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})`}</Text>
+                                        ) : null}
                                     </Text>
                                     {isDone && mSets.length > 0
                                         ? (
@@ -20231,8 +20234,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             </View>
                                         )
                                         : <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '800', flexShrink: 0 }}>vs</Text>}
-                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p2Win ? '800' : '600', flex: 1, textAlign: 'left', minWidth: 0 }} numberOfLines={1}>
-                                        {`${match.p2Name || 'TBD'}${match.p2Id && skillRatingMap[match.p2Id] != null ? ` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})` : ''}`}
+                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p2Win ? '800' : '600', flexShrink: 1, minWidth: 0, textAlign: 'left' }} numberOfLines={1}>
+                                        {match.p2Name || 'TBD'}
+                                        {match.p2Id && skillRatingMap[match.p2Id] != null ? (
+                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
+                                        ) : null}
                                     </Text>
                                     {!isEntering && isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) ? (
                                         <TouchableOpacity onPress={() => openScoreEntry(match)}
@@ -20793,25 +20799,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     {t.sc_0481} {match._carriedOverFromRound} {t.sc_0482}
                                                                 </Text>
                                                             )}
-                                                            {/* Tek satır: X vs Y + Skor Gir + Joker */}
-                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                            <View style={{ flex: 1, alignItems: (isReady || isTBD) ? 'flex-start' : 'flex-end', minWidth: 0 }}>
+                                                            {/* Tek satır: X [5] vs [5] Y — flex:1 yok; ELO sarı (puan) */}
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
+                                                            <View style={{ flexShrink: 1, alignItems: (isReady || isTBD) ? 'flex-start' : 'flex-end', minWidth: 0 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
                                                                 const pAlign = (isReady || isTBD) ? 'left' : 'right';
                                                                 const pItems = (isReady || isTBD) ? 'flex-start' : 'flex-end';
-                                                                const eloParen = (uid) => {
-                                                                    if (uid == null || skillRatingMap[uid] == null) return '';
-                                                                    return ` (${Number(skillRatingMap[uid]).toFixed(2)})`;
-                                                                };
+                                                                const nameColor = isW ? '#4ade80' : '#fff';
+                                                                const renderNameElo = (uid, name, doneMr) => (
+                                                                    <Text style={{ color: nameColor, fontSize: doneMr ? 10 : 11, fontWeight: '700', textAlign: pAlign }} numberOfLines={1}>
+                                                                        {name || ''}
+                                                                        {doneMr ? (
+                                                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${doneMr.before.toFixed(2)}→${doneMr.after.toFixed(2)})`}</Text>
+                                                                        ) : (uid != null && skillRatingMap[uid] != null) ? (
+                                                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[uid]).toFixed(2)})`}</Text>
+                                                                        ) : null}
+                                                                    </Text>
+                                                                );
                                                                 if (item.type === '2' || item.type === '4' || item.type === '7') {
                                                                     const team = tournTeams.find(tm => tm.id === match.p1Id);
                                                                     const memberRatings = match.score?.p1MemberRatings || [];
-                                                                    const playerLine = (uid, name) => {
-                                                                        const mr = memberRatings.find(x => x.userId === uid);
-                                                                        if (isDone && mr) return `${name} (${mr.before.toFixed(2)}→${mr.after.toFixed(2)})`;
-                                                                        return `${name || ''}${eloParen(uid)}`;
-                                                                    };
                                                                     const rB = match.score?.p1RatingBefore, rA = match.score?.p1RatingAfter;
                                                                     const avgLine = (isDone && rB != null && rA != null)
                                                                         ? t.sc_0483(rB.toFixed(2), rA.toFixed(2))
@@ -20820,26 +20828,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         <View style={{ alignItems: pItems }}>
                                                                             {team ? (
                                                                                 <>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign: pAlign }} numberOfLines={1}>{playerLine(team.player1Id, team.player1Name)}</Text>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign: pAlign }} numberOfLines={1}>{playerLine(team.player2Id, team.player2Name)}</Text>
+                                                                                    {renderNameElo(team.player1Id, team.player1Name, isDone ? memberRatings.find(x => x.userId === team.player1Id) : null)}
+                                                                                    {renderNameElo(team.player2Id, team.player2Name, isDone ? memberRatings.find(x => x.userId === team.player2Id) : null)}
                                                                                     {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800', textAlign: pAlign }}>{avgLine}</Text> : null}
                                                                                 </>
                                                                             ) : (
-                                                                                <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign: pAlign }} numberOfLines={1}>{`${match.p1Name || 'TBD'}${eloParen(match.p1Id)}`}</Text>
+                                                                                renderNameElo(match.p1Id, match.p1Name || 'TBD', null)
                                                                             )}
                                                                         </View>
                                                                     );
                                                                 }
                                                                 const rB = match.score?.p1RatingBefore, rA = match.score?.p1RatingAfter;
                                                                 const hasRating = rB != null && rA != null;
-                                                                const nameBase = match.p1Name || 'TBD';
-                                                                const nameLine = hasRating
-                                                                    ? `${nameBase} (${rB.toFixed(2)}→${rA.toFixed(2)})`
-                                                                    : `${nameBase}${eloParen(match.p1Id)}`;
                                                                 return (
                                                                     <View style={{ alignItems: pItems }}>
-                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign: pAlign }} numberOfLines={1}>
-                                                                            {nameLine}
+                                                                        <Text style={{ color: nameColor, fontSize:11, fontWeight:'700', textAlign: pAlign }} numberOfLines={1}>
+                                                                            {match.p1Name || 'TBD'}
+                                                                            {hasRating ? (
+                                                                                <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${rB.toFixed(2)}→${rA.toFixed(2)})`}</Text>
+                                                                            ) : (match.p1Id && skillRatingMap[match.p1Id] != null) ? (
+                                                                                <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})`}</Text>
+                                                                            ) : null}
                                                                         </Text>
                                                                     </View>
                                                                 );
@@ -20851,22 +20860,24 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         <TournMatchCenterScore sets={mSets} compact />
                                                                     </View>
                                                                 )
-                                                                : <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'800', flexShrink:0, paddingHorizontal:2 }}>vs</Text>}
-                                                            <View style={{ flex: 1, alignItems: 'flex-start', minWidth: 0 }}>
+                                                                : <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'800', flexShrink:0 }}>vs</Text>}
+                                                            <View style={{ flexShrink: 1, alignItems: 'flex-start', minWidth: 0 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p2Id;
-                                                                const eloParen = (uid) => {
-                                                                    if (uid == null || skillRatingMap[uid] == null) return '';
-                                                                    return ` (${Number(skillRatingMap[uid]).toFixed(2)})`;
-                                                                };
+                                                                const nameColor = isW ? '#4ade80' : '#fff';
+                                                                const renderNameElo = (uid, name, doneMr) => (
+                                                                    <Text style={{ color: nameColor, fontSize: doneMr ? 10 : 11, fontWeight: '700', textAlign: 'left' }} numberOfLines={1}>
+                                                                        {name || ''}
+                                                                        {doneMr ? (
+                                                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${doneMr.before.toFixed(2)}→${doneMr.after.toFixed(2)})`}</Text>
+                                                                        ) : (uid != null && skillRatingMap[uid] != null) ? (
+                                                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[uid]).toFixed(2)})`}</Text>
+                                                                        ) : null}
+                                                                    </Text>
+                                                                );
                                                                 if (item.type === '2' || item.type === '4' || item.type === '7') {
                                                                     const team = tournTeams.find(tm => tm.id === match.p2Id);
                                                                     const memberRatings = match.score?.p2MemberRatings || [];
-                                                                    const playerLine = (uid, name) => {
-                                                                        const mr = memberRatings.find(x => x.userId === uid);
-                                                                        if (isDone && mr) return `${name} (${mr.before.toFixed(2)}→${mr.after.toFixed(2)})`;
-                                                                        return `${name || ''}${eloParen(uid)}`;
-                                                                    };
                                                                     const rB = match.score?.p2RatingBefore, rA = match.score?.p2RatingAfter;
                                                                     const avgLine = (isDone && rB != null && rA != null)
                                                                         ? t.sc_0483(rB.toFixed(2), rA.toFixed(2))
@@ -20875,26 +20886,27 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                         <View style={{ alignItems: 'flex-start' }}>
                                                                             {team ? (
                                                                                 <>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>{playerLine(team.player1Id, team.player1Name)}</Text>
-                                                                                    <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:10, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>{playerLine(team.player2Id, team.player2Name)}</Text>
+                                                                                    {renderNameElo(team.player1Id, team.player1Name, isDone ? memberRatings.find(x => x.userId === team.player1Id) : null)}
+                                                                                    {renderNameElo(team.player2Id, team.player2Name, isDone ? memberRatings.find(x => x.userId === team.player2Id) : null)}
                                                                                     {avgLine ? <Text style={{ color:'#a78bfa', fontSize:9, fontWeight:'800', textAlign:'left' }}>{avgLine}</Text> : null}
                                                                                 </>
                                                                             ) : (
-                                                                                <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>{`${match.p2Name || 'TBD'}${eloParen(match.p2Id)}`}</Text>
+                                                                                renderNameElo(match.p2Id, match.p2Name || 'TBD', null)
                                                                             )}
                                                                         </View>
                                                                     );
                                                                 }
                                                                 const rB = match.score?.p2RatingBefore, rA = match.score?.p2RatingAfter;
                                                                 const hasRating = rB != null && rA != null;
-                                                                const nameBase = match.p2Name || 'TBD';
-                                                                const nameLine = hasRating
-                                                                    ? `${nameBase} (${rB.toFixed(2)}→${rA.toFixed(2)})`
-                                                                    : `${nameBase}${eloParen(match.p2Id)}`;
                                                                 return (
                                                                     <View style={{ alignItems: 'flex-start' }}>
-                                                                        <Text style={{ color: isW ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>
-                                                                            {nameLine}
+                                                                        <Text style={{ color: nameColor, fontSize:11, fontWeight:'700', textAlign:'left' }} numberOfLines={1}>
+                                                                            {match.p2Name || 'TBD'}
+                                                                            {hasRating ? (
+                                                                                <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${rB.toFixed(2)}→${rA.toFixed(2)})`}</Text>
+                                                                            ) : (match.p2Id && skillRatingMap[match.p2Id] != null) ? (
+                                                                                <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
+                                                                            ) : null}
                                                                         </Text>
                                                                     </View>
                                                                 );
