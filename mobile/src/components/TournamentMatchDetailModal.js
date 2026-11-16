@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
     View, Text, Modal, ScrollView, TouchableOpacity, TextInput,
-    ActivityIndicator, Alert, Platform,
+    ActivityIndicator, Alert,
 } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
 import api from '../services/api';
 import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
+import KeyboardAwareForm from './KeyboardAwareForm';
 import MatchResultShareModal from './MatchResultShareModal';
 
 const WEEKDAYS = [
@@ -112,11 +115,11 @@ export default function TournamentMatchDetailModal({
     const [adminFrom, setAdminFrom] = useState('');
     const [adminTo, setAdminTo] = useState('');
     const [shareOpen, setShareOpen] = useState(false);
+    const [availModalOpen, setAvailModalOpen] = useState(false);
     const [reserveCourts, setReserveCourts] = useState([]);
     const [reserveCourtId, setReserveCourtId] = useState(null);
     const [reserveLoading, setReserveLoading] = useState(false);
-    const scrollRef = useRef(null);
-    const availSectionY = useRef(0);
+    const insets = useSafeAreaInsets();
     const myUserId = useSelector(s => s.auth?.user?.id);
     const canShare = !!(match?.p1Id && match?.p2Id && match?.status !== 'BYE');
     const hasResult = match?.status === 'COMPLETED' || match?.status === 'FORFEIT';
@@ -131,14 +134,11 @@ export default function TournamentMatchDetailModal({
     const canAct = iAmSide && isReady;
 
     useEffect(() => {
-        if (!visible) setShareOpen(false);
-    }, [visible]);
-
-    const scrollToAvailability = () => {
-        if (scrollRef.current && typeof scrollRef.current.scrollTo === 'function') {
-            scrollRef.current.scrollTo({ y: Math.max(0, availSectionY.current - 8), animated: true });
+        if (!visible) {
+            setShareOpen(false);
+            setAvailModalOpen(false);
         }
-    };
+    }, [visible]);
 
     useEffect(() => {
         if (!visible || !match) return;
@@ -192,10 +192,15 @@ export default function TournamentMatchDetailModal({
     }, [visible, match?.id, tournament?.id]);
 
     const agreedText = useMemo(() => formatAgreed(schedule?.agreed), [schedule?.agreed]);
+    const p1Slots = schedule?.availability?.p1 || [];
+    const p2Slots = schedule?.availability?.p2 || [];
+    const p1PreferredCourts = schedule?.preferredCourts?.p1 || [];
+    const p2PreferredCourts = schedule?.preferredCourts?.p2 || [];
     const oppSlots = oppSide ? (schedule?.availability?.[oppSide] || []) : [];
     const oppPreferredCourts = oppSide ? (schedule?.preferredCourts?.[oppSide] || []) : [];
     const proposals = Array.isArray(schedule?.proposals) ? schedule.proposals : [];
     const agreed = schedule?.agreed;
+    const sheetPadBottom = Math.max(16, insets.bottom + 12);
     const canReservePro = !!(
         canAct
         && agreed
@@ -556,6 +561,30 @@ export default function TournamentMatchDetailModal({
 
     if (!match) return null;
 
+    const renderSideAvailSummary = (side, name, slots, courts) => (
+        <View style={{ marginBottom: 8 }}>
+            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 4 }}>
+                📅 {name || side}
+            </Text>
+            {(!slots || slots.length === 0) ? (
+                <Text style={{ color: colors.textMuted, fontSize: 11 }}>
+                    {t.tournCardAvailWaiting || 'Henüz müsaitlik yok'}
+                </Text>
+            ) : (
+                slots.map((s, i) => (
+                    <Text key={`${side}-${i}`} style={{ color: '#93c5fd', fontSize: 12, marginBottom: 2 }}>
+                        · {formatSlot(s, lang)}
+                    </Text>
+                ))
+            )}
+            {playersArrangeCourts && courts?.length > 0 ? (
+                <Text style={{ color: '#94a3b8', fontSize: 11, marginTop: 4 }} numberOfLines={2}>
+                    🏟 {courts.map(c => c.name).filter(Boolean).join(' · ')}
+                </Text>
+            ) : null}
+        </View>
+    );
+
     return (
         <>
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -568,7 +597,7 @@ export default function TournamentMatchDetailModal({
                     borderTopRightRadius: 20,
                     paddingHorizontal: 14,
                     paddingTop: 12,
-                    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+                    paddingBottom: sheetPadBottom,
                     borderWidth: 1,
                     borderColor: '#334155',
                 }}>
@@ -576,10 +605,9 @@ export default function TournamentMatchDetailModal({
                         <Text style={{ color: '#fff', fontSize: moderateScale(15), fontWeight: '800', flex: 1 }} numberOfLines={2}>
                             {match.p1Name || 'TBD'} vs {match.p2Name || 'TBD'}
                         </Text>
-                        {/* Sonuç yokken "Sonucu Paylaş" yanlıştı — müsaitlik/teklif buradan */}
-                        {canAct ? (
+                        {canAct && !lockedByAdmin ? (
                             <TouchableOpacity
-                                onPress={scrollToAvailability}
+                                onPress={() => setAvailModalOpen(true)}
                                 hitSlop={10}
                                 style={{
                                     backgroundColor: '#0ea5e925',
@@ -601,9 +629,9 @@ export default function TournamentMatchDetailModal({
                     </View>
 
                     <ScrollView
-                        ref={scrollRef}
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 24) }}
                     >
                         {/* Anlaşılan yer / zaman — herkese */}
                         <View style={{
@@ -722,6 +750,7 @@ export default function TournamentMatchDetailModal({
                                                     setPropDate(w.date || '');
                                                     setPropFrom(w.timeFrom || '10:00');
                                                     setPropTo(w.timeTo || '12:00');
+                                                    setAvailModalOpen(true);
                                                 }}
                                                 style={{
                                                     backgroundColor: '#0f172a',
@@ -753,6 +782,7 @@ export default function TournamentMatchDetailModal({
                                                         if (!canAct || lockedByAdmin) return;
                                                         setPropVenue(c.name || '');
                                                         setPropCourtId(c.courtId || null);
+                                                        setAvailModalOpen(true);
                                                     }}
                                                     style={{
                                                         backgroundColor: '#7c3aed30',
@@ -802,334 +832,70 @@ export default function TournamentMatchDetailModal({
                             </View>
                         )}
 
-                        {canAct && !lockedByAdmin && (
-                            <View
-                                onLayout={(e) => { availSectionY.current = e.nativeEvent.layout.y; }}
-                            >
-                                {/* Rakip müsaitliği */}
-                                <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
-                                    {t.tournSchedOppAvail || 'Rakibin müsaitliği'}
-                                </Text>
-                                {oppSlots.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 10 }}>
-                                        {t.tournSchedOppEmpty || 'Rakip henüz müsaitlik girmedi'}
+                        {/* Bildirilen müsaitlikler + teklifler (salt okunur) — form ayrı modalda */}
+                        <View style={{ marginBottom: 12, backgroundColor: '#1e293b', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#334155' }}>
+                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 8 }}>
+                                {t.tournSchedReportedTitle || 'Bildirilen müsaitlikler'}
+                            </Text>
+                            {renderSideAvailSummary('p1', match.p1Name, p1Slots, p1PreferredCourts)}
+                            {renderSideAvailSummary('p2', match.p2Name, p2Slots, p2PreferredCourts)}
+                            {canAct && !lockedByAdmin ? (
+                                <TouchableOpacity
+                                    onPress={() => setAvailModalOpen(true)}
+                                    style={{ marginTop: 4, backgroundColor: '#0ea5e925', borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#0ea5e960' }}
+                                >
+                                    <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 12 }}>
+                                        {t.tournSchedAvailNotifyBtn || '📅 Müsaitlik Bildir'}
                                     </Text>
-                                ) : (
-                                    <View style={{ marginBottom: 10, gap: 4 }}>
-                                        {oppSlots.map((s, i) => (
-                                            <Text key={i} style={{ color: '#94a3b8', fontSize: 12 }}>
-                                                · {formatSlot(s, lang)}
-                                            </Text>
-                                        ))}
-                                    </View>
-                                )}
-                                {playersArrangeCourts ? (
-                                    <>
-                                        <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
-                                            {t.tournSchedOppCourts || 'Rakibin tercih ettiği kortlar'}
-                                        </Text>
-                                        {oppPreferredCourts.length === 0 ? (
-                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 10 }}>
-                                                {t.tournSchedOppCourtsEmpty || 'Rakip henüz kort tercihi girmedi'}
-                                            </Text>
-                                        ) : (
-                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                                                {oppPreferredCourts.map((c) => (
-                                                    <View
-                                                        key={courtKeyOf(c)}
-                                                        style={{
-                                                            backgroundColor: '#1e293b',
-                                                            borderRadius: 999,
-                                                            paddingHorizontal: 10,
-                                                            paddingVertical: 5,
-                                                            borderWidth: 1,
-                                                            borderColor: '#334155',
-                                                        }}
-                                                    >
-                                                        <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
-                                                            {c.name}{c.isProVenue ? ' · Pro+' : ''}
-                                                        </Text>
-                                                    </View>
-                                                ))}
-                                            </View>
-                                        )}
-                                    </>
-                                ) : null}
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
 
-                                {/* Benim müsaitliğim */}
-                                <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
-                                    {t.tournSchedMyAvail || 'Müsait gün / saatlerin'}
+                        <View style={{ marginBottom: 12 }}>
+                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                {t.tournSchedProposals || 'Teklifler'}
+                            </Text>
+                            {proposals.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 4 }}>
+                                    {t.tournSchedNoProposals || 'Henüz teklif yok'}
                                 </Text>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                                    {WEEKDAYS.map(d => {
-                                        const active = mySlots.some(s => s.weekday === d.key);
-                                        return (
-                                            <TouchableOpacity
-                                                key={d.key}
-                                                onPress={() => toggleWeekday(d.key)}
-                                                style={{
-                                                    paddingHorizontal: 10,
-                                                    paddingVertical: 6,
-                                                    borderRadius: 8,
-                                                    backgroundColor: active ? infoColor : '#1e293b',
-                                                    borderWidth: 1,
-                                                    borderColor: active ? infoColor : '#334155',
-                                                }}
-                                            >
-                                                <Text style={{ color: active ? '#fff' : '#94a3b8', fontSize: 11, fontWeight: '700' }}>
-                                                    {dayLabel(d.key, lang)}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                                {mySlots.filter(s => s.weekday != null).map(s => (
-                                    <View key={s.weekday} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                                        <Text style={{ color: '#94a3b8', width: 36, fontSize: 11, fontWeight: '700' }}>
-                                            {dayLabel(s.weekday, lang)}
-                                        </Text>
-                                        <TextInput
-                                            value={s.timeFrom}
-                                            onChangeText={v => updateSlotTime(s.weekday, 'timeFrom', v)}
-                                            placeholder="09:00"
-                                            placeholderTextColor="#64748b"
-                                            style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
-                                        />
-                                        <TextInput
-                                            value={s.timeTo}
-                                            onChangeText={v => updateSlotTime(s.weekday, 'timeTo', v)}
-                                            placeholder="21:00"
-                                            placeholderTextColor="#64748b"
-                                            style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
-                                        />
-                                    </View>
-                                ))}
-                                {playersArrangeCourts ? (
-                                    <View style={{ marginBottom: 12 }}>
-                                        <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 4 }}>
-                                            {t.tournSchedMyCourts || 'Tercih ettiğim kort / saha / salon'}
-                                        </Text>
-                                        <TextInput
-                                            value={courtQuery}
-                                            onChangeText={setCourtQuery}
-                                            placeholder={t.tournSchedCourtSearchPh || 'Kort / tesis ara…'}
-                                            placeholderTextColor="#64748b"
-                                            style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12, marginBottom: 6 }}
-                                        />
-                                        {courtSearching ? <ActivityIndicator color={infoColor} style={{ marginBottom: 6 }} /> : null}
-                                        {courtResults.length > 0 ? (
-                                            <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 140 }}>
-                                                <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
-                                                    {courtResults.map((c) => {
-                                                        const label = c.isBusinessVenue
-                                                            ? (c.venueName || c.name)
-                                                            : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={c.id || label}
-                                                                onPress={() => addPreferredCourt(c)}
-                                                                style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
-                                                            >
-                                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
-                                                                    {label}{c.isProVenue ? ' · Pro+' : ''}
-                                                                </Text>
-                                                                {!!c.city && <Text style={{ color: '#64748b', fontSize: 10 }}>{c.city}</Text>}
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </ScrollView>
-                                            </View>
-                                        ) : null}
-                                        <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                                            <TextInput
-                                                value={manualCourtName}
-                                                onChangeText={setManualCourtName}
-                                                placeholder={t.tournSchedCourtManualPh || 'Manuel kort adı'}
-                                                placeholderTextColor="#64748b"
-                                                style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
-                                            />
-                                            <TouchableOpacity
-                                                onPress={addManualPreferred}
-                                                style={{ backgroundColor: infoColor + '30', borderRadius: 8, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: infoColor + '60' }}
-                                            >
-                                                <Text style={{ color: infoColor, fontWeight: '800', fontSize: 12 }}>+</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                                            {myPreferredCourts.map((c) => (
+                            ) : (
+                                proposals.slice().reverse().map(p => {
+                                    const mine = mySide && p.side === mySide;
+                                    const who = p.side === 'p1' ? (match.p1Name || 'P1') : (match.p2Name || 'P2');
+                                    return (
+                                        <View key={p.id} style={{
+                                            backgroundColor: '#1e293b',
+                                            borderRadius: 10,
+                                            padding: 10,
+                                            marginBottom: 8,
+                                            borderWidth: 1,
+                                            borderColor: '#334155',
+                                        }}>
+                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
+                                                {[p.date, `${p.timeFrom}-${p.timeTo}`, p.venueName].filter(Boolean).join(' · ')}
+                                                {p.isProVenue ? ' · Pro+' : ''}
+                                            </Text>
+                                            <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }}>
+                                                {mine
+                                                    ? (t.tournSchedYourProposal || 'Senin teklifin')
+                                                    : (who + ' — ' + (t.tournCardProposalShort || 'Teklif'))}
+                                            </Text>
+                                            {canAct && !lockedByAdmin && !mine && !agreedText ? (
                                                 <TouchableOpacity
-                                                    key={courtKeyOf(c)}
-                                                    onPress={() => removePreferredCourt(courtKeyOf(c))}
-                                                    style={{
-                                                        flexDirection: 'row',
-                                                        alignItems: 'center',
-                                                        gap: 4,
-                                                        backgroundColor: infoColor + '22',
-                                                        borderRadius: 999,
-                                                        paddingHorizontal: 10,
-                                                        paddingVertical: 5,
-                                                        borderWidth: 1,
-                                                        borderColor: infoColor + '55',
-                                                    }}
+                                                    onPress={() => agreeProposal(p.id)}
+                                                    style={{ marginTop: 8, backgroundColor: '#16a34a30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#16a34a50' }}
                                                 >
-                                                    <Text style={{ color: infoColor, fontSize: 11, fontWeight: '700', maxWidth: 180 }} numberOfLines={1}>
-                                                        {c.name}{c.isProVenue ? ' · Pro+' : ''}
+                                                    <Text style={{ color: '#4ade80', fontWeight: '800', fontSize: 12 }}>
+                                                        {t.tournSchedAgreeBtn || '✓ Anlaş'}
                                                     </Text>
-                                                    <Text style={{ color: '#f87171', fontWeight: '900', fontSize: 11 }}>✕</Text>
                                                 </TouchableOpacity>
-                                            ))}
+                                            ) : null}
                                         </View>
-                                    </View>
-                                ) : null}
-
-                                <TouchableOpacity
-                                    disabled={saving}
-                                    onPress={saveAvailability}
-                                    style={{ backgroundColor: infoColor + '25', borderWidth: 1, borderColor: infoColor + '60', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 14, opacity: saving ? 0.6 : 1 }}
-                                >
-                                    {saving ? <ActivityIndicator color={infoColor} /> : (
-                                        <Text style={{ color: infoColor, fontWeight: '800', fontSize: 13 }}>
-                                            {t.tournSchedSaveAvail || 'Müsaitliği Kaydet'}
-                                        </Text>
-                                    )}
-                                </TouchableOpacity>
-
-                                {/* Teklif formu */}
-                                <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
-                                    {t.tournSchedProposeTitle || 'Yer / zaman teklif et'}
-                                </Text>
-                                {playersArrangeCourts ? (
-                                    <>
-                                        <TextInput
-                                            value={propCourtQuery}
-                                            onChangeText={setPropCourtQuery}
-                                            placeholder={t.tournSchedCourtSearchPh || 'Kort / tesis ara…'}
-                                            placeholderTextColor="#64748b"
-                                            style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
-                                        />
-                                        {propCourtSearching ? <ActivityIndicator color="#c4b5fd" style={{ marginBottom: 6 }} /> : null}
-                                        {propCourtResults.length > 0 ? (
-                                            <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 140 }}>
-                                                <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
-                                                    {propCourtResults.map((c) => {
-                                                        const label = c.isBusinessVenue
-                                                            ? (c.venueName || c.name)
-                                                            : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
-                                                        return (
-                                                            <TouchableOpacity
-                                                                key={c.id || label}
-                                                                onPress={() => pickPropCourt(c)}
-                                                                style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
-                                                            >
-                                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
-                                                                    {label}{c.isProVenue ? ' · Pro+' : ''}
-                                                                </Text>
-                                                            </TouchableOpacity>
-                                                        );
-                                                    })}
-                                                </ScrollView>
-                                            </View>
-                                        ) : null}
-                                        <TextInput
-                                            value={propVenue}
-                                            onChangeText={(v) => {
-                                                setPropVenue(v);
-                                                setPropCourtId(null);
-                                                setPropVenueId(null);
-                                                setPropVenueCourtId(null);
-                                                setPropIsProVenue(false);
-                                            }}
-                                            placeholder={t.tournSchedVenuePh || 'Kort / mekan adı'}
-                                            placeholderTextColor="#64748b"
-                                            style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
-                                        />
-                                        {propIsProVenue ? (
-                                            <Text style={{ color: '#4ade80', fontSize: 10, marginBottom: 6, fontWeight: '700' }}>
-                                                {t.tournSchedProVenueHint || 'Pro+ tesis — anlaşınca karttan rezerve edilebilir'}
-                                            </Text>
-                                        ) : null}
-                                    </>
-                                ) : (
-                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6 }}>
-                                        {(t.tournSchedFixedVenue || 'Turnuva kortu')}: {tournament?.location || '—'}
-                                    </Text>
-                                )}
-                                <TextInput
-                                    value={propDate}
-                                    onChangeText={setPropDate}
-                                    placeholder={t.tournSchedDatePh || 'Tarih (YYYY-MM-DD)'}
-                                    placeholderTextColor="#64748b"
-                                    style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
-                                />
-                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                                    <TextInput
-                                        value={propFrom}
-                                        onChangeText={setPropFrom}
-                                        placeholder="10:00"
-                                        placeholderTextColor="#64748b"
-                                        style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }}
-                                    />
-                                    <TextInput
-                                        value={propTo}
-                                        onChangeText={setPropTo}
-                                        placeholder="12:00"
-                                        placeholderTextColor="#64748b"
-                                        style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }}
-                                    />
-                                </View>
-                                <TouchableOpacity
-                                    disabled={saving}
-                                    onPress={submitProposal}
-                                    style={{ backgroundColor: '#7c3aed25', borderWidth: 1, borderColor: '#7c3aed60', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 14 }}
-                                >
-                                    <Text style={{ color: '#c4b5fd', fontWeight: '800', fontSize: 13 }}>
-                                        {t.tournSchedSendPropose || 'Teklif Gönder'}
-                                    </Text>
-                                </TouchableOpacity>
-
-                                {/* Teklif listesi */}
-                                <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
-                                    {t.tournSchedProposals || 'Teklifler'}
-                                </Text>
-                                {proposals.length === 0 ? (
-                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 12 }}>
-                                        {t.tournSchedNoProposals || 'Henüz teklif yok'}
-                                    </Text>
-                                ) : (
-                                    proposals.slice().reverse().map(p => {
-                                        const mine = p.side === mySide;
-                                        return (
-                                            <View key={p.id} style={{
-                                                backgroundColor: '#1e293b',
-                                                borderRadius: 10,
-                                                padding: 10,
-                                                marginBottom: 8,
-                                                borderWidth: 1,
-                                                borderColor: '#334155',
-                                            }}>
-                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                                                    {[p.date, `${p.timeFrom}-${p.timeTo}`, p.venueName].filter(Boolean).join(' · ')}
-                                                    {p.isProVenue ? ' · Pro+' : ''}
-                                                </Text>
-                                                <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }}>
-                                                    {mine ? (t.tournSchedYourProposal || 'Senin teklifin') : (t.tournSchedOppProposal || 'Rakip teklifi')}
-                                                </Text>
-                                                {!mine && (
-                                                    <TouchableOpacity
-                                                        onPress={() => agreeProposal(p.id)}
-                                                        style={{ marginTop: 8, backgroundColor: '#16a34a30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#16a34a50' }}
-                                                    >
-                                                        <Text style={{ color: '#4ade80', fontWeight: '800', fontSize: 12 }}>
-                                                            {t.tournSchedAgreeBtn || '✓ Anlaş'}
-                                                        </Text>
-                                                    </TouchableOpacity>
-                                                )}
-                                            </View>
-                                        );
-                                    })
-                                )}
-                            </View>
-                        )}
+                                    );
+                                })
+                            )}
+                        </View>
 
                         {/* Maç kartı sohbet + talep */}
                         {(iAmSide || isCreator || myIsAdmin) && isReady && (
@@ -1219,13 +985,14 @@ export default function TournamentMatchDetailModal({
                             </View>
                         )}
 
-                        {/* Aynı yer: skor yokken Şuanki Maçı Paylaş → skor girilince Skoru Paylaş */}
+                        {/* Skor yokken Şuanki Maçı Paylaş → skor girilince Skoru Paylaş.
+                            paddingBottom sheetPadBottom + contentContainer insets — alt jest çubuğuyla çakışmasın. */}
                         {canShare && (
                             <TouchableOpacity
                                 onPress={() => setShareOpen(true)}
                                 style={{
                                     marginTop: 4,
-                                    marginBottom: 10,
+                                    marginBottom: Math.max(8, insets.bottom > 0 ? 4 : 16),
                                     backgroundColor: '#7c3aed25',
                                     borderRadius: 10,
                                     paddingVertical: 12,
@@ -1243,6 +1010,329 @@ export default function TournamentMatchDetailModal({
                         )}
                     </ScrollView>
                 </View>
+            </View>
+        </Modal>
+
+        {/* Müsaitlik Bildir — kendi müsaitlik + teklif formu ayrı sheet */}
+        <Modal
+            visible={!!availModalOpen}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setAvailModalOpen(false)}
+            android_keyboardInputMode="adjustNothing"
+        >
+            <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
+                <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={() => setAvailModalOpen(false)} />
+                <KeyboardAvoidingView behavior="padding" style={{ maxHeight: '92%' }}>
+                    <View style={{
+                        backgroundColor: colors.surface || '#0f172a',
+                        borderTopLeftRadius: 20,
+                        borderTopRightRadius: 20,
+                        paddingHorizontal: 14,
+                        paddingTop: 12,
+                        paddingBottom: sheetPadBottom,
+                        borderWidth: 1,
+                        borderColor: '#334155',
+                        maxHeight: '100%',
+                    }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 8 }}>
+                            <Text style={{ color: '#fff', fontSize: moderateScale(15), fontWeight: '800', flex: 1 }}>
+                                {t.tournSchedAvailNotifyBtn || '📅 Müsaitlik Bildir'}
+                            </Text>
+                            <TouchableOpacity onPress={() => setAvailModalOpen(false)} hitSlop={12}>
+                                <Text style={{ color: colors.textMuted, fontSize: 20 }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                        <KeyboardAwareForm
+                            adjustWindow={false}
+                            keyboardShouldPersistTaps="handled"
+                            contentContainerStyle={{ paddingBottom: Math.max(24, insets.bottom + 28) }}
+                        >
+                            <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 10, lineHeight: 15 }}>
+                                {t.tournSchedAvailModalHint || 'Müsait gün/saatlerini ve yer-zaman teklifini buradan bildir. Kaydedince maç detayında görünür.'}
+                            </Text>
+
+                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                {t.tournSchedOppAvail || 'Rakibin müsaitliği'}
+                            </Text>
+                            {oppSlots.length === 0 ? (
+                                <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 10 }}>
+                                    {t.tournSchedOppEmpty || 'Rakip henüz müsaitlik girmedi'}
+                                </Text>
+                            ) : (
+                                <View style={{ marginBottom: 10, gap: 4 }}>
+                                    {oppSlots.map((s, i) => (
+                                        <Text key={i} style={{ color: '#94a3b8', fontSize: 12 }}>
+                                            · {formatSlot(s, lang)}
+                                        </Text>
+                                    ))}
+                                </View>
+                            )}
+                            {playersArrangeCourts ? (
+                                <>
+                                    <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                        {t.tournSchedOppCourts || 'Rakibin tercih ettiği kortlar'}
+                                    </Text>
+                                    {oppPreferredCourts.length === 0 ? (
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 10 }}>
+                                            {t.tournSchedOppCourtsEmpty || 'Rakip henüz kort tercihi girmedi'}
+                                        </Text>
+                                    ) : (
+                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                            {oppPreferredCourts.map((c) => (
+                                                <View
+                                                    key={courtKeyOf(c)}
+                                                    style={{
+                                                        backgroundColor: '#1e293b',
+                                                        borderRadius: 999,
+                                                        paddingHorizontal: 10,
+                                                        paddingVertical: 5,
+                                                        borderWidth: 1,
+                                                        borderColor: '#334155',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                                        {c.name}{c.isProVenue ? ' · Pro+' : ''}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+                                </>
+                            ) : null}
+
+                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                {t.tournSchedMyAvail || 'Müsait gün / saatlerin'}
+                            </Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                {WEEKDAYS.map(d => {
+                                    const active = mySlots.some(s => s.weekday === d.key);
+                                    return (
+                                        <TouchableOpacity
+                                            key={d.key}
+                                            onPress={() => toggleWeekday(d.key)}
+                                            style={{
+                                                paddingHorizontal: 10,
+                                                paddingVertical: 6,
+                                                borderRadius: 8,
+                                                backgroundColor: active ? infoColor : '#1e293b',
+                                                borderWidth: 1,
+                                                borderColor: active ? infoColor : '#334155',
+                                            }}
+                                        >
+                                            <Text style={{ color: active ? '#fff' : '#94a3b8', fontSize: 11, fontWeight: '700' }}>
+                                                {dayLabel(d.key, lang)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                            {mySlots.filter(s => s.weekday != null).map(s => (
+                                <View key={s.weekday} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                    <Text style={{ color: '#94a3b8', width: 36, fontSize: 11, fontWeight: '700' }}>
+                                        {dayLabel(s.weekday, lang)}
+                                    </Text>
+                                    <TextInput
+                                        value={s.timeFrom}
+                                        onChangeText={v => updateSlotTime(s.weekday, 'timeFrom', v)}
+                                        placeholder="09:00"
+                                        placeholderTextColor="#64748b"
+                                        style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
+                                    />
+                                    <TextInput
+                                        value={s.timeTo}
+                                        onChangeText={v => updateSlotTime(s.weekday, 'timeTo', v)}
+                                        placeholder="21:00"
+                                        placeholderTextColor="#64748b"
+                                        style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
+                                    />
+                                </View>
+                            ))}
+
+                            {playersArrangeCourts ? (
+                                <View style={{ marginBottom: 12 }}>
+                                    <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 4 }}>
+                                        {t.tournSchedMyCourts || 'Tercih ettiğim kort / saha / salon'}
+                                    </Text>
+                                    <TextInput
+                                        value={courtQuery}
+                                        onChangeText={setCourtQuery}
+                                        placeholder={t.tournSchedCourtSearchPh || 'Kort / tesis ara…'}
+                                        placeholderTextColor="#64748b"
+                                        style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12, marginBottom: 6 }}
+                                    />
+                                    {courtSearching ? <ActivityIndicator color={infoColor} style={{ marginBottom: 6 }} /> : null}
+                                    {courtResults.length > 0 ? (
+                                        <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 140 }}>
+                                            <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+                                                {courtResults.map((c) => {
+                                                    const label = c.isBusinessVenue
+                                                        ? (c.venueName || c.name)
+                                                        : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={c.id || label}
+                                                            onPress={() => addPreferredCourt(c)}
+                                                            style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
+                                                        >
+                                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                                                                {label}{c.isProVenue ? ' · Pro+' : ''}
+                                                            </Text>
+                                                            {!!c.city && <Text style={{ color: '#64748b', fontSize: 10 }}>{c.city}</Text>}
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </View>
+                                    ) : null}
+                                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                        <TextInput
+                                            value={manualCourtName}
+                                            onChangeText={setManualCourtName}
+                                            placeholder={t.tournSchedCourtManualPh || 'Manuel kort adı'}
+                                            placeholderTextColor="#64748b"
+                                            style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 12 }}
+                                        />
+                                        <TouchableOpacity
+                                            onPress={addManualPreferred}
+                                            style={{ backgroundColor: infoColor + '30', borderRadius: 8, paddingHorizontal: 12, justifyContent: 'center', borderWidth: 1, borderColor: infoColor + '60' }}
+                                        >
+                                            <Text style={{ color: infoColor, fontWeight: '800', fontSize: 12 }}>+</Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                        {myPreferredCourts.map((c) => (
+                                            <TouchableOpacity
+                                                key={courtKeyOf(c)}
+                                                onPress={() => removePreferredCourt(courtKeyOf(c))}
+                                                style={{
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    gap: 4,
+                                                    backgroundColor: infoColor + '22',
+                                                    borderRadius: 999,
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 5,
+                                                    borderWidth: 1,
+                                                    borderColor: infoColor + '55',
+                                                }}
+                                            >
+                                                <Text style={{ color: infoColor, fontSize: 11, fontWeight: '700', maxWidth: 180 }} numberOfLines={1}>
+                                                    {c.name}{c.isProVenue ? ' · Pro+' : ''}
+                                                </Text>
+                                                <Text style={{ color: '#f87171', fontWeight: '900', fontSize: 11 }}>✕</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+                            ) : null}
+
+                            <TouchableOpacity
+                                disabled={saving}
+                                onPress={saveAvailability}
+                                style={{ backgroundColor: infoColor + '25', borderWidth: 1, borderColor: infoColor + '60', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 14, opacity: saving ? 0.6 : 1 }}
+                            >
+                                {saving ? <ActivityIndicator color={infoColor} /> : (
+                                    <Text style={{ color: infoColor, fontWeight: '800', fontSize: 13 }}>
+                                        {t.tournSchedSaveAvail || 'Müsaitliği Kaydet'}
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
+
+                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
+                                {t.tournSchedProposeTitle || 'Yer / zaman teklif et'}
+                            </Text>
+                            {playersArrangeCourts ? (
+                                <>
+                                    <TextInput
+                                        value={propCourtQuery}
+                                        onChangeText={setPropCourtQuery}
+                                        placeholder={t.tournSchedCourtSearchPh || 'Kort / tesis ara…'}
+                                        placeholderTextColor="#64748b"
+                                        style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                                    />
+                                    {propCourtSearching ? <ActivityIndicator color="#c4b5fd" style={{ marginBottom: 6 }} /> : null}
+                                    {propCourtResults.length > 0 ? (
+                                        <View style={{ backgroundColor: '#0f172a', borderRadius: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 8, maxHeight: 140 }}>
+                                            <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled>
+                                                {propCourtResults.map((c) => {
+                                                    const label = c.isBusinessVenue
+                                                        ? (c.venueName || c.name)
+                                                        : ([c.venueName, c.name].filter(Boolean).join(' · ') || c.name);
+                                                    return (
+                                                        <TouchableOpacity
+                                                            key={c.id || label}
+                                                            onPress={() => pickPropCourt(c)}
+                                                            style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1e293b' }}
+                                                        >
+                                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }} numberOfLines={1}>
+                                                                {label}{c.isProVenue ? ' · Pro+' : ''}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    );
+                                                })}
+                                            </ScrollView>
+                                        </View>
+                                    ) : null}
+                                    <TextInput
+                                        value={propVenue}
+                                        onChangeText={(v) => {
+                                            setPropVenue(v);
+                                            setPropCourtId(null);
+                                            setPropVenueId(null);
+                                            setPropVenueCourtId(null);
+                                            setPropIsProVenue(false);
+                                        }}
+                                        placeholder={t.tournSchedVenuePh || 'Kort / mekan adı'}
+                                        placeholderTextColor="#64748b"
+                                        style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                                    />
+                                    {propIsProVenue ? (
+                                        <Text style={{ color: '#4ade80', fontSize: 10, marginBottom: 6, fontWeight: '700' }}>
+                                            {t.tournSchedProVenueHint || 'Pro+ tesis — anlaşınca karttan rezerve edilebilir'}
+                                        </Text>
+                                    ) : null}
+                                </>
+                            ) : (
+                                <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6 }}>
+                                    {(t.tournSchedFixedVenue || 'Turnuva kortu')}: {tournament?.location || '—'}
+                                </Text>
+                            )}
+                            <TextInput
+                                value={propDate}
+                                onChangeText={setPropDate}
+                                placeholder={t.tournSchedDatePh || 'Tarih (YYYY-MM-DD)'}
+                                placeholderTextColor="#64748b"
+                                style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
+                            />
+                            <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                <TextInput
+                                    value={propFrom}
+                                    onChangeText={setPropFrom}
+                                    placeholder="10:00"
+                                    placeholderTextColor="#64748b"
+                                    style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }}
+                                />
+                                <TextInput
+                                    value={propTo}
+                                    onChangeText={setPropTo}
+                                    placeholder="12:00"
+                                    placeholderTextColor="#64748b"
+                                    style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', fontSize: 13 }}
+                                />
+                            </View>
+                            <TouchableOpacity
+                                disabled={saving}
+                                onPress={submitProposal}
+                                style={{ backgroundColor: '#7c3aed25', borderWidth: 1, borderColor: '#7c3aed60', borderRadius: 10, paddingVertical: 10, alignItems: 'center', marginBottom: 8 }}
+                            >
+                                <Text style={{ color: '#c4b5fd', fontWeight: '800', fontSize: 13 }}>
+                                    {t.tournSchedSendPropose || 'Teklif Gönder'}
+                                </Text>
+                            </TouchableOpacity>
+                        </KeyboardAwareForm>
+                    </View>
+                </KeyboardAvoidingView>
             </View>
         </Modal>
 

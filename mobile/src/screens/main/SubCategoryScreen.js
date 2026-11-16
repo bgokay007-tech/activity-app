@@ -38,7 +38,6 @@ import { NEW_VISUAL } from '../../theme/visual';
 import { moderateScale, touchSize } from '../../theme/scale';
 import TournamentMatchDetailModal from '../../components/TournamentMatchDetailModal';
 import TournamentAvailabilityPanel from '../../components/TournamentAvailabilityPanel';
-import { buildMatchCardScheduleLines } from '../../utils/tournamentMatchCardSchedule';
 import useT from '../../hooks/useT';
 import CityPickerModal from '../../components/CityPickerModal';
 import MentionCaptionInput, { renderMentionText } from '../../components/MentionCaptionInput';
@@ -20207,20 +20206,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </View>
                                     </View>
                                 )}
-                                {buildMatchCardScheduleLines(match.scheduleData, {
-                                    p1Name: match.p1Name,
-                                    p2Name: match.p2Name,
-                                    lang: t.lang || 'tr',
-                                    t,
-                                }).map((line, idx) => (
-                                    <Text
-                                        key={`${match.id}-sched-${idx}`}
-                                        style={{ color: line.color, fontSize: 9, fontWeight: '700', marginTop: idx === 0 ? 4 : 2 }}
-                                        numberOfLines={2}
-                                    >
-                                        {line.text}
-                                    </Text>
-                                ))}
+                                {/* Müsaitlik/teklif tur kartında yazılmaz — maç detayında */}
                             </TouchableOpacity>
                         );
                     };
@@ -20921,20 +20907,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             </View>
                                                         </View>
                                                     )}
-                                                    {buildMatchCardScheduleLines(match.scheduleData, {
-                                                        p1Name: match.p1Name,
-                                                        p2Name: match.p2Name,
-                                                        lang: t.lang || 'tr',
-                                                        t,
-                                                    }).map((line, idx) => (
-                                                        <Text
-                                                            key={`${match.id}-gsched-${idx}`}
-                                                            style={{ color: line.color, fontSize: 8, fontWeight: '700', marginTop: idx === 0 ? 3 : 1 }}
-                                                            numberOfLines={2}
-                                                        >
-                                                            {line.text}
-                                                        </Text>
-                                                    ))}
+                                                    {/* Müsaitlik/teklif tur kartında yazılmaz — maç detayında */}
                                                         </View>
                                                 </TouchableOpacity>
                                             );
