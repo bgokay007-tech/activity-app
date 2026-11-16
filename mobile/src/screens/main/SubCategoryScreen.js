@@ -24450,17 +24450,18 @@ function getSpotlightMeta(sub, cfg, t) {
     return { title: t[row.title], emoji: row.emoji, comingSoon: t[row.soon] };
 }
 
-// Digimon otomatik açmayı kapatma tercihi — spor dalına özel (teniste tik = sadece tenis).
+// Digimon otomatik açma tercihi — spor dalına özel (teniste kapat = sadece tenis).
 const spotlightSkipAutoKey = (sub) => `${sub}_spotlight_skip_auto`;
+const spotlightShownKey = (sub) => `${sub}_spotlight_shown`;
 
 function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
-        const t = useT();
-const insets = useSafeAreaInsets();
+    const t = useT();
+    const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
-    // Kullanıcı isteği: "Ben kendim bakarım" — sadece BU dalda otomatik açılmaz;
-    // diğer sporlarda hâlâ otomatik açılabilir. Header'daki 🃏 ile elle bakılabilir.
+    // Tik = bu dalda otomatik açma KAPALI. Kaldırınca (otomatik açmayı seçince)
+    // o dalda yine otomatik açılır. Header 🃏 ile her zaman elle bakılabilir.
     const [skipAuto, setSkipAuto] = useState(false);
     const meta = getSpotlightMeta(sub, cfg, t);
 
@@ -24477,12 +24478,19 @@ const insets = useSafeAreaInsets();
             .finally(() => setLoading(false));
     }, [visible, sub]);
 
-    const toggleSkipAuto = () => {
+    const toggleSkipAuto = async () => {
         const next = !skipAuto;
         setSkipAuto(next);
-        AsyncStorage.setItem(spotlightSkipAutoKey(sub), next ? '1' : '0').catch(() => {});
-        // Eski global anahtar varsa temizle — tercih artık dal başına.
-        AsyncStorage.removeItem('spotlight_skip_auto').catch(() => {});
+        try {
+            await AsyncStorage.setItem(spotlightSkipAutoKey(sub), next ? '1' : '0');
+            // Eski global anahtar — digimon'u tüm dallardan "kaldırmış" gibi hissediliyordu.
+            await AsyncStorage.removeItem('spotlight_skip_auto');
+            if (!next) {
+                // Otomatik açmayı yeniden seçti → günlük sayacı sıfırla; sonraki girişte açılsın.
+                const today = new Date().toISOString().slice(0, 10);
+                await AsyncStorage.setItem(spotlightShownKey(sub), JSON.stringify({ date: today, count: 0 }));
+            }
+        } catch { /* ignore */ }
     };
 
     return (
@@ -24519,7 +24527,11 @@ const insets = useSafeAreaInsets();
                     <View style={[spot.skipBox, skipAuto && spot.skipBoxOn]}>
                         {skipAuto ? <Text style={spot.skipMark}>✓</Text> : null}
                     </View>
-                    <Text style={spot.skipLabel}>{t.sc_spot_skip_auto || 'Ben kendim bakarım — otomatik açma'}</Text>
+                    <Text style={spot.skipLabel}>
+                        {skipAuto
+                            ? (t.sc_spot_enable_auto || 'Bu dalda otomatik açmayı aç')
+                            : (t.sc_spot_skip_auto || 'Bu dalda bir daha otomatik açma')}
+                    </Text>
                 </TouchableOpacity>
                 <View style={spot.actions}>
                     <TouchableOpacity style={spot.actionBtn} onPress={() => setFlipped(v => !v)}>
@@ -25007,8 +25019,9 @@ function SubCategoryScreen({ route, navigation }) {
         navigation.setParams({ openCreateRival: undefined });
     }, [openCreateRival]);
 
-    // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster —
-    // kullanıcı "Ben kendim bakarım" işaretlediyse sadece O dalda bir daha otomatik açılmaz.
+    // Digimon kart (Günün Yıldızı) — dala her girişte otomatik açılır (günde ≤3).
+    // Kullanıcı kartta "bu dalda bir daha otomatik açma" seçerse sadece O dalda kapanır;
+    // tekrar "otomatik açmayı aç" derse o dalda yeniden açılır. Kart kaldırılmaz (🃏 hep var).
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
     const [showSportGuide, setShowSportGuide] = useState(false);
@@ -25041,14 +25054,15 @@ function SubCategoryScreen({ route, navigation }) {
         AsyncStorage.getItem('activity_data_saver').then(v => setDataSaverMode(v === 'true')).catch(() => {});
     }, []));
     useEffect(() => {
-        if (sub !== 'tennis' && sub !== 'padel' && sub !== 'pickleball' && sub !== 'squash' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
         let cancelled = false;
         (async () => {
             try {
+                // Eski global anahtar digimon'u tüm dallardan kaldırmış gibiydi — sil.
+                AsyncStorage.removeItem('spotlight_skip_auto').catch(() => {});
                 const skip = await AsyncStorage.getItem(spotlightSkipAutoKey(sub));
                 if (cancelled || skip === '1') return;
                 const today = new Date().toISOString().slice(0, 10);
-                const storageKey = `${sub}_spotlight_shown`;
+                const storageKey = spotlightShownKey(sub);
                 const raw = await AsyncStorage.getItem(storageKey);
                 let { date, count } = raw ? JSON.parse(raw) : { date: today, count: 0 };
                 if (date !== today) { date = today; count = 0; }
