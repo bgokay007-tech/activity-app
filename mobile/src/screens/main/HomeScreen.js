@@ -198,7 +198,10 @@ export default function HomeScreen({ navigation }) {
     const [myMatches, setMyMatches] = useState([]);
     // Aktif katıldığım (ACCEPTED) devam eden turnuvalar — açık ilanların üstünde.
     const [myOngoingTournaments, setMyOngoingTournaments] = useState([]);
+    // Benim açtığım OPEN/POLL turnuvalar — "Katıldığın…" listesinde (şehir filtresiz).
+    const [myOpenCreated, setMyOpenCreated] = useState([]);
     const [nowTick, setNowTick] = useState(0);
+    // Sadece diğer kullanıcıların açık ilanları (seçili konum).
     const [openListings, setOpenListings] = useState([]);
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [listingsLoading, setListingsLoading] = useState(false);
@@ -220,21 +223,31 @@ export default function HomeScreen({ navigation }) {
                 .filter(tn => String(tn?.status || '') === 'IN_PROGRESS' && isMyAcceptedTournament(tn, myId))
                 .map(mapOpenTournament),
         );
+        // Benim açtığım açık turnuvalar → Katıldığın listesi (konumdan bağımsız).
+        setMyOpenCreated(
+            allTournaments
+                .filter(tn => ['OPEN', 'POLL'].includes(String(tn?.status || '')))
+                .filter(tn => isOwnListing(tn, myId))
+                .filter(tn => mySubs.size === 0 || mySubs.has(tn.subCategory))
+                .map(mapOpenTournament),
+        );
         if (mySubs.size === 0) {
             setOpenListings([]);
             return;
         }
+        // Açık ilanlar: sadece diğer kullanıcılar + seçili konum.
         const rivals = asList(rivalsRes).filter(r => {
+            if (isOwnListing(r, myId)) return false;
             if (!listingInCity(r, resolvedCity)) return false;
             return mySubs.has(r.subCategory);
         });
         const tournaments = allTournaments
             .filter(tn => ['OPEN', 'POLL'].includes(String(tn?.status || '')))
+            .filter(tn => !isOwnListing(tn, myId))
             .filter(tn => mySubs.has(tn.subCategory))
             .filter(tn => tournamentInCity(tn, resolvedCity))
             .map(mapOpenTournament);
-        const pool = [...rivals, ...tournaments];
-        setOpenListings(pool.filter(r => !isOwnListing(r, myId)).concat(pool.filter(r => isOwnListing(r, myId))));
+        setOpenListings([...rivals, ...tournaments]);
     }, []);
 
     useFocusEffect(useCallback(() => {
@@ -280,14 +293,18 @@ export default function HomeScreen({ navigation }) {
             if (!updated?.id || updated.matchType === 'PLAYER_WANTED') return;
             if (!mySubs.has(updated.subCategory)) return;
             if (!listingInCity(updated, city)) return;
+            // Kendi ilanım açık listede değil (Katıldığın'da / my-upcoming).
+            if (isOwnListing(updated, myId)) {
+                setOpenListings(prev => prev.filter(r => r.id !== updated.id));
+                return;
+            }
             setOpenListings(prev => {
                 if (updated.status === 'MATCHED' || updated.status === 'CANCELLED') {
                     return prev.filter(r => r.id !== updated.id);
                 }
                 const exists = prev.some(r => r.id === updated.id);
                 if (exists) return prev.map(r => r.id === updated.id ? { ...r, ...updated } : r);
-                const next = [updated, ...prev];
-                return next.filter(r => !isOwnListing(r, myId)).concat(next.filter(r => isOwnListing(r, myId)));
+                return [updated, ...prev];
             });
         });
         const offDel = onSocket('rivalDeleted', ({ rivalId }) => {
@@ -409,10 +426,21 @@ export default function HomeScreen({ navigation }) {
             if (aPlaying !== bPlaying) return aPlaying - bPlaying;
             return (matchStartDate(a)?.getTime() || Infinity) - (matchStartDate(b)?.getTime() || Infinity);
         });
-    // Devam eden turnuvalar önce, sonra maçlar — açık ilanların üstünde.
-    const joinedLive = [...(myOngoingTournaments || []), ...joinedMatches];
+    // Devam eden turnuvalar → benim açtığım açık turnuvalar → katıldığım/kendi maçlarım.
+    // Kendi açık rival ilanlarım my-upcoming üzerinden joinedMatches'te.
+    const joinedLive = (() => {
+        const seen = new Set();
+        const out = [];
+        for (const item of [...(myOngoingTournaments || []), ...(myOpenCreated || []), ...joinedMatches]) {
+            if (!item?.id || seen.has(item.id)) continue;
+            seen.add(item.id);
+            out.push(item);
+        }
+        return out;
+    })();
     const joinedIds = new Set(joinedLive.map(m => m.id));
-    const openOnly = (openListings || []).filter(item => !joinedIds.has(item.id));
+    // Açık ilanlar zaten sadece başkaları; yine de katıldığınla çakışmasın.
+    const openOnly = (openListings || []).filter(item => !joinedIds.has(item.id) && !isOwnListing(item, user?.id));
 
     return (
         <View style={s.container}>
@@ -465,12 +493,21 @@ export default function HomeScreen({ navigation }) {
                         </Text>
                         {joinedLive.slice(0, 12).map(item => {
                             const isTourn = item.kind === 'tournament';
+                            const mineOpen = isOwnListing(item, user?.id) && (
+                                isTourn
+                                    ? ['OPEN', 'POLL'].includes(String(item.status || ''))
+                                    : String(item.status || '') === 'OPEN'
+                            );
                             const playing = !isTourn && matchHasStarted(item, now) && !matchHasEnded(item, now);
                             const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
                             const meta = isTourn ? null : listingMeta(item);
                             const kicker = isTourn
-                                ? (t.homeOngoingTournamentKicker || t.homeJoinedKicker)
-                                : (playing ? t.featuredNowPlaying : t.homeJoinedKicker);
+                                ? (mineOpen
+                                    ? (t.yourTournament || t.yourListing)
+                                    : (t.homeOngoingTournamentKicker || t.homeJoinedKicker))
+                                : (playing
+                                    ? t.featuredNowPlaying
+                                    : (mineOpen ? t.yourListing : t.homeJoinedKicker));
                             const title = isTourn
                                 ? (item.name || getSubCategoryLabel(item.subCategory, lang))
                                 : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
@@ -478,7 +515,7 @@ export default function HomeScreen({ navigation }) {
                                 <TouchableOpacity key={`joined-${isTourn ? 't' : 'r'}-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
                                     <Image source={photo} style={nv.rowImg} resizeMode="cover" />
                                     <View style={nv.rowBody}>
-                                        <Text style={[nv.rowKicker, { color: (isTourn || playing) ? '#4ade80' : colors.purple }]}>
+                                        <Text style={[nv.rowKicker, { color: (isTourn || playing) ? '#4ade80' : (mineOpen ? colors.purple : colors.purple) }]}>
                                             {kicker}
                                         </Text>
                                         <Text style={nv.rowTitle} numberOfLines={1}>{title}</Text>
@@ -525,14 +562,14 @@ export default function HomeScreen({ navigation }) {
                     </View>
                 ) : (
                     openOnly.slice(0, 12).map(item => {
-                        const mine = isOwnListing(item, user?.id);
                         const isTourn = item.kind === 'tournament';
                         // Kullanıcı isteği: Nashira toprak → clay foto; zemin belirsiz turnuva → yarı yarıya
                         const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
                         const meta = isTourn ? null : listingMeta(item);
+                        // Bu listede artık sadece diğer kullanıcıların ilanları var.
                         const kicker = isTourn
-                            ? (mine ? (t.yourTournament || t.yourListing) : (t.nearbyTournament || t.nearbyListing))
-                            : (mine ? t.yourListing : t.nearbyListing);
+                            ? (t.nearbyTournament || t.nearbyListing)
+                            : t.nearbyListing;
                         const title = isTourn
                             ? (item.name || getSubCategoryLabel(item.subCategory, lang))
                             : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;

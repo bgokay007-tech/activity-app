@@ -7580,15 +7580,17 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         // buraya hiç dahil edilmiyordu — kabul ettikleri bir maç kendi "Yaklaşan Maçlar"
         // listelerinde hiç görünmüyordu, dolayısıyla maçtan ayrılma/skor girme gibi hiçbir
         // aksiyonu da göremiyorlardı. Atanmamış/yedek oyuncular da katılmış sayılır.
-        // OPEN: sadece kadroya gerçekten girmiş olanlar (kurucunun kendi açık ilanı hariç —
-        // o zaten ana sayfa "Senin ilanın"da). MATCHED: kurucu + kadro.
+        // Kullanıcı isteği: kurucunun kendi OPEN ilanı da "Katıldığın maçlar ve aktiviteler"de
+        // görünsün; ana sayfa "Açık ilanlar" yalnızca diğer kullanıcıların (seçili konum) ilanları.
+        // MATCHED: kurucu + kadro. OPEN: kurucu VEYA kadroya girmiş olanlar.
         const mine = all.filter(r => {
             if (schedExpiredIds.has(r.id)) return false;
             if (r.status === 'MATCHED') {
                 if (r.senderId === myId) return true;
                 return inRoster(r);
             }
-            // OPEN — katılım sağladığı aktiviteler
+            // OPEN — kendi açtığım ilan veya katıldığım aktivite
+            if (r.senderId === myId) return true;
             return inRoster(r);
         });
 
