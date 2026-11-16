@@ -301,7 +301,7 @@ const SPORT_GUIDES = {
                 tips: [
                     L('Phase 1 Preparation · 2 Contact out front · 3 Follow-through', '1 Hazırlık · 2 Önde temas · 3 Bitiş', '1 Замах · 2 Контакт впереди · 3 Проводка', '1 Aushol · 2 Treffpunkt vorne · 3 Ausschwung'),
                 ],
-                imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Tennis_forehand_by_random_dave.jpeg/640px-Tennis_forehand_by_random_dave.jpeg',
+                imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/99/Tennis_forehand_by_random_dave.jpeg',
                 imageCredit: L('Photo: Ben Lancaster / CC BY 2.0 (Wikimedia)', 'Foto: Ben Lancaster / CC BY 2.0 (Wikimedia)', 'Фото: Ben Lancaster / CC BY 2.0 (Wikimedia)', 'Foto: Ben Lancaster / CC BY 2.0 (Wikimedia)'),
             },
             {
@@ -313,7 +313,7 @@ const SPORT_GUIDES = {
                     'Beidhändiger Drive vs. einhändiger Slice. Treffpunkt vorne.'
                 ),
                 diagram: 'stroke_backhand',
-                imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Andy_Murray_Backhand.jpg/640px-Andy_Murray_Backhand.jpg',
+                imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/4/4e/Andy_Murray_Backhand.jpg',
                 imageCredit: L('Photo: Wikimedia Commons (see file page for license)', 'Foto: Wikimedia Commons (lisans için dosya sayfası)', 'Фото: Wikimedia Commons (лицензия на странице файла)', 'Foto: Wikimedia Commons (Lizenz auf der Dateiseite)'),
             },
             {
