@@ -24488,9 +24488,31 @@ function getSpotlightMeta(sub, cfg, t) {
     return { title: t[row.title], emoji: row.emoji, comingSoon: t[row.soon] };
 }
 
-// Digimon otomatik açma tercihi — spor dalına özel (teniste kapat = sadece tenis).
+// Digimon otomatik açma tercihi — spor dalına özel (tik = sadece o dalda otomatik açma).
 const spotlightSkipAutoKey = (sub) => `${sub}_spotlight_skip_auto`;
 const spotlightShownKey = (sub) => `${sub}_spotlight_shown`;
+// Eski global/tenis takılı kalmış skip + günlük sayaç — bir kez temizle, digimon yine çıksın.
+const SPOTLIGHT_PREFS_RESET_KEY = 'spotlight_prefs_reset_v2';
+let spotlightPrefsResetPromise = null;
+function ensureSpotlightPrefsReset() {
+    if (!spotlightPrefsResetPromise) {
+        spotlightPrefsResetPromise = (async () => {
+            try {
+                const done = await AsyncStorage.getItem(SPOTLIGHT_PREFS_RESET_KEY);
+                if (done === '1') return;
+                const keys = await AsyncStorage.getAllKeys();
+                const stale = (keys || []).filter(k =>
+                    k === 'spotlight_skip_auto'
+                    || k.endsWith('_spotlight_skip_auto')
+                    || k.endsWith('_spotlight_shown')
+                );
+                if (stale.length) await AsyncStorage.multiRemove(stale);
+                await AsyncStorage.setItem(SPOTLIGHT_PREFS_RESET_KEY, '1');
+            } catch { /* ignore */ }
+        })();
+    }
+    return spotlightPrefsResetPromise;
+}
 
 function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
     const t = useT();
@@ -24498,8 +24520,8 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
-    // Tik = bu dalda otomatik açma KAPALI. Kaldırınca (otomatik açmayı seçince)
-    // o dalda yine otomatik açılır. Header 🃏 ile her zaman elle bakılabilir.
+    // Tik = "Bu sporda otomatik açma" → o dalda bir daha otomatik açılmaz.
+    // Tik yok = digimon dala girince çıkar. Header 🃏 ile her zaman elle bakılır.
     const [skipAuto, setSkipAuto] = useState(false);
     const meta = getSpotlightMeta(sub, cfg, t);
 
@@ -24507,9 +24529,13 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
         if (!visible) return;
         setFlipped(false);
         setLoading(true);
-        AsyncStorage.getItem(spotlightSkipAutoKey(sub))
-            .then(v => setSkipAuto(v === '1'))
-            .catch(() => setSkipAuto(false));
+        (async () => {
+            await ensureSpotlightPrefsReset();
+            try {
+                const v = await AsyncStorage.getItem(spotlightSkipAutoKey(sub));
+                setSkipAuto(v === '1');
+            } catch { setSkipAuto(false); }
+        })();
         api.get('/spotlight/daily', { params: { subCategory: sub } })
             .then(res => setData(res.data))
             .catch(() => setData(null))
@@ -24521,10 +24547,9 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
         setSkipAuto(next);
         try {
             await AsyncStorage.setItem(spotlightSkipAutoKey(sub), next ? '1' : '0');
-            // Eski global anahtar — digimon'u tüm dallardan "kaldırmış" gibi hissediliyordu.
             await AsyncStorage.removeItem('spotlight_skip_auto');
             if (!next) {
-                // Otomatik açmayı yeniden seçti → günlük sayacı sıfırla; sonraki girişte açılsın.
+                // Tik kaldırıldı → bu dalda yine otomatik açılsın.
                 const today = new Date().toISOString().slice(0, 10);
                 await AsyncStorage.setItem(spotlightShownKey(sub), JSON.stringify({ date: today, count: 0 }));
             }
@@ -24565,11 +24590,7 @@ function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
                     <View style={[spot.skipBox, skipAuto && spot.skipBoxOn]}>
                         {skipAuto ? <Text style={spot.skipMark}>✓</Text> : null}
                     </View>
-                    <Text style={spot.skipLabel}>
-                        {skipAuto
-                            ? (t.sc_spot_enable_auto || 'Bu dalda otomatik açmayı aç')
-                            : (t.sc_spot_skip_auto || 'Bu dalda bir daha otomatik açma')}
-                    </Text>
+                    <Text style={spot.skipLabel}>{t.sc_spot_skip_auto || 'Bu sporda otomatik açma'}</Text>
                 </TouchableOpacity>
                 <View style={spot.actions}>
                     <TouchableOpacity style={spot.actionBtn} onPress={() => setFlipped(v => !v)}>
@@ -25057,9 +25078,8 @@ function SubCategoryScreen({ route, navigation }) {
         navigation.setParams({ openCreateRival: undefined });
     }, [openCreateRival]);
 
-    // Digimon kart (Günün Yıldızı) — dala her girişte otomatik açılır (günde ≤3).
-    // Kullanıcı kartta "bu dalda bir daha otomatik açma" seçerse sadece O dalda kapanır;
-    // tekrar "otomatik açmayı aç" derse o dalda yeniden açılır. Kart kaldırılmaz (🃏 hep var).
+    // Digimon kart — dala girince otomatik çıkar (günde ≤3). Altındaki tik
+    // "Bu sporda otomatik açma" işaretlenirse sadece O dalda bir daha otomatik açılmaz.
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
     const [showSportGuide, setShowSportGuide] = useState(false);
@@ -25095,8 +25115,10 @@ function SubCategoryScreen({ route, navigation }) {
         let cancelled = false;
         (async () => {
             try {
-                // Eski global anahtar digimon'u tüm dallardan kaldırmış gibiydi — sil.
-                AsyncStorage.removeItem('spotlight_skip_auto').catch(() => {});
+                // Teniste takılı kalan skip / dolmuş günlük sayaç diğer dallarda yoktu —
+                // bir kez temizle, digimon yine çıksın.
+                await ensureSpotlightPrefsReset();
+                if (cancelled) return;
                 const skip = await AsyncStorage.getItem(spotlightSkipAutoKey(sub));
                 if (cancelled || skip === '1') return;
                 const today = new Date().toISOString().slice(0, 10);
