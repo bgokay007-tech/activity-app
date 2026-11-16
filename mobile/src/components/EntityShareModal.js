@@ -165,6 +165,7 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
 
       var lines=${JSON.stringify(p.lines||[])};
       var teams=${JSON.stringify(p.teams||null)};
+      var standingsTable=${JSON.stringify(p.standingsTable||null)};
       if(priceLabel) lines=lines.filter(function(ln){ return ln.indexOf(priceLabel)<0; });
       // Takım kartları — kim kiminle + isim yanında format ELO (tekli/çiftler)
       if(teams && teams.leftRoster && teams.rightRoster){
@@ -196,21 +197,83 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
           return s.indexOf('🟢')<0 && s.indexOf('🔴')<0;
         });
       }
+
+      // Puan tablosu varsa altta ayrı kutu için yer ayır
+      var hasStandings=!!(standingsTable && standingsTable.rows && standingsTable.rows.length);
+      var stRowCount=hasStandings ? Math.min(standingsTable.rows.length, 16) : 0;
+      var stRowH=hasStandings ? (stRowCount>12?30:stRowCount>8?34:38) : 0;
+      var stBoxH=hasStandings ? (52 + 36 + stRowCount*stRowH + 28) : 0;
+      var infoFloor=hasStandings ? (1710 - stBoxH - 28) : 1680;
+
       if(lines.length){
-        // Turnuva gibi uzun listelerde satır boyutu küçültülür — CTA'nın üstüne taşmasın
-        var lineSize=lines.length>10?26:lines.length>7?30:34;
-        var lineStep=lines.length>10?32:lines.length>7?38:44;
-        var boxPad=lines.length>10?28:44;
-        var estH=boxPad+lines.length*(lineStep+6)+boxPad;
-        roundRect(56, ny-36, W-112, Math.max(120, Math.min(estH, 1710-(ny-36)-24)), 28);
+        // Turnuva gibi uzun listelerde satır boyutu küçültülür — CTA / puan tablosu üstüne taşmasın
+        var denser=hasStandings || lines.length>10;
+        var lineSize=denser?(lines.length>12?22:26):lines.length>7?30:34;
+        var lineStep=denser?(lines.length>12?28:32):lines.length>7?38:44;
+        var boxPad=denser?22:44;
+        var estH=boxPad+lines.length*(lineStep+4)+boxPad;
+        var boxTop=ny-28;
+        var maxInfoH=Math.max(80, infoFloor-boxTop);
+        roundRect(56, boxTop, W-112, Math.max(100, Math.min(estH, maxInfoH)), 28);
         ctx.fillStyle='rgba(22,24,31,0.78)'; ctx.fill();
         ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=2; ctx.stroke();
         lines.forEach(function(ln){
-          if(ny>1680) return;
+          if(ny>infoFloor-16) return;
           var wl=wrap(ln, 900, lineSize);
           wl.slice(0,2).forEach(function(w){ text(w, 540, ny, lineSize, '#E7E5E4', 'center', '700'); ny+=lineStep; });
-          ny+=4;
+          ny+=3;
         });
+      }
+
+      // Ayrı border: puan tablosu (O/G/B/M/Av/P) — altta, CTA üstünde
+      if(hasStandings){
+        var stTop=Math.max(ny+18, infoFloor - stBoxH + 8);
+        if(stTop + stBoxH > 1700) stTop=1700-stBoxH;
+        roundRect(56, stTop, W-112, stBoxH, 28);
+        ctx.fillStyle='rgba(15,23,42,0.88)'; ctx.fill();
+        ctx.strokeStyle='rgba(200,245,74,0.45)'; ctx.lineWidth=3; ctx.stroke();
+
+        var hdr=standingsTable.headers||{};
+        var colX=[80, 150, 620, 700, 780, 860, 940, 1020];
+        var sy=stTop+40;
+        text(standingsTable.title||'', 540, sy, 26, '#C8F54A', 'center', '900');
+        sy+=36;
+        ctx.font='800 22px sans-serif';
+        text('#', colX[0], sy, 22, '#94A3B8', 'center', '800');
+        text(hdr.player||'', colX[1]+8, sy, 22, '#94A3B8', 'left', '800');
+        text(hdr.played||'P', colX[2], sy, 22, '#94A3B8', 'center', '800');
+        text(hdr.won||'W', colX[3], sy, 22, '#94A3B8', 'center', '800');
+        text(hdr.drawn||'D', colX[4], sy, 22, '#94A3B8', 'center', '800');
+        text(hdr.lost||'L', colX[5], sy, 22, '#94A3B8', 'center', '800');
+        text(hdr.avg||'Av', colX[6], sy, 22, '#94A3B8', 'center', '800');
+        text(hdr.pts||'P', colX[7], sy, 22, '#4ade80', 'center', '800');
+        sy+=8;
+        ctx.strokeStyle='rgba(148,163,184,0.35)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(72, sy); ctx.lineTo(W-72, sy); ctx.stroke();
+        sy+=stRowH-4;
+
+        var nameMaxW=colX[2]-colX[1]-24;
+        for(var ri=0; ri<stRowCount; ri++){
+          var row=standingsTable.rows[ri];
+          if(!row) continue;
+          var rowFs=stRowCount>12?20:22;
+          text(String(row.rank), colX[0], sy, rowFs, '#F4F1EA', 'center', '800');
+          ctx.font='700 '+rowFs+'px sans-serif';
+          var nm=String(row.name||'');
+          while(nm.length>3 && ctx.measureText(nm).width>nameMaxW) nm=nm.slice(0,-1);
+          if(nm!==String(row.name||'') && nm.length) nm=nm.slice(0,-1)+'…';
+          text(nm, colX[1]+8, sy, rowFs, '#F4F1EA', 'left', '700');
+          text(String(row.played), colX[2], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.won), colX[3], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.drawn), colX[4], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.lost), colX[5], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.avg), colX[6], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.points), colX[7], sy, rowFs, '#4ade80', 'center', '900');
+          sy+=stRowH;
+        }
+        if(standingsTable.rows.length>stRowCount){
+          text('… +'+(standingsTable.rows.length-stRowCount), 540, sy-4, 20, '#94A3B8', 'center', '700');
+        }
       }
 
       roundRect(180, 1715, 720, 92, 46);

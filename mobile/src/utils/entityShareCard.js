@@ -193,75 +193,41 @@ function fmtTournDateTime(d, tm, lang) {
     return tm ? `${base} ${tm}` : base;
 }
 
-/**
- * Puan tablosundan paylaşım: isim + konum + tür + derece kısıtlaması (+ sıra özeti).
- */
-function buildTournamentStandings(tournament, t, lang, standings = []) {
-    const { sport, emoji } = sportMeta(tournament.subCategory, lang);
-    const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
-    const intro = t?.shareTournamentStandingsIntro || 'Tournament standings';
-    const name = tournament.name || sport;
-    const badge = t?.shareEntityBadgeStandings
-        || (lang === 'tr' ? 'PUAN TABLOSU' : lang === 'ru' ? 'ТАБЛИЦА' : lang === 'de' ? 'TABELLE' : 'STANDINGS');
-    const lines = [];
-
-    const format = tournFormatLabel(tournament, t);
-    if (format) lines.push(`🏆 ${format}`);
-
-    const loc = tournLocationLine(tournament, t);
-    if (loc) lines.push(loc);
-
-    const rating = tournRatingRestrictionLine(tournament);
-    if (rating) lines.push(rating);
-
-    const rows = Array.isArray(standings) ? standings : [];
-    if (rows.length) {
-        lines.push(`📊 ${t?.sc_0429 || 'Standings'}`);
-        rows.slice(0, 12).forEach((row, i) => {
-            const nm = row?.name || row?.fullName || row?.username || '?';
-            const pts = row?.points != null ? row.points : '';
-            lines.push(`${i + 1}. ${nm}${pts !== '' ? ` · ${pts}` : ''}`);
-        });
-        if (rows.length > 12) lines.push(`… +${rows.length - 12}`);
-    }
-
-    const message = [`${intro} 🏆 ${name}`.trim(), ...lines, url].filter(Boolean).join('\n');
-    const sf = String(tournament.surface || '').toUpperCase();
+/** Uygulamadaki puan tablosu satırı — O/G/B/M/Av/P. */
+function buildStandingsTable(standings, t) {
+    const headers = {
+        player: t?.sc_0434 || 'Player',
+        played: t?.sc_st_played || 'P',
+        won: t?.sc_st_won || 'W',
+        drawn: t?.sc_st_draw || 'D',
+        lost: t?.sc_st_lost || 'L',
+        avg: t?.sc_st_avg || 'Avg',
+        pts: t?.sc_st_pts || 'Pts',
+    };
+    const rows = (Array.isArray(standings) ? standings : []).map((row, i) => {
+        const gw = Number(row?.gamesWon) || 0;
+        const gl = Number(row?.gamesLost) || 0;
+        const tot = gw + gl;
+        return {
+            rank: i + 1,
+            name: row?.name || row?.fullName || row?.username || '?',
+            played: row?.played ?? 0,
+            won: row?.won ?? 0,
+            drawn: row?.drawn ?? 0,
+            lost: row?.lost ?? 0,
+            avg: tot === 0 ? '-' : `${Math.round((gw / tot) * 100)}%`,
+            points: row?.points ?? 0,
+        };
+    });
     return {
-        kind: 'tournament',
-        id: tournament.id,
-        url,
-        title: name,
-        badge,
-        emoji: '🏆',
-        sport: `${emoji} ${sport}`.trim(),
-        lines: [intro, ...lines],
-        message,
-        ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
-        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
-        brandColors: BRAND_LETTER_COLORS,
-        bgPlayersDecide: sf === 'PLAYERS_DECIDE',
-        ...shareMeta(tournament),
+        title: t?.sc_0429 || 'Standings',
+        headers,
+        rows,
     };
 }
 
-/**
- * Turnuva paylaşımı: ilan kartındaki bilgiler (EFT IBAN + turnuva kuralları HARİÇ).
- * PLAYERS_DECIDE zeminde kart arka planı yarı sert / yarı toprak olur (EntityShareModal).
- * options.mode === 'standings' → puan tablosu odaklı kısa kart.
- */
-function buildTournament(tournament, t, lang, options = {}) {
-    const standingsMode = options?.mode === 'standings' || tournament?._shareMode === 'standings';
-    if (standingsMode) {
-        const rows = options?.standings || tournament?._standings || [];
-        return buildTournamentStandings(tournament, t, lang, rows);
-    }
-
-    const { sport, emoji } = sportMeta(tournament.subCategory, lang);
-    const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
-    const intro = t?.shareTournamentIntro || 'Join the tournament!';
-    const name = tournament.name || sport;
-    const badge = t?.shareEntityBadgeTournament || (lang === 'tr' ? 'TURNUVA' : lang === 'ru' ? 'ТУРНИР' : lang === 'de' ? 'TURNIER' : 'TOURNAMENT');
+/** Turnuva kart satırları — EFT IBAN + kurallar HARİÇ (paylaşım + puan tablosu ortak). */
+function collectTournamentLines(tournament, t, lang) {
     const lines = [];
 
     const format = tournFormatLabel(tournament, t);
@@ -333,7 +299,6 @@ function buildTournament(tournament, t, lang, options = {}) {
         lines.push(t?.sc_0411 ? t.sc_0411(range) : range);
     }
 
-    // Ücret / ödeme yöntemi — IBAN / hesap sahibi (EFT bilgileri) YOK
     if (tournament.isPaid || tournament.feeType === 'SHARED' || tournament.feeType === 'SPONSORED' || tournament.feeType === 'INCLUDED') {
         if (tournament.isPaid) {
             const fee = tournament.playerFee != null && tournament.playerFee !== '' ? `${tournament.playerFee}₺` : '—';
@@ -377,6 +342,74 @@ function buildTournament(tournament, t, lang, options = {}) {
         lines.push(String(tournament.description).trim().slice(0, 160));
     }
 
+    return { lines, sf };
+}
+
+/**
+ * Puan tablosu paylaşımı: üstte normal turnuva bilgileri; altta ayrı standingsTable kutusu.
+ * "Turnuva puan tablosu" yalnızca rozette (lig/format satırının üstünde) bir kez.
+ */
+function buildTournamentStandings(tournament, t, lang, standings = []) {
+    const { sport, emoji } = sportMeta(tournament.subCategory, lang);
+    const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
+    const name = tournament.name || sport;
+    const badge = t?.shareTournamentStandingsIntro
+        || t?.shareEntityBadgeStandings
+        || (lang === 'tr' ? 'Turnuva puan tablosu' : lang === 'ru' ? 'Турнирная таблица' : lang === 'de' ? 'Turniertabelle' : 'Tournament standings');
+    const { lines, sf } = collectTournamentLines(tournament, t, lang);
+    const standingsTable = buildStandingsTable(standings, t);
+
+    const hdr = standingsTable.headers;
+    const msgRows = standingsTable.rows.map((r) => (
+        `${r.rank}. ${r.name}  ${hdr.played}:${r.played} ${hdr.won}:${r.won} ${hdr.drawn}:${r.drawn} ${hdr.lost}:${r.lost} ${hdr.avg}:${r.avg} ${hdr.pts}:${r.points}`
+    ));
+    const message = [
+        `🏆 ${name}`,
+        ...lines,
+        standingsTable.rows.length ? `📊 ${standingsTable.title}` : null,
+        ...msgRows,
+        url,
+    ].filter(Boolean).join('\n');
+
+    return {
+        kind: 'tournament',
+        id: tournament.id,
+        url,
+        title: name,
+        badge,
+        emoji: '🏆',
+        sport: `${emoji} ${sport}`.trim(),
+        // intro satırda yok — rozette bir kez; puan tablosu ayrı kutuda
+        lines,
+        standingsTable,
+        message,
+        ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
+        brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
+        brandColors: BRAND_LETTER_COLORS,
+        bgPlayersDecide: sf === 'PLAYERS_DECIDE',
+        ...shareMeta(tournament),
+    };
+}
+
+/**
+ * Turnuva paylaşımı: ilan kartındaki bilgiler (EFT IBAN + turnuva kuralları HARİÇ).
+ * PLAYERS_DECIDE zeminde kart arka planı yarı sert / yarı toprak olur (EntityShareModal).
+ * options.mode === 'standings' → aynı bilgiler + altta ayrı puan tablosu kutusu.
+ */
+function buildTournament(tournament, t, lang, options = {}) {
+    const standingsMode = options?.mode === 'standings' || tournament?._shareMode === 'standings';
+    if (standingsMode) {
+        const rows = options?.standings || tournament?._standings || [];
+        return buildTournamentStandings(tournament, t, lang, rows);
+    }
+
+    const { sport, emoji } = sportMeta(tournament.subCategory, lang);
+    const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
+    const intro = t?.shareTournamentIntro || 'Join the tournament!';
+    const name = tournament.name || sport;
+    const badge = t?.shareEntityBadgeTournament || (lang === 'tr' ? 'TURNUVA' : lang === 'ru' ? 'ТУРНИР' : lang === 'de' ? 'TURNIER' : 'TOURNAMENT');
+    const { lines, sf } = collectTournamentLines(tournament, t, lang);
+
     // Turnuva kuralları (tournRules*) bilinçli olarak eklenmiyor.
     const message = [`${intro} 🏆 ${name}`.trim(), ...lines, url].filter(Boolean).join('\n');
     return {
@@ -392,7 +425,6 @@ function buildTournament(tournament, t, lang, options = {}) {
         ctaLabel: t?.shareMatchStoreCta || 'AcTiViTy · Download',
         brand: lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy',
         brandColors: BRAND_LETTER_COLORS,
-        // Oyuncular zemin seçer → tek kort yarı sert/toprak görseli, daha açık overlay
         bgPlayersDecide: sf === 'PLAYERS_DECIDE',
         ...shareMeta(tournament),
     };
