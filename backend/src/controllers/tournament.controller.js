@@ -4605,19 +4605,20 @@ function randomDemoSlots() {
     });
 }
 
-function randomDemoProposal(side, byUserId, venueName) {
+function randomDemoProposal(side, byUserId, venueName, registeredCourt = null) {
     const d = new Date();
     d.setDate(d.getDate() + 1 + Math.floor(Math.random() * 6));
     const [timeFrom, timeTo] = DEMO_AVAIL_WINDOWS[Math.floor(Math.random() * DEMO_AVAIL_WINDOWS.length)];
+    const c = registeredCourt && typeof registeredCourt === 'object' ? registeredCourt : null;
     return {
         id: crypto.randomUUID(),
         side,
         byUserId,
-        venueName: venueName || 'Demo Kort',
-        courtId: null,
-        venueId: null,
-        venueCourtId: null,
-        isProVenue: false,
+        venueName: c?.name || venueName || 'Kayıtlı Tesis',
+        courtId: c?.courtId || null,
+        venueId: c?.venueId || null,
+        venueCourtId: c?.venueCourtId || null,
+        isProVenue: c?.isProVenue === true,
         date: d.toISOString().slice(0, 10),
         timeFrom,
         timeTo,
@@ -4625,9 +4626,108 @@ function randomDemoProposal(side, byUserId, venueName) {
     };
 }
 
+function isFakeDemoCourtName(name) {
+    const n = String(name || '').trim();
+    if (!n) return false;
+    return /^demo(\s|$)/i.test(n) || /demo\s+kort/i.test(n) || /^demo\s+ortak/i.test(n);
+}
+
+function preferredCourtsNeedRealSeed(list) {
+    const arr = Array.isArray(list) ? list : [];
+    if (!arr.length) return true;
+    return arr.every(c => !c?.venueId && !c?.courtId && isFakeDemoCourtName(c?.name));
+}
+
+/** Sisteme kayıtlı onaylı tesisler (Pro+ öncelikli) + doğrulanmış topluluk kortları */
+async function loadRegisteredCourtsForDemo(tournament) {
+    const sport = tournament?.subCategory || null;
+    const city = tournament?.city || null;
+    const venueSelect = {
+        id: true, name: true, city: true, userId: true, branch: true,
+        courts: { select: { id: true, name: true }, take: 5 },
+    };
+    let venues = await prisma.businessVenue.findMany({
+        where: {
+            status: 'APPROVED',
+            ...(sport ? { branch: sport } : {}),
+            ...(city ? { city: { equals: city, mode: 'insensitive' } } : {}),
+        },
+        select: venueSelect,
+        take: 60,
+        orderBy: { createdAt: 'desc' },
+    });
+    if (!venues.length && (sport || city)) {
+        venues = await prisma.businessVenue.findMany({
+            where: { status: 'APPROVED', ...(sport ? { branch: sport } : {}) },
+            select: venueSelect,
+            take: 60,
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+    if (!venues.length) {
+        venues = await prisma.businessVenue.findMany({
+            where: { status: 'APPROVED' },
+            select: venueSelect,
+            take: 60,
+            orderBy: { createdAt: 'desc' },
+        });
+    }
+
+    const { getProVenueOwnerIds } = await import('./venue.controller.js');
+    const proSet = await getProVenueOwnerIds(venues.map(v => v.userId));
+    venues = [...venues].sort((a, b) => (proSet.has(b.userId) ? 1 : 0) - (proSet.has(a.userId) ? 1 : 0));
+
+    const pool = venues.map(v => ({
+        courtId: null,
+        venueId: v.id,
+        venueCourtId: v.courts?.[0]?.id || null,
+        name: v.name,
+        city: v.city || null,
+        isProVenue: proSet.has(v.userId),
+    }));
+
+    if (pool.length < 3) {
+        const courts = await prisma.court.findMany({
+            where: {
+                verified: true,
+                pending: false,
+                ...(sport ? { sport } : {}),
+            },
+            select: { id: true, name: true, city: true },
+            take: 20,
+            orderBy: { createdAt: 'desc' },
+        });
+        for (const c of courts) {
+            pool.push({
+                courtId: c.id,
+                venueId: null,
+                venueCourtId: null,
+                name: c.name,
+                city: c.city || null,
+                isProVenue: false,
+            });
+        }
+    }
+    return pool;
+}
+
+function pickDemoCourtsFromPool(pool, sideIndex, shared) {
+    if (!pool.length) return [];
+    const sharedCourt = shared || pool[0];
+    const extra = pool[(sideIndex + 1) % pool.length] || sharedCourt;
+    const out = [sharedCourt];
+    if (extra && (extra.venueId || extra.courtId || extra.name)
+        && (extra.venueId !== sharedCourt.venueId || extra.courtId !== sharedCourt.courtId
+            || String(extra.name) !== String(sharedCourt.name))) {
+        out.push(extra);
+    }
+    return sanitizePreferredCourts(out);
+}
+
 /**
  * TEST: demo_ bot taraflarına anında random müsaitlik + teklif yazar.
- * Test bitince kaldırılacak — gerçek kullanıcı tarafına dokunmaz / dolu tarafı ezmez.
+ * Kortlar sisteme kayıtlı Pro+ / onaylı tesislerden seçilir (işletme rezervasyon testi).
+ * Sahte "Demo Kort" kayıtları bir sonraki seed'de gerçek tesisle değiştirilir.
  */
 async function seedDemoSchedulesForMatches(tournament, matches) {
     if (!tournament?.id || !Array.isArray(matches) || !matches.length) return 0;
@@ -4665,7 +4765,12 @@ async function seedDemoSchedulesForMatches(tournament, matches) {
     };
 
     const playersArrange = tournamentPlayersArrangeCourts(tournament);
-    const venueName = String(tournament.location || '').trim() || 'Demo Kort';
+    const needsCourtPool = playersArrange && pending.some(m => isDemoSide(m.p1Id) || isDemoSide(m.p2Id));
+    const demoCourtPool = needsCourtPool ? await loadRegisteredCourtsForDemo(tournament) : [];
+    const sharedDemoCourt = demoCourtPool[0] || null;
+    const venueName = sharedDemoCourt?.name
+        || String(tournament.location || '').trim()
+        || 'Kayıtlı Tesis';
     let updatedCount = 0;
 
     for (const match of pending) {
@@ -4674,58 +4779,59 @@ async function seedDemoSchedulesForMatches(tournament, matches) {
         for (const side of ['p1', 'p2']) {
             const sideId = side === 'p1' ? match.p1Id : match.p2Id;
             if (!isDemoSide(sideId)) continue;
-            if ((schedule.availability[side] || []).length > 0) continue;
             const members = sideMembers.get(sideId) || [];
             const byUserId = members[0]?.id || sideId;
-            schedule.availability[side] = randomDemoSlots();
-            if (playersArrange && !(schedule.preferredCourts[side] || []).length) {
-                schedule.preferredCourts[side] = [{
-                    courtId: null,
-                    venueId: null,
-                    venueCourtId: null,
-                    name: `Demo Kort ${side === 'p1' ? 'A' : 'B'}`,
-                    city: null,
-                    isProVenue: false,
-                }];
+
+            if (!(schedule.availability[side] || []).length) {
+                schedule.availability[side] = randomDemoSlots();
+                changed = true;
+            }
+            if (playersArrange && preferredCourtsNeedRealSeed(schedule.preferredCourts[side])) {
+                const sideIdx = side === 'p1' ? 0 : 1;
+                if (demoCourtPool.length) {
+                    schedule.preferredCourts[side] = pickDemoCourtsFromPool(
+                        demoCourtPool, sideIdx, sharedDemoCourt,
+                    );
+                } else {
+                    schedule.preferredCourts[side] = [{
+                        courtId: null, venueId: null, venueCourtId: null,
+                        name: venueName, city: tournament.city || null, isProVenue: false,
+                    }];
+                }
+                changed = true;
             }
             const hasProposal = (schedule.proposals || []).some(p => p.side === side);
             if (!hasProposal) {
                 schedule.proposals = [
                     ...(schedule.proposals || []),
-                    randomDemoProposal(side, byUserId, venueName),
+                    randomDemoProposal(side, byUserId, venueName, sharedDemoCourt),
                 ].slice(-30);
+                changed = true;
             }
-            changed = true;
         }
-        // Test: iki demo taraf ortak Cumartesi 10-13 paylaşılsın (çakışma boş kalmasın)
+        // Test: iki demo taraf ortak Cumartesi 10-13 + ortak kayıtlı tesis
         if (isDemoSide(match.p1Id) && isDemoSide(match.p2Id)) {
-            const shared = { weekday: 6, timeFrom: '10:00', timeTo: '13:00' };
+            const sharedSlot = { weekday: 6, timeFrom: '10:00', timeTo: '13:00' };
             for (const side of ['p1', 'p2']) {
                 const list = schedule.availability[side] || [];
                 if (!list.some(s => Number(s.weekday) === 6)) {
-                    schedule.availability[side] = [...list, shared];
+                    schedule.availability[side] = [...list, sharedSlot];
                     changed = true;
                 }
             }
-            if (playersArrange) {
-                // Yarısı ortak kort, yarısı farklı — "ortak kort yok" UI'sını da test et
-                if (Math.random() < 0.55) {
-                    const common = {
-                        courtId: null, venueId: null, venueCourtId: null,
-                        name: 'Demo Ortak Kort', city: null, isProVenue: false,
-                    };
-                    schedule.preferredCourts.p1 = [common];
-                    schedule.preferredCourts.p2 = [{ ...common }];
+            if (playersArrange && sharedDemoCourt) {
+                const p1Need = preferredCourtsNeedRealSeed(schedule.preferredCourts.p1);
+                const p2Need = preferredCourtsNeedRealSeed(schedule.preferredCourts.p2);
+                if (p1Need || p2Need) {
+                    schedule.preferredCourts.p1 = pickDemoCourtsFromPool(demoCourtPool, 0, sharedDemoCourt);
+                    schedule.preferredCourts.p2 = pickDemoCourtsFromPool(demoCourtPool, 1, sharedDemoCourt);
                     changed = true;
                 }
             }
         }
-        // İki taraf da dolduysa ortak pencereyi hesapla (eski kayıtlar için de)
         if ((schedule.availability.p1 || []).length && (schedule.availability.p2 || []).length) {
             const sug = computeMatchScheduleSuggested(schedule, { playersArrange });
-            const prev = JSON.stringify(schedule.suggested || null);
-            const next = JSON.stringify(sug);
-            if (prev !== next) {
+            if (JSON.stringify(schedule.suggested || null) !== JSON.stringify(sug)) {
                 schedule.suggested = sug;
                 changed = true;
             }
@@ -4840,6 +4946,40 @@ export const setMatchAvailability = async (req, res, next) => {
                 ? sanitizePreferredCourts(req.body.preferredCourts)
                 : [];
         }
+
+        // Demo rakip: benim seçtiğim kayıtlı kortları demo tarafa da yaz → ortak kort anında oluşsun
+        if (playersArrange && req.body?.preferredCourts !== undefined) {
+            const otherSide = side === 'p1' ? 'p2' : 'p1';
+            const otherId = otherSide === 'p1' ? match.p1Id : match.p2Id;
+            const otherIsDemo = await (async () => {
+                const isTeam = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+                if (!isTeam) {
+                    const u = await prisma.user.findUnique({
+                        where: { id: otherId },
+                        select: { username: true },
+                    });
+                    return !!u?.username?.startsWith('demo_');
+                }
+                const team = await prisma.tournamentTeam.findUnique({
+                    where: { id: otherId },
+                    select: { player1Id: true, player2Id: true },
+                });
+                if (!team) return false;
+                const members = await prisma.user.findMany({
+                    where: { id: { in: [team.player1Id, team.player2Id].filter(Boolean) } },
+                    select: { username: true },
+                });
+                return members.length > 0 && members.every(u => u.username?.startsWith('demo_'));
+            })();
+            if (otherIsDemo) {
+                const mine = schedule.preferredCourts[side] || [];
+                const theirs = (schedule.preferredCourts[otherSide] || [])
+                    .filter(c => c && (c.venueId || c.courtId || !isFakeDemoCourtName(c.name)));
+                const merged = sanitizePreferredCourts([...theirs, ...mine]);
+                schedule.preferredCourts[otherSide] = merged.length ? merged : mine;
+            }
+        }
+
         // İki taraf da bildirdiyse ortak çakışan gün/saat (+ ortak kort) → suggested
         schedule.suggested = computeMatchScheduleSuggested(schedule, { playersArrange });
 

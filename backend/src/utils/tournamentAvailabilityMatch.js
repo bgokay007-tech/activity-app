@@ -202,13 +202,36 @@ export function findAllOverlaps(slotsA, slotsB) {
     return out;
 }
 
+/** Kort adı karşılaştırma — TR İ/ı, fazla boşluk */
+export function normalizeCourtName(name) {
+    return String(name || '')
+        .trim()
+        .toLocaleLowerCase('tr-TR')
+        .replace(/\s+/g, ' ');
+}
+
 /** Kort/mekan kimliği — courtId > venueId > normalize ad */
 export function courtKey(c) {
     if (!c || typeof c !== 'object') return null;
     if (c.courtId) return `c:${c.courtId}`;
     if (c.venueId) return `v:${c.venueId}`;
-    const name = String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const name = normalizeCourtName(c.name);
     return name ? `n:${name}` : null;
+}
+
+function pickRicherCourt(a, b) {
+    // venueId / courtId / isProVenue olanı tercih et
+    const score = (c) => (c?.courtId ? 4 : 0) + (c?.venueId ? 2 : 0) + (c?.isProVenue ? 1 : 0);
+    return score(b) > score(a) ? b : a;
+}
+
+export function courtsMatch(a, b) {
+    if (!a || !b) return false;
+    if (a.courtId && b.courtId && String(a.courtId) === String(b.courtId)) return true;
+    if (a.venueId && b.venueId && String(a.venueId) === String(b.venueId)) return true;
+    const na = normalizeCourtName(a.name);
+    const nb = normalizeCourtName(b.name);
+    return !!(na && nb && na === nb);
 }
 
 export function normalizePreferredCourts(list) {
@@ -222,8 +245,10 @@ export function normalizePreferredCourts(list) {
         const item = {
             courtId: raw.courtId ? String(raw.courtId) : null,
             venueId: raw.venueId ? String(raw.venueId) : null,
+            venueCourtId: raw.venueCourtId ? String(raw.venueCourtId) : null,
             name: name || (raw.venueId ? 'Venue' : 'Court'),
             city: raw.city ? String(raw.city).trim().slice(0, 80) : null,
+            isProVenue: raw.isProVenue === true,
         };
         const key = courtKey(item);
         if (!key || seen.has(key)) continue;
@@ -234,15 +259,25 @@ export function normalizePreferredCourts(list) {
     return out;
 }
 
-/** İki kort listesinin ortakları (kimlik kesişimi) */
+/**
+ * İki kort listesinin ortakları.
+ * Aynı kimlik VEYA aynı normalize ad (arama=venueId, manuel=ad) eşleşir.
+ */
 export function intersectCourts(listA, listB) {
     const a = normalizePreferredCourts(listA);
     const b = normalizePreferredCourts(listB);
     if (!a.length || !b.length) return [];
-    const mapB = new Map(b.map(c => [c.key, c]));
     const out = [];
-    for (const c of a) {
-        if (mapB.has(c.key)) out.push(c);
+    const seen = new Set();
+    for (const ca of a) {
+        for (const cb of b) {
+            if (!courtsMatch(ca, cb)) continue;
+            const picked = pickRicherCourt(ca, cb);
+            const k = courtKey(picked) || normalizeCourtName(picked.name);
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            out.push({ ...picked, key: k });
+        }
     }
     return out;
 }

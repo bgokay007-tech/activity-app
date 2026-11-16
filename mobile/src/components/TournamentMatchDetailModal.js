@@ -40,12 +40,47 @@ function formatAgreed(agreed) {
         .filter(Boolean).join(' · ');
 }
 
+function normalizeCourtNameLocal(name) {
+    return String(name || '')
+        .trim()
+        .toLocaleLowerCase('tr-TR')
+        .replace(/\s+/g, ' ');
+}
+
 function courtKeyOf(c) {
     if (!c) return null;
     if (c.courtId) return `c:${c.courtId}`;
     if (c.venueId) return `v:${c.venueId}`;
-    const name = String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const name = normalizeCourtNameLocal(c.name);
     return name ? `n:${name}` : null;
+}
+
+function courtsMatchLocal(a, b) {
+    if (!a || !b) return false;
+    if (a.courtId && b.courtId && String(a.courtId) === String(b.courtId)) return true;
+    if (a.venueId && b.venueId && String(a.venueId) === String(b.venueId)) return true;
+    const na = normalizeCourtNameLocal(a.name);
+    const nb = normalizeCourtNameLocal(b.name);
+    return !!(na && nb && na === nb);
+}
+
+function intersectCourtsLocal(listA, listB) {
+    const a = Array.isArray(listA) ? listA : [];
+    const b = Array.isArray(listB) ? listB : [];
+    if (!a.length || !b.length) return [];
+    const out = [];
+    const seen = new Set();
+    for (const ca of a) {
+        for (const cb of b) {
+            if (!courtsMatchLocal(ca, cb)) continue;
+            const richer = (cb.venueId || cb.courtId) && !(ca.venueId || ca.courtId) ? cb : ca;
+            const k = courtKeyOf(richer) || normalizeCourtNameLocal(richer.name);
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            out.push({ ...richer, key: k });
+        }
+    }
+    return out;
 }
 
 function mapSearchCourt(court) {
@@ -175,9 +210,8 @@ export default function TournamentMatchDetailModal({
         ? schedule.suggested
         : null;
     const suggestedWindows = Array.isArray(suggested?.windows) ? suggested.windows : [];
-    const suggestedCourts = Array.isArray(suggested?.courts) ? suggested.courts : [];
+    const serverSuggestedCourts = Array.isArray(suggested?.courts) ? suggested.courts : [];
     const noTimeOverlap = suggested?.noTimeOverlap === true;
-    const noCourtOverlap = suggested?.noCourtOverlap === true;
 
     useEffect(() => {
         if (!visible || !match?.id || !tournament?.id) return;
@@ -200,6 +234,31 @@ export default function TournamentMatchDetailModal({
     const p2PreferredCourts = schedule?.preferredCourts?.p2 || [];
     const oppSlots = oppSide ? (schedule?.availability?.[oppSide] || []) : [];
     const oppPreferredCourts = oppSide ? (schedule?.preferredCourts?.[oppSide] || []) : [];
+    // Kaydet / yenile beklemeden: yerel tercih ∩ rakip tercihi → ortak kort anında
+    const suggestedCourts = useMemo(() => {
+        if (!playersArrangeCourts) return serverSuggestedCourts;
+        const live = mySide
+            ? intersectCourtsLocal(myPreferredCourts, oppPreferredCourts)
+            : intersectCourtsLocal(p1PreferredCourts, p2PreferredCourts);
+        const map = new Map();
+        for (const c of [...serverSuggestedCourts, ...live]) {
+            const k = courtKeyOf(c) || normalizeCourtNameLocal(c?.name);
+            if (!k || map.has(k)) continue;
+            map.set(k, c);
+        }
+        return [...map.values()];
+    }, [
+        playersArrangeCourts,
+        serverSuggestedCourts,
+        mySide,
+        myPreferredCourts,
+        oppPreferredCourts,
+        p1PreferredCourts,
+        p2PreferredCourts,
+    ]);
+    const noCourtOverlap = playersArrangeCourts
+        && suggestedWindows.length > 0
+        && suggestedCourts.length === 0;
     const proposals = Array.isArray(schedule?.proposals) ? schedule.proposals : [];
     const agreed = schedule?.agreed;
     const sheetPadBottom = Math.max(16, insets.bottom + 12);
@@ -302,16 +361,39 @@ export default function TournamentMatchDetailModal({
         setMySlots(prev => prev.map(s => s.weekday === weekday ? { ...s, [field]: value } : s));
     };
 
+    const syncPreferredCourtsNow = async (nextCourts) => {
+        if (!tournament?.id || !match?.id || !canAct || !playersArrangeCourts) return;
+        try {
+            const { data } = await api.patch(
+                `/tournaments/${tournament.id}/matches/${match.id}/availability`,
+                { slots: mySlots, preferredCourts: nextCourts },
+            );
+            if (data?.scheduleData) {
+                setSchedule(data.scheduleData);
+                if (mySide && Array.isArray(data.scheduleData.preferredCourts?.[mySide])) {
+                    setMyPreferredCourts(data.scheduleData.preferredCourts[mySide]);
+                }
+            }
+            onRefresh?.();
+        } catch {
+            // Sessiz: kullanıcı hâlâ "Müsaitliği Kaydet" ile deneyebilir
+        }
+    };
+
     const addPreferredCourt = (court) => {
         const item = mapSearchCourt(court);
         const key = courtKeyOf(item);
         if (!key || !item?.name) return;
-        setMyPreferredCourts(prev => {
-            if (prev.some(c => courtKeyOf(c) === key)) return prev;
-            return [...prev, item].slice(0, 10);
-        });
+        if (myPreferredCourts.some(c => courtKeyOf(c) === key)) {
+            setCourtQuery('');
+            setCourtResults([]);
+            return;
+        }
+        const nextList = [...myPreferredCourts, item].slice(0, 10);
+        setMyPreferredCourts(nextList);
         setCourtQuery('');
         setCourtResults([]);
+        syncPreferredCourtsNow(nextList);
     };
 
     const addManualPreferred = () => {
@@ -319,15 +401,20 @@ export default function TournamentMatchDetailModal({
         if (!name) return;
         const item = { courtId: null, venueId: null, name, city: null, isProVenue: false };
         const key = courtKeyOf(item);
-        setMyPreferredCourts(prev => {
-            if (prev.some(c => courtKeyOf(c) === key)) return prev;
-            return [...prev, item].slice(0, 10);
-        });
+        if (myPreferredCourts.some(c => courtKeyOf(c) === key)) {
+            setManualCourtName('');
+            return;
+        }
+        const nextList = [...myPreferredCourts, item].slice(0, 10);
+        setMyPreferredCourts(nextList);
         setManualCourtName('');
+        syncPreferredCourtsNow(nextList);
     };
 
     const removePreferredCourt = (key) => {
-        setMyPreferredCourts(prev => prev.filter(c => courtKeyOf(c) !== key));
+        const nextList = myPreferredCourts.filter(c => courtKeyOf(c) !== key);
+        setMyPreferredCourts(nextList);
+        syncPreferredCourtsNow(nextList);
     };
 
     const pickPropCourt = (court) => {
