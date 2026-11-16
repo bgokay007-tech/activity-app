@@ -175,6 +175,10 @@ export default function TournamentMatchDetailModal({
     const [quickFrom, setQuickFrom] = useState('');
     const [quickTo, setQuickTo] = useState('');
     const [quickCourt, setQuickCourt] = useState(null);
+    const [quickHours, setQuickHours] = useState(1);
+    const [quickVenueCourts, setQuickVenueCourts] = useState([]);
+    const [quickVenueCourtId, setQuickVenueCourtId] = useState(null);
+    const [quickCourtsLoading, setQuickCourtsLoading] = useState(false);
     const insets = useSafeAreaInsets();
     const myUserId = useSelector(s => s.auth?.user?.id);
     const canShare = !!(match?.p1Id && match?.p2Id && match?.status !== 'BYE');
@@ -298,6 +302,10 @@ export default function TournamentMatchDetailModal({
         && (agreed.venueId || tournament?.venueId)
     );
     const isHoldReservation = agreed?.reservationStatus === 'HOLD';
+    const isDoublesMatch = tournament?.formatConfig?.entry === 'DOUBLES'
+        || ['2', '4', '7'].includes(String(tournament?.type || ''));
+    const feeShareParts = isDoublesMatch ? 4 : 2;
+    const quickIsPro = !!(quickCourt?.isProVenue && quickCourt?.venueId);
 
     useEffect(() => {
         if (!visible || !playersArrangeCourts) {
@@ -526,12 +534,55 @@ export default function TournamentMatchDetailModal({
         }
     };
 
+    const applyQuickHours = (window, hours, startFrom) => {
+        const winFrom = timeToMinLocal(window?.timeFrom);
+        const winTo = timeToMinLocal(window?.timeTo);
+        if (winFrom == null || winTo == null) return;
+        const start = timeToMinLocal(startFrom) ?? winFrom;
+        const maxH = Math.max(1, Math.floor((winTo - start) / 60));
+        const h = Math.min(Math.max(1, hours || 1), maxH);
+        setQuickHours(h);
+        setQuickFrom(minToTimeLocal(start));
+        setQuickTo(minToTimeLocal(start + h * 60));
+    };
+
     const selectQuickWindow = (w) => {
         setQuickWindow(w);
-        setQuickFrom(w?.timeFrom || '10:00');
-        setQuickTo(w?.timeTo || '12:00');
+        applyQuickHours(w, 1, w?.timeFrom);
         if (!quickCourt && suggestedCourts[0]) setQuickCourt(suggestedCourts[0]);
     };
+
+    const selectQuickCourt = (c) => {
+        setQuickCourt(c);
+        setQuickVenueCourtId(c?.venueCourtId || null);
+        setQuickVenueCourts([]);
+    };
+
+    useEffect(() => {
+        if (!visible || !quickIsPro || !quickCourt?.venueId) {
+            setQuickVenueCourts([]);
+            return undefined;
+        }
+        let cancelled = false;
+        (async () => {
+            setQuickCourtsLoading(true);
+            try {
+                const { data } = await api.get(`/venues/${quickCourt.venueId}`);
+                if (cancelled) return;
+                const courts = Array.isArray(data?.courts) ? data.courts : [];
+                setQuickVenueCourts(courts);
+                if (!quickVenueCourtId && courts.length === 1) setQuickVenueCourtId(courts[0].id);
+                if (quickVenueCourtId && !courts.some(c => c.id === quickVenueCourtId)) {
+                    setQuickVenueCourtId(courts[0]?.id || null);
+                }
+            } catch {
+                if (!cancelled) setQuickVenueCourts([]);
+            } finally {
+                if (!cancelled) setQuickCourtsLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [visible, quickIsPro, quickCourt?.venueId]);
 
     const submitQuickProposal = async () => {
         if (!canAct || lockedByAdmin) return;
@@ -555,6 +606,10 @@ export default function TournamentMatchDetailModal({
             Alert.alert('', t.tournAvailPickCourt || 'Ortak kortlardan birini seçin');
             return;
         }
+        if (quickIsPro && !quickVenueCourtId && quickVenueCourts.length > 0) {
+            Alert.alert('', t.tournSchedPickVenueCourt || 'Kort / saha seçin');
+            return;
+        }
         setSaving(true);
         try {
             const { data } = await api.post(
@@ -571,14 +626,20 @@ export default function TournamentMatchDetailModal({
                         ? (quickCourt?.venueId || undefined)
                         : (tournament?.venueId || undefined),
                     venueCourtId: playersArrangeCourts
-                        ? (quickCourt?.venueCourtId || undefined)
+                        ? (quickVenueCourtId || quickCourt?.venueCourtId || undefined)
                         : (tournament?.venueCourtId || undefined),
                     isProVenue: playersArrangeCourts ? (quickCourt?.isProVenue === true) : undefined,
                 },
             );
             setSchedule(data.scheduleData);
             onRefresh?.();
-            Alert.alert('', t.tournSchedProposed || 'Teklif gönderildi');
+            const held = !!data?.proposal?.reservationId;
+            Alert.alert(
+                '',
+                held
+                    ? (t.tournAvailProposeHeldOk || 'Teklif gönderildi — Pro+ slot 4 saat askıda. Rakip kabul edince ödeme kesinleşir.')
+                    : (t.tournSchedProposed || 'Teklif gönderildi'),
+            );
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
         } finally {
@@ -618,7 +679,14 @@ export default function TournamentMatchDetailModal({
             );
             setSchedule(data.scheduleData);
             onRefresh?.();
-            Alert.alert('', t.tournSchedAgreedOk || 'Anlaşıldı');
+            const paid = data?.scheduleData?.agreed?.reservationId
+                && data?.scheduleData?.agreed?.reservationStatus !== 'HOLD';
+            Alert.alert(
+                '',
+                paid
+                    ? (t.tournSchedAgreedPaidOk || 'Kabul edildi — rezervasyon ve ortak ödeme kesinleşti')
+                    : (t.tournSchedAgreedOk || 'Anlaşıldı'),
+            );
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
         } finally {
@@ -910,7 +978,8 @@ export default function TournamentMatchDetailModal({
                                         {reserveSplitPay ? '☑' : '☐'}
                                     </Text>
                                     <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '700', flex: 1 }}>
-                                        {t.tournSchedSplitPay || 'Ortaklaşa öde (fiyatın yarısı)'}
+                                        {t.tournSchedSplitPay || 'Ortaklaşa öde'}
+                                        {` (1/${feeShareParts})`}
                                     </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
@@ -1009,36 +1078,11 @@ export default function TournamentMatchDetailModal({
                                         gap: 6,
                                     }}>
                                         <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '800' }}>
-                                            {t.tournAvailShortenTitle || 'Saat aralığını kısalt'}
+                                            {t.tournAvailQuickReserveTitle || 'Ortak müsaitlikten teklif / rezervasyon'}
                                         </Text>
                                         <Text style={{ color: '#64748b', fontSize: 10 }}>
-                                            {quickWindow.date} · max {quickWindow.timeFrom}–{quickWindow.timeTo}
+                                            {quickWindow.date} · {t.tournAvailWindowMax || 'pencere'} {quickWindow.timeFrom}–{quickWindow.timeTo}
                                         </Text>
-                                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-                                            <TextInput
-                                                value={quickFrom}
-                                                onChangeText={setQuickFrom}
-                                                placeholder="10:00"
-                                                placeholderTextColor="#64748b"
-                                                style={{
-                                                    flex: 1, backgroundColor: '#1e293b', color: '#fff',
-                                                    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6,
-                                                    borderWidth: 1, borderColor: '#334155', fontSize: 12,
-                                                }}
-                                            />
-                                            <Text style={{ color: '#94a3b8' }}>–</Text>
-                                            <TextInput
-                                                value={quickTo}
-                                                onChangeText={setQuickTo}
-                                                placeholder="12:00"
-                                                placeholderTextColor="#64748b"
-                                                style={{
-                                                    flex: 1, backgroundColor: '#1e293b', color: '#fff',
-                                                    borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6,
-                                                    borderWidth: 1, borderColor: '#334155', fontSize: 12,
-                                                }}
-                                            />
-                                        </View>
                                         {suggestedCourts.length > 0 ? (
                                             <View style={{ gap: 4 }}>
                                                 <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800' }}>
@@ -1051,7 +1095,7 @@ export default function TournamentMatchDetailModal({
                                                         return (
                                                             <TouchableOpacity
                                                                 key={c.key || c.courtId || c.venueId || c.name}
-                                                                onPress={() => setQuickCourt(c)}
+                                                                onPress={() => selectQuickCourt(c)}
                                                                 style={{
                                                                     backgroundColor: active ? '#7c3aed60' : '#7c3aed30',
                                                                     borderRadius: 999,
@@ -1070,25 +1114,137 @@ export default function TournamentMatchDetailModal({
                                                 </View>
                                             </View>
                                         ) : null}
+
+                                        {quickIsPro ? (
+                                            <View style={{
+                                                marginTop: 4,
+                                                backgroundColor: '#0ea5e912',
+                                                borderRadius: 8,
+                                                padding: 8,
+                                                borderWidth: 1,
+                                                borderColor: '#0ea5e950',
+                                                gap: 6,
+                                            }}>
+                                                <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '800' }}>
+                                                    {t.tournAvailProReservePanel || 'Pro+ rezervasyon alanı'}
+                                                </Text>
+                                                <Text style={{ color: '#94a3b8', fontSize: 10, lineHeight: 14 }}>
+                                                    {t.tournAvailProReserveHint || 'Kaç saat oynayacağınızı seçin. Teklif gönderilince slot 4 saat askıda kalır; rakip kabul edince ödeme kesinleşir.'}
+                                                </Text>
+                                                {quickCourtsLoading ? <ActivityIndicator color="#38bdf8" /> : null}
+                                                {quickVenueCourts.length > 0 ? (
+                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                        {quickVenueCourts.map((c) => {
+                                                            const active = quickVenueCourtId === c.id;
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={c.id}
+                                                                    onPress={() => setQuickVenueCourtId(c.id)}
+                                                                    style={{
+                                                                        paddingHorizontal: 10,
+                                                                        paddingVertical: 6,
+                                                                        borderRadius: 8,
+                                                                        backgroundColor: active ? '#0ea5e9' : '#1e293b',
+                                                                        borderWidth: 1,
+                                                                        borderColor: active ? '#0ea5e9' : '#334155',
+                                                                    }}
+                                                                >
+                                                                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>{c.name}</Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                ) : null}
+                                                <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800' }}>
+                                                    {t.tournAvailPickHours || 'Oyun süresi'}
+                                                </Text>
+                                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                                                    {(() => {
+                                                        const winFrom = timeToMinLocal(quickWindow.timeFrom) || 0;
+                                                        const winTo = timeToMinLocal(quickWindow.timeTo) || winFrom + 60;
+                                                        const maxH = Math.max(1, Math.floor((winTo - winFrom) / 60));
+                                                        return Array.from({ length: maxH }, (_, i) => i + 1).map((h) => {
+                                                            const active = quickHours === h;
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={h}
+                                                                    onPress={() => applyQuickHours(quickWindow, h, quickWindow.timeFrom)}
+                                                                    style={{
+                                                                        paddingHorizontal: 12,
+                                                                        paddingVertical: 7,
+                                                                        borderRadius: 8,
+                                                                        backgroundColor: active ? '#0ea5e9' : '#1e293b',
+                                                                        borderWidth: 1,
+                                                                        borderColor: active ? '#38bdf8' : '#334155',
+                                                                    }}
+                                                                >
+                                                                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: '800' }}>
+                                                                        {h} {t.tournAvailHourUnit || 'saat'}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        });
+                                                    })()}
+                                                </View>
+                                                <Text style={{ color: '#e2e8f0', fontSize: 11, fontWeight: '700' }}>
+                                                    {quickFrom}–{quickTo}
+                                                </Text>
+                                                <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700' }}>
+                                                    {(t.tournAvailFeeShare || 'Kişi başı pay')}: 1/{feeShareParts}
+                                                    {isDoublesMatch
+                                                        ? ` (${t.tournAvailFeeShareDoubles || 'çiftli'})`
+                                                        : ` (${t.tournAvailFeeShareSingles || 'tekli'})`}
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+                                                <TextInput
+                                                    value={quickFrom}
+                                                    onChangeText={setQuickFrom}
+                                                    placeholder="10:00"
+                                                    placeholderTextColor="#64748b"
+                                                    style={{
+                                                        flex: 1, backgroundColor: '#1e293b', color: '#fff',
+                                                        borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6,
+                                                        borderWidth: 1, borderColor: '#334155', fontSize: 12,
+                                                    }}
+                                                />
+                                                <Text style={{ color: '#94a3b8' }}>–</Text>
+                                                <TextInput
+                                                    value={quickTo}
+                                                    onChangeText={setQuickTo}
+                                                    placeholder="12:00"
+                                                    placeholderTextColor="#64748b"
+                                                    style={{
+                                                        flex: 1, backgroundColor: '#1e293b', color: '#fff',
+                                                        borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6,
+                                                        borderWidth: 1, borderColor: '#334155', fontSize: 12,
+                                                    }}
+                                                />
+                                            </View>
+                                        )}
+
                                         <TouchableOpacity
                                             disabled={saving}
                                             onPress={submitQuickProposal}
                                             style={{
-                                                backgroundColor: '#7c3aed40',
+                                                backgroundColor: quickIsPro ? '#0ea5e930' : '#7c3aed40',
                                                 borderRadius: 8,
                                                 paddingVertical: 10,
                                                 alignItems: 'center',
                                                 borderWidth: 1,
-                                                borderColor: '#a78bfa80',
+                                                borderColor: quickIsPro ? '#0ea5e960' : '#a78bfa80',
                                                 opacity: saving ? 0.6 : 1,
                                                 marginTop: 2,
                                             }}
                                         >
                                             {saving ? (
-                                                <ActivityIndicator color="#c4b5fd" />
+                                                <ActivityIndicator color={quickIsPro ? '#38bdf8' : '#c4b5fd'} />
                                             ) : (
-                                                <Text style={{ color: '#c4b5fd', fontWeight: '800', fontSize: 12 }}>
-                                                    {t.tournAvailSendQuickPropose || 'Teklif gönder'}
+                                                <Text style={{ color: quickIsPro ? '#38bdf8' : '#c4b5fd', fontWeight: '800', fontSize: 12 }}>
+                                                    {quickIsPro
+                                                        ? (t.tournAvailSendHoldPropose || 'Teklif gönder (4 saat askıda)')
+                                                        : (t.tournAvailSendQuickPropose || 'Teklif gönder')}
                                                 </Text>
                                             )}
                                         </TouchableOpacity>
@@ -1252,13 +1408,23 @@ export default function TournamentMatchDetailModal({
                                                     ? (t.tournSchedYourProposal || 'Senin teklifin')
                                                     : (who + ' — ' + (t.tournCardProposalShort || 'Teklif'))}
                                             </Text>
+                                            {p.reservationId ? (
+                                                <Text style={{ color: '#fbbf24', fontSize: 10, marginTop: 4, fontWeight: '700' }}>
+                                                    {t.tournSchedHoldBadge || 'Askıda (4 saat)'}
+                                                    {p.amountDue != null
+                                                        ? ` · 1/${p.splitParts || feeShareParts} (${p.amountDue}/${p.fullPrice ?? '?'} TL)`
+                                                        : ` · 1/${p.splitParts || feeShareParts}`}
+                                                </Text>
+                                            ) : null}
                                             {canAct && !lockedByAdmin && !mine && !agreedText ? (
                                                 <TouchableOpacity
                                                     onPress={() => agreeProposal(p.id)}
                                                     style={{ marginTop: 8, backgroundColor: '#16a34a30', borderRadius: 8, paddingVertical: 8, alignItems: 'center', borderWidth: 1, borderColor: '#16a34a50' }}
                                                 >
                                                     <Text style={{ color: '#4ade80', fontWeight: '800', fontSize: 12 }}>
-                                                        {t.tournSchedAgreeBtn || '✓ Anlaş'}
+                                                        {p.reservationId
+                                                            ? (t.tournSchedAgreePayBtn || '✓ Kabul et ve ödemeyi kesinleştir')
+                                                            : (t.tournSchedAgreeBtn || '✓ Anlaş')}
                                                     </Text>
                                                 </TouchableOpacity>
                                             ) : null}
