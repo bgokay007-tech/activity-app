@@ -7570,6 +7570,15 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             m.flexibleSchedule && m.schedulingDeadline && now > new Date(m.schedulingDeadline) && !m.matchDate
         );
         const schedExpiredIds = new Set(schedExpired.map(m => m.id));
+        // GET /rivals (açık ilan) ile aynı: saati geçmiş OPEN ilan ana sayfada "Katıldığın"da
+        // kalıp tenis Açık İlanlar'da yok sayılıyordu — sayılar uyuşmuyordu.
+        const openMatchTimePassed = (r) => {
+            if (r.status !== 'OPEN' || r.flexibleSchedule || !r.matchDate || !r.matchTime) return false;
+            const [h, m] = String(r.matchTime).split(':').map(Number);
+            if (Number.isNaN(h)) return false;
+            const matchUTC = new Date(new Date(r.matchDate).getTime() + (h * 60 + (m || 0)) * 60000 - 3 * 3600000);
+            return now >= matchUTC;
+        };
         const inRoster = (r) => {
             if ((Array.isArray(r.participants) ? r.participants : []).some(p => p?.id === myId)) return true;
             if ((Array.isArray(r.senderTeam) ? r.senderTeam : []).some(p => p?.id === myId)) return true;
@@ -7585,7 +7594,11 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         // MATCHED: kurucu + kadro. OPEN: kurucu VEYA kadroya girmiş olanlar.
         const mine = all.filter(r => {
             if (schedExpiredIds.has(r.id)) return false;
+            if (openMatchTimePassed(r)) return false;
             if (r.status === 'MATCHED') {
+                // getUpcomingMatches ile aynı: skor penceresi kapanmış eşleşmeyi ana sayfada tutma
+                const dl = getMatchDeadline(r);
+                if (dl && now > dl && !r.score) return false;
                 if (r.senderId === myId) return true;
                 return inRoster(r);
             }

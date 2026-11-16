@@ -157,6 +157,13 @@ function matchHasEnded(item, now) {
     return now >= new Date(d.getTime() + (item.duration || 90) * 60 * 1000);
 }
 
+// Saati geçmiş OPEN ilan dal ekranında /rivals'tan düşer; ana sayfada kalmasın.
+function openListingPastStart(item, now) {
+    if (String(item?.status || '') !== 'OPEN' || item?.flexibleSchedule) return false;
+    const d = matchStartDate(item);
+    return !!(d && now >= d);
+}
+
 async function detectProvince() {
     try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -419,7 +426,7 @@ export default function HomeScreen({ navigation }) {
     const now = new Date(nowTick >= 0 ? Date.now() : Date.now());
     // Kullanıcı isteği: ayrı "Yaklaşan" hero kartı yok — katıldığın maçlar + devam eden turnuvalar üstte.
     const joinedMatches = (myMatches || [])
-        .filter(m => isMyMatch(m, user?.id) && !matchHasEnded(m, now))
+        .filter(m => isMyMatch(m, user?.id) && !matchHasEnded(m, now) && !openListingPastStart(m, now))
         .sort((a, b) => {
             const aPlaying = matchHasStarted(a, now) && !matchHasEnded(a, now) ? 0 : 1;
             const bPlaying = matchHasStarted(b, now) && !matchHasEnded(b, now) ? 0 : 1;
@@ -515,7 +522,7 @@ export default function HomeScreen({ navigation }) {
                                 <TouchableOpacity key={`joined-${isTourn ? 't' : 'r'}-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
                                     <Image source={photo} style={nv.rowImg} resizeMode="cover" />
                                     <View style={nv.rowBody}>
-                                        <Text style={[nv.rowKicker, { color: (isTourn || playing) ? '#4ade80' : (mineOpen ? colors.purple : colors.purple) }]}>
+                                        <Text style={[nv.rowKicker, { color: (isTourn || playing) ? '#4ade80' : colors.purple }]}>
                                             {kicker}
                                         </Text>
                                         <Text style={nv.rowTitle} numberOfLines={1}>{title}</Text>

@@ -28533,7 +28533,19 @@ function SubCategoryScreen({ route, navigation }) {
         if (filterMaxPrice && fee > parseInt(filterMaxPrice, 10)) return false;
         return true;
     };
+    // Ana sayfa "Katıldığın" şehir filtresiz; dalda filtre açıkken kendi maçlarım/ilanlarım
+    // kaybolup "ana sayfada 6, teniste 3" gibi tutarsızlık çıkıyordu — benim kayıtlarım her zaman görünsün.
+    const isMyRivalOrMatch = (item) => {
+        if (!myId || !item) return false;
+        if (item.senderId === myId || item.sender?.id === myId) return true;
+        if ((item.participants || []).some(p => p?.id === myId)) return true;
+        if ((item.senderTeam || []).some(p => p?.id === myId)) return true;
+        if ((item.unassignedPlayers || []).some(p => p?.id === myId)) return true;
+        if ((item.substitutePlayers || []).some(p => p?.id === myId)) return true;
+        return false;
+    };
     const applyFilter = (item) => {
+        if (item?.id === highlightRivalId || isMyRivalOrMatch(item)) return true;
         if (sub === 'volleyball' && filterVolleyballType && item.surface !== filterVolleyballType) return false;
         if (filterCity.trim()) {
             const q = filterCity.trim().toLowerCase();
