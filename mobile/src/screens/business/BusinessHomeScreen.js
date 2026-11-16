@@ -982,9 +982,9 @@ function VenueAnalyticsModal({ visible, venue, onClose }) {
 
 // ── Venue Schedule Modal ──────────────────────────────────────────────────────
 
-const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444' };
-const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412' };
-const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: '⏳ Onay Bekliyor', CONFIRMED: 'Rezerveli' };
+const SLOT_STATUS_COLOR = { FREE: '#22c55e', PENDING: '#f59e0b', CONFIRMED: '#ef4444', HOLD: '#a78bfa' };
+const SLOT_STATUS_BG    = { FREE: '#22c55e12', PENDING: '#f59e0b12', CONFIRMED: '#ef444412', HOLD: '#a78bfa18' };
+const SLOT_STATUS_LABEL = { FREE: 'Müsait', PENDING: '⏳ Onay Bekliyor', CONFIRMED: 'Rezerveli', HOLD: 'Askıda' };
 const PAID_COLOR    = '#f97316'; // rezerveli + ödemesi alındı (belirgin turuncu)
 const PAID_BG        = '#f9731630';
 const PAID_LABEL     = '💰 Rezerveli + Ödeme Alındı';
@@ -1426,7 +1426,7 @@ function VenueScheduleModal({
                 {/* Legend */}
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 12, paddingVertical: 1,
                     borderBottomWidth: 1, borderBottomColor: '#ffffff08' }}>
-                    {[['FREE','Müsait'],['PENDING','Bekliyor'],['CONFIRMED','Rezerveli']].map(([s, lbl]) => (
+                    {[['FREE','Müsait'],['HOLD','Askıda'],['PENDING','Bekliyor'],['CONFIRMED','Rezerveli']].map(([s, lbl]) => (
                         <View key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <View style={{ width: 11, height: 11, borderRadius: 3, backgroundColor: SLOT_STATUS_COLOR[s] }} />
                             <Text style={{ color: '#aaa', fontSize: 11 }}>{lbl}</Text>
@@ -1491,12 +1491,13 @@ function VenueScheduleModal({
                                                     const color = isPaid ? PAID_COLOR : isPastFree ? '#64748b' : SLOT_STATUS_COLOR[st];
                                                     const bg    = isPaid ? PAID_BG : isPastFree ? '#64748b12' : SLOT_STATUS_BG[st];
                                                     const isPending = st === 'PENDING' && slot.reservationId;
+                                                    const isHold = st === 'HOLD' && slot.reservationId;
                                                     const isConfirmedUnpaid = st === 'CONFIRMED' && slot.reservationId && !isPaid;
                                                     const isConfirmedPaid = st === 'CONFIRMED' && slot.reservationId && isPaid;
                                                     // Bekleyen bir iptal talebi varsa (kullanıcı isteği) — hangi durumda olursa
                                                     // olsun (onaylı+ödenmiş dahil) her zaman dokunulabilir ve turuncu vurgulanır.
                                                     const isCancelRequested = !!slot.cancelRequested;
-                                                    const isTappable = isCancelRequested || isPending || isConfirmedUnpaid || isFree || (isPro && isConfirmedPaid);
+                                                    const isTappable = isCancelRequested || isPending || isHold || isConfirmedUnpaid || isFree || (isPro && isConfirmedPaid);
                                                     // İptal talebi VEYA uygulama dışı / bildirimden gelen kort+saat vurgusu.
                                                     const isHighlighted = isHighlightSlot(slot, court)
                                                         && (isCancelRequested || highlightIsExternal || !!highlightReservationId || !!highlightStartTime);
@@ -1533,6 +1534,11 @@ function VenueScheduleModal({
                                                             ) : !isFree ? (
                                                                 <Text style={{ color: color + '99', fontSize: 10, marginTop: 2, width: '100%' }} numberOfLines={1}>
                                                                     {isPaid ? PAID_LABEL : SLOT_STATUS_LABEL[st]}
+                                                                </Text>
+                                                            ) : null}
+                                                            {isHold ? (
+                                                                <Text style={{ color: '#c4b5fd', fontSize: 9, marginTop: 1, fontWeight: '800', width: '100%' }} numberOfLines={1}>
+                                                                    Askıda
                                                                 </Text>
                                                             ) : null}
                                                             {!!slot.isExternal && (

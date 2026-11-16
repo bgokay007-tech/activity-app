@@ -2164,7 +2164,8 @@ model CourtReservation {
   startTime     String
   endTime       String
   paymentMethod String   @default("CASH")    // EFT | CASH | ONLINE
-  status        String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED
+  // HOLD = turnuva maçı teklifi kabulünde Pro+ slot 4 saat askıda (işletme takviminde "Askıda")
+  status        String   @default("PENDING") // PENDING | CONFIRMED | CANCELLED | HOLD
   noShow        Boolean  @default(false)
   receiptUrl    String?
   notes         String?
@@ -2177,6 +2178,14 @@ model CourtReservation {
   // İlan oluştururken "uygulama dışında (telefon/işletme) zaten rezerve ettim" yolu —
   // slot çakışması kontrolü yapılmaz; işletmeye bilgi bildirimi gider, takvimde görünür.
   isExternal           Boolean @default(false)
+  // Teklif kabulünde açılan askı — holdUntil geçince job CANCELLED yapar, slot serbest kalır
+  holdUntil            DateTime?
+  // Ortaklaşa ödeme: fullPrice tam kort ücreti, amountDue bu rezervasyonu açanın payı (yarı)
+  splitPay             Boolean  @default(false)
+  fullPrice            Int?
+  amountDue            Int?
+  coPayerUserId        String?  // diğer tarafın ödeme sorumlusu (bireysel rakip / takım 1. oyuncu)
+  tournamentMatchId    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

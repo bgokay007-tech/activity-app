@@ -16,6 +16,7 @@ import { startTournamentPollCloseJob } from './jobs/tournamentPollClose.js';
 import { startSubscriptionExpiryJob } from './jobs/subscriptionExpiry.js';
 import { startHolidayReminderJob } from './jobs/holidayReminder.js';
 import { startAutoApproveReservationsJob } from './jobs/autoApproveReservations.js';
+import { startExpireHoldReservationsJob } from './jobs/expireHoldReservations.js';
 import { startTournamentDeadlineReminderJob } from './jobs/tournamentDeadlineReminder.js';
 import { startDefiLeagueJob } from './jobs/defiLeague.js';
 import { startMatchVideoJob } from './jobs/matchVideoJob.js';
@@ -178,6 +179,7 @@ Promise.all([ensureTables(), seedCitiesIfEmpty()]).then(() => {
         startSubscriptionExpiryJob();
         startHolidayReminderJob();
         startAutoApproveReservationsJob();
+        startExpireHoldReservationsJob();
         startTournamentDeadlineReminderJob();
         startDefiLeagueJob();
         startMatchVideoJob();

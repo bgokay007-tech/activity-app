@@ -331,7 +331,7 @@ function splitPriceSegments(venue, court, rangeStartMins, rangeEndMins) {
     return segments;
 }
 
-function getSlotPrice(venue, court, startTime, durationMins = 60) {
+export function getSlotPrice(venue, court, startTime, durationMins = 60) {
     const segs = splitPriceSegments(venue, court, toMins(startTime), toMins(startTime) + durationMins);
     const total = segs.reduce((sum, seg) => sum + (seg.basePrice * (1 - seg.discountPercent / 100) + seg.lightsFee) * ((seg.endMins - seg.startMins) / 60), 0);
     return Math.round(total);

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "CourtReservation" ADD COLUMN IF NOT EXISTS "holdUntil" TIMESTAMP(3);
+ALTER TABLE "CourtReservation" ADD COLUMN IF NOT EXISTS "splitPay" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "CourtReservation" ADD COLUMN IF NOT EXISTS "fullPrice" INTEGER;
+ALTER TABLE "CourtReservation" ADD COLUMN IF NOT EXISTS "amountDue" INTEGER;
+ALTER TABLE "CourtReservation" ADD COLUMN IF NOT EXISTS "coPayerUserId" TEXT;
+ALTER TABLE "CourtReservation" ADD COLUMN IF NOT EXISTS "tournamentMatchId" TEXT;
