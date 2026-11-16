@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import {
-    Modal, View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet, ActivityIndicator,
+    Modal, View, Text, ScrollView, TouchableOpacity, Linking, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -118,6 +118,95 @@ function TtServeDiagram() {
     );
 }
 
+/** Öğretici vuruş şeması — ücretsiz “stroke API” olmadığı için uygulama içi faz kartları. */
+function StrokePhasesDiagram({ phases, arcLabel }) {
+    return (
+        <CourtBox h={132}>
+            <View style={d.phaseRow}>
+                {phases.map((p, i) => (
+                    <View key={p.key} style={d.phaseCol}>
+                        <View style={[d.phaseDot, { backgroundColor: p.color }]}>
+                            <Text style={d.phaseNum}>{i + 1}</Text>
+                        </View>
+                        <Text style={d.phaseLab}>{p.label}</Text>
+                        {i < phases.length - 1 ? <Text style={d.phaseArrow}>→</Text> : null}
+                    </View>
+                ))}
+            </View>
+            {arcLabel ? <Text style={[d.lab, { bottom: 8, alignSelf: 'center', color: '#c084fc' }]}>{arcLabel}</Text> : null}
+        </CourtBox>
+    );
+}
+
+function StrokeForehandDiagram() {
+    const t = useT();
+    return (
+        <StrokePhasesDiagram
+            arcLabel={t.sportGuideStrokeLowHigh}
+            phases={[
+                { key: 'p', label: t.sportGuideStrokePrep, color: '#38bdf8' },
+                { key: 'c', label: t.sportGuideStrokeContact, color: '#4ade80' },
+                { key: 'f', label: t.sportGuideStrokeFinish, color: '#fbbf24' },
+            ]}
+        />
+    );
+}
+
+function StrokeBackhandDiagram() {
+    const t = useT();
+    return (
+        <StrokePhasesDiagram
+            phases={[
+                { key: 'p', label: t.sportGuideStrokePrep, color: '#38bdf8' },
+                { key: 'c', label: t.sportGuideStrokeContact, color: '#4ade80' },
+                { key: 'f', label: t.sportGuideStrokeFinish, color: '#fbbf24' },
+            ]}
+        />
+    );
+}
+
+function StrokeServeDiagram() {
+    const t = useT();
+    return (
+        <StrokePhasesDiagram
+            arcLabel={t.sportGuideStrokeTrophy}
+            phases={[
+                { key: 't', label: t.sportGuideStrokeTrophy, color: '#38bdf8' },
+                { key: 'c', label: t.sportGuideStrokeContact, color: '#4ade80' },
+                { key: 'f', label: t.sportGuideStrokePronation, color: '#fbbf24' },
+            ]}
+        />
+    );
+}
+
+function StrokeSliceDiagram() {
+    const t = useT();
+    return (
+        <StrokePhasesDiagram
+            arcLabel={t.sportGuideStrokeHighLow}
+            phases={[
+                { key: 'h', label: t.sportGuideStrokeHigh, color: '#38bdf8' },
+                { key: 'c', label: t.sportGuideStrokeContact, color: '#4ade80' },
+                { key: 'l', label: t.sportGuideStrokeLow, color: '#fbbf24' },
+            ]}
+        />
+    );
+}
+
+function StrokeVolleyDiagram() {
+    const t = useT();
+    return (
+        <StrokePhasesDiagram
+            arcLabel={t.sportGuideStrokePunch}
+            phases={[
+                { key: 'r', label: t.sportGuideStrokeReady, color: '#38bdf8' },
+                { key: 'c', label: t.sportGuideStrokeContact, color: '#4ade80' },
+                { key: 'b', label: t.sportGuideStrokeBlock, color: '#fbbf24' },
+            ]}
+        />
+    );
+}
+
 function Diagram({ id }) {
     if (id === 'tennis_court') return <TennisCourtDiagram />;
     if (id === 'serve_targets') return <ServeTargetsDiagram />;
@@ -125,6 +214,11 @@ function Diagram({ id }) {
     if (id === 'pickle_kitchen') return <PickleKitchenDiagram />;
     if (id === 'vb_court') return <VbCourtDiagram />;
     if (id === 'tt_serve') return <TtServeDiagram />;
+    if (id === 'stroke_forehand') return <StrokeForehandDiagram />;
+    if (id === 'stroke_backhand') return <StrokeBackhandDiagram />;
+    if (id === 'stroke_serve') return <StrokeServeDiagram />;
+    if (id === 'stroke_slice') return <StrokeSliceDiagram />;
+    if (id === 'stroke_volley') return <StrokeVolleyDiagram />;
     return null;
 }
 
@@ -367,12 +461,28 @@ export default function SportGuideModal({ visible, onClose, cfg, sub }) {
                             <View key={`b-${i}`} style={s.card}>
                                 <Text style={[s.cardTitle, { color: accent }]}>{b.title}</Text>
                                 {b.diagram ? <Diagram id={b.diagram} /> : null}
+                                {b.imageUrl ? (
+                                    <View style={s.guideImgWrap}>
+                                        <Image source={{ uri: b.imageUrl }} style={s.guideImg} resizeMode="cover" />
+                                        {b.imageCredit ? <Text style={s.guideImgCredit}>{b.imageCredit}</Text> : null}
+                                    </View>
+                                ) : null}
                                 <Text style={s.cardBody}>{b.body}</Text>
                                 {(b.tips || []).map((tip, j) => (
                                     <View key={`t-${i}-${j}`} style={s.tipRow}>
                                         <Text style={s.tipBullet}>▸</Text>
                                         <Text style={s.tipTxt}>{tip}</Text>
                                     </View>
+                                ))}
+                                {(b.links || []).map((l, j) => (
+                                    <TouchableOpacity
+                                        key={`bl-${i}-${j}`}
+                                        onPress={() => openUrl(l.url)}
+                                        style={[s.linkBtn, { borderColor: accent + '66' }]}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text style={[s.linkTxt, { color: accent }]}>↗  {l.label}</Text>
+                                    </TouchableOpacity>
                                 ))}
                             </View>
                         ))}
@@ -447,6 +557,9 @@ const s = StyleSheet.create({
     tipRow: { flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'flex-start' },
     tipBullet: { color: colors.purple, fontWeight: '900', marginTop: 1 },
     tipTxt: { flex: 1, color: colors.textSecondary, fontSize: moderateScale(12), lineHeight: moderateScale(18) },
+    guideImgWrap: { marginBottom: 10, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#ffffff18' },
+    guideImg: { width: '100%', height: 160, backgroundColor: '#0b1220' },
+    guideImgCredit: { color: colors.textMuted, fontSize: 10, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 6 },
     sourcesBox: {
         marginTop: 4, marginBottom: 8, padding: 12, borderRadius: 12,
         borderWidth: 1, borderColor: colors.border, backgroundColor: '#ffffff06',
@@ -470,4 +583,18 @@ const d = StyleSheet.create({
         borderWidth: 1, borderColor: '#ffffff22',
     },
     zoneTxt: { color: '#e2e8f0', fontSize: 11, fontWeight: '800' },
+    phaseRow: {
+        flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly',
+        paddingHorizontal: 8, paddingTop: 18, paddingBottom: 28,
+    },
+    phaseCol: { alignItems: 'center', flex: 1, position: 'relative' },
+    phaseDot: {
+        width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center',
+        borderWidth: 1, borderColor: '#ffffff33',
+    },
+    phaseNum: { color: '#0b1220', fontWeight: '900', fontSize: 14 },
+    phaseLab: { color: '#e2e8f0', fontSize: 10, fontWeight: '800', marginTop: 8, textAlign: 'center' },
+    phaseArrow: {
+        position: 'absolute', right: -10, top: 8, color: '#94a3b8', fontSize: 16, fontWeight: '900',
+    },
 });

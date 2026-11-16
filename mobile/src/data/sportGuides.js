@@ -142,7 +142,13 @@ export function getSportGuide(sub, lang = 'en') {
             title: pick(b.title, lang),
             body: pick(b.body, lang),
             diagram: b.diagram || null,
-            tips: (b.tips || []).map(t => pick(t, lang)),
+            imageUrl: b.imageUrl || null,
+            imageCredit: pick(b.imageCredit, lang),
+            tips: (b.tips || []).map(tip => pick(tip, lang)),
+            links: (b.links || []).map(l => ({
+                label: pick(l.label, lang),
+                url: l.url,
+            })),
         })),
     };
 }
@@ -179,12 +185,75 @@ const SPORT_GUIDES = {
                 ),
             },
             {
-                title: L('Basic strokes & tactics', 'Temel vuruşlar ve taktik', 'Удары и тактика', 'Grundschläge & Taktik'),
+                title: L('Forehand', 'Forehand (ön el)', 'Форхенд', 'Vorhand'),
                 body: L(
-                    'Forehand / backhand (one- or two-handed), volley at net, overhead smash, drop shot, lob. Rally from baseline; finish with approach + volley or wrong-foot the opponent. Singles: open the court with angles; doubles: one at net, communicate “mine/yours”, poach carefully.',
-                    'Forehand / backhand (tek veya çift el), filede vole, overhead smaç, drop, lob. Baseline ralli; yaklaşma + vole veya rakibi yanlış ayakta bırakma. Tekler: açı ile kort aç; çiftler: biri filede, “benim/senin”, dikkatli poach.',
-                    'Форхенд/бэкхенд, волей у сетки, смэш, дроп, лоб. С задней линии; выход + волей. В паре: один у сетки, коммуникация.',
-                    'Vorhand/Rückhand, Volley, Smash, Drop, Lob. Grundlinienrallye; Herangehen + Volley. Doppel: einer am Netz, absprechen.'
+                    'Unit turn → racket drops below the ball → low-to-high swing for topspin → contact in front of the body → finish over the shoulder. Semi-western / western grips add spin; eastern is flatter. Weight transfers from back foot to front foot.',
+                    'Ünite dönüş → raket topun altına iner → alttan üste topspin salınımı → temas gövdenin önünde → omuz üstü bitiş. Semi-western / western grip spin; eastern daha düz. Ağırlık arka ayaktan öne geçer.',
+                    'Поворот корпуса → ракетка ниже мяча → снизу вверх (топспин) → удар впереди → финиш через плечо.',
+                    'Unit Turn → Schläger unter den Ball → tief-hoch für Topspin → Treffpunkt vor dem Körper → Finish über der Schulter.'
+                ),
+            },
+            {
+                title: L('Backhand (1H / 2H)', 'Backhand (tek / çift el)', 'Бэкхенд (1/2 руки)', 'Rückhand (1H / 2H)'),
+                body: L(
+                    'Two-handed: left hand drives (for righties), compact and stable on returns. One-handed: longer take-back, contact out front, elegant slice option. Always turn sideways; don’t face the net square.',
+                    'Çift el: (sağcılarda) sol el iter, karşılama için kompakt. Tek el: uzun geri çekiş, önde temas, zarif slice seçeneği. Her zaman yana dön; fileye kare bakma.',
+                    'Двуручный: компактный и стабильный. Одноручный: длинный замах, контакт впереди, удобный слайс. Всегда боком.',
+                    'Beidhändig: kompakt & stabil. Einhändig: langer Aushol, Treffpunkt vorne, Slice-Option. Immer seitlich.'
+                ),
+            },
+            {
+                title: L('Serve: flat · slice · kick', 'Servis: düz · slice · kick', 'Подача: плоская · слайс · кик', 'Aufschlag: flat · Slice · Kick'),
+                body: L(
+                    'Trophy pose → knee bend → up together → pronation through contact. Flat: through the middle for pace. Slice: brush the side (curves wide). Kick/topspin: brush up the back of the ball (high bounce, safer 2nd serve). Aim Wide / Body / T.',
+                    'Trophy pose → diz → birlikte yukarı → temasta pronasyon. Düz: tempo için ortadan. Slice: yandan fırça (geniş kıvrılır). Kick: topun arkasını yukarı fırçala (yüksek sektirme, güvenli 2. servis). Hedef: Geniş / Body / T.',
+                    'Трофи → сгиб колен → вместе вверх → пронация. Плоская — темп; слайс — в сторону; кик — вверх по мячу.',
+                    'Trophy → Knie → zusammen hoch → Pronation. Flat = Tempo; Slice = seitlich; Kick = hoch am Ball.'
+                ),
+            },
+            {
+                title: L('Slice', 'Slice (kesik)', 'Слайс', 'Slice'),
+                body: L(
+                    'High-to-low swing path, open racket face, underspin. Keeps the ball low after the bounce — great for neutralizing pace, approach shots, and defensive floating. Common on the one-handed backhand wing.',
+                    'Yukarıdan aşağı salınım, açık raket yüzü, underspin. Sektirmeden sonra topu alçak tutar — tempo kesmek, yaklaşma ve savunma için. Tek el backhand’de sık.',
+                    'Сверху вниз, открытая ракетка, подкрут. Низкий отскок — для нейтрализации и выхода.',
+                    'Hoch-tief, offene Schlagfläche, Unterschnitt. Hält den Ball tief — Neutralisieren & Herangehen.'
+                ),
+            },
+            {
+                title: L('Volley & overhead', 'Vole ve overhead', 'Волей и смэш', 'Volley & Overhead'),
+                body: L(
+                    'Volley: short punch, no big swing; meet the ball in front; continental grip. Half-volley: scoop just after the bounce. Overhead smash: turn, track the lob, point up with the non-racket arm, hit like a serve.',
+                    'Vole: kısa yumruk, büyük salınım yok; topu önde karşıla; continental grip. Half-volley: sektikten hemen sonra. Overhead: dön, lobu takip et, serbest kol yukarı, servis gibi vur.',
+                    'Волей: короткий удар, встреча впереди. Полуволей сразу после отскока. Смэш как подача.',
+                    'Volley: kurzer Punch, Treffpunkt vorne. Half-Volley direkt nach Absprung. Smash wie Aufschlag.'
+                ),
+            },
+            {
+                title: L('Lob & drop shot', 'Lob ve drop shot', 'Лоб и дроп', 'Lob & Dropshot'),
+                body: L(
+                    'Lob: lift over a net-rushing opponent; offensive lob lands deep; defensive lob buys time. Drop shot: soft touch just over the net — disguise from the same preparation as a drive.',
+                    'Lob: fileye gelen rakibin üstünden; ofansif lob derin düşer; defansif lob zaman kazandırır. Drop: file üstünden yumuşak — drive ile aynı hazırlıktan gizle.',
+                    'Лоб через вышедшего к сетке; дроп — мягко у сетки, маскируйте замахом.',
+                    'Lob über den Netzstürmer; Drop weich übers Netz — aus Drive-Aushol tarne.'
+                ),
+            },
+            {
+                title: L('Must-know terms', 'Bilinmesi gereken terimler', 'Важные термины', 'Wichtige Begriffe'),
+                body: L(
+                    'Ace · Double fault · Break / Break point · Hold · Deuce · Advantage (Ad) · Let · Fault · Foot fault · Tiebreak · No-ad · Split-step · NML (no-man’s-land) · Inside-out / Inside-in · Poach · Unforced error · Winner · Rally · Bagel (6–0) · Breadstick (6–1).',
+                    'Ace · Çift hata · Break / Break puanı · Hold · Deuce · Avantaj (Ad) · Let · Fault · Foot fault · Tiebreak · No-ad · Split-step · NML (orta kort boşluğu) · Inside-out / Inside-in · Poach · Unforced error · Winner · Ralli · Bagel (6–0) · Breadstick (6–1).',
+                    'Эйс · Двойная ошибка · Брейк · Хоулд · Равенство · Адвантаж · Лет · Фолт · Тай-брейк · Сплит-степ · NML · Инсайд-аут · Поуч · Невьнужденная · Винер.',
+                    'Ass · Doppelfehler · Break · Hold · Einstand · Advantage · Let · Fehler · Tie-Break · Split-Step · NML · Inside-out · Poach · Unforced Error · Winner.'
+                ),
+            },
+            {
+                title: L('Tactics snapshot', 'Taktik özeti', 'Краткая тактика', 'Taktik-Kurzüberblick'),
+                body: L(
+                    'Rally from baseline; finish with approach + volley or wrong-foot the opponent. Singles: open the court with angles. Doubles: one at net, communicate “mine/yours”, poach carefully. More maps & patterns live in the Bonus tab.',
+                    'Baseline ralli; yaklaşma + vole veya rakibi yanlış ayakta bırak. Tekler: açı ile kort aç. Çiftler: biri filede, “benim/senin”, dikkatli poach. Harita ve kalıplar Bonus sekmesinde.',
+                    'Розыгрыш с задней; выход + волей. В паре — один у сетки. Карты — во вкладке Бонус.',
+                    'Grundlinienrallye; Herangehen + Volley. Doppel: einer am Netz. Karten im Bonus-Tab.'
                 ),
             },
             {
@@ -199,6 +268,84 @@ const SPORT_GUIDES = {
         ],
         // Sporcular: sportGuideAthletes.js (ATHLETES_BY_SUB.tennis)
         bonus: [
+            {
+                title: L('Films & series to watch', 'İzlenebilecek film & diziler', 'Фильмы и сериалы', 'Filme & Serien'),
+                body: L(
+                    'Story + tennis culture picks (stream where available in your country). Documentaries teach patterns; dramas are mood — not technique manuals.',
+                    'Hikâye + tenis kültürü seçkisi (ülkendeki platformlara göre). Belgeseller kalıp öğretir; dramalar ruh hali — teknik el kitabı değil.',
+                    'Истории и культура тенниса. Документалки полезнее для паттернов, чем художественные фильмы.',
+                    'Story & Tennis-Kultur. Dokus helfen bei Mustern mehr als Spielfilme.'
+                ),
+                tips: [
+                    L('King Richard (2021) — Williams sisters origin', 'King Richard (2021) — Williams kardeşlerin çıkışı', 'King Richard (2021) — путь сестёр Уильямс', 'King Richard (2021) — Williams-Schwestern'),
+                    L('Borg vs McEnroe (2017) — rivalry & freeze-frame tension', 'Borg vs McEnroe (2017) — rekabet ve gerilim', 'Borg vs McEnroe (2017) — соперничество', 'Borg vs McEnroe (2017) — Rivalität'),
+                    L('Battle of the Sexes (2017) — King vs Riggs, 1973', 'Battle of the Sexes (2017) — King vs Riggs, 1973', 'Battle of the Sexes (2017) — King против Riggs', 'Battle of the Sexes (2017) — King vs. Riggs'),
+                    L('Challengers (2024) — modern tour psychology', 'Challengers (2024) — modern tur psikolojisi', 'Challengers (2024) — психология тура', 'Challengers (2024) — Tour-Psychologie'),
+                    L('Wimbledon (2004) — light rom-com on grass', 'Wimbledon (2004) — çimde hafif romantik komedi', 'Wimbledon (2004) — лёгкая комедия на траве', 'Wimbledon (2004) — leichte Rasen-RomCom'),
+                    L('Break Point (Netflix) — behind-the-scenes tour life', 'Break Point (Netflix) — turun arkası', 'Break Point (Netflix) — закулисье тура', 'Break Point (Netflix) — Tour hinter den Kulissen'),
+                ],
+                links: [
+                    { label: L('MIT OCW — stroke photo galleries (free)', 'MIT OCW — vuruş foto galerileri (ücretsiz)', 'MIT OCW — галереи ударов (бесплатно)', 'MIT OCW — Schlag-Galerien (kostenlos)'), url: 'https://ocw.mit.edu/courses/pe-710-tennis-spring-2007/pages/image-galleries/' },
+                    { label: L('Wikimedia — Tennis shots (CC photos)', 'Wikimedia — Tenis vuruşları (CC foto)', 'Wikimedia — удары (CC фото)', 'Wikimedia — Schläge (CC-Fotos)'), url: 'https://commons.wikimedia.org/wiki/Category:Tennis_shots' },
+                ],
+            },
+            {
+                title: L('Forehand — visual phases', 'Forehand — görsel fazlar', 'Форхенд — фазы', 'Vorhand — Phasen'),
+                body: L(
+                    'Schematic of the three teaching phases. Pair with MIT OCW / Commons photos for real-player frames — there is no free “stroke diagram API”; we draw this in-app.',
+                    'Üç öğretim fazının şeması. Gerçek kareler için MIT OCW / Commons fotoğraflarına bak — ücretsiz “vuruş diyagramı API”si yok; şema uygulama içi.',
+                    'Три фазы обучения. Реальные кадры — MIT OCW / Commons. Бесплатного API схем ударов нет.',
+                    'Drei Lehrphasen. Echte Fotos: MIT OCW / Commons. Kein kostenloses Schlag-Diagramm-API.'
+                ),
+                diagram: 'stroke_forehand',
+                tips: [
+                    L('Phase 1 Preparation · 2 Contact out front · 3 Follow-through', '1 Hazırlık · 2 Önde temas · 3 Bitiş', '1 Замах · 2 Контакт впереди · 3 Проводка', '1 Aushol · 2 Treffpunkt vorne · 3 Ausschwung'),
+                ],
+                imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Tennis_forehand_by_random_dave.jpeg/640px-Tennis_forehand_by_random_dave.jpeg',
+                imageCredit: L('Photo: Ben Lancaster / CC BY 2.0 (Wikimedia)', 'Foto: Ben Lancaster / CC BY 2.0 (Wikimedia)', 'Фото: Ben Lancaster / CC BY 2.0 (Wikimedia)', 'Foto: Ben Lancaster / CC BY 2.0 (Wikimedia)'),
+            },
+            {
+                title: L('Backhand — visual phases', 'Backhand — görsel fazlar', 'Бэкхенд — фазы', 'Rückhand — Phasen'),
+                body: L(
+                    'Two-hand drive path vs one-hand slice path. Contact still out in front; finish across or over the shoulder.',
+                    'Çift el drive yolu vs tek el slice yolu. Temas yine önde; bitiş çapraz veya omuz üstü.',
+                    'Двуручный драйв vs одноручный слайс. Контакт впереди.',
+                    'Beidhändiger Drive vs. einhändiger Slice. Treffpunkt vorne.'
+                ),
+                diagram: 'stroke_backhand',
+                imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/Andy_Murray_Backhand.jpg/640px-Andy_Murray_Backhand.jpg',
+                imageCredit: L('Photo: Wikimedia Commons (see file page for license)', 'Foto: Wikimedia Commons (lisans için dosya sayfası)', 'Фото: Wikimedia Commons (лицензия на странице файла)', 'Foto: Wikimedia Commons (Lizenz auf der Dateiseite)'),
+            },
+            {
+                title: L('Serve — visual phases', 'Servis — görsel fazlar', 'Подача — фазы', 'Aufschlag — Phasen'),
+                body: L(
+                    'Trophy → launch → contact above the head → pronation finish. Targets Wide / Body / T are on the serve-box diagram below in tactics.',
+                    'Trophy → fırlatış → kafa üstü temas → pronasyon bitişi. Geniş / Body / T hedefleri aşağıdaki taktik diyagramında.',
+                    'Трофи → подброс → контакт над головой → пронация.',
+                    'Trophy → Wurf → Treffpunkt über dem Kopf → Pronation.'
+                ),
+                diagram: 'stroke_serve',
+            },
+            {
+                title: L('Slice — visual path', 'Slice — görsel yol', 'Слайс — траектория', 'Slice — Bahn'),
+                body: L(
+                    'High-to-low brush; ball stays low after bounce. Use to change rhythm or approach the net behind a skidding ball.',
+                    'Yukarıdan aşağı fırça; sektikten sonra top alçak kalır. Ritim bozmak veya kayan topun ardından fileye gelmek için.',
+                    'Сверху вниз; низкий отскок. Смена ритма или выход к сетке.',
+                    'Hoch-tief; tiefer Absprung. Rhythmuswechsel oder Netzangriff.'
+                ),
+                diagram: 'stroke_slice',
+            },
+            {
+                title: L('Volley — visual punch', 'Vole — görsel yumruk', 'Волей — короткий удар', 'Volley — Punch'),
+                body: L(
+                    'No loop: block / punch in front of the body. Soft hands on low balls; firm on shoulder-height sitters.',
+                    'Döngü yok: gövdenin önünde bloke / yumruk. Alçak toplarda yumuşak el; omuz hizasında sıkı.',
+                    'Без большого замаха: блок/панч впереди.',
+                    'Kein Loop: Block/Punch vor dem Körper.'
+                ),
+                diagram: 'stroke_volley',
+            },
             {
                 title: L('Court zones (tactical map)', 'Kort bölgeleri (taktik harita)', 'Зоны корта (тактика)', 'Platzzonen (Taktik)'),
                 body: L(
