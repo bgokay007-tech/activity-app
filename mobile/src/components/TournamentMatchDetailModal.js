@@ -151,6 +151,8 @@ export default function TournamentMatchDetailModal({
     const [adminTo, setAdminTo] = useState('');
     const [shareOpen, setShareOpen] = useState(false);
     const [availModalOpen, setAvailModalOpen] = useState(false);
+    // Bildirilen müsaitlik listesi: sola ok = gizli (varsayılan), aşağı ok = açık
+    const [reportedAvailOpen, setReportedAvailOpen] = useState(false);
     const [reserveCourts, setReserveCourts] = useState([]);
     const [reserveCourtId, setReserveCourtId] = useState(null);
     const [reserveLoading, setReserveLoading] = useState(false);
@@ -172,6 +174,7 @@ export default function TournamentMatchDetailModal({
         if (!visible) {
             setShareOpen(false);
             setAvailModalOpen(false);
+            setReportedAvailOpen(false);
         }
     }, [visible]);
 
@@ -977,17 +980,30 @@ export default function TournamentMatchDetailModal({
                             </View>
                         )}
 
-                        {/* Bildirilen müsaitlikler + teklifler (salt okunur) — form ayrı modalda */}
+                        {/* Bildirilen müsaitlikler — varsayılan gizli; sağdaki ok sola=kapalı, aşağı=açık */}
                         <View style={{ marginBottom: 12, backgroundColor: '#1e293b', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: '#334155' }}>
-                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 8 }}>
-                                {t.tournSchedReportedTitle || 'Bildirilen müsaitlikler'}
-                            </Text>
-                            {renderSideAvailSummary('p1', match.p1Name, p1Slots, p1PreferredCourts)}
-                            {renderSideAvailSummary('p2', match.p2Name, p2Slots, p2PreferredCourts)}
+                            <TouchableOpacity
+                                onPress={() => setReportedAvailOpen(v => !v)}
+                                activeOpacity={0.75}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                            >
+                                <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', flex: 1 }}>
+                                    {t.tournSchedReportedTitle || 'Bildirilen müsaitlikler'}
+                                </Text>
+                                <Text style={{ color: '#94a3b8', fontSize: 16, fontWeight: '800', lineHeight: 18 }}>
+                                    {reportedAvailOpen ? '▼' : '◀'}
+                                </Text>
+                            </TouchableOpacity>
+                            {reportedAvailOpen ? (
+                                <View style={{ marginTop: 8 }}>
+                                    {renderSideAvailSummary('p1', match.p1Name, p1Slots, p1PreferredCourts)}
+                                    {renderSideAvailSummary('p2', match.p2Name, p2Slots, p2PreferredCourts)}
+                                </View>
+                            ) : null}
                             {canAct && !lockedByAdmin ? (
                                 <TouchableOpacity
                                     onPress={() => setAvailModalOpen(true)}
-                                    style={{ marginTop: 4, backgroundColor: '#0ea5e925', borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#0ea5e960' }}
+                                    style={{ marginTop: 8, backgroundColor: '#0ea5e925', borderRadius: 8, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: '#0ea5e960' }}
                                 >
                                     <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 12 }}>
                                         {t.tournSchedAvailNotifyBtn || '📅 Müsaitlik Bildir'}
