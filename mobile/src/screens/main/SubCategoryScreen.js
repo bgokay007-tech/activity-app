@@ -24405,23 +24405,37 @@ function getSpotlightMeta(sub, cfg, t) {
     return { title: t[row.title], emoji: row.emoji, comingSoon: t[row.soon] };
 }
 
+const SPOTLIGHT_SKIP_AUTO_KEY = 'spotlight_skip_auto';
+
 function TennisSpotlightModal({ visible, onClose, cfg, sub }) {
         const t = useT();
 const insets = useSafeAreaInsets();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [flipped, setFlipped] = useState(false);
+    // Kullanıcı isteği: "Ben kendim bakarım" — işaretlenince digimon kart spor dalına
+    // girince otomatik açılmaz; header'daki 🃏 ile elle bakılabilir.
+    const [skipAuto, setSkipAuto] = useState(false);
     const meta = getSpotlightMeta(sub, cfg, t);
 
     useEffect(() => {
         if (!visible) return;
         setFlipped(false);
         setLoading(true);
+        AsyncStorage.getItem(SPOTLIGHT_SKIP_AUTO_KEY)
+            .then(v => setSkipAuto(v === '1'))
+            .catch(() => setSkipAuto(false));
         api.get('/spotlight/daily', { params: { subCategory: sub } })
             .then(res => setData(res.data))
             .catch(() => setData(null))
             .finally(() => setLoading(false));
     }, [visible, sub]);
+
+    const toggleSkipAuto = () => {
+        const next = !skipAuto;
+        setSkipAuto(next);
+        AsyncStorage.setItem(SPOTLIGHT_SKIP_AUTO_KEY, next ? '1' : '0').catch(() => {});
+    };
 
     return (
         <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -24453,6 +24467,12 @@ const insets = useSafeAreaInsets();
                         )}
                     </ScrollView>
                 </View>
+                <TouchableOpacity onPress={toggleSkipAuto} style={spot.skipRow} activeOpacity={0.75}>
+                    <View style={[spot.skipBox, skipAuto && spot.skipBoxOn]}>
+                        {skipAuto ? <Text style={spot.skipMark}>✓</Text> : null}
+                    </View>
+                    <Text style={spot.skipLabel}>{t.sc_spot_skip_auto || 'Ben kendim bakarım — otomatik açma'}</Text>
+                </TouchableOpacity>
                 <View style={spot.actions}>
                     <TouchableOpacity style={spot.actionBtn} onPress={() => setFlipped(v => !v)}>
                         <Text style={spot.actionBtnText}>{t.sc_0050}</Text>
@@ -24565,6 +24585,11 @@ const spot = StyleSheet.create({
     tierName:     { color:'#fff', fontSize:17, fontWeight:'800', marginBottom:3 },
     tierDetail:   { color: colors.textSecondary, fontSize:12 },
     tierEmpty:    { color: colors.textMuted, fontSize:13, fontStyle:'italic' },
+    skipRow:      { flexDirection:'row', alignItems:'center', gap:10, marginBottom:12, paddingHorizontal:4 },
+    skipBox:      { width:22, height:22, borderRadius:6, borderWidth:1.5, borderColor: colors.border, backgroundColor: colors.surface2, alignItems:'center', justifyContent:'center' },
+    skipBoxOn:    { borderColor: colors.purple || '#A855F7', backgroundColor: colors.purple || '#A855F7' },
+    skipMark:     { color:'#fff', fontSize:12, fontWeight:'900', lineHeight:14 },
+    skipLabel:    { color: colors.textSecondary, fontSize:13, fontWeight:'600', flex:1 },
     actions:      { flexDirection:'row', gap:3 },
     actionBtn:    { flex:1, backgroundColor: colors.surface2, borderRadius:12, paddingHorizontal:17, paddingVertical:11, borderWidth:1, borderColor: colors.border, alignItems:'center' },
     closeBtn:     { backgroundColor:'#dc262620', borderColor:'#dc262640' },
@@ -24934,7 +24959,8 @@ function SubCategoryScreen({ route, navigation }) {
         navigation.setParams({ openCreateRival: undefined });
     }, [openCreateRival]);
 
-    // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster
+    // Tenis/Padel sekmesine her girişte (günde en fazla 3 kez) "Günün Tenisçisi/Padelcıları" kartını otomatik göster —
+    // kullanıcı "Ben kendim bakarım" işaretlediyse (SPOTLIGHT_SKIP_AUTO_KEY) bir daha otomatik açılmaz.
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
     const [showSportGuide, setShowSportGuide] = useState(false);
@@ -24968,16 +24994,23 @@ function SubCategoryScreen({ route, navigation }) {
     }, []));
     useEffect(() => {
         if (sub !== 'tennis' && sub !== 'padel' && sub !== 'pickleball' && sub !== 'squash' && sub !== 'badminton' && sub !== 'table_tennis' && sub !== 'volleyball') return;
-        const today = new Date().toISOString().slice(0, 10);
-        const storageKey = `${sub}_spotlight_shown`;
-        AsyncStorage.getItem(storageKey).then(raw => {
-            let { date, count } = raw ? JSON.parse(raw) : { date: today, count: 0 };
-            if (date !== today) { date = today; count = 0; }
-            if (count < 3) {
-                setShowSpotlight(true);
-                AsyncStorage.setItem(storageKey, JSON.stringify({ date, count: count + 1 }));
-            }
-        });
+        let cancelled = false;
+        (async () => {
+            try {
+                const skip = await AsyncStorage.getItem(SPOTLIGHT_SKIP_AUTO_KEY);
+                if (cancelled || skip === '1') return;
+                const today = new Date().toISOString().slice(0, 10);
+                const storageKey = `${sub}_spotlight_shown`;
+                const raw = await AsyncStorage.getItem(storageKey);
+                let { date, count } = raw ? JSON.parse(raw) : { date: today, count: 0 };
+                if (date !== today) { date = today; count = 0; }
+                if (count < 3) {
+                    if (!cancelled) setShowSpotlight(true);
+                    await AsyncStorage.setItem(storageKey, JSON.stringify({ date, count: count + 1 }));
+                }
+            } catch { /* ignore */ }
+        })();
+        return () => { cancelled = true; };
     }, [sub]);
 
     const [autoOpenId, setAutoOpenId] = useState(null);
