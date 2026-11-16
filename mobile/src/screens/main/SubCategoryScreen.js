@@ -20006,7 +20006,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         <Modal visible={showMatchesModal} animationType="slide" transparent onRequestClose={() => { setShowMatchesModal(false); setHighlightMatchId(null); }} android_keyboardInputMode="adjustNothing">
             <View style={s.modalOverlay}>
                 <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                <View style={[s.modalBox, { maxHeight:'90%' }]}>
+                {/* Kullanıcı: maçlar/puan tablosu gerekirse tüm ekranı kaplasın */}
+                <View style={[s.modalBox, { maxHeight: '98%', height: '96%' }]}>
                     <View style={s.modalHeader}>
                         <Text style={s.modalTitle}>{t.sc_0425}</Text>
                         <TouchableOpacity onPress={() => { setShowMatchesModal(false); setHighlightMatchId(null); }}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
@@ -20178,53 +20179,77 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
                         const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
                             : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
+                        const playoffJoker = (() => {
+                            if (!(isReady && matchSideMine(match) && !isEntering && !item.dayTrip)) return null;
+                            const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
+                            const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
+                            if (myJokerRequested) return null;
+                            if (!otherJokerRequested && tournMyJokerUsed) return null;
+                            const jokerLabel = otherJokerRequested ? t.sc_0491 : t.sc_0485;
+                            const confirmMsg = otherJokerRequested ? t.sc_0493 : t.sc_0494;
+                            return (
+                                <TouchableOpacity
+                                    onPress={() => Alert.alert(jokerLabel, confirmMsg, [
+                                        { text: t.sc_0004, style: 'cancel' },
+                                        { text: 'Evet, Kullan', style: 'destructive', onPress: async () => {
+                                            try {
+                                                const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
+                                                await fetchMatches();
+                                                Alert.alert(t.sc_0497, data.message);
+                                            } catch (e) {
+                                                Alert.alert('Hata', e?.response?.data?.message || t.sc_0498);
+                                            }
+                                        }},
+                                    ])}
+                                    style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60', flexShrink: 0 }}>
+                                    <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize: 10, fontWeight: '700' }}>{jokerLabel}</Text>
+                                </TouchableOpacity>
+                            );
+                        })();
                         return (
                             <TouchableOpacity
                                 key={match.id}
                                 activeOpacity={0.85}
-                                onPress={() => { if (!isBye) setDetailMatch(match); }}
-                                style={{ backgroundColor:'#0f172a', borderRadius:8, padding:8, marginBottom:6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}
+                                onPress={() => { if (!isBye && !isEntering) setDetailMatch(match); }}
+                                style={{ width: '100%', backgroundColor: '#0f172a', borderRadius: 8, padding: 8, marginBottom: 6, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155' }}
                             >
-                                {/* İsimler yan yana: X  vs  Y */}
+                                {/* Tek satır: X vs Y + Skor Gir / Joker */}
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p1Win ? '800' : '600', flex: 1, textAlign: 'right' }} numberOfLines={1}>
+                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p1Win ? '800' : '600', flex: 1, textAlign: 'right', minWidth: 0 }} numberOfLines={1}>
                                         {match.p1Name || 'TBD'}
                                     </Text>
                                     {isDone && mSets.length > 0
                                         ? (
-                                            <View style={{ flexShrink: 0, maxWidth: '42%' }}>
+                                            <View style={{ flexShrink: 0, maxWidth: '36%' }}>
                                                 <TournMatchCenterScore sets={mSets} compact />
                                             </View>
                                         )
                                         : <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '800', flexShrink: 0 }}>vs</Text>}
-                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p2Win ? '800' : '600', flex: 1, textAlign: 'left' }} numberOfLines={1}>
+                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p2Win ? '800' : '600', flex: 1, textAlign: 'left', minWidth: 0 }} numberOfLines={1}>
                                         {match.p2Name || 'TBD'}
                                     </Text>
+                                    {!isEntering && isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) ? (
+                                        <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                            style={{ backgroundColor: infoColor + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: infoColor + '50', flexShrink: 0 }}>
+                                            <Text style={{ color: infoColor, fontSize: 10, fontWeight: '700' }}>{t.sc_0440}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                    {playoffJoker}
+                                    {!isEntering && isDone && !bothConfirmed && myUnconfirmedSide ? (
+                                        <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
+                                            style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60', flexShrink: 0 }}>
+                                            <Text style={{ color: '#4ade80', fontSize: 10, fontWeight: '700' }}>{t.sc_0441}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
+                                    {!isEntering && isDone && !bothConfirmed && (isCreator || myIsAdmin) ? (
+                                        <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                            style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50', flexShrink: 0 }}>
+                                            <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }}>{t.sc_0442}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
                                 </View>
                                 {isBye && <Text style={{ color: colors.textMuted, fontSize: 9, marginTop: 3 }}>BYE</Text>}
-                                {/* Skor Gir → kartın altında set formları açılır */}
-                                {!isEntering && (
-                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                                        {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && (
-                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                style={{ backgroundColor: infoColor + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: infoColor + '50' }}>
-                                                <Text style={{ color: infoColor, fontSize: 10, fontWeight: '700' }}>{t.sc_0440}</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                        {isDone && !bothConfirmed && myUnconfirmedSide && (
-                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
-                                                style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60' }}>
-                                                <Text style={{ color: '#4ade80', fontSize: 10, fontWeight: '700' }}>{t.sc_0441}</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                        {isDone && !bothConfirmed && (isCreator || myIsAdmin) && (
-                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50' }}>
-                                                <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '700' }}>{t.sc_0442}</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                )}
+                                {/* Skor Gir → aynı satır alta doğru genişler */}
                                 {isEntering && (
                                     <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 5 }}>
                                         <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
@@ -20677,7 +20702,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             <Text style={{ color:'#c4b5fd', fontSize:11, fontWeight:'900' }}>{t.sc_0480}</Text>
                                         </TouchableOpacity>
                                     )}
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
+                                        {/* Kullanıcı: her satıra tek eşleşme, gerekirse tüm genişlik; Skor Gir+Joker aynı satırda */}
+                                        <View style={{ flexDirection: 'column', gap: 4 }}>
                                         {rMatches.map(match => {
                                             const isBye = match.status === 'BYE';
                                             const isDone = match.status === 'COMPLETED';
@@ -20685,25 +20711,83 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const isTBD = match.status === 'PENDING' && (!match.p1Id || !match.p2Id);
                                             const isEntering = scoreEntry?.matchId === match.id;
                                             const mSets = match.score?.sets || [];
+                                            const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
+                                            const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
+                                                : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
+                                            const jokerBtn = (() => {
+                                                if (!((item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering)) return null;
+                                                const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
+                                                const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
+                                                if (myJokerRequested) return null;
+                                                if (!otherJokerRequested && tournMyJokerUsed) return null;
+                                                const isPlayoffMatch = match.phase === 'PLAYOFF';
+                                                const jokerLabel = isPlayoffMatch
+                                                    ? (otherJokerRequested ? t.sc_0491 : t.sc_0485)
+                                                    : (otherJokerRequested ? t.sc_0492 : t.sc_0486);
+                                                const confirmMsg = isPlayoffMatch
+                                                    ? (otherJokerRequested ? t.sc_0493 : t.sc_0494)
+                                                    : (otherJokerRequested ? t.sc_0495 : t.sc_0496);
+                                                return (
+                                                    <TouchableOpacity
+                                                        onPress={() => Alert.alert(jokerLabel, confirmMsg, [
+                                                            { text: t.sc_0004, style: 'cancel' },
+                                                            { text: 'Evet, Kullan', style: 'destructive', onPress: async () => {
+                                                                try {
+                                                                    const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
+                                                                    await fetchMatches();
+                                                                    Alert.alert(isPlayoffMatch ? t.sc_0497 : '🃏 Joker', data.message);
+                                                                } catch (e) {
+                                                                    Alert.alert('Hata', e?.response?.data?.message || t.sc_0498);
+                                                                }
+                                                            }},
+                                                        ])}
+                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60', flexShrink: 0 }}>
+                                                        <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize: 9, fontWeight: '700' }}>{jokerLabel}</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })();
+                                            const skorGirBtn = (() => {
+                                                if (!(isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering)) return null;
+                                                const needsEarlyAgree = (item.type === '3' || item.type === '4')
+                                                    && match.phase === 'GROUP' && match.round > 1
+                                                    && !(isCreator || myIsAdmin)
+                                                    && !match.scheduleData?.agreed
+                                                    && tournMatches.some(m =>
+                                                        m.phase === 'GROUP' && m.round < match.round && m.status === 'PENDING'
+                                                        && (m.p1Id === match.p1Id || m.p2Id === match.p1Id || m.p1Id === match.p2Id || m.p2Id === match.p2Id));
+                                                if (needsEarlyAgree) {
+                                                    return (
+                                                        <Text style={{ color: '#fbbf24', fontSize: 8, fontWeight: '700', flexShrink: 1, maxWidth: 90 }} numberOfLines={2}>
+                                                            {t.tournEarlyPlayHint || t.sc_0489}
+                                                        </Text>
+                                                    );
+                                                }
+                                                return (
+                                                    <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                        style={{ backgroundColor: infoColor + '20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: infoColor + '50', flexShrink: 0 }}>
+                                                        <Text style={{ color: infoColor, fontSize: 9, fontWeight: '700' }}>{t.sc_0440}</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })();
                                             return (
                                                 <TouchableOpacity
                                                     key={match.id}
                                                     activeOpacity={0.85}
                                                     onPress={() => {
-                                                        if (isBye || isTBD) return;
+                                                        if (isBye || isTBD || isEntering) return;
                                                         setDetailMatch(match);
                                                     }}
-                                                    style={{ width: isEntering ? '100%' : ((item.type === '2' || item.type === '4' || item.type === '7') ? '48.5%' : '31.5%'), backgroundColor:'#0f172a', borderRadius:8, padding:0, marginBottom:3, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}
+                                                    style={{ width: '100%', backgroundColor: '#0f172a', borderRadius: 8, padding: 0, marginBottom: 2, borderWidth: match.id === highlightMatchId ? 2 : 1, borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : isBye || isTBD ? '#64748b20' : '#334155' }}
                                                 >
-                                                        <View style={{ flex:1, padding: 6 }}>
+                                                        <View style={{ flex: 1, padding: 8 }}>
                                                             {match._carriedOverFromRound != null && (
-                                                                <Text style={{ color:'#c084fc', fontSize:8, fontWeight:'800', marginBottom:2 }}>
+                                                                <Text style={{ color: '#c084fc', fontSize: 8, fontWeight: '800', marginBottom: 2 }}>
                                                                     {t.sc_0481} {match._carriedOverFromRound} {t.sc_0482}
                                                                 </Text>
                                                             )}
-                                                            {/* İsimler yan yana: X  vs  Y (takımda alt satırlar aynı kolonda) */}
+                                                            {/* Tek satır: X vs Y + Skor Gir + Joker */}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                                                            <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                                                            <View style={{ flex: 1, alignItems: 'flex-end', minWidth: 0 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p1Id;
                                                                 if (item.type === '2' || item.type === '4' || item.type === '7') {
@@ -20755,7 +20839,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     </View>
                                                                 )
                                                                 : <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'800', flexShrink:0, paddingHorizontal:2 }}>vs</Text>}
-                                                            <View style={{ flex: 1, alignItems: 'flex-start' }}>
+                                                            <View style={{ flex: 1, alignItems: 'flex-start', minWidth: 0 }}>
                                                             {(() => {
                                                                 const isW = isDone && match.winnerId === match.p2Id;
                                                                 if (item.type === '2' || item.type === '4' || item.type === '7') {
@@ -20800,6 +20884,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 );
                                                             })()}
                                                             </View>
+                                                            {skorGirBtn}
+                                                            {jokerBtn}
+                                                            {!isEntering && isDone && !bothConfirmed && myUnconfirmedSide ? (
+                                                                <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
+                                                                    style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60', flexShrink: 0 }}>
+                                                                    <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700' }}>✓ {t.sc_0157}</Text>
+                                                                </TouchableOpacity>
+                                                            ) : null}
+                                                            {!isEntering && isDone && !bothConfirmed && (isCreator || myIsAdmin) ? (
+                                                                <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                    style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50', flexShrink: 0 }}>
+                                                                    <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '700' }}>{t.sc_0499}</Text>
+                                                                </TouchableOpacity>
+                                                            ) : null}
                                                             </View>
                                                         {(() => {
                                                             if (isDone || isBye || isTBD || !match.deadline) return null;
@@ -20819,28 +20917,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {isReady && match.deadline && new Date(match.deadline).getTime() < Date.now() && (
                                                                 <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || t.sc_0488}</Text>
                                                             )}
-                                                            {isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) && !isEntering && (() => {
-                                                                const needsEarlyAgree = (item.type === '3' || item.type === '4')
-                                                                    && match.phase === 'GROUP' && match.round > 1
-                                                                    && !(isCreator || myIsAdmin)
-                                                                    && !match.scheduleData?.agreed
-                                                                    && tournMatches.some(m =>
-                                                                        m.phase === 'GROUP' && m.round < match.round && m.status === 'PENDING'
-                                                                        && (m.p1Id === match.p1Id || m.p2Id === match.p1Id || m.p1Id === match.p2Id || m.p2Id === match.p2Id));
-                                                                if (needsEarlyAgree) {
-                                                                    return (
-                                                                        <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700', flex:1 }} numberOfLines={2}>
-                                                                            {t.tournEarlyPlayHint || t.sc_0489}
-                                                                        </Text>
-                                                                    );
-                                                                }
-                                                                return (
-                                                                <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                    style={{ backgroundColor: infoColor+'20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: infoColor+'50' }}>
-                                                                    <Text style={{ color: infoColor, fontSize:9, fontWeight:'700' }}>{t.sc_0440}</Text>
-                                                                </TouchableOpacity>
-                                                                );
-                                                            })()}
                                                             {(isCreator || myIsAdmin) && !item.dayTrip && isReady && match.deadline && !isEntering && (
                                                                 <TouchableOpacity
                                                                     onPress={() => {
@@ -20856,85 +20932,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     <Text style={{ color:'#38bdf8', fontSize:9, fontWeight:'700' }}>{t.tournExtendMatchBtn || t.sc_0490}</Text>
                                                                 </TouchableOpacity>
                                                             )}
-                                                            {/* Joker butonu — Bireysel Rekabetçi (oyuncu), Çiftler Rekabetçi (takım) ve Bireysel Antrenman (oyuncu) */}
-                                                            {(item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering && (() => {
-                                                                const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
-                                                                const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
-                                                                if (myJokerRequested) return null;
-                                                                // Joker turnuva boyunca 1 kez kullanılır — başka bir maçta zaten
-                                                                // kullandıysam bu maçta da göstermeye gerek yok (karşılıklı onay
-                                                                // hariç: rakip BU maçta joker istediyse onaylama hakkım hâlâ ayrı).
-                                                                if (!otherJokerRequested && tournMyJokerUsed) return null;
-                                                                // Play-off (çeyrek/yarı final/final) maçlarında aynı mekanik "maç yarıda
-                                                                // kaldı, ek süre" olarak sunulur — grup turundaki jokerle birebir aynı
-                                                                // hak/limit, sadece etiket/metin bağlama göre değişir.
-                                                                const isPlayoffMatch = match.phase === 'PLAYOFF';
-                                                                const jokerLabel = isPlayoffMatch
-                                                                    ? (otherJokerRequested ? t.sc_0491 : t.sc_0485)
-                                                                    : (otherJokerRequested ? t.sc_0492 : t.sc_0486);
-                                                                const confirmMsg = isPlayoffMatch
-                                                                    ? (otherJokerRequested
-                                                                        ? t.sc_0493
-                                                                        : t.sc_0494)
-                                                                    : (otherJokerRequested
-                                                                        ? t.sc_0495
-                                                                        : t.sc_0496);
-                                                                return (
-                                                                    <TouchableOpacity
-                                                                        onPress={() => Alert.alert(jokerLabel, confirmMsg, [
-                                                                            { text: t.sc_0004, style: 'cancel' },
-                                                                            { text: 'Evet, Kullan', style: 'destructive', onPress: async () => {
-                                                                                try {
-                                                                                    const { data } = await api.post(`/tournaments/${item.id}/matches/${match.id}/joker`);
-                                                                                    await fetchMatches();
-                                                                                    Alert.alert(isPlayoffMatch ? t.sc_0497 : '🃏 Joker', data.message);
-                                                                                } catch (e) {
-                                                                                    Alert.alert('Hata', e?.response?.data?.message || t.sc_0498);
-                                                                                }
-                                                                            }},
-                                                                        ])}
-                                                                        style={{ backgroundColor: otherJokerRequested ? '#7c3aed20' : '#1e40af20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor: otherJokerRequested ? '#7c3aed60' : '#1e40af60' }}>
-                                                                        <Text style={{ color: otherJokerRequested ? '#c084fc' : '#93c5fd', fontSize:9, fontWeight:'700' }}>
-                                                                            {jokerLabel}
-                                                                        </Text>
-                                                                    </TouchableOpacity>
-                                                                );
-                                                            })()}
-                                                            {(() => {
-                                                                if (!isDone) return null;
-                                                                const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
-                                                                const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
-                                                                    : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
-                                                                return (
-                                                                    <>
-                                                                        {!bothConfirmed && myUnconfirmedSide && !isEntering && (
-                                                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
-                                                                                style={{ backgroundColor:'#16a34a20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor:'#16a34a60', alignItems:'center' }}>
-                                                                                <Text style={{ color:'#4ade80', fontSize:12 }}>✓</Text>
-                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>{t.sc_0157}</Text>
-                                                                            </TouchableOpacity>
-                                                                        )}
-                                                                        {!bothConfirmed && (isCreator || myIsAdmin) && !isEntering && (
-                                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                                style={{ backgroundColor:'#f59e0b20', borderRadius:6, paddingHorizontal:0, paddingVertical:0, borderWidth:1, borderColor:'#f59e0b50', alignItems:'center' }}>
-                                                                                <Text style={{ color:'#fbbf24', fontSize:12 }}>✏️</Text>
-                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>{t.sc_0499}</Text>
-                                                                            </TouchableOpacity>
-                                                                        )}
-                                                                        {bothConfirmed ? (
-                                                                            match.scoreEnteredBy ? (
-                                                                                <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>{t.sc_0500}</Text>
-                                                                            ) : (
-                                                                                <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>{t.sc_0501}</Text>
-                                                                            )
-                                                                        ) : (
-                                                                            <Text style={{ color: colors.textMuted, fontSize:8 }}>
-                                                                                {match.p1Confirmed && !match.p2Confirmed ? t.sc_0502 : !match.p1Confirmed && match.p2Confirmed ? t.sc_0502 : t.sc_0503}
-                                                                            </Text>
-                                                                        )}
-                                                                    </>
-                                                                );
-                                                            })()}
+                                                            {isDone ? (
+                                                                bothConfirmed ? (
+                                                                    match.scoreEnteredBy ? (
+                                                                        <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>{t.sc_0500}</Text>
+                                                                    ) : (
+                                                                        <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>{t.sc_0501}</Text>
+                                                                    )
+                                                                ) : (
+                                                                    <Text style={{ color: colors.textMuted, fontSize:8 }}>
+                                                                        {match.p1Confirmed && !match.p2Confirmed ? t.sc_0502 : !match.p1Confirmed && match.p2Confirmed ? t.sc_0502 : t.sc_0503}
+                                                                    </Text>
+                                                                )
+                                                            ) : null}
                                                         </View>
                                                     {isEntering && (
                                                         <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
