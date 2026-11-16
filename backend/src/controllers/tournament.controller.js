@@ -14,6 +14,7 @@ import { DEFI_SUBS } from '../utils/defiLadder.js';
 import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 import { ensureTournamentChatTables, isMissingChatTable } from '../utils/ensureTournamentChatTables.js';
 import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
+import { computeMatchScheduleSuggested } from '../utils/tournamentAvailabilityMatch.js';
 import {
     swissRoundCount,
     americanoRoundCount,
@@ -2768,6 +2769,8 @@ export const getTournamentMatches = async (req, res, next) => {
         // TEST: mevcut eşleşmelerde boş kalan demo_ taraflarını doldur (playoff sonradan dolduysa vb.)
         try {
             await seedDemoSchedulesForMatches(tournament, matchesRaw);
+            // İki taraf müsaitlik girdiyse ortak çakışmaları suggested'a yaz (eski maçlar dahil)
+            await healMatchSuggestedOverlaps(tournament, matchesRaw);
         } catch { /* non-critical */ }
         const myTeam = myTeams[0] || null;
         const matches = await attachSanitizedSchedules(tournament, matchesRaw, req.userId);
@@ -4694,6 +4697,39 @@ async function seedDemoSchedulesForMatches(tournament, matches) {
             }
             changed = true;
         }
+        // Test: iki demo taraf ortak Cumartesi 10-13 paylaşılsın (çakışma boş kalmasın)
+        if (isDemoSide(match.p1Id) && isDemoSide(match.p2Id)) {
+            const shared = { weekday: 6, timeFrom: '10:00', timeTo: '13:00' };
+            for (const side of ['p1', 'p2']) {
+                const list = schedule.availability[side] || [];
+                if (!list.some(s => Number(s.weekday) === 6)) {
+                    schedule.availability[side] = [...list, shared];
+                    changed = true;
+                }
+            }
+            if (playersArrange) {
+                // Yarısı ortak kort, yarısı farklı — "ortak kort yok" UI'sını da test et
+                if (Math.random() < 0.55) {
+                    const common = {
+                        courtId: null, venueId: null, venueCourtId: null,
+                        name: 'Demo Ortak Kort', city: null, isProVenue: false,
+                    };
+                    schedule.preferredCourts.p1 = [common];
+                    schedule.preferredCourts.p2 = [{ ...common }];
+                    changed = true;
+                }
+            }
+        }
+        // İki taraf da dolduysa ortak pencereyi hesapla (eski kayıtlar için de)
+        if ((schedule.availability.p1 || []).length && (schedule.availability.p2 || []).length) {
+            const sug = computeMatchScheduleSuggested(schedule, { playersArrange });
+            const prev = JSON.stringify(schedule.suggested || null);
+            const next = JSON.stringify(sug);
+            if (prev !== next) {
+                schedule.suggested = sug;
+                changed = true;
+            }
+        }
         if (!changed) continue;
         await prisma.tournamentMatch.update({
             where: { id: match.id },
@@ -4703,6 +4739,29 @@ async function seedDemoSchedulesForMatches(tournament, matches) {
         updatedCount += 1;
     }
     return updatedCount;
+}
+
+/** PENDING maçlarda her iki taraf müsaitlik girdiyse suggested yoksa/eskiyse yenile */
+async function healMatchSuggestedOverlaps(tournament, matches) {
+    if (!tournament?.id || !Array.isArray(matches)) return 0;
+    const playersArrange = tournamentPlayersArrangeCourts(tournament);
+    let n = 0;
+    for (const match of matches) {
+        if (match.status !== 'PENDING' || !match.p1Id || !match.p2Id) continue;
+        const schedule = normalizeSchedule(match.scheduleData);
+        if (!(schedule.availability.p1 || []).length || !(schedule.availability.p2 || []).length) continue;
+        if (schedule.agreed) continue;
+        const sug = computeMatchScheduleSuggested(schedule, { playersArrange });
+        if (JSON.stringify(schedule.suggested || null) === JSON.stringify(sug)) continue;
+        schedule.suggested = sug;
+        await prisma.tournamentMatch.update({
+            where: { id: match.id },
+            data: { scheduleData: schedule },
+        });
+        match.scheduleData = schedule;
+        n += 1;
+    }
+    return n;
 }
 
 function tournamentPlayersArrangeCourts(tournament) {
@@ -4775,12 +4834,14 @@ export const setMatchAvailability = async (req, res, next) => {
 
         const schedule = normalizeSchedule(match.scheduleData);
         schedule.availability[side] = cleaned;
+        const playersArrange = tournamentPlayersArrangeCourts(tournament);
         if (req.body?.preferredCourts !== undefined) {
-            const playersArrange = tournamentPlayersArrangeCourts(tournament);
             schedule.preferredCourts[side] = playersArrange
                 ? sanitizePreferredCourts(req.body.preferredCourts)
                 : [];
         }
+        // İki taraf da bildirdiyse ortak çakışan gün/saat (+ ortak kort) → suggested
+        schedule.suggested = computeMatchScheduleSuggested(schedule, { playersArrange });
 
         const updated = await prisma.tournamentMatch.update({
             where: { id: matchId },

@@ -176,6 +176,8 @@ export default function TournamentMatchDetailModal({
         : null;
     const suggestedWindows = Array.isArray(suggested?.windows) ? suggested.windows : [];
     const suggestedCourts = Array.isArray(suggested?.courts) ? suggested.courts : [];
+    const noTimeOverlap = suggested?.noTimeOverlap === true;
+    const noCourtOverlap = suggested?.noCourtOverlap === true;
 
     useEffect(() => {
         if (!visible || !match?.id || !tournament?.id) return;
@@ -720,8 +722,8 @@ export default function TournamentMatchDetailModal({
                             </View>
                         ) : null}
 
-                        {/* Ortak kort + ortak saat penceresi (belirli kort yok + müsaitlik eşleştirme) */}
-                        {!agreedText && (suggestedCourts.length > 0 || suggestedWindows.length > 0) ? (
+                        {/* İki taraf bildirdiyse ortak çakışan gün/saat (+ ortak kort) */}
+                        {!agreedText && p1Slots.length > 0 && p2Slots.length > 0 ? (
                             <View style={{
                                 backgroundColor: '#7c3aed18',
                                 borderRadius: 10,
@@ -733,11 +735,21 @@ export default function TournamentMatchDetailModal({
                                 <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '800', marginBottom: 6 }}>
                                     {t.tournAvailSuggestedTitle || 'Ortak uygunluk'}
                                 </Text>
-                                <Text style={{ color: '#e2e8f0', fontSize: 11, lineHeight: 16, marginBottom: 8 }}>
-                                    {t.tournAvailSuggestedHint || 'Ortak kortlar ve ortak saat aralığı aşağıda. Kesin kort ve saati teklif ederek seçin.'}
-                                </Text>
+                                {noTimeOverlap ? (
+                                    <Text style={{ color: '#fbbf24', fontSize: 11, lineHeight: 15, marginBottom: 8 }}>
+                                        {t.tournAvailNoTimeOverlap || 'Ortak çakışan gün/saat yok. Müsaitliklerinizi güncelleyin.'}
+                                    </Text>
+                                ) : suggestedWindows.length === 0 ? (
+                                    <Text style={{ color: colors.textMuted, fontSize: 11, lineHeight: 15, marginBottom: 8 }}>
+                                        {t.tournAvailOverlapPending || 'Ortak aralık hesaplanıyor — biraz sonra yenileyin.'}
+                                    </Text>
+                                ) : (
+                                    <Text style={{ color: '#e2e8f0', fontSize: 11, lineHeight: 16, marginBottom: 8 }}>
+                                        {t.tournAvailSuggestedHint || 'Ortak gün ve saat aralıkları aşağıda. Dokunup teklif oluşturun.'}
+                                    </Text>
+                                )}
                                 {suggestedWindows.length > 0 ? (
-                                    <View style={{ marginBottom: suggestedCourts.length ? 8 : 0, gap: 4 }}>
+                                    <View style={{ marginBottom: 8, gap: 4 }}>
                                         <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800' }}>
                                             {t.tournAvailSuggestedWindows || 'Ortak saatler'}
                                         </Text>
@@ -769,7 +781,7 @@ export default function TournamentMatchDetailModal({
                                     </View>
                                 ) : null}
                                 {suggestedCourts.length > 0 ? (
-                                    <View style={{ gap: 4 }}>
+                                    <View style={{ gap: 4, marginBottom: 4 }}>
                                         <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800' }}>
                                             {t.tournAvailSuggestedCourts || 'Ortak kortlar'}
                                         </Text>
@@ -782,6 +794,13 @@ export default function TournamentMatchDetailModal({
                                                         if (!canAct || lockedByAdmin) return;
                                                         setPropVenue(c.name || '');
                                                         setPropCourtId(c.courtId || null);
+                                                        setPropVenueId(c.venueId || null);
+                                                        setPropIsProVenue(c.isProVenue === true);
+                                                        if (suggestedWindows[0]) {
+                                                            setPropDate(suggestedWindows[0].date || '');
+                                                            setPropFrom(suggestedWindows[0].timeFrom || '10:00');
+                                                            setPropTo(suggestedWindows[0].timeTo || '12:00');
+                                                        }
                                                         setAvailModalOpen(true);
                                                     }}
                                                     style={{
@@ -799,6 +818,45 @@ export default function TournamentMatchDetailModal({
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
+                                    </View>
+                                ) : null}
+                                {/* Ortak saat var, ortak kort yok → ortak saate göre kort eklesinler */}
+                                {playersArrangeCourts && suggestedWindows.length > 0 && (noCourtOverlap || suggestedCourts.length === 0) ? (
+                                    <View style={{
+                                        marginTop: 6,
+                                        backgroundColor: '#f59e0b18',
+                                        borderRadius: 8,
+                                        padding: 8,
+                                        borderWidth: 1,
+                                        borderColor: '#f59e0b50',
+                                    }}>
+                                        <Text style={{ color: '#fbbf24', fontSize: 11, lineHeight: 15, marginBottom: 8 }}>
+                                            {t.tournAvailNoCourtOverlap || 'Ortak kort yok. Ortak saat aralığına göre tercih ettiğiniz kortu ekleyin veya teklifte seçin.'}
+                                        </Text>
+                                        {canAct && !lockedByAdmin ? (
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    if (suggestedWindows[0]) {
+                                                        setPropDate(suggestedWindows[0].date || '');
+                                                        setPropFrom(suggestedWindows[0].timeFrom || '10:00');
+                                                        setPropTo(suggestedWindows[0].timeTo || '12:00');
+                                                    }
+                                                    setAvailModalOpen(true);
+                                                }}
+                                                style={{
+                                                    backgroundColor: '#f59e0b25',
+                                                    borderRadius: 8,
+                                                    paddingVertical: 9,
+                                                    alignItems: 'center',
+                                                    borderWidth: 1,
+                                                    borderColor: '#f59e0b60',
+                                                }}
+                                            >
+                                                <Text style={{ color: '#fbbf24', fontWeight: '800', fontSize: 12 }}>
+                                                    {t.tournAvailAddCourtForOverlap || '📅 Ortak saate kort ekle / teklif et'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ) : null}
                                     </View>
                                 ) : null}
                             </View>

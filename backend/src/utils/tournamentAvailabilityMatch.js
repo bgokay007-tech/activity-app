@@ -93,6 +93,81 @@ export function normalizeSlots(slots, roundStart, roundEnd) {
     return out;
 }
 
+/**
+ * weekday / date karışık müsaitlik → somut tarihler (önümüzdeki N gün).
+ * findAllOverlaps tarih ister; maç kartı formları çoğunlukla weekday yazar.
+ */
+export function expandAvailabilitySlots(slots, { fromDate = new Date(), daysAhead = 21 } = {}) {
+    if (!Array.isArray(slots)) return [];
+    const out = [];
+    const start = new Date(fromDate);
+    for (const s of slots) {
+        if (!s || typeof s !== 'object') continue;
+        const timeFrom = String(s.timeFrom || '').slice(0, 5);
+        const timeTo = String(s.timeTo || '').slice(0, 5);
+        const fromM = timeToMin(timeFrom);
+        const toM = timeToMin(timeTo);
+        if (fromM == null || toM == null || toM <= fromM) continue;
+
+        if (s.date && /^\d{4}-\d{2}-\d{2}$/.test(String(s.date))) {
+            out.push({ date: String(s.date).slice(0, 10), timeFrom, timeTo });
+            continue;
+        }
+        const wd = parseInt(s.weekday, 10);
+        if (!(wd >= 1 && wd <= 7)) continue;
+        for (let i = 0; i < daysAhead; i++) {
+            const cur = addDays(start, i);
+            const tr = new Date(cur.getTime() + 3 * 60 * 60 * 1000);
+            const js = tr.getUTCDay();
+            const iso = js === 0 ? 7 : js;
+            if (iso === wd) out.push({ date: toYmd(cur), timeFrom, timeTo });
+        }
+    }
+    return out;
+}
+
+/**
+ * Maç scheduleData → ortak saat pencereleri + ortak kortlar.
+ * noCourtOverlap: ortak saat var ama ortak kort yok (oyuncular kort eklesin / teklifte seçsin).
+ */
+export function computeMatchScheduleSuggested(schedule, { playersArrange = true } = {}) {
+    const p1 = expandAvailabilitySlots(schedule?.availability?.p1);
+    const p2 = expandAvailabilitySlots(schedule?.availability?.p2);
+    if (!p1.length || !p2.length) return null;
+
+    const windows = findAllOverlaps(p1, p2).slice(0, 14).map(w => ({
+        date: w.date,
+        timeFrom: w.timeFrom,
+        timeTo: w.timeTo,
+        durationMin: w.durationMin,
+    }));
+    if (!windows.length) {
+        return { windows: [], courts: [], noTimeOverlap: true, noCourtOverlap: false };
+    }
+
+    let courts = [];
+    if (playersArrange) {
+        courts = intersectCourts(
+            schedule?.preferredCourts?.p1,
+            schedule?.preferredCourts?.p2,
+        ).map(c => ({
+            courtId: c.courtId || null,
+            venueId: c.venueId || null,
+            name: c.name,
+            city: c.city || null,
+            key: c.key || null,
+            isProVenue: c.isProVenue === true,
+        }));
+    }
+
+    return {
+        windows,
+        courts,
+        noTimeOverlap: false,
+        noCourtOverlap: playersArrange && courts.length === 0,
+    };
+}
+
 /** İki slot listesinin kesişimi; en uzun ortak aralık tercih edilir */
 export function findBestOverlap(slotsA, slotsB) {
     const all = findAllOverlaps(slotsA, slotsB);
