@@ -1,4 +1,4 @@
-import { Component, createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { Component, createContext, useContext, useEffect, useState, useCallback, useRef, useMemo, Fragment } from 'react';
 import ScreenBackButton from '../../components/ScreenBackButton';
 import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/native';
 import {
@@ -9729,35 +9729,36 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                                                 placeholderTextColor={colors.textMuted}
                                                 maxLength={2}
                                             />
+                                            {/* 7-6 → TB kutuları hemen setin sağında (alta değil) */}
+                                            {showTb ? (
+                                                <>
+                                                    <TextInput
+                                                        style={[sc.setInput, { fontSize: 16, paddingVertical: 4, borderColor: '#facc15' }]}
+                                                        value={row.tbMy || ''}
+                                                        onChangeText={v => updateSet(i, 'tbMy', v)}
+                                                        keyboardType="numeric"
+                                                        placeholder="0"
+                                                        placeholderTextColor="#a16207"
+                                                        maxLength={2}
+                                                    />
+                                                    <Text style={[sc.colLabel, { color: '#facc15' }]}>TB</Text>
+                                                    <TextInput
+                                                        style={[sc.setInput, { fontSize: 16, paddingVertical: 4, borderColor: '#facc15' }]}
+                                                        value={row.tbOpp || ''}
+                                                        onChangeText={v => updateSet(i, 'tbOpp', v)}
+                                                        keyboardType="numeric"
+                                                        placeholder="0"
+                                                        placeholderTextColor="#a16207"
+                                                        maxLength={2}
+                                                    />
+                                                </>
+                                            ) : null}
                                             {sets.length > 1 && !(racketScore && decidingTiebreak) && (
                                                 <TouchableOpacity style={sc.removeBtn} onPress={() => removeSet(i)}>
                                                     <Text style={sc.removeTxt}>✕</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
-                                        {showTb ? (
-                                            <View style={sc.setInputRow}>
-                                                <TextInput
-                                                    style={[sc.setInput, { fontSize: 16, paddingVertical: 4 }]}
-                                                    value={row.tbMy || ''}
-                                                    onChangeText={v => updateSet(i, 'tbMy', v)}
-                                                    keyboardType="numeric"
-                                                    placeholder="0"
-                                                    placeholderTextColor={colors.textMuted}
-                                                    maxLength={2}
-                                                />
-                                                <Text style={[sc.colLabel, { color: '#facc15' }]}>( )</Text>
-                                                <TextInput
-                                                    style={[sc.setInput, { fontSize: 16, paddingVertical: 4 }]}
-                                                    value={row.tbOpp || ''}
-                                                    onChangeText={v => updateSet(i, 'tbOpp', v)}
-                                                    keyboardType="numeric"
-                                                    placeholder="0"
-                                                    placeholderTextColor={colors.textMuted}
-                                                    maxLength={2}
-                                                />
-                                            </View>
-                                        ) : null}
                                     </View>
                                 );
                             })}
@@ -13520,19 +13521,19 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                                             <TextInput style={sc.setInput} value={row.my} onChangeText={v => updateCorrectSet(i, 'my', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
                                             <Text style={[sc.colLabel, row.matchTiebreak && { color:'#facc15' }]}>{row.matchTiebreak ? t.racketMatchTbLabel : t.sc_0193(i + 1)}</Text>
                                             <TextInput style={sc.setInput} value={row.opp} onChangeText={v => updateCorrectSet(i, 'opp', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
+                                            {showTb ? (
+                                                <>
+                                                    <TextInput style={[sc.setInput, { fontSize:16, paddingVertical:4, borderColor:'#facc15' }]} value={row.tbMy || ''} onChangeText={v => updateCorrectSet(i, 'tbMy', v)} keyboardType="numeric" placeholder="0" placeholderTextColor="#a16207" maxLength={2} />
+                                                    <Text style={[sc.colLabel, { color:'#facc15' }]}>TB</Text>
+                                                    <TextInput style={[sc.setInput, { fontSize:16, paddingVertical:4, borderColor:'#facc15' }]} value={row.tbOpp || ''} onChangeText={v => updateCorrectSet(i, 'tbOpp', v)} keyboardType="numeric" placeholder="0" placeholderTextColor="#a16207" maxLength={2} />
+                                                </>
+                                            ) : null}
                                             {correctSets.length > 1 && !(racketScore && correctDecidingTb) && (
                                                 <TouchableOpacity style={sc.removeBtn} onPress={() => setCorrectSets(p => p.filter((_, idx) => idx !== i))}>
                                                     <Text style={sc.removeTxt}>✕</Text>
                                                 </TouchableOpacity>
                                             )}
                                         </View>
-                                        {showTb ? (
-                                            <View style={sc.setInputRow}>
-                                                <TextInput style={[sc.setInput, { fontSize:16, paddingVertical:4 }]} value={row.tbMy || ''} onChangeText={v => updateCorrectSet(i, 'tbMy', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
-                                                <Text style={[sc.colLabel, { color:'#facc15' }]}>( )</Text>
-                                                <TextInput style={[sc.setInput, { fontSize:16, paddingVertical:4 }]} value={row.tbOpp || ''} onChangeText={v => updateCorrectSet(i, 'tbOpp', v)} keyboardType="numeric" placeholder="0" placeholderTextColor={colors.textMuted} maxLength={2} />
-                                            </View>
-                                        ) : null}
                                     </View>
                                 );
                             })}
@@ -18201,7 +18202,7 @@ const hasTournExplicitSurface = (item) => {
     return true;
 };
 
-/** Skor girişi: üst satır P1, alt satır P2 — her set kendi sütunu, sonda total. */
+/** Skor girişi: üst satır P1, alt satır P2 — 7-6 olunca TB kutuları hemen o setin sağında (zorunlu). */
 function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
     const box = {
         width: 32,
@@ -18215,7 +18216,8 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
         fontSize: 13,
         textAlign: 'center',
     };
-    const nameW = 78;
+    const tbBox = { ...box, borderColor: '#facc15', color: '#facc15', width: 30 };
+    const nameW = 72;
     const totW = 36;
     let p1Sets = 0;
     let p2Sets = 0;
@@ -18227,80 +18229,67 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
             else p2Sets += 1;
         }
     });
-    const headerCell = (label, i) => (
-        <Text key={i} style={{ width: 32, color: colors.textMuted, fontSize: 9, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>
-            {label}
-        </Text>
-    );
+    const setMeta = scoreSets.map((set, si) => ({
+        si,
+        set,
+        showTb: !set.matchTiebreak && isSevenSix(parseInt(set.p1, 10) || 0, parseInt(set.p2, 10) || 0),
+        label: set.matchTiebreak ? (t.racketMatchTbLabel || 'TB') : (si === 2 ? (t.sc_0359 || '3') : String(si + 1)),
+    }));
     return (
-        <View style={{ alignSelf: 'stretch' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 4 }}>
-                <View style={{ width: nameW }} />
-                {scoreSets.map((set, si) => headerCell(
-                    set.matchTiebreak ? (t.racketMatchTbLabel || 'TB') : (si === 2 ? (t.sc_0359 || '3') : String(si + 1)),
-                    `h-${si}`,
-                ))}
-                <Text style={{ width: totW, color: '#fbbf24', fontSize: 9, fontWeight: '900', textAlign: 'center' }} numberOfLines={1}>
-                    {t.sc_0213 || 'Total'}
-                </Text>
-            </View>
-            {[{ side: 'p1', name: p1Name || 'A', total: p1Sets }, { side: 'p2', name: p2Name || 'B', total: p2Sets }].map((row) => (
-                <View key={row.side} style={{ marginBottom: 6 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ alignSelf: 'stretch' }}>
+            <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 4 }}>
+                    <View style={{ width: nameW }} />
+                    {setMeta.map(({ si, showTb, label, set }) => (
+                        <Fragment key={`h-${si}`}>
+                            <Text style={{ width: 32, color: set.matchTiebreak ? '#facc15' : colors.textMuted, fontSize: 9, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>
+                                {label}
+                            </Text>
+                            {showTb ? (
+                                <Text style={{ width: 30, color: '#facc15', fontSize: 9, fontWeight: '900', textAlign: 'center' }}>TB</Text>
+                            ) : null}
+                        </Fragment>
+                    ))}
+                    <Text style={{ width: totW, color: '#fbbf24', fontSize: 9, fontWeight: '900', textAlign: 'center' }} numberOfLines={1}>
+                        {t.sc_0213 || 'Total'}
+                    </Text>
+                </View>
+                {[{ side: 'p1', name: p1Name || 'A', total: p1Sets, tbKey: 'tb1' }, { side: 'p2', name: p2Name || 'B', total: p2Sets, tbKey: 'tb2' }].map((row) => (
+                    <View key={row.side} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 6 }}>
                         <Text style={{ width: nameW, color: '#fff', fontSize: 11, fontWeight: '800' }} numberOfLines={1}>
                             {row.name}
                         </Text>
-                        {scoreSets.map((set, si) => (
-                            <TextInput
-                                key={`${row.side}-${si}`}
-                                style={box}
-                                value={set[row.side]}
-                                onChangeText={(v) => onChange(si, row.side, v)}
-                                keyboardType="numeric"
-                                maxLength={2}
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                            />
+                        {setMeta.map(({ si, showTb }) => (
+                            <Fragment key={`${row.side}-${si}`}>
+                                <TextInput
+                                    style={box}
+                                    value={scoreSets[si][row.side]}
+                                    onChangeText={(v) => onChange(si, row.side, v)}
+                                    keyboardType="numeric"
+                                    maxLength={2}
+                                    placeholder="0"
+                                    placeholderTextColor={colors.textMuted}
+                                />
+                                {showTb ? (
+                                    <TextInput
+                                        style={tbBox}
+                                        value={scoreSets[si][row.tbKey] || ''}
+                                        onChangeText={(v) => onChange(si, row.tbKey, v)}
+                                        keyboardType="numeric"
+                                        maxLength={2}
+                                        placeholder="0"
+                                        placeholderTextColor="#a16207"
+                                    />
+                                ) : null}
+                            </Fragment>
                         ))}
                         <Text style={{ width: totW, color: '#fbbf24', fontSize: 13, fontWeight: '900', textAlign: 'center' }}>
                             {row.total}
                         </Text>
                     </View>
-                </View>
-            ))}
-            {scoreSets.map((set, si) => {
-                const showTb = !set.matchTiebreak && isSevenSix(parseInt(set.p1, 10) || 0, parseInt(set.p2, 10) || 0);
-                if (!showTb) return null;
-                return (
-                    <View key={`tb-${si}`} style={{ marginBottom: 4, marginLeft: nameW + 4 }}>
-                        <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '700', marginBottom: 2 }}>
-                            {t.sc_0360 ? t.sc_0360(si + 1) : `Set ${si + 1}`} TB
-                        </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                            <TextInput
-                                style={[box, { fontSize: 12 }]}
-                                value={set.tb1 || ''}
-                                onChangeText={(v) => onChange(si, 'tb1', v)}
-                                keyboardType="numeric"
-                                maxLength={2}
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                            />
-                            <Text style={{ color: '#facc15', fontSize: 11 }}>-</Text>
-                            <TextInput
-                                style={[box, { fontSize: 12 }]}
-                                value={set.tb2 || ''}
-                                onChangeText={(v) => onChange(si, 'tb2', v)}
-                                keyboardType="numeric"
-                                maxLength={2}
-                                placeholder="0"
-                                placeholderTextColor={colors.textMuted}
-                            />
-                        </View>
-                    </View>
-                );
-            })}
-        </View>
+                ))}
+            </View>
+        </ScrollView>
     );
 }
 
@@ -18317,6 +18306,7 @@ function TournMatchCenterScore({
     p2Win = false,
     p1Extra = null,
     p2Extra = null,
+    centerAction = null,
     t,
 }) {
     if (!Array.isArray(sets) || sets.length === 0) return null;
@@ -18326,26 +18316,19 @@ function TournMatchCenterScore({
     const nameFs = compact ? 11 : 12;
     const numFs = compact ? 12 : 13;
     const showNames = p1Name != null || p2Name != null;
-    const renderRow = (name, extra, vals, isWin, total) => (
+    const totStyle = {
+        minWidth: compact ? 30 : 36,
+        alignItems: 'center',
+        borderLeftWidth: 1,
+        borderLeftColor: '#334155',
+        paddingLeft: compact ? 5 : 7,
+        marginLeft: 2,
+    };
+    const renderScoreCells = (vals, total) => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: compact ? 3 : 5, minHeight: compact ? 20 : 24 }}>
-            {showNames ? (
-                <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
-                    <Text
-                        style={{ color: isWin ? '#4ade80' : '#fff', fontSize: nameFs, fontWeight: isWin ? '800' : '700' }}
-                        numberOfLines={1}
-                    >
-                        {name || '—'}
-                        {extra}
-                    </Text>
-                </View>
-            ) : null}
             {vals.map((cell, i) => (
                 <View key={i} style={{ width: cellW, alignItems: 'center' }}>
-                    <Text style={{
-                        color: cell.win ? '#4ade80' : '#e2e8f0',
-                        fontSize: numFs,
-                        fontWeight: '900',
-                    }}>
+                    <Text style={{ color: cell.win ? '#4ade80' : '#e2e8f0', fontSize: numFs, fontWeight: '900' }}>
                         {cell.tb ? `${cell.v}` : String(cell.v)}
                     </Text>
                     {cell.tbLabel ? (
@@ -18353,14 +18336,7 @@ function TournMatchCenterScore({
                     ) : null}
                 </View>
             ))}
-            <View style={{
-                minWidth: compact ? 30 : 36,
-                alignItems: 'center',
-                borderLeftWidth: 1,
-                borderLeftColor: '#334155',
-                paddingLeft: compact ? 5 : 7,
-                marginLeft: 2,
-            }}>
+            <View style={totStyle}>
                 <Text style={{ color: '#fbbf24', fontSize: numFs, fontWeight: '900' }}>{total}</Text>
             </View>
         </View>
@@ -18383,6 +18359,15 @@ function TournMatchCenterScore({
             tbLabel: tb ? `(${s.tb2})` : (s.matchTiebreak ? 'TB' : null),
         };
     });
+    const nameLine = (name, extra, isWin) => (
+        <Text
+            style={{ color: isWin ? '#4ade80' : '#fff', fontSize: nameFs, fontWeight: isWin ? '800' : '700', minHeight: compact ? 20 : 24 }}
+            numberOfLines={1}
+        >
+            {name || '—'}
+            {extra}
+        </Text>
+    );
     return (
         <View style={{
             width: '100%',
@@ -18392,33 +18377,46 @@ function TournMatchCenterScore({
             backgroundColor: '#0f172a',
             borderWidth: 1,
             borderColor: '#334155',
-            gap: compact ? 3 : 5,
         }}>
-            {showNames ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1 }}>
-                    <View style={{ flex: 1 }} />
-                    {sets.map((_, i) => (
-                        <Text key={i} style={{ width: cellW, color: colors.textMuted, fontSize: 8, fontWeight: '800', textAlign: 'center' }}>
-                            {sets[i]?.matchTiebreak ? 'TB' : (i + 1)}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: compact ? 4 : 6 }}>
+                {showNames ? (
+                    <View style={{ flex: 1, minWidth: 0, justifyContent: 'center', gap: compact ? 3 : 5 }}>
+                        {centerAction ? <View style={{ height: compact ? 12 : 14 }} /> : null}
+                        {nameLine(p1Name, p1Extra, p1Win)}
+                        {nameLine(p2Name, p2Extra, p2Win)}
+                    </View>
+                ) : null}
+                {/* Kullanıcı: skor onayından sonra isim ile skor ortasında paylaş */}
+                {centerAction ? (
+                    <View style={{ flexShrink: 0, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 }}>
+                        {centerAction}
+                    </View>
+                ) : null}
+                <View style={{ flexShrink: 0, gap: compact ? 3 : 5 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: compact ? 3 : 5, marginBottom: 1 }}>
+                        {sets.map((_, i) => (
+                            <Text key={i} style={{ width: cellW, color: colors.textMuted, fontSize: 8, fontWeight: '800', textAlign: 'center' }}>
+                                {sets[i]?.matchTiebreak ? 'TB' : (i + 1)}
+                            </Text>
+                        ))}
+                        <Text style={{
+                            minWidth: compact ? 30 : 36,
+                            color: '#fbbf24',
+                            fontSize: 8,
+                            fontWeight: '900',
+                            textAlign: 'center',
+                            borderLeftWidth: 1,
+                            borderLeftColor: '#334155',
+                            paddingLeft: compact ? 5 : 7,
+                            marginLeft: 2,
+                        }}>
+                            {t?.sc_0213 || 'Σ'}
                         </Text>
-                    ))}
-                    <Text style={{
-                        minWidth: compact ? 30 : 36,
-                        color: '#fbbf24',
-                        fontSize: 8,
-                        fontWeight: '900',
-                        textAlign: 'center',
-                        borderLeftWidth: 1,
-                        borderLeftColor: '#334155',
-                        paddingLeft: compact ? 5 : 7,
-                        marginLeft: 2,
-                    }}>
-                        {t?.sc_0213 || 'Σ'}
-                    </Text>
+                    </View>
+                    {renderScoreCells(p1Cells, p1SW)}
+                    {renderScoreCells(p2Cells, p2SW)}
                 </View>
-            ) : null}
-            {renderRow(p1Name, p1Extra, p1Cells, p1Win, p1SW)}
-            {renderRow(p2Name, p2Extra, p2Cells, p2Win, p2SW)}
+            </View>
         </View>
     );
 }
@@ -18668,6 +18666,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [showDeadlinePickModal, setShowDeadlinePickModal] = useState(false);
     const [drawingUnscored, setDrawingUnscored] = useState(false);
     const [detailMatch, setDetailMatch] = useState(null); // tur kartına tıklanınca maç detayı
+    const [shareMatch, setShareMatch] = useState(null); // skor onaylı maç — detaya girmeden paylaş
     const [playoffDeadlineDate, setPlayoffDeadlineDate] = useState(null);
     const [playoffDeadlineTime, setPlayoffDeadlineTime] = useState('');
     const [showPlayoffDatePicker, setShowPlayoffDatePicker] = useState(false);
@@ -20363,6 +20362,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         p2Extra={match.p2Id && skillRatingMap[match.p2Id] != null
                                             ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
                                             : null}
+                                        centerAction={bothConfirmed ? (
+                                            <TouchableOpacity
+                                                onPress={() => setShareMatch(match)}
+                                                style={{ backgroundColor: '#7c3aed25', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 5, borderWidth: 1, borderColor: '#7c3aed60', maxWidth: 76, alignItems: 'center' }}
+                                            >
+                                                <Text style={{ color: '#c4b5fd', fontSize: 9, fontWeight: '800', textAlign: 'center' }} numberOfLines={2}>
+                                                    {t.shareTournMatchShareBtn || '📤 Skoru Paylaş'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ) : null}
                                     />
                                 ) : (
                                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
@@ -20995,6 +21004,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             : (match.p2Id && skillRatingMap[match.p2Id] != null
                                                                                 ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
                                                                                 : null)}
+                                                                        centerAction={bothConfirmed ? (
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setShareMatch(match)}
+                                                                                style={{ backgroundColor: '#7c3aed25', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 5, borderWidth: 1, borderColor: '#7c3aed60', maxWidth: 76, alignItems: 'center' }}
+                                                                            >
+                                                                                <Text style={{ color: '#c4b5fd', fontSize: 9, fontWeight: '800', textAlign: 'center' }} numberOfLines={2}>
+                                                                                    {t.shareTournMatchShareBtn || '📤 Skoru Paylaş'}
+                                                                                </Text>
+                                                                            </TouchableOpacity>
+                                                                        ) : null}
                                                                     />
                                                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6, alignItems: 'center' }}>
                                                                         {skorGirBtn}
@@ -21235,6 +21254,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         return fresh || prev;
                     });
                 }}
+            />
+            <MatchResultShareModal
+                visible={!!shareMatch}
+                match={shareMatch}
+                tournament={item}
+                standings={standings}
+                onClose={() => setShareMatch(null)}
             />
 
             {/* Play-off turu için tarih atama */}
