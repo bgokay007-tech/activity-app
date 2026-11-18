@@ -132,16 +132,29 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
       }
 
       var badge=${JSON.stringify(p.badge||'')};
-      ctx.font='900 26px sans-serif';
-      var bw=Math.max(280, ctx.measureText(badge).width+56);
-      roundRect((W-bw)/2, TOP+26, bw, 54, 27);
-      ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(badge, W/2, TOP+62, 26, '#0B0C10', 'center', '900');
-
-      text(${JSON.stringify(p.sport||'')}, 540, TOP+128, 36, '#C8F54A', 'center', '800');
+      var sportLabel=${JSON.stringify(p.sport||'')};
+      var standingsShare=${JSON.stringify(!!(p.standingsShare||p.standingsTable))};
+      var ny;
+      if(standingsShare){
+        // Kullanıcı: spor üste (büyük), altında sadece Turnuva — "puan tablosu" rozeti yok
+        text(sportLabel, 540, TOP+78, 52, '#C8F54A', 'center', '900');
+        ctx.font='900 26px sans-serif';
+        var bwStand=Math.max(220, ctx.measureText(badge).width+56);
+        roundRect((W-bwStand)/2, TOP+98, bwStand, 50, 25);
+        ctx.fillStyle='#C8F54A'; ctx.fill();
+        text(badge, W/2, TOP+132, 26, '#0B0C10', 'center', '900');
+        ny=TOP+196;
+      } else {
+        ctx.font='900 26px sans-serif';
+        var bw=Math.max(280, ctx.measureText(badge).width+56);
+        roundRect((W-bw)/2, TOP+26, bw, 54, 27);
+        ctx.fillStyle='#C8F54A'; ctx.fill();
+        text(badge, W/2, TOP+62, 26, '#0B0C10', 'center', '900');
+        text(sportLabel, 540, TOP+128, 36, '#C8F54A', 'center', '800');
+        ny=TOP+196;
+      }
 
       var titleLines=wrap(${JSON.stringify(p.title||'')}, 940, 48);
-      var ny=TOP+196;
       titleLines.slice(0,3).forEach(function(ln){ text(ln, 540, ny, 48, '#F4F1EA', 'center', '900'); ny+=56; });
 
       var priceLabel=${JSON.stringify(p.priceLabel||'')};
@@ -234,7 +247,8 @@ function cardHtml(p, coverDataUrl, bgDataUrl) {
         ctx.strokeStyle='rgba(200,245,74,0.45)'; ctx.lineWidth=3; ctx.stroke();
 
         var hdr=standingsTable.headers||{};
-        var colX=[80, 150, 620, 700, 780, 860, 940, 1020];
+        // Kullanıcı: P borderle iç içe — O G B M AV P bloğunu sola kaydır
+        var colX=[72, 120, 540, 620, 700, 780, 860, 940];
         var sy=stTop+40;
         text(standingsTable.title||'', 540, sy, 26, '#C8F54A', 'center', '900');
         sy+=36;
@@ -560,8 +574,17 @@ export default function EntityShareModal({ visible, kind, item, extra, onClose }
                                 </Text>
                             ))}
                         </View>
-                        <Text style={s.badge}>{payload.badge}</Text>
-                        <Text style={s.sport}>{payload.sport}</Text>
+                        {payload.standingsShare || payload.standingsTable ? (
+                            <>
+                                <Text style={[s.sport, { fontSize: 16, marginBottom: 8 }]}>{payload.sport}</Text>
+                                <Text style={s.badge}>{payload.badge}</Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={s.badge}>{payload.badge}</Text>
+                                <Text style={s.sport}>{payload.sport}</Text>
+                            </>
+                        )}
                         <Text style={s.cardTitle} numberOfLines={2}>{payload.title}</Text>
                         {!!payload.priceLabel && (
                             <Text style={s.pricePrev}>{payload.priceLabel}</Text>

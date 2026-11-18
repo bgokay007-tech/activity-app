@@ -362,16 +362,16 @@ function collectTournamentLines(tournament, t, lang, opts = {}) {
 }
 
 /**
- * Puan tablosu paylaşımı: üstte normal turnuva bilgileri; altta ayrı standingsTable kutusu.
- * "Turnuva puan tablosu" yalnızca rozette (lig/format satırının üstünde) bir kez.
+ * Puan tablosu paylaşımı: üstte spor (büyük) + altında kısa "Turnuva" rozeti;
+ * altta ayrı standingsTable kutusu. "Turnuva puan tablosu" rozeti yok.
  */
 function buildTournamentStandings(tournament, t, lang, standings = []) {
     const { sport, emoji } = sportMeta(tournament.subCategory, lang);
     const url = `${SHARE_HOST}/share/tournament/${tournament.id}`;
     const name = tournament.name || sport;
-    const badge = t?.shareTournamentStandingsIntro
-        || t?.shareEntityBadgeStandings
-        || (lang === 'tr' ? 'Turnuva puan tablosu' : lang === 'ru' ? 'Турнирная таблица' : lang === 'de' ? 'Turniertabelle' : 'Tournament standings');
+    // Kullanıcı: tenis üstüne "turnuva puan tablosu" yazma — spor üste, altına sadece Turnuva
+    const badge = t?.shareEntityBadgeTournament
+        || (lang === 'tr' ? 'TURNUVA' : lang === 'ru' ? 'ТУРНИР' : lang === 'de' ? 'TURNIER' : 'TOURNAMENT');
     const { lines, sf } = collectTournamentLines(tournament, t, lang, { forStandings: true });
     const standingsTable = buildStandingsTable(standings, t);
 
@@ -395,7 +395,7 @@ function buildTournamentStandings(tournament, t, lang, standings = []) {
         badge,
         emoji: '🏆',
         sport: `${emoji} ${sport}`.trim(),
-        // intro satırda yok — rozette bir kez; puan tablosu ayrı kutuda
+        standingsShare: true,
         lines,
         standingsTable,
         message,
