@@ -7579,6 +7579,19 @@ export const getMyUpcomingMatches = async (req, res, next) => {
             const matchUTC = new Date(new Date(r.matchDate).getTime() + (h * 60 + (m || 0)) * 60000 - 3 * 3600000);
             return now >= matchUTC;
         };
+        // GET /rivals expiresAt filtresiyle aynı — süresi dolmuş OPEN (esnek 24s vb.) dalda
+        // yok ama my-upcoming'de "hayalet" esnek/saatsiz ilan olarak kalıyordu.
+        const openExpiresAtPassed = (r) => {
+            if (r.status !== 'OPEN') return false;
+            if (!r.expiresAt) return false;
+            return now > new Date(r.expiresAt);
+        };
+        // Saatsiz + esnek değil OPEN = bozuk/yetim kayıt; ana sayfada gösterme.
+        const openOrphanNoTime = (r) => {
+            if (r.status !== 'OPEN') return false;
+            if (r.flexibleSchedule) return false;
+            return !r.matchDate || !r.matchTime;
+        };
         const inRoster = (r) => {
             if ((Array.isArray(r.participants) ? r.participants : []).some(p => p?.id === myId)) return true;
             if ((Array.isArray(r.senderTeam) ? r.senderTeam : []).some(p => p?.id === myId)) return true;
@@ -7595,10 +7608,14 @@ export const getMyUpcomingMatches = async (req, res, next) => {
         const mine = all.filter(r => {
             if (schedExpiredIds.has(r.id)) return false;
             if (openMatchTimePassed(r)) return false;
+            if (openExpiresAtPassed(r)) return false;
+            if (openOrphanNoTime(r)) return false;
             if (r.status === 'MATCHED') {
                 // getUpcomingMatches ile aynı: skor penceresi kapanmış eşleşmeyi ana sayfada tutma
                 const dl = getMatchDeadline(r);
                 if (dl && now > dl && !r.score) return false;
+                // Esnek eşleşmiş ama süre dolmuş, saat hâlâ yok → hayalet
+                if (r.flexibleSchedule && !r.matchDate && r.schedulingDeadline && now > new Date(r.schedulingDeadline)) return false;
                 if (r.senderId === myId) return true;
                 return inRoster(r);
             }

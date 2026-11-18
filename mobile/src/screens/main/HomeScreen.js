@@ -164,6 +164,26 @@ function openListingPastStart(item, now) {
     return !!(d && now >= d);
 }
 
+// Hayalet OPEN: expiresAt dolmuş / saatsiz+esnek değil / esnek schedulingDeadline dolmuş.
+// GET /rivals bunları göstermez; my-upcoming'den süzülmezse "Katıldığın"da kalır.
+function isStaleJoinedListing(item, now) {
+    if (!item || item.kind === 'tournament') return false;
+    const status = String(item.status || '');
+    if (status === 'OPEN') {
+        if (item.expiresAt && now >= new Date(item.expiresAt)) return true;
+        if (openListingPastStart(item, now)) return true;
+        if (!item.flexibleSchedule && (!item.matchDate || !item.matchTime)) return true;
+        if (item.flexibleSchedule && item.schedulingDeadline && !item.matchDate
+            && now >= new Date(item.schedulingDeadline)) return true;
+        return false;
+    }
+    if (status === 'MATCHED' && item.flexibleSchedule && !item.matchDate
+        && item.schedulingDeadline && now >= new Date(item.schedulingDeadline)) {
+        return true;
+    }
+    return false;
+}
+
 async function detectProvince() {
     try {
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -224,18 +244,18 @@ export default function HomeScreen({ navigation }) {
             api.get('/tournaments').catch(() => ({ data: [] })),
         ]);
         const allTournaments = asList(tournRes);
-        // Şehir filtresi yok — zaten katıldığım devam eden turnuva her yerde görünsün.
+        // Devam eden: katıldığım VEYA benim oluşturduğum (katılmasam da hızlı giriş).
         setMyOngoingTournaments(
             allTournaments
-                .filter(tn => String(tn?.status || '') === 'IN_PROGRESS' && isMyAcceptedTournament(tn, myId))
+                .filter(tn => String(tn?.status || '') === 'IN_PROGRESS')
+                .filter(tn => isOwnListing(tn, myId) || isMyAcceptedTournament(tn, myId))
                 .map(mapOpenTournament),
         );
-        // Benim açtığım açık turnuvalar → Katıldığın listesi (konumdan bağımsız).
+        // Benim açtığım OPEN/POLL turnuvalar → Katıldığın (katılımcı olmasam da; konum/ilgi filtresiz).
         setMyOpenCreated(
             allTournaments
                 .filter(tn => ['OPEN', 'POLL'].includes(String(tn?.status || '')))
                 .filter(tn => isOwnListing(tn, myId))
-                .filter(tn => mySubs.size === 0 || mySubs.has(tn.subCategory))
                 .map(mapOpenTournament),
         );
         if (mySubs.size === 0) {
@@ -426,20 +446,20 @@ export default function HomeScreen({ navigation }) {
     const now = new Date(nowTick >= 0 ? Date.now() : Date.now());
     // Kullanıcı isteği: ayrı "Yaklaşan" hero kartı yok — katıldığın maçlar + devam eden turnuvalar üstte.
     const joinedMatches = (myMatches || [])
-        .filter(m => isMyMatch(m, user?.id) && !matchHasEnded(m, now) && !openListingPastStart(m, now))
+        .filter(m => isMyMatch(m, user?.id) && !matchHasEnded(m, now) && !isStaleJoinedListing(m, now))
         .sort((a, b) => {
             const aPlaying = matchHasStarted(a, now) && !matchHasEnded(a, now) ? 0 : 1;
             const bPlaying = matchHasStarted(b, now) && !matchHasEnded(b, now) ? 0 : 1;
             if (aPlaying !== bPlaying) return aPlaying - bPlaying;
             return (matchStartDate(a)?.getTime() || Infinity) - (matchStartDate(b)?.getTime() || Infinity);
         });
-    // Devam eden turnuvalar → benim açtığım açık turnuvalar → katıldığım/kendi maçlarım.
-    // Kendi açık rival ilanlarım my-upcoming üzerinden joinedMatches'te.
+    // Devam eden (katıldığım/kurduğum) → benim açtığım OPEN/POLL → katıldığım/kendi maçlarım.
     const joinedLive = (() => {
         const seen = new Set();
         const out = [];
         for (const item of [...(myOngoingTournaments || []), ...(myOpenCreated || []), ...joinedMatches]) {
             if (!item?.id || seen.has(item.id)) continue;
+            if (isStaleJoinedListing(item, now)) continue;
             seen.add(item.id);
             out.push(item);
         }
