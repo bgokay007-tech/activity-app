@@ -18201,65 +18201,102 @@ const hasTournExplicitSurface = (item) => {
     return true;
 };
 
-/** Turnuva maç kartı: set skorları rakiplerin ORTASINDA (isim yanına değil). */
+/** Skor girişi: üst satır P1, alt satır P2 — her set kendi sütunu, sonda total. */
 function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
-    // Kullanıcı: sayı formu sadece rakam kadar geniş olsun — flex ile sağ-sol boşluk olmasın
     const box = {
-        width: 34,
+        width: 32,
         backgroundColor: '#1e293b',
         color: '#fff',
         borderRadius: 6,
         paddingHorizontal: 2,
-        paddingVertical: 4,
+        paddingVertical: 5,
         borderWidth: 1,
         borderColor: colors.border,
         fontSize: 13,
         textAlign: 'center',
     };
+    const nameW = 78;
+    const totW = 36;
+    let p1Sets = 0;
+    let p2Sets = 0;
+    scoreSets.forEach((s) => {
+        const a = parseInt(s.p1, 10);
+        const b = parseInt(s.p2, 10);
+        if (Number.isFinite(a) && Number.isFinite(b) && a !== b) {
+            if (a > b) p1Sets += 1;
+            else p2Sets += 1;
+        }
+    });
+    const headerCell = (label, i) => (
+        <Text key={i} style={{ width: 32, color: colors.textMuted, fontSize: 9, fontWeight: '800', textAlign: 'center' }} numberOfLines={1}>
+            {label}
+        </Text>
+    );
     return (
-        <View style={{ alignSelf: 'flex-start' }}>
-            <View style={{ flexDirection: 'row', marginBottom: 4, alignItems: 'center' }}>
-                <Text style={{ color: colors.textMuted, fontSize: 10, width: 44 }}>{t.sc_0216}</Text>
-                <Text style={{ color: colors.textMuted, fontSize: 9, width: 34, textAlign: 'center' }} numberOfLines={1}>
-                    {p1Name || 'A'}
-                </Text>
-                <Text style={{ color: colors.textMuted, fontSize: 9, width: 10, textAlign: 'center' }}> </Text>
-                <Text style={{ color: colors.textMuted, fontSize: 9, width: 34, textAlign: 'center' }} numberOfLines={1}>
-                    {p2Name || 'B'}
+        <View style={{ alignSelf: 'stretch' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, gap: 4 }}>
+                <View style={{ width: nameW }} />
+                {scoreSets.map((set, si) => headerCell(
+                    set.matchTiebreak ? (t.racketMatchTbLabel || 'TB') : (si === 2 ? (t.sc_0359 || '3') : String(si + 1)),
+                    `h-${si}`,
+                ))}
+                <Text style={{ width: totW, color: '#fbbf24', fontSize: 9, fontWeight: '900', textAlign: 'center' }} numberOfLines={1}>
+                    {t.sc_0213 || 'Total'}
                 </Text>
             </View>
+            {[{ side: 'p1', name: p1Name || 'A', total: p1Sets }, { side: 'p2', name: p2Name || 'B', total: p2Sets }].map((row) => (
+                <View key={row.side} style={{ marginBottom: 6 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <Text style={{ width: nameW, color: '#fff', fontSize: 11, fontWeight: '800' }} numberOfLines={1}>
+                            {row.name}
+                        </Text>
+                        {scoreSets.map((set, si) => (
+                            <TextInput
+                                key={`${row.side}-${si}`}
+                                style={box}
+                                value={set[row.side]}
+                                onChangeText={(v) => onChange(si, row.side, v)}
+                                keyboardType="numeric"
+                                maxLength={2}
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                            />
+                        ))}
+                        <Text style={{ width: totW, color: '#fbbf24', fontSize: 13, fontWeight: '900', textAlign: 'center' }}>
+                            {row.total}
+                        </Text>
+                    </View>
+                </View>
+            ))}
             {scoreSets.map((set, si) => {
                 const showTb = !set.matchTiebreak && isSevenSix(parseInt(set.p1, 10) || 0, parseInt(set.p2, 10) || 0);
+                if (!showTb) return null;
                 return (
-                    <View key={si} style={{ marginBottom: 4 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <Text style={{ color: set.matchTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, width: 44 }} numberOfLines={1}>
-                                {set.matchTiebreak ? t.racketMatchTbLabel : (si === 2 ? t.sc_0359 : t.sc_0360(si + 1))}
-                            </Text>
+                    <View key={`tb-${si}`} style={{ marginBottom: 4, marginLeft: nameW + 4 }}>
+                        <Text style={{ color: '#facc15', fontSize: 9, fontWeight: '700', marginBottom: 2 }}>
+                            {t.sc_0360 ? t.sc_0360(si + 1) : `Set ${si + 1}`} TB
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                             <TextInput
-                                style={box}
-                                value={set.p1} onChangeText={v => onChange(si, 'p1', v)}
-                                keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                            <Text style={{ color: colors.textMuted, width: 10, textAlign: 'center', fontSize: 11 }}>-</Text>
+                                style={[box, { fontSize: 12 }]}
+                                value={set.tb1 || ''}
+                                onChangeText={(v) => onChange(si, 'tb1', v)}
+                                keyboardType="numeric"
+                                maxLength={2}
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                            />
+                            <Text style={{ color: '#facc15', fontSize: 11 }}>-</Text>
                             <TextInput
-                                style={box}
-                                value={set.p2} onChangeText={v => onChange(si, 'p2', v)}
-                                keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
+                                style={[box, { fontSize: 12 }]}
+                                value={set.tb2 || ''}
+                                onChangeText={(v) => onChange(si, 'tb2', v)}
+                                keyboardType="numeric"
+                                maxLength={2}
+                                placeholder="0"
+                                placeholderTextColor={colors.textMuted}
+                            />
                         </View>
-                        {showTb ? (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-                                <Text style={{ color: '#facc15', fontSize: 10, width: 44 }}>( )</Text>
-                                <TextInput
-                                    style={[box, { fontSize: 12 }]}
-                                    value={set.tb1 || ''} onChangeText={v => onChange(si, 'tb1', v)}
-                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                                <Text style={{ color: '#facc15', width: 10, textAlign: 'center', fontSize: 11 }}>-</Text>
-                                <TextInput
-                                    style={[box, { fontSize: 12 }]}
-                                    value={set.tb2 || ''} onChangeText={v => onChange(si, 'tb2', v)}
-                                    keyboardType="numeric" maxLength={2} placeholder="0" placeholderTextColor={colors.textMuted} />
-                            </View>
-                        ) : null}
                     </View>
                 );
             })}
@@ -18267,29 +18304,121 @@ function TournSetScoreFields({ scoreSets, onChange, p1Name, p2Name, t }) {
     );
 }
 
-function TournMatchCenterScore({ sets, compact = false }) {
+/**
+ * Girilmiş skor tablosu: üst satır P1, alt satır P2.
+ * Her satırda isim + set sayıları + sonda total (kazanılan set).
+ */
+function TournMatchCenterScore({
+    sets,
+    compact = false,
+    p1Name,
+    p2Name,
+    p1Win = false,
+    p2Win = false,
+    p1Extra = null,
+    p2Extra = null,
+    t,
+}) {
     if (!Array.isArray(sets) || sets.length === 0) return null;
     const p1SW = sets.filter(s => (s.p1 || 0) > (s.p2 || 0)).length;
     const p2SW = sets.filter(s => (s.p2 || 0) > (s.p1 || 0)).length;
-    return (
-        <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: compact ? 2 : 4, width: '100%' }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: compact ? 4 : 6 }}>
-                {sets.map((s, i) => {
-                    const tb = !s.matchTiebreak && s.tb1 != null && s.tb2 != null && isSevenSix(s.p1 || 0, s.p2 || 0);
-                    return (
-                        <Text key={i} style={{ fontSize: compact ? 11 : 12, fontWeight: '900' }}>
-                            {s.matchTiebreak ? <Text style={{ color: '#facc15' }}>TB </Text> : null}
-                            <Text style={{ color: (s.p1 || 0) > (s.p2 || 0) ? '#4ade80' : '#94a3b8' }}>{s.p1 ?? 0}</Text>
-                            <Text style={{ color: '#64748b' }}>-</Text>
-                            <Text style={{ color: (s.p2 || 0) > (s.p1 || 0) ? '#4ade80' : '#94a3b8' }}>{s.p2 ?? 0}</Text>
-                            {tb ? <Text style={{ color: '#facc15' }}>{` (${s.tb1}-${s.tb2})`}</Text> : null}
-                        </Text>
-                    );
-                })}
+    const cellW = compact ? 24 : 28;
+    const nameFs = compact ? 11 : 12;
+    const numFs = compact ? 12 : 13;
+    const showNames = p1Name != null || p2Name != null;
+    const renderRow = (name, extra, vals, isWin, total) => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: compact ? 3 : 5, minHeight: compact ? 20 : 24 }}>
+            {showNames ? (
+                <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
+                    <Text
+                        style={{ color: isWin ? '#4ade80' : '#fff', fontSize: nameFs, fontWeight: isWin ? '800' : '700' }}
+                        numberOfLines={1}
+                    >
+                        {name || '—'}
+                        {extra}
+                    </Text>
+                </View>
+            ) : null}
+            {vals.map((cell, i) => (
+                <View key={i} style={{ width: cellW, alignItems: 'center' }}>
+                    <Text style={{
+                        color: cell.win ? '#4ade80' : '#e2e8f0',
+                        fontSize: numFs,
+                        fontWeight: '900',
+                    }}>
+                        {cell.tb ? `${cell.v}` : String(cell.v)}
+                    </Text>
+                    {cell.tbLabel ? (
+                        <Text style={{ color: '#facc15', fontSize: 8, fontWeight: '700', marginTop: -1 }}>{cell.tbLabel}</Text>
+                    ) : null}
+                </View>
+            ))}
+            <View style={{
+                minWidth: compact ? 30 : 36,
+                alignItems: 'center',
+                borderLeftWidth: 1,
+                borderLeftColor: '#334155',
+                paddingLeft: compact ? 5 : 7,
+                marginLeft: 2,
+            }}>
+                <Text style={{ color: '#fbbf24', fontSize: numFs, fontWeight: '900' }}>{total}</Text>
             </View>
-            <Text style={{ color: '#fbbf24', fontSize: compact ? 10 : 11, fontWeight: '800', marginTop: 2 }}>
-                {p1SW} – {p2SW}
-            </Text>
+        </View>
+    );
+    const p1Cells = sets.map((s) => {
+        const tb = !s.matchTiebreak && s.tb1 != null && s.tb2 != null && isSevenSix(s.p1 || 0, s.p2 || 0);
+        return {
+            v: s.p1 ?? 0,
+            win: (s.p1 || 0) > (s.p2 || 0),
+            tb,
+            tbLabel: tb ? `(${s.tb1})` : (s.matchTiebreak ? 'TB' : null),
+        };
+    });
+    const p2Cells = sets.map((s) => {
+        const tb = !s.matchTiebreak && s.tb1 != null && s.tb2 != null && isSevenSix(s.p1 || 0, s.p2 || 0);
+        return {
+            v: s.p2 ?? 0,
+            win: (s.p2 || 0) > (s.p1 || 0),
+            tb,
+            tbLabel: tb ? `(${s.tb2})` : (s.matchTiebreak ? 'TB' : null),
+        };
+    });
+    return (
+        <View style={{
+            width: '100%',
+            paddingVertical: compact ? 4 : 6,
+            paddingHorizontal: compact ? 4 : 6,
+            borderRadius: 8,
+            backgroundColor: '#0f172a',
+            borderWidth: 1,
+            borderColor: '#334155',
+            gap: compact ? 3 : 5,
+        }}>
+            {showNames ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1 }}>
+                    <View style={{ flex: 1 }} />
+                    {sets.map((_, i) => (
+                        <Text key={i} style={{ width: cellW, color: colors.textMuted, fontSize: 8, fontWeight: '800', textAlign: 'center' }}>
+                            {sets[i]?.matchTiebreak ? 'TB' : (i + 1)}
+                        </Text>
+                    ))}
+                    <Text style={{
+                        minWidth: compact ? 30 : 36,
+                        color: '#fbbf24',
+                        fontSize: 8,
+                        fontWeight: '900',
+                        textAlign: 'center',
+                        borderLeftWidth: 1,
+                        borderLeftColor: '#334155',
+                        paddingLeft: compact ? 5 : 7,
+                        marginLeft: 2,
+                    }}>
+                        {t?.sc_0213 || 'Σ'}
+                    </Text>
+                </View>
+            ) : null}
+            {renderRow(p1Name, p1Extra, p1Cells, p1Win, p1SW)}
+            {renderRow(p2Name, p2Extra, p2Cells, p2Win, p2SW)}
         </View>
     );
 }
@@ -20219,27 +20348,40 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     borderColor: match.id === highlightMatchId ? '#f59e0b' : isDone ? '#16a34a30' : '#334155',
                                 }}
                             >
-                                {/* Tek satır: X [5] vs [5] Y — ELO sarı parantez; flex:1 yok (boşluk şişmesin) */}
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
-                                    <Text style={{ color: p1Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p1Win ? '800' : '600', flexShrink: 1, minWidth: 0, textAlign: (!isDone && !isBye) ? 'left' : 'right' }} numberOfLines={1}>
-                                        {match.p1Name || 'TBD'}
-                                        {match.p1Id && skillRatingMap[match.p1Id] != null ? (
-                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})`}</Text>
-                                        ) : null}
-                                    </Text>
-                                    {isDone && mSets.length > 0
-                                        ? (
-                                            <View style={{ flexShrink: 0, maxWidth: '36%' }}>
-                                                <TournMatchCenterScore sets={mSets} compact />
-                                            </View>
-                                        )
-                                        : <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '800', flexShrink: 0 }}>vs</Text>}
-                                    <Text style={{ color: p2Win ? '#4ade80' : '#fff', fontSize: 12, fontWeight: p2Win ? '800' : '600', flexShrink: 1, minWidth: 0, textAlign: 'left' }} numberOfLines={1}>
-                                        {match.p2Name || 'TBD'}
-                                        {match.p2Id && skillRatingMap[match.p2Id] != null ? (
-                                            <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
-                                        ) : null}
-                                    </Text>
+                                {isDone && mSets.length > 0 ? (
+                                    <TournMatchCenterScore
+                                        sets={mSets}
+                                        compact
+                                        t={t}
+                                        p1Name={match.p1Name || 'TBD'}
+                                        p2Name={match.p2Name || 'TBD'}
+                                        p1Win={p1Win}
+                                        p2Win={p2Win}
+                                        p1Extra={match.p1Id && skillRatingMap[match.p1Id] != null
+                                            ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})`}</Text>
+                                            : null}
+                                        p2Extra={match.p2Id && skillRatingMap[match.p2Id] != null
+                                            ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
+                                            : null}
+                                    />
+                                ) : (
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', flexShrink: 1, minWidth: 0, textAlign: 'left' }} numberOfLines={1}>
+                                            {match.p1Name || 'TBD'}
+                                            {match.p1Id && skillRatingMap[match.p1Id] != null ? (
+                                                <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})`}</Text>
+                                            ) : null}
+                                        </Text>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '800', flexShrink: 0 }}>vs</Text>
+                                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: '600', flexShrink: 1, minWidth: 0, textAlign: 'left' }} numberOfLines={1}>
+                                            {match.p2Name || 'TBD'}
+                                            {match.p2Id && skillRatingMap[match.p2Id] != null ? (
+                                                <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
+                                            ) : null}
+                                        </Text>
+                                    </View>
+                                )}
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6, alignItems: 'center' }}>
                                     {!isEntering && isReady && (isCreator || myIsAdmin || match.p1Id === mySideId || match.p2Id === mySideId) ? (
                                         <TouchableOpacity onPress={() => openScoreEntry(match)}
                                             style={{ backgroundColor: infoColor + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: infoColor + '50', flexShrink: 0 }}>
@@ -20833,14 +20975,52 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                     {t.sc_0481} {match._carriedOverFromRound} {t.sc_0482}
                                                                 </Text>
                                                             )}
-                                                            {/* Tek satır: X [5] vs [5] Y — flex:1 yok; ELO sarı (puan) */}
+                                                            {isDone && mSets.length > 0 ? (
+                                                                <>
+                                                                    <TournMatchCenterScore
+                                                                        sets={mSets}
+                                                                        compact
+                                                                        t={t}
+                                                                        p1Name={match.p1Name || 'TBD'}
+                                                                        p2Name={match.p2Name || 'TBD'}
+                                                                        p1Win={!!(match.winnerId && match.winnerId === match.p1Id)}
+                                                                        p2Win={!!(match.winnerId && match.winnerId === match.p2Id)}
+                                                                        p1Extra={(match.score?.p1RatingBefore != null && match.score?.p1RatingAfter != null)
+                                                                            ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${match.score.p1RatingBefore.toFixed(2)}→${match.score.p1RatingAfter.toFixed(2)})`}</Text>
+                                                                            : (match.p1Id && skillRatingMap[match.p1Id] != null
+                                                                                ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p1Id]).toFixed(2)})`}</Text>
+                                                                                : null)}
+                                                                        p2Extra={(match.score?.p2RatingBefore != null && match.score?.p2RatingAfter != null)
+                                                                            ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${match.score.p2RatingBefore.toFixed(2)}→${match.score.p2RatingAfter.toFixed(2)})`}</Text>
+                                                                            : (match.p2Id && skillRatingMap[match.p2Id] != null
+                                                                                ? <Text style={{ color: '#facc15', fontWeight: '800' }}>{` (${Number(skillRatingMap[match.p2Id]).toFixed(2)})`}</Text>
+                                                                                : null)}
+                                                                    />
+                                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6, alignItems: 'center' }}>
+                                                                        {skorGirBtn}
+                                                                        {gunUzatBtn}
+                                                                        {jokerBtn}
+                                                                        {!isEntering && !bothConfirmed && myUnconfirmedSide ? (
+                                                                            <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
+                                                                                style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60', flexShrink: 0 }}>
+                                                                                <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700' }}>✓ {t.sc_0157}</Text>
+                                                                            </TouchableOpacity>
+                                                                        ) : null}
+                                                                        {!isEntering && !bothConfirmed && (isCreator || myIsAdmin) ? (
+                                                                            <TouchableOpacity onPress={() => openScoreEntry(match)}
+                                                                                style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50', flexShrink: 0 }}>
+                                                                                <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '700' }}>{t.sc_0499}</Text>
+                                                                            </TouchableOpacity>
+                                                                        ) : null}
+                                                                    </View>
+                                                                </>
+                                                            ) : (
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
                                                             <View style={{ flexShrink: 1, alignItems: (isReady || isTBD) ? 'flex-start' : 'flex-end', minWidth: 0 }}>
                                                             {(() => {
-                                                                const isW = isDone && match.winnerId === match.p1Id;
                                                                 const pAlign = (isReady || isTBD) ? 'left' : 'right';
                                                                 const pItems = (isReady || isTBD) ? 'flex-start' : 'flex-end';
-                                                                const nameColor = isW ? '#4ade80' : '#fff';
+                                                                const nameColor = '#fff';
                                                                 const renderNameElo = (uid, name, doneMr) => (
                                                                     <Text style={{ color: nameColor, fontSize: doneMr ? 10 : 11, fontWeight: '700', textAlign: pAlign }} numberOfLines={1}>
                                                                         {name || ''}
@@ -20888,17 +21068,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                 );
                                                             })()}
                                                             </View>
-                                                            {isDone && mSets.length > 0
-                                                                ? (
-                                                                    <View style={{ flexShrink: 0, maxWidth: '36%' }}>
-                                                                        <TournMatchCenterScore sets={mSets} compact />
-                                                                    </View>
-                                                                )
-                                                                : <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'800', flexShrink:0 }}>vs</Text>}
+                                                            <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'800', flexShrink:0 }}>vs</Text>
                                                             <View style={{ flexShrink: 1, alignItems: 'flex-start', minWidth: 0 }}>
                                                             {(() => {
-                                                                const isW = isDone && match.winnerId === match.p2Id;
-                                                                const nameColor = isW ? '#4ade80' : '#fff';
+                                                                const nameColor = '#fff';
                                                                 const renderNameElo = (uid, name, doneMr) => (
                                                                     <Text style={{ color: nameColor, fontSize: doneMr ? 10 : 11, fontWeight: '700', textAlign: 'left' }} numberOfLines={1}>
                                                                         {name || ''}
@@ -20949,19 +21122,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {skorGirBtn}
                                                             {gunUzatBtn}
                                                             {jokerBtn}
-                                                            {!isEntering && isDone && !bothConfirmed && myUnconfirmedSide ? (
-                                                                <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
-                                                                    style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60', flexShrink: 0 }}>
-                                                                    <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '700' }}>✓ {t.sc_0157}</Text>
-                                                                </TouchableOpacity>
-                                                            ) : null}
-                                                            {!isEntering && isDone && !bothConfirmed && (isCreator || myIsAdmin) ? (
-                                                                <TouchableOpacity onPress={() => openScoreEntry(match)}
-                                                                    style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50', flexShrink: 0 }}>
-                                                                    <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '700' }}>{t.sc_0499}</Text>
-                                                                </TouchableOpacity>
-                                                            ) : null}
                                                             </View>
+                                                            )}
                                                         {(() => {
                                                             if (isDone || isBye || isTBD || !match.deadline) return null;
                                                             const roundDefaultTime = roundDefaultDeadline[`${match.phase}|${match.round}`];
@@ -34426,11 +34588,23 @@ function SubCategoryScreen({ route, navigation }) {
                                                                         const mSets2 = match.score?.sets || [];
                                                                         return (
                                                                             <View key={match.id} style={{ width:'48.5%', backgroundColor:'#0f172a', borderRadius:8, padding:6, marginBottom:3, borderWidth:1, borderColor: isDone ? '#16a34a30' : '#334155' }}>
-                                                                                <Text style={{ color: isDone && match.winnerId===match.p1Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p1Name || 'TBD'}</Text>
-                                                                                {isDone && mSets2.length > 0
-                                                                                    ? <TournMatchCenterScore sets={mSets2} compact />
-                                                                                    : <Text style={{ color:colors.textMuted, fontSize:9, marginVertical:3, textAlign:'center' }}>vs</Text>}
-                                                                                <Text style={{ color: isDone && match.winnerId===match.p2Id ? '#4ade80' : '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p2Name || 'TBD'}</Text>
+                                                                                {isDone && mSets2.length > 0 ? (
+                                                                                    <TournMatchCenterScore
+                                                                                        sets={mSets2}
+                                                                                        compact
+                                                                                        t={t}
+                                                                                        p1Name={match.p1Name || 'TBD'}
+                                                                                        p2Name={match.p2Name || 'TBD'}
+                                                                                        p1Win={match.winnerId === match.p1Id}
+                                                                                        p2Win={match.winnerId === match.p2Id}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <Text style={{ color: '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p1Name || 'TBD'}</Text>
+                                                                                        <Text style={{ color:colors.textMuted, fontSize:9, marginVertical:3, textAlign:'center' }}>vs</Text>
+                                                                                        <Text style={{ color: '#fff', fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{match.p2Name || 'TBD'}</Text>
+                                                                                    </>
+                                                                                )}
                                                                                 {(isBye || isTBD) && (
                                                                                     <Text style={{ color:colors.textMuted, fontSize:9, marginTop:3 }}>{isBye ? 'BYE' : 'TBD'}</Text>
                                                                                 )}
