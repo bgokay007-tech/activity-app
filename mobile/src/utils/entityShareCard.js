@@ -226,22 +226,32 @@ function buildStandingsTable(standings, t) {
     };
 }
 
-/** Turnuva kart satırları — EFT IBAN + kurallar HARİÇ (paylaşım + puan tablosu ortak). */
-function collectTournamentLines(tournament, t, lang) {
+/**
+ * Turnuva kart satırları — EFT IBAN + kurallar HARİÇ.
+ * opts.forStandings: puan tablosu paylaşımında oluşturan/iletişim, son başvuru,
+ * ücretler, "oyuncular karar verir", yedek/min yazılmaz; kadro sadece 12/12.
+ */
+function collectTournamentLines(tournament, t, lang, opts = {}) {
+    const forStandings = opts.forStandings === true;
     const lines = [];
 
     const format = tournFormatLabel(tournament, t);
     if (format) lines.push(`🏆 ${format}`);
 
     const loc = tournLocationLine(tournament, t);
-    if (loc) lines.push(loc);
+    // Puan tablosu paylaşımında "oyuncular karar verir / ortaklaşa" mekan satırı yok
+    if (loc && !(forStandings && /oyuncular|players decide|ortaklaşa|gemeinsam|соглас|takımlar/i.test(loc))) {
+        lines.push(loc);
+    }
 
-    const creator = tournament.creator?.fullName || tournament.creator?.username || '';
-    if (creator) lines.push(`👤 ${creator}${tournament.contactPhone ? ` · 📞 ${tournament.contactPhone}` : ''}`);
-    else if (tournament.contactPhone) lines.push(`📞 ${tournament.contactPhone}`);
+    if (!forStandings) {
+        const creator = tournament.creator?.fullName || tournament.creator?.username || '';
+        if (creator) lines.push(`👤 ${creator}${tournament.contactPhone ? ` · 📞 ${tournament.contactPhone}` : ''}`);
+        else if (tournament.contactPhone) lines.push(`📞 ${tournament.contactPhone}`);
 
-    if (tournament.endDate) {
-        lines.push(`${t?.sc_0400 || 'Entry deadline:'} ${fmtTournDateTime(tournament.endDate, tournament.endTime, lang)}`);
+        if (tournament.endDate) {
+            lines.push(`${t?.sc_0400 || 'Entry deadline:'} ${fmtTournDateTime(tournament.endDate, tournament.endTime, lang)}`);
+        }
     }
 
     const metaBits = [];
@@ -266,7 +276,7 @@ function collectTournamentLines(tournament, t, lang) {
     if (sf && sf !== 'PLAYERS_DECIDE') {
         const sLabel = surfaceLabel(tournament, t);
         if (sLabel) lines.push(`🏟 ${sLabel}`);
-    } else if (sf === 'PLAYERS_DECIDE') {
+    } else if (sf === 'PLAYERS_DECIDE' && !forStandings) {
         lines.push(`🏟 ${t?.tournSurfacePlayersDecide || t?.surfacePLAYERS_DECIDE || 'Players decide'}`);
     }
 
@@ -279,10 +289,15 @@ function collectTournamentLines(tournament, t, lang) {
         ?? (Array.isArray(tournament.participants) ? tournament.participants.length : null);
     if (max || participantCount != null) {
         const asCount = max && participantCount != null ? Math.min(participantCount, max) : participantCount;
-        const yedek = max && participantCount != null ? Math.max(0, participantCount - max) : 0;
         const base = max ? `${asCount ?? 0}/${max}` : `${participantCount ?? 0}`;
-        const txt = yedek > 0 && t?.sc_0406 ? t.sc_0406(base, yedek) : base;
-        lines.push(`👥 ${t?.sc_0407 ? t.sc_0407(txt, tournament.minPlayers > 2 ? ` · min ${tournament.minPlayers}` : '') : txt}`);
+        if (forStandings) {
+            // Sadece "Kadro: 12/12" — yedek / min yok
+            lines.push(`👥 ${t?.sc_0407 ? t.sc_0407(base, '') : base}`);
+        } else {
+            const yedek = max && participantCount != null ? Math.max(0, participantCount - max) : 0;
+            const txt = yedek > 0 && t?.sc_0406 ? t.sc_0406(base, yedek) : base;
+            lines.push(`👥 ${t?.sc_0407 ? t.sc_0407(txt, tournament.minPlayers > 2 ? ` · min ${tournament.minPlayers}` : '') : txt}`);
+        }
     }
 
     const flags = [];
@@ -299,7 +314,8 @@ function collectTournamentLines(tournament, t, lang) {
         lines.push(t?.sc_0411 ? t.sc_0411(range) : range);
     }
 
-    if (tournament.isPaid || tournament.feeType === 'SHARED' || tournament.feeType === 'SPONSORED' || tournament.feeType === 'INCLUDED') {
+    if (!forStandings
+        && (tournament.isPaid || tournament.feeType === 'SHARED' || tournament.feeType === 'SPONSORED' || tournament.feeType === 'INCLUDED')) {
         if (tournament.isPaid) {
             const fee = tournament.playerFee != null && tournament.playerFee !== '' ? `${tournament.playerFee}₺` : '—';
             lines.push(`${t?.sc_0412 || 'Entry fee:'} ${fee}`);
@@ -356,7 +372,7 @@ function buildTournamentStandings(tournament, t, lang, standings = []) {
     const badge = t?.shareTournamentStandingsIntro
         || t?.shareEntityBadgeStandings
         || (lang === 'tr' ? 'Turnuva puan tablosu' : lang === 'ru' ? 'Турнирная таблица' : lang === 'de' ? 'Turniertabelle' : 'Tournament standings');
-    const { lines, sf } = collectTournamentLines(tournament, t, lang);
+    const { lines, sf } = collectTournamentLines(tournament, t, lang, { forStandings: true });
     const standingsTable = buildStandingsTable(standings, t);
 
     const hdr = standingsTable.headers;
