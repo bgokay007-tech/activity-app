@@ -20246,6 +20246,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             <Text style={{ color: infoColor, fontSize: 10, fontWeight: '700' }}>{t.sc_0440}</Text>
                                         </TouchableOpacity>
                                     ) : null}
+                                    {!isEntering && isReady && (isCreator || myIsAdmin) && !item.dayTrip && match.deadline ? (
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                setExtendDaysInput('7');
+                                                setExtendTarget({
+                                                    kind: 'match',
+                                                    match,
+                                                    label: `${match.p1Name || '?'} vs ${match.p2Name || '?'}`,
+                                                });
+                                            }}
+                                            style={{ backgroundColor: '#0ea5e920', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 3, borderWidth: 1, borderColor: '#0ea5e950', flexShrink: 0 }}
+                                        >
+                                            <Text style={{ color: '#38bdf8', fontSize: 10, fontWeight: '700' }}>{t.tournExtendMatchBtn || t.sc_0490}</Text>
+                                        </TouchableOpacity>
+                                    ) : null}
                                     {playoffJoker}
                                     {!isEntering && isDone && !bothConfirmed && myUnconfirmedSide ? (
                                         <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
@@ -20781,6 +20796,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     </TouchableOpacity>
                                                 );
                                             })();
+                                            // Kullanıcı isteği: Skor Gir'in sağına aynı satırda gap 5 ile Gün uzat.
+                                            const gunUzatBtn = (() => {
+                                                if (!((isCreator || myIsAdmin) && !item.dayTrip && isReady && match.deadline && !isEntering)) return null;
+                                                return (
+                                                    <TouchableOpacity
+                                                        onPress={() => {
+                                                            setExtendDaysInput('7');
+                                                            setExtendTarget({
+                                                                kind: 'match',
+                                                                match,
+                                                                label: `${match.p1Name || '?'} vs ${match.p2Name || '?'}`,
+                                                            });
+                                                        }}
+                                                        style={{ backgroundColor: '#0ea5e920', borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, borderWidth: 1, borderColor: '#0ea5e950', flexShrink: 0 }}
+                                                    >
+                                                        <Text style={{ color: '#38bdf8', fontSize: 9, fontWeight: '700' }}>{t.tournExtendMatchBtn || t.sc_0490}</Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })();
                                             return (
                                                 <TouchableOpacity
                                                     key={match.id}
@@ -20913,6 +20947,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             })()}
                                                             </View>
                                                             {skorGirBtn}
+                                                            {gunUzatBtn}
                                                             {jokerBtn}
                                                             {!isEntering && isDone && !bothConfirmed && myUnconfirmedSide ? (
                                                                 <TouchableOpacity onPress={() => confirmTournamentScore(match)} disabled={confirmingMatchId === match.id}
@@ -20944,21 +20979,6 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {(isBye || isTBD) && <Text style={{ color: colors.textMuted, fontSize:9 }}>{isBye ? 'BYE' : 'TBD'}</Text>}
                                                             {isReady && match.deadline && new Date(match.deadline).getTime() < Date.now() && (
                                                                 <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || t.sc_0488}</Text>
-                                                            )}
-                                                            {(isCreator || myIsAdmin) && !item.dayTrip && isReady && match.deadline && !isEntering && (
-                                                                <TouchableOpacity
-                                                                    onPress={() => {
-                                                                        setExtendDaysInput('7');
-                                                                        setExtendTarget({
-                                                                            kind: 'match',
-                                                                            match,
-                                                                            label: `${match.p1Name || '?'} vs ${match.p2Name || '?'}`,
-                                                                        });
-                                                                    }}
-                                                                    style={{ backgroundColor:'#0ea5e920', borderRadius:6, paddingHorizontal:4, paddingVertical:2, borderWidth:1, borderColor:'#0ea5e950' }}
-                                                                >
-                                                                    <Text style={{ color:'#38bdf8', fontSize:9, fontWeight:'700' }}>{t.tournExtendMatchBtn || t.sc_0490}</Text>
-                                                                </TouchableOpacity>
                                                             )}
                                                             {isDone ? (
                                                                 bothConfirmed ? (
