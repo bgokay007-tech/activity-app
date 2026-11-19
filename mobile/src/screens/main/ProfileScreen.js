@@ -2369,17 +2369,35 @@ export default function ProfileScreen({ route, navigation }) {
     // Benim Aktivitelerim kartındaki "⋮" menüsü — gizle (soner) / göster (addInterest'in
     // upsert'i hidden:false yapıp puan/geçmişi koruyarak geri getirir). Gizliyken o dalda
     // ilan açma/katılma backend'de (requireActiveInterest) zaten engelleniyor.
+    // Gizle: yanlışlıkla basmaya karşı son kez onay.
     const toggleHideInterest = async (interest) => {
-        try {
-            if (interest.hidden) {
-                await api.post('/interests/add', { category: interest.category, subCategory: interest.subCategory });
-            } else {
-                await api.patch(`/interests/${interest.id}/hide`);
+        const run = async () => {
+            try {
+                if (interest.hidden) {
+                    await api.post('/interests/add', { category: interest.category, subCategory: interest.subCategory });
+                } else {
+                    await api.patch(`/interests/${interest.id}/hide`);
+                }
+                setInterests(prev => prev.map(x => x.id === interest.id ? { ...x, hidden: !interest.hidden } : x));
+            } catch (e) {
+                Alert.alert('', e?.response?.data?.message || 'İşlem yapılamadı');
             }
-            setInterests(prev => prev.map(x => x.id === interest.id ? { ...x, hidden: !interest.hidden } : x));
-        } catch (e) {
-            Alert.alert('', e?.response?.data?.message || 'İşlem yapılamadı');
+        };
+        if (interest.hidden) {
+            await run();
+            return;
         }
+        const label = getSubCategoryLabel(interest.subCategory, lang) || interest.subCategory || '';
+        Alert.alert(
+            t.interestHideConfirmTitle || 'Emin misiniz?',
+            t.interestHideConfirmMsg
+                ? t.interestHideConfirmMsg(label)
+                : `"${label}" gizlensin mi? Yanlışlıkla bastıysanız vazgeçin.`,
+            [
+                { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                { text: t.hideBtn || 'Gizle', style: 'destructive', onPress: () => { run(); } },
+            ]
+        );
     };
 
     useEffect(() => {

@@ -129,9 +129,11 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
     // doldurma istismarini engellemek icin) - onun yerine gizlenir, tekrar eklenince
     // puan/gecmis aynen geri gelir. Puanli oyunlar (okey/batak) icin bu kural mac
     // sayisina bakilmaksizin gecerlidir (hic oynanmamis olsa bile).
+    // Yanlışlıkla "−" basmaya karşı her durumda son kez onay sorulur.
     const handleRemove = (interest, category, subCategory) => {
         const matchCount = (interest.wins || 0) + (interest.losses || 0);
         const isWagered = category === 'GAMES' && WAGERED_GAMES.has(subCategory);
+        const label = getSubCategoryLabel(subCategory, lang) || subCategory;
         if (isWagered || matchCount >= 3) {
             Alert.alert(
                 t.hideInsteadTitle || 'Branş Silinemez',
@@ -145,7 +147,20 @@ export default function ManageActivitiesModal({ visible, interests, onClose, onI
             );
             return;
         }
-        doRemove(interest.id, category, subCategory);
+        Alert.alert(
+            t.interestRemoveConfirmTitle || 'Emin misiniz?',
+            t.interestRemoveConfirmMsg
+                ? t.interestRemoveConfirmMsg(label)
+                : `"${label}" aktivitelerinizden çıkarılsın mı? Bu işlemi yanlışlıkla yaptıysanız vazgeçin.`,
+            [
+                { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
+                {
+                    text: t.interestRemoveConfirmBtn || t.removeWholeActivityOption || 'Çıkar',
+                    style: 'destructive',
+                    onPress: () => doRemove(interest.id, category, subCategory),
+                },
+            ]
+        );
     };
 
     // Tenis/padel/badminton/masa tenisi: tıklayınca HER ZAMAN Tekli/Çiftler seçimi sorulur.
