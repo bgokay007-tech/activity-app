@@ -56,6 +56,7 @@ import sportsTicketRoutes from './routes/sportsTicket.routes.js';
 import trailRoutes from './routes/trail.routes.js';
 import telegramRoutes from './routes/telegram.routes.js';
 import sportGuideRoutes from './routes/sportGuide.routes.js';
+import athleteCardRoutes from './routes/athleteCard.routes.js';
 
 const app = express();
 
@@ -128,6 +129,7 @@ app.use('/api/sports-tickets', sportsTicketRoutes);
 app.use('/api/trails', trailRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/sport-guide', sportGuideRoutes);
+app.use('/api/athlete-card', athleteCardRoutes);
 app.use('/share', shareRoutes);
 
 // Uygulama henüz Play Store'da olmadığı için, paylaşım linkindeki "Uygulamada Aç"

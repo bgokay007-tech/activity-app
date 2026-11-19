@@ -3380,36 +3380,33 @@ export default function ProfileScreen({ route, navigation }) {
                     )}
                 </View>
 
-                {/* Yaklaşan Aktivitelerim — rezervasyonların üstünde; sayaç + aktivite bitene kadar yanıp söner.
-                    İçinde Yaklaşan / Arşiv sekmeleri; süre bitince kayıt arşive düşer. */}
+                {/* Sporcu Kartım — yaklaşanın üstünde; boy/kilo + kompozisyon/antropometri/test/günlük takip */}
                 {isOwnProfile && (
-                    <View style={{ marginHorizontal: 20, marginTop: 12, gap: 8 }}>
-                        <TouchableOpacity
-                            style={[ap.reservBtn, { marginHorizontal: 0, marginTop: 0 }, activeUpcomingCount > 0 && { borderColor: '#4ade8060' }]}
-                            onPress={() => openMyUpcoming(null)}
-                            activeOpacity={0.75}
-                        >
-                            <Animated.View style={{ opacity: upcomingHubBlink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                <UiIcon name="time-outline" size={16} color="#4ade80" />
-                                <Text style={[ap.reservBtnText, { color: '#4ade80' }]}>
-                                    {stripChromeEmoji(t.myUpcomingActivitiesBtn)}{` (${activeUpcomingCount})`}
-                                </Text>
-                            </Animated.View>
-                        </TouchableOpacity>
-                        {/* Maç olmasa da açılır — varsayılan 1s/3s kala bildirim ayarları. */}
-                        <TouchableOpacity
-                            style={[ap.reservBtn, { marginHorizontal: 0, marginTop: 0, borderColor: reminderDefaultCount > 0 ? '#4ade8060' : '#9333ea30' }]}
-                            onPress={openReminderSettings}
-                            activeOpacity={0.75}
-                        >
-                            <ChromeText
-                                style={[ap.reservBtnText, { color: reminderDefaultCount > 0 ? '#4ade80' : colors.purple }]}
-                                iconColor={reminderDefaultCount > 0 ? '#4ade80' : colors.purple}
-                            >
-                                {`${t.matchReminderSettingsBtn}${reminderDefaultCount > 0 ? ` (${reminderDefaultCount})` : ''}`}
-                            </ChromeText>
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        style={[ap.reservBtn, { borderColor: '#38bdf860' }]}
+                        onPress={() => navigation.navigate('AthleteCard')}
+                        activeOpacity={0.75}
+                    >
+                        <ChromeText style={[ap.reservBtnText, { color: '#38bdf8' }]} iconColor="#38bdf8">
+                            {t.ac_profileBtn || '🧍 Sporcu Kartım'}
+                        </ChromeText>
+                    </TouchableOpacity>
+                )}
+                {/* Yaklaşan Aktivitelerim — sayaç + aktivite bitene kadar yanıp söner.
+                    Bildirim ayarı bu hub içinde (üstteki ayrı buton kaldırıldı). */}
+                {isOwnProfile && (
+                    <TouchableOpacity
+                        style={[ap.reservBtn, activeUpcomingCount > 0 && { borderColor: '#4ade8060' }]}
+                        onPress={() => openMyUpcoming(null)}
+                        activeOpacity={0.75}
+                    >
+                        <Animated.View style={{ opacity: upcomingHubBlink, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                            <UiIcon name="time-outline" size={16} color="#4ade80" />
+                            <Text style={[ap.reservBtnText, { color: '#4ade80' }]}>
+                                {stripChromeEmoji(t.myUpcomingActivitiesBtn)}{` (${activeUpcomingCount})`}
+                            </Text>
+                        </Animated.View>
+                    </TouchableOpacity>
                 )}
                 {/* Rezervasyonlarım — maçlar aynı ekranın içinde sekme olarak var, ayrı buton yok */}
                 {isOwnProfile && (

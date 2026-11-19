@@ -213,8 +213,30 @@ model User {
   travelTripRequests   TravelTripRequest[]
   travelVerification   TravelVerification?
   paymentMethods       PaymentMethod[]
+  athleteMetrics       AthleteMetricEntry[]
 
   @@index([lat, lng])
+}
+
+// Sporcu Kartı — boy/kilo, vücut kompozisyonu, antropometri, biyomotor test, fizyoloji/günlük
+// sağlık (adım, kalori). Aynı key için geçmiş tutulur; en güncel = measuredAt max.
+// source: MANUAL | HEALTH_APP | WATCH (akıllı saat / sağlık uygulaması senkronu için hazır).
+model AthleteMetricEntry {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   String   // BASIC | COMPOSITION | ANTHRO | BIOMOTOR | PHYSIO | DAILY
+  key        String   // heightCm, weightKg, bodyFatPct, bicepsCm, steps, ...
+  value      Float
+  unit       String?
+  source     String   @default("MANUAL")
+  measuredAt DateTime @default(now())
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, key, measuredAt])
+  @@index([userId, category, measuredAt])
+  @@index([userId, measuredAt])
 }
 
 // Kişisel Bilgiler'de kayıtlı kartlar. Numara şifreli durur; güvenlik kodu hiç saklanmaz.

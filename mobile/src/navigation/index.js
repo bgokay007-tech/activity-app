@@ -314,6 +314,7 @@ import VenueDetailScreen from '../screens/main/VenueDetailScreen';
 import CourtSlotsScreen from '../screens/main/CourtSlotsScreen';
 import MyReservationsScreen from '../screens/main/MyReservationsScreen';
 import SavedScreen from '../screens/main/SavedScreen';
+import AthleteCardScreen from '../screens/main/AthleteCardScreen';
 import ActivityFeedScreen from '../screens/main/ActivityFeedScreen';
 import MusicHomeScreen from '../screens/main/MusicHomeScreen';
 import MusicPlaylistDetailScreen from '../screens/main/MusicPlaylistDetailScreen';
@@ -370,6 +371,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="CourtSlots" component={CourtSlotsScreen} />
             <HomeStack.Screen name="MyReservations" component={MyReservationsScreen} />
             <HomeStack.Screen name="Saved" component={SavedScreen} />
+            <HomeStack.Screen name="AthleteCard" component={AthleteCardScreen} />
             <HomeStack.Screen name="MusicHome" component={MusicHomeScreen} />
             <HomeStack.Screen name="MusicPlaylistDetail" component={MusicPlaylistDetailScreen} />
             <HomeStack.Screen name="NowPlaying" component={NowPlayingScreen} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
@@ -426,6 +428,7 @@ function ProfileStackNav() {
             <ProfileStack.Screen name="CourtSlots" component={CourtSlotsScreen} />
             <ProfileStack.Screen name="MyReservations" component={MyReservationsScreen} />
             <ProfileStack.Screen name="Saved" component={SavedScreen} />
+            <ProfileStack.Screen name="AthleteCard" component={AthleteCardScreen} />
         </ProfileStack.Navigator>
     );
 }
