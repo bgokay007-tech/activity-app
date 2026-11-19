@@ -98,7 +98,9 @@ export default function AthleteCardScreen({ navigation }) {
     return (
         <View style={[s.root, { paddingTop: insets.top }]}>
             <View style={s.header}>
-                <ScreenBackButton onPress={() => navigation.goBack()} />
+                <ScreenBackButton onPress={() => navigation.goBack()}>
+                    <Text style={{ color: colors.purple, fontSize: 14, fontWeight: '800' }}>{t.back || '←'}</Text>
+                </ScreenBackButton>
                 <Text style={s.title} numberOfLines={1}>{t.ac_title}</Text>
                 <View style={{ width: 40 }} />
             </View>
