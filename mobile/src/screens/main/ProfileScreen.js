@@ -2820,10 +2820,10 @@ export default function ProfileScreen({ route, navigation }) {
                 fullNamePrivacy:  infoForm.fullNamePrivacy,
                 fullNameExclude:  infoForm.fullNameExclude,
                 cityPrivacy:      infoForm.cityPrivacy,
-                genderPrivacy:    infoForm.genderPrivacy,
+                genderPrivacy:    'PUBLIC',
+                genderExclude:    [],
                 birthDatePrivacy: infoForm.birthDatePrivacy,
                 cityExclude:      infoForm.cityExclude,
-                genderExclude:    infoForm.genderExclude,
                 birthDateExclude: infoForm.birthDateExclude,
                 contactPhone:    infoForm.contactPhone ? (phoneCC + infoForm.contactPhone.replace(/^0+/, '')) : null,
                 contactTelegram: infoForm.contactTelegram || null,
@@ -3128,9 +3128,6 @@ export default function ProfileScreen({ route, navigation }) {
                                             : profile?.gender === 'OTHER' ? `🧑  ${t.genderOther.replace(/^[^\s]+\s*/,'')}`
                                             : isOwnProfile ? '—' : ''}
                                     </Text>
-                                    {isOwnProfile && (
-                                        <Text style={s.privacyDot}>{privacyEmoji(profile?.genderPrivacy)}</Text>
-                                    )}
                                 </View>
                             )}
                             {(isOwnProfile || profile?.birthDate) && (
@@ -4944,13 +4941,9 @@ export default function ProfileScreen({ route, navigation }) {
                                 <Text style={s.excludeHint}>{t.excludeHintCount(infoForm.cityExclude.length)}</Text>
                             )}
 
-                            {/* ── Gender (read-only, değişiklik talebi ile) ── */}
+                            {/* ── Gender: herkese açık (gizlilik yok); değişiklik talebi aynı ── */}
                             <View style={s.infoFieldHeader}>
                                 <Text style={s.fieldLabel}>{t.genderFieldLabelProfile}</Text>
-                                <TouchableOpacity onPress={() => setPrivacyPickerField('gender')} style={s.menuBtn}>
-                                    <Text style={s.menuBtnPrivacy}>{privacyEmoji(infoForm.genderPrivacy)}</Text>
-                                    <Text style={s.menuBtnIcon}>≡</Text>
-                                </TouchableOpacity>
                             </View>
                             <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:4 }}>
                                 <View style={[s.fieldInput, { flex:1, justifyContent:'center' }]}>
@@ -4966,10 +4959,8 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ color:'#a78bfa', fontSize:11, fontWeight:'700' }}>{t.changeFieldBtn}</Text>
                                 </TouchableOpacity>
                             </View>
+                            <Text style={{ color: colors.textMuted, fontSize:10, marginBottom:4 }}>{t.genderAlwaysPublicHint}</Text>
                             <Text style={{ color:'#f59e0b', fontSize:10, marginBottom:14 }}>{t.changeRequiresApproval}</Text>
-                            {infoForm.genderPrivacy === 'FRIENDS_EXCEPT' && infoForm.genderExclude.length > 0 && (
-                                <Text style={s.excludeHint}>{t.excludeHintCount(infoForm.genderExclude.length)}</Text>
-                            )}
 
                             {/* ── Birth Date (read-only, değişiklik talebi ile) ── */}
                             <View style={s.infoFieldHeader}>
