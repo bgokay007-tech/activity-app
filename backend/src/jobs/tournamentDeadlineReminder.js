@@ -6,12 +6,9 @@ import {
     applyTournamentMatchAutoDraw,
 } from '../controllers/tournament.controller.js';
 
-// tournament.controller.js'teki advanceTournamentAfterMatch, tip '1' turnuvalarda bir turun
-// deadline'ı geçtiğinde joker'li tek bir açık maçı beklemeden bir sonraki grup turunu kurar —
-// ama bu fonksiyon sadece bir MAÇ tamamlandığında reaktif olarak çağrılıyor. Bir turdaki son
-// açık maç joker'liyse (kendi deadline'ı hâlâ gelecekte) başka hiçbir maç tamamlanmayacağı için
-// bu kontrol bir daha asla tetiklenmeyebilir. Bu job periyodik olarak "tıkanmış" turları tarayıp
-// aynı fonksiyonu senkron bir maç olmadan da tetikler.
+// Tip '1' Elo: sonraki tur skor/joker anında kurulur (tur deadline'ı beklenmez). Skor/joker
+// tetikleyicisi kaçarsa bu job periyodik yedek: tur hazırsa (hepsi bitti VEYA kalanlar
+// yalnızca jokerli) ve sonraki tur yoksa advance'i tekrar çağırır.
 
 // Deadline'a kalan süreye göre gönderilecek hatırlatma pencereleri (büyükten küçüğe).
 const WINDOWS = [
@@ -237,11 +234,8 @@ async function autoDrawExpiredMatches() {
     }
 }
 
-/** Tip '1' turnuvalarda mevcut grup turunda hâlâ PENDING maç varsa (muhtemelen joker'le
- *  uzatılmış), advanceTournamentAfterMatch'i senkron bir maç tamamlanması olmadan tekrar
- *  çağırır — fonksiyonun kendi içindeki dynamicRoundDeadlinePassed kontrolü, turun orijinal
- *  deadline'ı gerçekten geçmediyse zaten hiçbir şey yapmaz (no-op), o yüzden burada ekstra
- *  bir deadline kontrolüne gerek yok. */
+/** Tip '1' yedek tetik: mevcut tur hazırsa (tümü bitti veya kalanlar jokerli) ve sonraki
+ *  tur henüz yoksa advance'i çağırır. Tur deadline'ının son gününü beklemez. */
 async function advanceStuckDynamicRounds() {
     try {
         const tournaments = await prisma.tournament.findMany({
@@ -259,14 +253,28 @@ async function advanceStuckDynamicRounds() {
             try {
                 const groupMatches = await prisma.tournamentMatch.findMany({
                     where: { tournamentId: tournament.id, phase: 'GROUP' },
-                    select: { round: true, status: true },
+                    select: {
+                        id: true, round: true, status: true, deadline: true,
+                        p1Id: true, p2Id: true,
+                        p1JokerRequested: true, p2JokerRequested: true,
+                    },
                 });
                 if (groupMatches.length === 0) continue;
                 const maxRound = Math.max(...groupMatches.map(m => m.round));
-                const hasPending = groupMatches.some(m => m.round === maxRound && m.status === 'PENDING');
-                if (!hasPending) continue;
+                // Sonraki tur zaten varsa dokunma
+                if (groupMatches.some(m => m.round === maxRound + 1)) continue;
 
-                await advanceTournamentAfterMatch(tournament, { round: maxRound, phase: 'GROUP' }, false, false);
+                const current = groupMatches.filter(m => m.round === maxRound);
+                const allDone = current.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT');
+                const hasPending = current.some(m => m.status === 'PENDING');
+                // Hepsi bittiyse VEYA hâlâ jokerli PENDING varsa dene — advance kendi
+                // eloRoundReady kontrolüyle joker-dışı PENDING varsa no-op kalır.
+                if (!allDone && !hasPending) continue;
+
+                const seed = current.find(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT')
+                    || current[0];
+                if (!seed) continue;
+                await advanceTournamentAfterMatch(tournament, seed, false, false);
             } catch (tErr) {
                 console.error(`[tournamentDeadlineReminder] advanceStuckDynamicRounds failed for tournament ${tournament.id}:`, tErr.message);
             }

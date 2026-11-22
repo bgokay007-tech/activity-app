@@ -736,10 +736,18 @@ async function getCurrentTeamRatings(tournament, teamIds) {
 /** Maç joker / karşılıklı joker ile uzatıldı mı?
  *  p*JokerRequested hâlâ true olabilir; karşılıklı onayda flag'ler temizlenir ama
  *  deadline nominal süreden uzun kalır — ikisini de kabul ediyoruz.
+ *  jokerUserIds: bu turnuvada jokerUsed=true olan userId set'i (opsiyonel güçlendirme).
  */
-function matchExtendedByJoker(tournament, match, roundNum) {
+function matchExtendedByJoker(tournament, match, roundNum, jokerUserIds = null) {
     if (!match || match.status !== 'PENDING') return false;
     if (match.p1JokerRequested || match.p2JokerRequested) return true;
+    // Tekli: p1Id/p2Id user id. Taraflardan biri joker hakkını bu turnuvada kullandıysa
+    // (flag karşılıklı onayda silinse bile) bu PENDING maç joker uzatmalı sayılır.
+    if (jokerUserIds && jokerUserIds.size) {
+        if ((match.p1Id && jokerUserIds.has(match.p1Id)) || (match.p2Id && jokerUserIds.has(match.p2Id))) {
+            return true;
+        }
+    }
     if (!match.deadline) return false;
     const nominal = new Date(tournamentBaseDate(tournament));
     nominal.setDate(nominal.getDate() + (roundNum || match.round || 1) * 7);
@@ -748,20 +756,27 @@ function matchExtendedByJoker(tournament, match, roundNum) {
 }
 
 /**
- * Tip '1' Elo grup: bir tur "ilerlemeye hazır" mı?
- *  - Tüm maçlar bitti → evet (yeni Elo ile sonraki tur)
- *  - Kalan PENDING'lerin hepsi joker ile uzatılmış → evet (o anki Elo ile;
- *    joker'li maç kendi deadline'ında bağımsız biter)
- *  - Aksi halde hayır — admin onayı / manuel rematch beklenmez; skorlar girilince otomatik.
+ * Tip '1' Elo grup: bir tur "ilerlemeye hazır" mı? (tur deadline'ının son gün/saatini BEKLEMEZ)
+ *  - Tüm maçlar bitti (erkense de) → evet → sonraki tur herkesin YENİ Elo'su ile
+ *  - Kalan PENDING'lerin hepsi joker'li → evet → joker tarafları o anki Elo, diğerleri yeni Elo
+ *  - Joker-dışı PENDING kaldıysa → hayır (o maçlar bitene / joker kullanılana kadar bekle)
  */
-function eloRoundReadyToAdvance(tournament, roundMatches, roundNum) {
+function eloRoundReadyToAdvance(tournament, roundMatches, roundNum, jokerUserIds = null) {
     if (!roundMatches.length) return false;
     const pending = roundMatches.filter(m => m.status === 'PENDING');
     if (pending.length === 0) {
         return roundMatches.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT');
     }
-    const blocking = pending.filter(m => !matchExtendedByJoker(tournament, m, roundNum));
+    const blocking = pending.filter(m => !matchExtendedByJoker(tournament, m, roundNum, jokerUserIds));
     return blocking.length === 0;
+}
+
+async function loadJokerUserIds(tournamentId) {
+    const rows = await prisma.tournamentParticipant.findMany({
+        where: { tournamentId, status: 'ACCEPTED', jokerUsed: true, userId: { not: null } },
+        select: { userId: true },
+    });
+    return new Set(rows.map(r => r.userId));
 }
 
 /** Müsaitlik motoru açıksa yeni Elo turunu TournamentRound kaydına bağla; admin PENDING_APPROVAL atlanır. */
@@ -798,18 +813,20 @@ async function healType1PendingFutureEloRounds(tournament) {
         where: { tournamentId: tournament.id, phase: 'GROUP' },
         select: {
             id: true, round: true, status: true, deadline: true,
+            p1Id: true, p2Id: true,
             p1JokerRequested: true, p2JokerRequested: true,
         },
     });
     if (!allGroup.length) return 0;
 
+    const jokerUserIds = await loadJokerUserIds(tournament.id);
     const rounds = [...new Set(allGroup.map(m => m.round))].sort((a, b) => a - b);
     const deleteIds = new Set();
 
     // Önceki turda joker-dışı PENDING varken sonraki (hepsi PENDING) turlar prematüre → sil
     for (const r of rounds) {
         const ms = allGroup.filter(m => m.round === r);
-        const blocking = ms.filter(m => m.status === 'PENDING' && !matchExtendedByJoker(tournament, m, r));
+        const blocking = ms.filter(m => m.status === 'PENDING' && !matchExtendedByJoker(tournament, m, r, jokerUserIds));
         if (!blocking.length) continue;
         for (const hr of rounds.filter(x => x > r)) {
             const hms = allGroup.filter(m => m.round === hr);
@@ -885,9 +902,10 @@ async function healType1PendingFutureEloRounds(tournament) {
     return ids.length;
 }
 
-/** Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): DB'den güncel ELO
- *  alarak sonraki GROUP turunu oluşturur. Daha önce eşleşmiş çiftleri/takımları tekrar
- *  eşleştirmez. Deadline = eventDate + round*7 gün.
+/** Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): DB'den o anki ELO
+ *  alarak sonraki GROUP turunu oluşturur.
+ *  Skoru girilmiş oyuncu → yeni Elo; jokerli henüz oynamamış → o anki (eski) Elo.
+ *  Aynı çift tekrar eşleşmez. Deadline = eventDate + round*7 gün (kurulum anı; tur bitişini beklemez).
  */
 async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     // 1. turdaki taraf ID'lerini al — sonradan eklenen katılımcılar/takımlar dahil edilmez
@@ -2916,8 +2934,10 @@ async function tryHealAndAdvanceType1Elo(tournamentId) {
 
     const maxRound = Math.max(...allGroup.map(m => m.round));
     const current = allGroup.filter(m => m.round === maxRound);
-    if (!eloRoundReadyToAdvance(tournament, current, maxRound)) return false;
     if (allGroup.some(m => m.round === maxRound + 1)) return false;
+
+    const jokerUserIds = await loadJokerUserIds(tournamentId);
+    if (!eloRoundReadyToAdvance(tournament, current, maxRound, jokerUserIds)) return false;
 
     // Sentetik "son tamamlanan" maç — advance'in match.round === maxRound dalına düşmesi için
     const seed = current.find(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT')
@@ -3195,11 +3215,12 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
         const currentRoundMatches = allGroupMatches.filter(m => m.round === match.round);
         const currentRoundDone = currentRoundMatches.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT');
 
-        // Tip '1': herkes skor girince yeni Elo ile sonraki tur; yalnızca joker ile
-        // maç yapamayanlar kaldıysa o anki Elo ile erken kurulur (deadline beklenmez,
-        // admin onayı da yok — müsaitlik motoru açıksa bile Elo turu otomatik bağlanır).
+        // Tip '1': tur deadline'ının son gününü BEKLEMEZ.
+        //  - 8/8 skor girildi (erkense de) → hemen yeni Elo ile sonraki tur
+        //  - 7/8 bitti + 1 jokerli bekleyen → hemen: bitenler yeni Elo, joker tarafları o anki Elo
+        const jokerUserIds = tournament.type === '1' ? await loadJokerUserIds(id) : null;
         const eloRoundReady = tournament.type === '1'
-            && eloRoundReadyToAdvance(tournament, currentRoundMatches, match.round);
+            && eloRoundReadyToAdvance(tournament, currentRoundMatches, match.round, jokerUserIds);
 
         const maxRound = allGroupMatches.length
             ? Math.max(...allGroupMatches.map(m => m.round))
