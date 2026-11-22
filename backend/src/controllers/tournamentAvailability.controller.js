@@ -331,6 +331,14 @@ export const generateRoundMatching = async (req, res, next) => {
         const round = await prisma.tournamentRound.findFirst({ where: { id: roundId, tournamentId: id } });
         if (!round) return res.status(404).json({ message: 'Tur bulunamadı' });
 
+        // Tekler Elo (type '1'): 2. turdan itibaren eşleşme skor sonrası güncel Elo ile
+        // otomatik — admin müsaitlik onayı beklenmez / elle üretilmez.
+        if (String(tournament.type) === '1' && round.roundIndex > 1) {
+            return res.status(400).json({
+                message: 'Tekler Elo grup elemede sonraki turlar, herkes skorunu girdikten sonra güncel Elo ile otomatik oluşur. Joker kullanan maçlar kalırsa o anki Elo ile erken kurulur — manuel eşleştirme gerekmez.',
+            });
+        }
+
         const sides = await loadSides(tournament);
         const avails = await prisma.tournamentRoundAvailability.findMany({
             where: { roundId },
@@ -397,6 +405,12 @@ export const setRoundProposedMatches = async (req, res, next) => {
         const round = await prisma.tournamentRound.findFirst({ where: { id: roundId, tournamentId: id } });
         if (!round) return res.status(404).json({ message: 'Tur bulunamadı' });
 
+        if (String(tournament.type) === '1' && round.roundIndex > 1) {
+            return res.status(400).json({
+                message: 'Tekler Elo grup elemede sonraki turlar skor sonrası güncel Elo ile otomatik oluşur — taslak elle kaydedilmez.',
+            });
+        }
+
         if (!Array.isArray(proposedMatches)) {
             return res.status(400).json({ message: 'proposedMatches dizi olmalı' });
         }
@@ -454,6 +468,12 @@ export const approveRoundMatching = async (req, res, next) => {
         }
         const round = await prisma.tournamentRound.findFirst({ where: { id: roundId, tournamentId: id } });
         if (!round) return res.status(404).json({ message: 'Tur bulunamadı' });
+
+        if (String(tournament.type) === '1' && round.roundIndex > 1) {
+            return res.status(400).json({
+                message: 'Tekler Elo grup elemede sonraki turlar skor sonrası güncel Elo ile otomatik oluşur — admin onayı gerekmez.',
+            });
+        }
 
         const proposed = Array.isArray(round.proposedMatches) ? round.proposedMatches : [];
         if (!proposed.length) {

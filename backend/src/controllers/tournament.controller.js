@@ -733,6 +733,158 @@ async function getCurrentTeamRatings(tournament, teamIds) {
     }));
 }
 
+/** Maç joker / karşılıklı joker ile uzatıldı mı?
+ *  p*JokerRequested hâlâ true olabilir; karşılıklı onayda flag'ler temizlenir ama
+ *  deadline nominal süreden uzun kalır — ikisini de kabul ediyoruz.
+ */
+function matchExtendedByJoker(tournament, match, roundNum) {
+    if (!match || match.status !== 'PENDING') return false;
+    if (match.p1JokerRequested || match.p2JokerRequested) return true;
+    if (!match.deadline) return false;
+    const nominal = new Date(tournamentBaseDate(tournament));
+    nominal.setDate(nominal.getDate() + (roundNum || match.round || 1) * 7);
+    // +1 saat tolerans — saat dilimi / yuvarlama kayması joker sanılmasın
+    return new Date(match.deadline).getTime() > nominal.getTime() + 60 * 60 * 1000;
+}
+
+/**
+ * Tip '1' Elo grup: bir tur "ilerlemeye hazır" mı?
+ *  - Tüm maçlar bitti → evet (yeni Elo ile sonraki tur)
+ *  - Kalan PENDING'lerin hepsi joker ile uzatılmış → evet (o anki Elo ile;
+ *    joker'li maç kendi deadline'ında bağımsız biter)
+ *  - Aksi halde hayır — admin onayı / manuel rematch beklenmez; skorlar girilince otomatik.
+ */
+function eloRoundReadyToAdvance(tournament, roundMatches, roundNum) {
+    if (!roundMatches.length) return false;
+    const pending = roundMatches.filter(m => m.status === 'PENDING');
+    if (pending.length === 0) {
+        return roundMatches.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT');
+    }
+    const blocking = pending.filter(m => !matchExtendedByJoker(tournament, m, roundNum));
+    return blocking.length === 0;
+}
+
+/** Müsaitlik motoru açıksa yeni Elo turunu TournamentRound kaydına bağla; admin PENDING_APPROVAL atlanır. */
+async function linkEloRoundToAvailability(tournament, roundIndex) {
+    if (!tournament.availabilityMatchEnabled) return;
+    const tr = await prisma.tournamentRound.findFirst({
+        where: { tournamentId: tournament.id, roundIndex },
+    });
+    if (!tr) return;
+    await prisma.tournamentMatch.updateMany({
+        where: { tournamentId: tournament.id, phase: 'GROUP', round: roundIndex },
+        data: { roundId: tr.id },
+    });
+    await prisma.tournamentRound.update({
+        where: { id: tr.id },
+        data: {
+            status: 'ACTIVE',
+            proposedMatches: [],
+            matchingApprovedAt: new Date(),
+        },
+    });
+}
+
+/**
+ * Tip '1': henüz oynanmamış (hepsi PENDING) gelecek turları siler.
+ *  - Erken/yanlış admin-onaylı veya eski Elo ile üretilmiş tur 2+ temizlensin diye
+ *  - Skorlar girilince generateNextEloRound güncel Elo ile yeniden kurar
+ * Dönüş: silinen maç sayısı.
+ */
+async function healType1PendingFutureEloRounds(tournament) {
+    if (String(tournament.type) !== '1' || tournament.status !== 'IN_PROGRESS') return 0;
+
+    const allGroup = await prisma.tournamentMatch.findMany({
+        where: { tournamentId: tournament.id, phase: 'GROUP' },
+        select: {
+            id: true, round: true, status: true, deadline: true,
+            p1JokerRequested: true, p2JokerRequested: true,
+        },
+    });
+    if (!allGroup.length) return 0;
+
+    const rounds = [...new Set(allGroup.map(m => m.round))].sort((a, b) => a - b);
+    const deleteIds = new Set();
+
+    // Önceki turda joker-dışı PENDING varken sonraki (hepsi PENDING) turlar prematüre → sil
+    for (const r of rounds) {
+        const ms = allGroup.filter(m => m.round === r);
+        const blocking = ms.filter(m => m.status === 'PENDING' && !matchExtendedByJoker(tournament, m, r));
+        if (!blocking.length) continue;
+        for (const hr of rounds.filter(x => x > r)) {
+            const hms = allGroup.filter(m => m.round === hr);
+            if (hms.length && hms.every(m => m.status === 'PENDING')) {
+                hms.forEach(m => deleteIds.add(m.id));
+            } else {
+                break;
+            }
+        }
+        break;
+    }
+
+    // Tek seferlik: tur ≥2 hâlâ tamamen PENDING ise sil — skor sonrası güncel Elo ile kurulsun
+    // (kullanıcı: "tur 2 yi sil sonuçlar girilince otomatik oluştur")
+    const meta = (tournament.bracketData && typeof tournament.bracketData === 'object')
+        ? tournament.bracketData
+        : {};
+    let clearedAvailDrafts = false;
+    if (!meta.eloAutoRoundHealV1) {
+        const future = allGroup.filter(m => m.round >= 2);
+        if (future.length && future.every(m => m.status === 'PENDING')) {
+            future.forEach(m => deleteIds.add(m.id));
+        }
+        // Admin onay bekleyen müsaitlik taslağı da düşsün — Elo turu skor sonrası otomatik
+        if (tournament.availabilityMatchEnabled) {
+            const cleared = await prisma.tournamentRound.updateMany({
+                where: {
+                    tournamentId: tournament.id,
+                    roundIndex: { gte: 2 },
+                    status: { in: ['PENDING_APPROVAL', 'UPCOMING', 'AVAIL_OPEN'] },
+                },
+                data: {
+                    status: 'UPCOMING',
+                    proposedMatches: [],
+                    matchingApprovedAt: null,
+                    lastFingerprint: null,
+                },
+            });
+            clearedAvailDrafts = (cleared?.count || 0) > 0;
+        }
+        await prisma.tournament.update({
+            where: { id: tournament.id },
+            data: { bracketData: { ...meta, eloAutoRoundHealV1: true } },
+        });
+        tournament.bracketData = { ...meta, eloAutoRoundHealV1: true };
+    }
+
+    if (!deleteIds.size) return clearedAvailDrafts ? 1 : 0;
+
+    const ids = [...deleteIds];
+    await prisma.tournamentMatch.deleteMany({ where: { id: { in: ids } } });
+
+    // Müsaitlik turlarındaki taslak / PENDING_APPROVAL'ı da temizle
+    if (tournament.availabilityMatchEnabled) {
+        const deletedRounds = [...new Set(
+            allGroup.filter(m => deleteIds.has(m.id)).map(m => m.round),
+        )];
+        if (deletedRounds.length) {
+            await prisma.tournamentRound.updateMany({
+                where: {
+                    tournamentId: tournament.id,
+                    roundIndex: { in: deletedRounds },
+                },
+                data: {
+                    status: 'UPCOMING',
+                    proposedMatches: [],
+                    matchingApprovedAt: null,
+                    lastFingerprint: null,
+                },
+            });
+        }
+    }
+    return ids.length;
+}
+
 /** Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): DB'den güncel ELO
  *  alarak sonraki GROUP turunu oluşturur. Daha önce eşleşmiş çiftleri/takımları tekrar
  *  eşleştirmez. Deadline = eventDate + round*7 gün.
@@ -2740,14 +2892,60 @@ export const rematchTournament = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+/** Tip '1': prematüre tur 2+ sil + tur hazırsa güncel Elo ile sonraki turu kur (GET/joker tetikleri). */
+async function tryHealAndAdvanceType1Elo(tournamentId) {
+    const tournament = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        include: {
+            participants: {
+                where: { status: 'ACCEPTED' },
+                include: { user: { select: { id: true, username: true, fullName: true } } },
+            },
+        },
+    });
+    if (!tournament || String(tournament.type) !== '1' || tournament.status !== 'IN_PROGRESS') {
+        return false;
+    }
+
+    await healType1PendingFutureEloRounds(tournament);
+
+    const allGroup = await prisma.tournamentMatch.findMany({
+        where: { tournamentId, phase: 'GROUP' },
+    });
+    if (!allGroup.length) return false;
+
+    const maxRound = Math.max(...allGroup.map(m => m.round));
+    const current = allGroup.filter(m => m.round === maxRound);
+    if (!eloRoundReadyToAdvance(tournament, current, maxRound)) return false;
+    if (allGroup.some(m => m.round === maxRound + 1)) return false;
+
+    // Sentetik "son tamamlanan" maç — advance'in match.round === maxRound dalına düşmesi için
+    const seed = current.find(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT')
+        || current[0];
+    if (!seed) return false;
+    await advanceTournamentAfterMatch(tournament, seed, false, false);
+    return true;
+}
+
 export const getTournamentMatches = async (req, res, next) => {
     try {
         const { id } = req.params;
         const tournament = await prisma.tournament.findUnique({
             where: { id },
-            select: { id: true, category: true, subCategory: true, type: true, location: true },
+            select: {
+                id: true, category: true, subCategory: true, type: true, location: true,
+                status: true, availabilityMatchEnabled: true, bracketData: true,
+                eventDate: true, eventTime: true, matchesBeforePlayoff: true,
+            },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
+
+        // Tip '1' Elo: tur 2 prematüre ise sil; tur 1 hazırsa güncel Elo ile otomatik kur
+        try {
+            if (String(tournament.type) === '1' && tournament.status === 'IN_PROGRESS') {
+                await tryHealAndAdvanceType1Elo(id);
+            }
+        } catch { /* non-critical */ }
 
         const [matchesRaw, myTeams, teams] = await Promise.all([
             prisma.tournamentMatch.findMany({
@@ -2986,33 +3184,35 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
     // Bireysel Rekabetçi (type '1'), Çiftler Rekabetçi (type '2'), Antrenman (3/4),
     // Swiss (5) ve Americano (7): dinamik tur yönetimi.
     if (!isCorrection && (tournament.type === '1' || tournament.type === '2' || tournament.type === '3' || tournament.type === '4' || tournament.type === '5' || tournament.type === '7') && match.phase === 'GROUP') {
+        // Tip '1': prematüre / eski-Elo tur 2+ (hepsi PENDING) varsa sil — aşağıda güncel Elo ile kurulur
+        if (tournament.type === '1') {
+            await healType1PendingFutureEloRounds(tournament);
+        }
+
         const allGroupMatches = await prisma.tournamentMatch.findMany({
             where: { tournamentId: id, phase: 'GROUP' },
         });
         const currentRoundMatches = allGroupMatches.filter(m => m.round === match.round);
         const currentRoundDone = currentRoundMatches.every(m => m.status === 'COMPLETED' || m.status === 'BYE' || m.status === 'FORFEIT');
 
-        // Tip '1' (dinamik tur üretimi): bir maç joker ile uzatılıp bu turun ORİJİNAL
-        // (joker'siz) deadline'ı geçtiyse, tek bir açık maç yüzünden herkesin bir sonraki
-        // grup turunu beklemesi saçma — bu turun deadline'ı geçince güncel derecelerle bir
-        // sonraki tur kurulur; joker'li maç kendi deadline'ında bağımsız sonuçlanmaya devam
-        // eder ("aynı kişiyle iki kez maç yok" kuralı PENDING maçları da "oynanmış eşleşme"
-        // sayıp zaten koruyor). Play-off'a geçilen SON tur bu gevşemeden ETKİLENMEZ —
-        // aşağıdaki playoff dalı ayrıca gerçek/tam bitişi (currentRoundDone) arar.
-        let dynamicRoundDeadlinePassed = false;
-        if (!currentRoundDone && tournament.type === '1') {
-            const nominalDeadline = new Date(tournamentBaseDate(tournament));
-            nominalDeadline.setDate(nominalDeadline.getDate() + match.round * 7);
-            dynamicRoundDeadlinePassed = Date.now() >= nominalDeadline.getTime();
-        }
+        // Tip '1': herkes skor girince yeni Elo ile sonraki tur; yalnızca joker ile
+        // maç yapamayanlar kaldıysa o anki Elo ile erken kurulur (deadline beklenmez,
+        // admin onayı da yok — müsaitlik motoru açıksa bile Elo turu otomatik bağlanır).
+        const eloRoundReady = tournament.type === '1'
+            && eloRoundReadyToAdvance(tournament, currentRoundMatches, match.round);
 
-        const maxRound = Math.max(...allGroupMatches.map(m => m.round));
+        const maxRound = allGroupMatches.length
+            ? Math.max(...allGroupMatches.map(m => m.round))
+            : match.round;
         // Joker gevşemesi sayesinde bir sonraki tur ZATEN kurulmuş olabilir (bu maç, o sırada
         // hâlâ PENDING kalan eski bir turun "sarkan" maçıydı — match.round burada maxRound'dan
         // KÜÇÜK olur). Böyle bir durumda bu maçın şimdi tamamlanması yeni bir tur ÜRETMEMELİ,
         // çünkü sonraki tur zaten var; sadece aşağıdaki "hiç PENDING kalmadı mı" (turnuva
         // otomatik tamamlama) kontrolüne düşmesi yeterli.
-        if ((currentRoundDone || dynamicRoundDeadlinePassed) && match.round === maxRound) {
+        const roundAdvanceOk = tournament.type === '1'
+            ? eloRoundReady
+            : currentRoundDone;
+        if (roundAdvanceOk && match.round === maxRound) {
             const sideCount = isTeamTournament ? new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean)).size : tournament.participants.length;
             // type '2'/'3'/'4': tüm turlar başta pre-generate; '5'/'7' dinamik (swiss/americano)
             const preGenerated = tournament.type === '2' || tournament.type === '3' || tournament.type === '4';
@@ -3065,6 +3265,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     const nextRoundMatches = await generateNextEloRound(tournament, maxRound + 1, playedPairKeys);
                     if (nextRoundMatches.length > 0) {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
+                        await linkEloRoundToAvailability(tournament, maxRound + 1);
                         nextCreated = nextRoundMatches;
                     }
                 }
@@ -3094,8 +3295,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     // no-op: auto-complete bloğu PENDING=0 iken COMPLETED yapar
                 } else {
                 // Play-off'a geçiş joker gevşemesinden ETKİLENMEZ — son tur her zaman tam
-                // bitmeyi bekler (currentRoundDone yukarıdaki gevşetilmiş dynamicRoundDeadlinePassed
-                // değil, gerçek/tam bitiş).
+                // bitmeyi bekler (eloRoundReady / joker erken açılışı değil, gerçek/tam bitiş).
                 // Tüm GROUP turları bitti → playoff oluştur (ELO sıralaması + averaj tiebreaker)
                 const players = isTeamTournament
                     ? (await prisma.tournamentTeam.findMany({ where: { tournamentId: id } })).map(t => ({
@@ -3123,6 +3323,9 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
 
                 if (boundaryTied && extraRoundMatches.length > 0) {
                     await prisma.tournamentMatch.createMany({ data: extraRoundMatches });
+                    if (tournament.type === '1') {
+                        await linkEloRoundToAvailability(tournament, maxRound + 1);
+                    }
 
                     const tiedNames = standings
                         .filter(s => compareStandingsCore(s, standings[qualifiers - 1], tournament.type, allGroupMatches) === 0)
@@ -3957,8 +4160,6 @@ export const useJoker = async (req, res, next) => {
                     data: { jokerUsed: false, jokerUsedAt: null },
                 })),
             ]);
-            await emitMatchUpdate();
-            return res.json({ mutual: true, message: `Karşılıklı ${isPlayoff ? 'ek süre' : 'joker'} onaylandı — süre +7 gün (tekrar eklenmedi), iki tarafın da hakkı tükenmedi.`, deadline: match.deadline });
         } else {
             if (myParticipants.some(p => p.jokerUsed)) {
                 return res.status(400).json({ message: alreadyUsedMsg });
@@ -3975,9 +4176,44 @@ export const useJoker = async (req, res, next) => {
                     data: { jokerUsed: true, jokerUsedAt: new Date() },
                 })),
             ]);
-            await emitMatchUpdate();
-            return res.json({ mutual: false, message: `${isPlayoff ? 'Ek süre hakkınız' : 'Joker hakkınız'} kullanıldı — deadline 7 gün uzatıldı.`, deadline: newDeadline });
         }
+
+        // Tip '1': bu turdaki diğer maçlar bitmiş + kalanlar joker'liyse sonraki tur
+        // o anki Elo ile hemen kurulsun (skor girişi beklemeden).
+        if (tournament.type === '1' && match.phase === 'GROUP') {
+            try {
+                const fullTourn = await prisma.tournament.findUnique({
+                    where: { id },
+                    include: {
+                        participants: {
+                            where: { status: 'ACCEPTED' },
+                            include: { user: { select: { id: true, username: true, fullName: true } } },
+                        },
+                    },
+                });
+                const freshMatch = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+                if (fullTourn && freshMatch) {
+                    await advanceTournamentAfterMatch(fullTourn, freshMatch, isTeamTournament, false);
+                }
+            } catch { /* non-critical — joker kaydı zaten yazıldı */ }
+        }
+
+        const allMatches = await emitMatchUpdate();
+        const updatedMatch = allMatches.find(m => m.id === matchId) || match;
+        if (otherJokerRequested) {
+            return res.json({
+                mutual: true,
+                message: `Karşılıklı ${isPlayoff ? 'ek süre' : 'joker'} onaylandı — süre +7 gün (tekrar eklenmedi), iki tarafın da hakkı tükenmedi.`,
+                deadline: updatedMatch.deadline || match.deadline,
+                matches: allMatches,
+            });
+        }
+        return res.json({
+            mutual: false,
+            message: `${isPlayoff ? 'Ek süre hakkınız' : 'Joker hakkınız'} kullanıldı — deadline 7 gün uzatıldı.`,
+            deadline: updatedMatch.deadline || newDeadline,
+            matches: allMatches,
+        });
     } catch (e) { next(e); }
 };
 
