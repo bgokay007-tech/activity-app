@@ -1255,10 +1255,10 @@ export const createTournament = async (req, res, next) => {
                 // true/false/null (serbest) istemciden geldiği gibi kaydedilir — sadece hiç
                 // gönderilmediyse (undefined) şema varsayılanı (true) devreye girsin diye dokunulmaz.
                 ...(advantageScoring !== undefined && { advantageScoring }),
-                // 2 set = 2'ye ulaşmak (1-1 olursa 3. set); 3 set klasik best-of-3 — ikisinde de
-                // decidingTiebreak (normal / 10 sayı TB) seçilebilir.
+                // 3 set + deciding → 1-1'de 3. set süper TB; 5 set + deciding → 2-2'de 5. set süper TB.
+                // (Eski 2+TB kayıtları skor tarafında hâlâ 3 set STB gibi okunur.)
                 decidingTiebreak: !!decidingTiebreak && isRacketSetSport(subCategory)
-                    && [2, 3].includes(parseInt(setsPerMatch)),
+                    && [3, 5].includes(parseInt(setsPerMatch)),
                 matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null,
                 playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null,
                 // Airsoft vb. takım tabanlı dallarda Min/Max Oyuncu yerine kullanılıyor — teamSize
@@ -2218,9 +2218,9 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
                 ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring }),
-                ...(b.setsPerMatch !== undefined && ![2, 3].includes(parseInt(b.setsPerMatch)) ? { decidingTiebreak: false } : {}),
+                ...(b.setsPerMatch !== undefined && ![3, 5].includes(parseInt(b.setsPerMatch)) ? { decidingTiebreak: false } : {}),
                 ...(b.decidingTiebreak !== undefined && isRacketSetSport(tournament.subCategory)
-                    && [2, 3].includes(parseInt(b.setsPerMatch ?? tournament.setsPerMatch))
+                    && [3, 5].includes(parseInt(b.setsPerMatch ?? tournament.setsPerMatch))
                     ? { decidingTiebreak: !!b.decidingTiebreak } : {}),
                 ...(b.matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: b.matchesBeforePlayoff ? parseInt(b.matchesBeforePlayoff) : null }),
                 ...(b.playoffQualifiers   !== undefined && { playoffQualifiers: b.playoffQualifiers ? parseInt(b.playoffQualifiers) : null }),
@@ -3573,8 +3573,13 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         }
 
         if (isRacketSetSport(tournament.subCategory)) {
-            const deciding = !!tournament.decidingTiebreak && [2, 3].includes(tournament.setsPerMatch || 3);
-            const checked = normalizeRacketSets(sets, { decidingTiebreak: deciding, a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2' });
+            const spm = tournament.setsPerMatch || 3;
+            const deciding = !!tournament.decidingTiebreak && [2, 3, 5].includes(spm);
+            const checked = normalizeRacketSets(sets, {
+                decidingTiebreak: deciding,
+                setsPerMatch: spm,
+                a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2',
+            });
             if (!checked.ok) return res.status(400).json({ message: checked.message });
             sets = checked.sets;
             winner = checked.winner === 'a' ? 'p1' : 'p2';

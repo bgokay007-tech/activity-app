@@ -262,7 +262,15 @@ function collectTournamentLines(tournament, t, lang, opts = {}) {
     const ratingLine = tournRatingRestrictionLine(tournament);
     if (ratingLine) metaBits.push(ratingLine);
     if (tournament.setsPerMatch) {
-        metaBits.push(`${t?.sc_0401 || 'Sets:'} ${tournament.setsPerMatch}${tournament.decidingTiebreak ? ` · ${t?.tournThirdSetTb || 'TB'}` : ''}`);
+        {
+            const fmtKey = tournament.decidingTiebreak && Number(tournament.setsPerMatch) === 5
+                ? 'tournSetsOpt_5tb'
+                : tournament.decidingTiebreak && Number(tournament.setsPerMatch) === 3
+                    ? 'tournSetsOpt_3tb'
+                    : null;
+            const setsLabel = (fmtKey && t?.[fmtKey]) || String(tournament.setsPerMatch);
+            metaBits.push(`${t?.sc_0401 || 'Sets:'} ${setsLabel}`);
+        }
     }
     if (tournament.advantageScoring !== undefined) {
         const scoring = tournament.advantageScoring === null

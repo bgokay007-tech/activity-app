@@ -1,11 +1,18 @@
 // Tenis / padel / pickleball skor girişi.
 // 7-6 setinde parantez (set tiebreak, 7 sayı / 2 fark).
-// decidingTiebreak açıksa ve ilk iki set 1-1 ise 3. satır 10 sayı tiebreak olur.
-// Normal 3 set kuralında 3. satır da normal settir.
+// decidingTiebreak:
+//   - 3 set: 1-1 → 3. satır 10 sayı süper tiebreak
+//   - 5 set: 2-2 → 5. satır 10 sayı süper tiebreak
+// Normal kuralda son set de normal settir.
 
 export const RACKET_SET_SPORTS = ['tennis', 'padel', 'pickleball'];
 
 export const isRacketSetSport = (sub) => RACKET_SET_SPORTS.includes(sub);
+
+export function decidingTiebreakAllowed(setsPerMatch) {
+    const n = parseInt(setsPerMatch, 10);
+    return n === 3 || n === 5;
+}
 
 export function isSevenSix(a, b) {
     return Math.max(a, b) === 7 && Math.min(a, b) === 6;
@@ -30,7 +37,14 @@ function numOrNull(v) {
     return Number.isFinite(n) ? n : null;
 }
 
-export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b = 'p2', tbA = 'tb1', tbB = 'tb2' } = {}) {
+export function normalizeRacketSets(raw, {
+    decidingTiebreak = false,
+    setsPerMatch = 3,
+    a = 'p1',
+    b = 'p2',
+    tbA = 'tb1',
+    tbB = 'tb2',
+} = {}) {
     if (!Array.isArray(raw) || raw.length === 0) return { ok: false, code: 'missingScore' };
     const parsed = [];
     for (const s of raw) {
@@ -48,6 +62,13 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
     }
     if (!parsed.length) return { ok: false, code: 'missingScore' };
 
+    const n = parseInt(setsPerMatch, 10);
+    const effectiveN = decidingTiebreak && (n === 2 || !Number.isFinite(n))
+        ? 3
+        : (Number.isFinite(n) && n > 0 ? n : 3);
+    const decidingIdx = effectiveN - 1;
+    const splitAt = Math.floor(effectiveN / 2);
+
     const out = [];
     for (let i = 0; i < parsed.length; i++) {
         const s = parsed[i];
@@ -56,9 +77,14 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
             if (parsed[j].a > parsed[j].b) w1++;
             else if (parsed[j].b > parsed[j].a) w2++;
         }
-        const splitDecider = !!decidingTiebreak && i === 2 && w1 === 1 && w2 === 1;
+        const splitDecider = !!decidingTiebreak
+            && i === decidingIdx
+            && w1 === splitAt
+            && w2 === splitAt;
         if (s.matchTiebreak || splitDecider) {
-            if (!splitDecider) return { ok: false, code: 'racketMatchTbPlace' };
+            if (!splitDecider) {
+                return { ok: false, code: effectiveN >= 5 ? 'racketMatchTbPlace5' : 'racketMatchTbPlace' };
+            }
             if (!pointsValid(s.a, s.b, 10)) return { ok: false, code: 'racketMatchTbInvalid', score: `${s.a}-${s.b}` };
             out.push({ [a]: s.a, [b]: s.b, matchTiebreak: true });
             continue;
@@ -82,7 +108,9 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
             if (s.matchTiebreak) continue;
             if (s[a] > s[b]) n1++; else if (s[b] > s[a]) n2++;
         }
-        if (n1 === 1 && n2 === 1 && !hasMatchTb) return { ok: false, code: 'racketMatchTbMissing' };
+        if (n1 === splitAt && n2 === splitAt && !hasMatchTb) {
+            return { ok: false, code: effectiveN >= 5 ? 'racketMatchTbMissing5' : 'racketMatchTbMissing' };
+        }
     } else if (hasMatchTb) {
         return { ok: false, code: 'racketNormalThird' };
     }
@@ -95,11 +123,25 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
     return { ok: true, sets: out, winner: sideA > sideB ? 'a' : 'b' };
 }
 
-// 3 setlik maçta ilk iki set 1-1 olunca üçüncü satırı açar.
-// deciding true ise o satır maç tiebreak’idir; değilse normal settir.
-export function syncSplitThirdSet(rows, { deciding = false, aKey = 'p1', bKey = 'p2' } = {}) {
-    const head = rows.slice(0, 2).map(r => ({ ...r, matchTiebreak: false }));
-    while (head.length < 2) head.push({ [aKey]: '', [bKey]: '', matchTiebreak: false });
+/**
+ * Best-of N skor UI: eşitlik karar setine gelince son satırı açar.
+ * deciding true → o satır süper tiebreak (10 sayı); değilse normal set.
+ */
+export function syncDecidingSet(rows, {
+    deciding = false,
+    setsPerMatch = 3,
+    aKey = 'p1',
+    bKey = 'p2',
+} = {}) {
+    const nRaw = parseInt(setsPerMatch, 10);
+    const n = deciding && (nRaw === 2 || !Number.isFinite(nRaw))
+        ? 3
+        : (Number.isFinite(nRaw) && nRaw > 0 ? nRaw : 3);
+    const headLen = Math.max(1, n - 1);
+    const splitAt = Math.floor(n / 2);
+    const head = rows.slice(0, headLen).map(r => ({ ...r, matchTiebreak: false }));
+    while (head.length < headLen) head.push({ [aKey]: '', [bKey]: '', matchTiebreak: false });
+
     let w1 = 0, w2 = 0;
     for (const r of head) {
         const ga = parseInt(r[aKey], 10) || 0;
@@ -107,8 +149,8 @@ export function syncSplitThirdSet(rows, { deciding = false, aKey = 'p1', bKey = 
         if (ga === 0 && gb === 0) continue;
         if (ga > gb) w1++; else if (gb > ga) w2++;
     }
-    if (w1 === 1 && w2 === 1) {
-        const prev = rows[2];
+    if (w1 === splitAt && w2 === splitAt) {
+        const prev = rows[headLen];
         const keep = prev && !!prev.matchTiebreak === !!deciding;
         return [...head, {
             ...(keep ? prev : {}),
@@ -118,6 +160,11 @@ export function syncSplitThirdSet(rows, { deciding = false, aKey = 'p1', bKey = 
         }];
     }
     return head;
+}
+
+/** @deprecated syncDecidingSet kullan — 3 set / 1-1 uyumluluk sarmalayıcısı */
+export function syncSplitThirdSet(rows, opts = {}) {
+    return syncDecidingSet(rows, { ...opts, setsPerMatch: 3 });
 }
 
 export function formatSetScore(set, aKey, bKey, tbAKey, tbBKey) {
@@ -139,4 +186,18 @@ export function racketAlertText(t, check) {
     if (typeof msg === 'function') return msg(check.score || '');
     if (typeof msg === 'string') return msg;
     return t.actionFailed || '';
+}
+
+/** Oluşturma / düzenleme picker değeri: '1'|'2'|'3'|'3tb'|'4'|'5'|'5tb' */
+export function encodeSetsFormat(setsPerMatch, decidingTiebreak) {
+    const n = String(setsPerMatch || '');
+    if (decidingTiebreak && n === '3') return '3tb';
+    if (decidingTiebreak && n === '5') return '5tb';
+    return n;
+}
+
+export function decodeSetsFormat(value) {
+    if (value === '3tb') return { setsPerMatch: '3', decidingTiebreak: true };
+    if (value === '5tb') return { setsPerMatch: '5', decidingTiebreak: true };
+    return { setsPerMatch: String(value || ''), decidingTiebreak: false };
 }

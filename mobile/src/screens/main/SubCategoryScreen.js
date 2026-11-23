@@ -29,7 +29,7 @@ import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, hasWea
 import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
-import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, formatSetScore, racketAlertText } from '../../utils/racketScore';
+import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, syncDecidingSet, formatSetScore, racketAlertText, encodeSetsFormat, decodeSetsFormat, decidingTiebreakAllowed } from '../../utils/racketScore';
 import api from '../../services/api';
 import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache, hydrateBranch } from '../../services/branchCache';
 import { onSocket, onSocketReconnect } from '../../services/socket';
@@ -19513,33 +19513,28 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             }
         }
         setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
-        // 2 veya 3 set: 2'ye ulaşmak (1-1 → 3. set); başlangıçta 2 set alanı.
-        const initialCount = (numSets === 2 || numSets >= 3) ? 2 : numSets;
+        // Karar setine kadar alan: N set → N-1 satır başta; eşitlikte son satır açılır (STB veya normal).
+        const effectiveN = (numSets === 2 && item.decidingTiebreak) ? 3 : numSets;
+        const initialCount = effectiveN <= 1 ? 1 : Math.max(1, effectiveN - 1);
         setScoreSets(Array.from({ length: initialCount }, () => ({ p1: '', p2: '' })));
     };
 
     const updateTournSet = (si, field, val) => {
         const clean = String(val || '').replace(/[^0-9]/g, '');
-        // 2 set seçimi de 2'ye ulaşmak (= 1-1'de 3. set) — klasik 3 set ile aynı skor UI.
-        const racketBestOf3 = isRacketSetSport(item.subCategory) && (numSets === 2 || numSets === 3);
+        const racketSport = isRacketSetSport(item.subCategory);
+        const effectiveN = (numSets === 2 && item.decidingTiebreak) ? 3 : numSets;
+        const deciding = racketSport && !!item.decidingTiebreak && decidingTiebreakAllowed(effectiveN);
         setScoreSets(prev => {
-            if (!racketBestOf3 && numSets < 3) {
-                return prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
-            }
-            if (si < 2) {
-                const updated = prev.slice(0, 2).map((s, i) => i === si ? { ...s, [field]: clean } : s);
-                if (racketBestOf3) {
-                    return syncSplitThirdSet(updated, { deciding: !!item.decidingTiebreak, aKey: 'p1', bKey: 'p2' });
-                }
-                let p1W = 0, p2W = 0;
-                updated.forEach(s => {
-                    const p1 = parseInt(s.p1) || 0, p2 = parseInt(s.p2) || 0;
-                    if (p1 > p2) p1W++; else if (p2 > p1) p2W++;
+            const patched = prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
+            if (racketSport && effectiveN >= 2) {
+                return syncDecidingSet(patched, {
+                    deciding,
+                    setsPerMatch: effectiveN,
+                    aKey: 'p1',
+                    bKey: 'p2',
                 });
-                if (p1W === 1 && p2W === 1) return [...updated, prev[2] && !prev[2].matchTiebreak ? { ...prev[2] } : { p1: '', p2: '' }];
-                return updated;
             }
-            return prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
+            return patched;
         });
     };
 
@@ -19548,8 +19543,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         let sets;
         let winner;
         if (isRacketSetSport(item.subCategory)) {
-            const deciding = !!item.decidingTiebreak && (numSets === 2 || numSets === 3);
-            const checked = normalizeRacketSets(scoreSets, { decidingTiebreak: deciding, a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2' });
+            const deciding = !!item.decidingTiebreak && (numSets === 2 || numSets === 3 || numSets === 5);
+            const checked = normalizeRacketSets(scoreSets, {
+                decidingTiebreak: deciding,
+                setsPerMatch: numSets,
+                a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2',
+            });
             if (!checked.ok) { Alert.alert('', racketAlertText(t, checked)); return; }
             sets = checked.sets;
             winner = checked.winner === 'a' ? 'p1' : 'p2';
@@ -19627,7 +19626,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 maxPlayers: parseInt(editMax) || item.maxPlayers,
                 setsPerMatch: editSetsPerMatch ? parseInt(editSetsPerMatch) : null,
                 advantageScoring: editAdvantageScoring,
-                decidingTiebreak: isRacketSetSport(item.subCategory) && ['2', '3'].includes(String(editSetsPerMatch)) && editDecidingTiebreak,
+                decidingTiebreak: isRacketSetSport(item.subCategory) && decidingTiebreakAllowed(editSetsPerMatch) && editDecidingTiebreak,
                 matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
                 playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
                 location: editLocation || null,
@@ -19935,7 +19934,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : null}
                 {item.setsPerMatch ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
                     </View>
                 ) : null}
                 {item.advantageScoring !== undefined ? (
@@ -21505,23 +21504,36 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {/* Bireysel, Çiftler Rekabetçi ve Bireysel Antrenman'da geçerli */}
                                 {(ACTIVE_ENGINE_TYPES.includes(String(item.type))) && (<>
                                     <Text style={s.fieldLabel}>{t.sc_0530}</Text>
-                                    <View style={s.chipRow}>
-                                        {['1','3','5'].map(n => (
-                                            <TouchableOpacity key={n} onPress={() => setEditSetsPerMatch(n)} style={[s.chipBtn, { flex:1 }, editSetsPerMatch===n && s.chipBtnActive]}>
-                                                <Text style={[s.chipBtnText, editSetsPerMatch===n && s.chipBtnTextActive]}>{t.sc_0531(n)}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                    {isRacketSetSport(item.subCategory) && ['2', '3'].includes(String(editSetsPerMatch)) ? (
-                                        <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
-                                            {[{ v: false, l: t.tournThirdSetNormal }, { v: true, l: t.tournThirdSetTb }].map(({ v, l }) => (
-                                                <TouchableOpacity key={String(v)} onPress={() => setEditDecidingTiebreak(v)}
-                                                    style={{ flex:1, borderRadius:8, paddingVertical:4, alignItems:'center', borderWidth:1, backgroundColor: editDecidingTiebreak === v ? '#facc1530' : colors.surface2, borderColor: editDecidingTiebreak === v ? '#facc15' : colors.border }}>
-                                                    <Text style={{ color: editDecidingTiebreak === v ? '#facc15' : colors.textMuted, fontSize:10, fontWeight:'800' }}>{l}</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                                        {(isRacketSetSport(item.subCategory)
+                                            ? ['1', '2', '3', '3tb', '4', '5', '5tb']
+                                            : ['1', '2', '3', '4', '5']
+                                        ).map(v => {
+                                            const active = isRacketSetSport(item.subCategory)
+                                                ? encodeSetsFormat(editSetsPerMatch, editDecidingTiebreak) === v
+                                                : String(editSetsPerMatch) === v;
+                                            return (
+                                                <TouchableOpacity
+                                                    key={v}
+                                                    onPress={() => {
+                                                        if (isRacketSetSport(item.subCategory)) {
+                                                            const d = decodeSetsFormat(v);
+                                                            setEditSetsPerMatch(d.setsPerMatch);
+                                                            setEditDecidingTiebreak(d.decidingTiebreak);
+                                                        } else {
+                                                            setEditSetsPerMatch(v);
+                                                            setEditDecidingTiebreak(false);
+                                                        }
+                                                    }}
+                                                    style={[s.chipBtn, { minWidth: '30%', flexGrow: 1 }, active && s.chipBtnActive]}
+                                                >
+                                                    <Text style={[s.chipBtnText, active && s.chipBtnTextActive]} numberOfLines={2}>
+                                                        {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${v}`] || v) : v}
+                                                    </Text>
                                                 </TouchableOpacity>
-                                            ))}
-                                        </View>
-                                    ) : null}
+                                            );
+                                        })}
+                                    </View>
                                     <Text style={{ color: colors.textMuted, fontSize:13, marginBottom:6 }}>{t.sc_0532}</Text>
                                     <View style={{ flexDirection:'row', gap:3, marginBottom:14 }}>
                                         {[{v:true,l:t.sc_0533},{v:false,l:t.sc_0534},{v:null,l:t.sc_0535}].map(({v,l}) => (
@@ -22385,7 +22397,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 ) : null}
                                 {item.setsPerMatch ? (
                                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {item.setsPerMatch}{item.decidingTiebreak ? ` · ${t.tournThirdSetTb}` : ''}</Text>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
                                     </View>
                                 ) : null}
                                 {item.advantageScoring !== undefined ? (
@@ -23223,7 +23235,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : null,
                     advantageScoring: f.advantageScoring,
-                    decidingTiebreak: isRacketSetSport(sub) && ['2', '3'].includes(String(f.setsPerMatch)) && !!f.decidingTiebreak,
+                    decidingTiebreak: isRacketSetSport(sub) && decidingTiebreakAllowed(f.setsPerMatch) && !!f.decidingTiebreak,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : null,
                     playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : null,
                 }),
@@ -24032,31 +24044,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         </View>
                                     </TouchableOpacity>
                                 )}
-                                <TouchableOpacity onPress={() => setShowSetsPicker(true)} style={{ width:44 }}>
+                                <TouchableOpacity onPress={() => setShowSetsPicker(true)} style={{ minWidth: isRacketSetSport(sub) ? 88 : 44, maxWidth: isRacketSetSport(sub) ? 140 : 44, flexShrink: 1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{isAirsoft ? t.tournScoringLabel : t.tournSetsLabel}</Text>
-                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.setsPerMatch ? cfg.color : colors.border }}>
-                                        <Text style={{ color: f.setsPerMatch ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                                            {f.setsPerMatch || t.tournSelectPlaceholder}
+                                    <View style={{ height:30, backgroundColor: colors.surface2, borderRadius:8, paddingHorizontal: 6, justifyContent:'center', alignItems:'center', borderWidth:1, borderColor: f.setsPerMatch ? cfg.color : colors.border }}>
+                                        <Text style={{ color: f.setsPerMatch ? '#fff' : colors.textMuted, fontSize:10, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
+                                            {f.setsPerMatch
+                                                ? (isRacketSetSport(sub)
+                                                    ? (t[`tournSetsOpt_${encodeSetsFormat(f.setsPerMatch, f.decidingTiebreak)}`] || f.setsPerMatch)
+                                                    : f.setsPerMatch)
+                                                : t.tournSelectPlaceholder}
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
                             </View>
-                            {isRacketSetSport(sub) && ['2', '3'].includes(String(f.setsPerMatch)) ? (
-                                <View style={{ marginTop: 8 }}>
-                                    <Text style={{ color: '#ef4444', fontSize: 9, fontWeight: '700', marginBottom: 4 }}>{t.tournThirdSetLabel}</Text>
-                                    <View style={{ flexDirection: 'row', gap: 6 }}>
-                                        <TouchableOpacity onPress={() => set('decidingTiebreak', false)}
-                                            style={{ flex: 1, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: f.decidingTiebreak ? colors.border : '#facc15', backgroundColor: f.decidingTiebreak ? colors.surface2 : '#facc1520' }}>
-                                            <Text style={{ color: f.decidingTiebreak ? colors.textMuted : '#facc15', fontSize: 11, fontWeight: '800' }}>{t.tournThirdSetNormal}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity onPress={() => set('decidingTiebreak', true)}
-                                            style={{ flex: 1, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: f.decidingTiebreak ? '#facc15' : colors.border, backgroundColor: f.decidingTiebreak ? '#facc1520' : colors.surface2 }}>
-                                            <Text style={{ color: f.decidingTiebreak ? '#facc15' : colors.textMuted, fontSize: 11, fontWeight: '800' }}>{t.tournThirdSetTb}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    {f.decidingTiebreak ? <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 4 }}>{t.tournThirdSetTbHint}</Text> : null}
-                                </View>
-                            ) : null}
                             <OptionPickerModal
                                 visible={showTeamSizePicker}
                                 title={lang==='tr' ? 'Takım Büyüklüğü' : lang === 'ru' ? 'Размер команды' : lang === 'de' ? 'Teamgröße' : 'Team Size'}
@@ -24088,9 +24088,25 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             <OptionPickerModal
                                 visible={showSetsPicker}
                                 title={t.tournSetsLabel}
-                                options={['1','2','3','4','5'].map(n => ({ value: n, label: n }))}
-                                value={f.setsPerMatch}
-                                onSelect={(v) => { set('setsPerMatch', v); if (v !== '2' && v !== '3') set('decidingTiebreak', false); }}
+                                options={isRacketSetSport(sub)
+                                    ? ['1', '2', '3', '3tb', '4', '5', '5tb'].map(v => ({
+                                        value: v,
+                                        label: t[`tournSetsOpt_${v}`] || v,
+                                    }))
+                                    : ['1', '2', '3', '4', '5'].map(n => ({ value: n, label: n }))}
+                                value={isRacketSetSport(sub)
+                                    ? encodeSetsFormat(f.setsPerMatch, f.decidingTiebreak)
+                                    : f.setsPerMatch}
+                                onSelect={(v) => {
+                                    if (isRacketSetSport(sub)) {
+                                        const d = decodeSetsFormat(v);
+                                        set('setsPerMatch', d.setsPerMatch);
+                                        set('decidingTiebreak', d.decidingTiebreak);
+                                    } else {
+                                        set('setsPerMatch', v);
+                                        set('decidingTiebreak', false);
+                                    }
+                                }}
                                 onClose={() => setShowSetsPicker(false)}
                             />
 

@@ -1,11 +1,19 @@
 // Tenis / padel / pickleball set skoru.
 // Set tiebreak: set 7-6 biter, parantez içindeki sayılar (7 sayı, 2 fark) ayrı tutulur.
-// Maç tiebreak: yalnızca "2 normal set + 3. set tiebreak" kuralında, setler 1-1 ise
-// 3. satır 10 sayıya (2 fark) oynanır. Bu satırın sayıları oyun averajına girmez.
+// Maç / süper tiebreak (decidingTiebreak):
+//   - 3 set: setler 1-1 ise 3. satır 10 sayıya (2 fark)
+//   - 5 set: setler 2-2 ise 5. satır 10 sayıya (2 fark)
+// Bu satırın sayıları oyun averajına girmez.
 
 export const RACKET_SET_SPORTS = ['tennis', 'padel', 'pickleball'];
 
 export const isRacketSetSport = (sub) => RACKET_SET_SPORTS.includes(sub);
+
+/** decidingTiebreak yalnızca 3 veya 5 setlik maçta anlamlı (son set süper TB). */
+export function decidingTiebreakAllowed(setsPerMatch) {
+    const n = parseInt(setsPerMatch, 10);
+    return n === 3 || n === 5;
+}
 
 export function isSevenSix(a, b) {
     return Math.max(a, b) === 7 && Math.min(a, b) === 6;
@@ -33,9 +41,18 @@ function numOrNull(v) {
 }
 
 /**
- * @returns {{ ok: true, sets: object[], winner: 'a'|'b' } | { ok: false, message: string }}
+ * @param {object} opts
+ * @param {boolean} [opts.decidingTiebreak]
+ * @param {number|string} [opts.setsPerMatch] 3 → 1-1'de 3. satır STB; 5 → 2-2'de 5. satır STB
  */
-export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b = 'p2', tbA = 'tb1', tbB = 'tb2' } = {}) {
+export function normalizeRacketSets(raw, {
+    decidingTiebreak = false,
+    setsPerMatch = 3,
+    a = 'p1',
+    b = 'p2',
+    tbA = 'tb1',
+    tbB = 'tb2',
+} = {}) {
     if (!Array.isArray(raw) || raw.length === 0) {
         return { ok: false, message: 'En az bir set skoru girin.' };
     }
@@ -55,6 +72,14 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
     }
     if (!parsed.length) return { ok: false, message: 'En az bir set skoru girin.' };
 
+    const n = parseInt(setsPerMatch, 10);
+    // Eski "2 set + TB" kayıtları: setsPerMatch=2 + deciding → 3 set / 1-1 STB gibi davran
+    const effectiveN = decidingTiebreak && (n === 2 || !Number.isFinite(n))
+        ? 3
+        : (Number.isFinite(n) && n > 0 ? n : 3);
+    const decidingIdx = effectiveN - 1;
+    const splitAt = Math.floor(effectiveN / 2);
+
     const out = [];
     for (let i = 0; i < parsed.length; i++) {
         const s = parsed[i];
@@ -63,10 +88,18 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
             if (parsed[j].a > parsed[j].b) w1++;
             else if (parsed[j].b > parsed[j].a) w2++;
         }
-        const splitDecider = !!decidingTiebreak && i === 2 && w1 === 1 && w2 === 1;
+        const splitDecider = !!decidingTiebreak
+            && i === decidingIdx
+            && w1 === splitAt
+            && w2 === splitAt;
         if (s.matchTiebreak || splitDecider) {
             if (!splitDecider) {
-                return { ok: false, message: 'Tiebreak satırı yalnızca setler 1-1 iken 3. satır olabilir.' };
+                return {
+                    ok: false,
+                    message: effectiveN >= 5
+                        ? 'Süper tiebreak satırı yalnızca setler 2-2 iken 5. satır olabilir.'
+                        : 'Tiebreak satırı yalnızca setler 1-1 iken 3. satır olabilir.',
+                };
             }
             if (!pointsValid(s.a, s.b, 10)) {
                 return { ok: false, message: `${s.a}-${s.b} geçersiz maç tiebreak’i. 10 sayıya, en az 2 fark şart (ör. 10-8).` };
@@ -101,11 +134,16 @@ export function normalizeRacketSets(raw, { decidingTiebreak = false, a = 'p1', b
             if (s.matchTiebreak) continue;
             if (s[a] > s[b]) n1++; else if (s[b] > s[a]) n2++;
         }
-        if (n1 === 1 && n2 === 1 && !hasMatchTb) {
-            return { ok: false, message: 'Setler 1-1. Üçüncü satır 10 sayıya tiebreak olmalı.' };
+        if (n1 === splitAt && n2 === splitAt && !hasMatchTb) {
+            return {
+                ok: false,
+                message: effectiveN >= 5
+                    ? 'Setler 2-2. Beşinci satır 10 sayıya süper tiebreak olmalı.'
+                    : 'Setler 1-1. Üçüncü satır 10 sayıya tiebreak olmalı.',
+            };
         }
     } else if (hasMatchTb) {
-        return { ok: false, message: 'Bu maç normal set kurallı. Üçüncü set de normal set olarak girilmeli.' };
+        return { ok: false, message: 'Bu maç normal set kurallı. Son set de normal set olarak girilmeli.' };
     }
 
     let sideA = 0, sideB = 0;
