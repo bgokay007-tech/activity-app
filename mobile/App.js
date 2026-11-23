@@ -1,7 +1,9 @@
 import { Component, useEffect } from 'react';
-import { View, Text, LogBox, Alert, AppState } from 'react-native';
+import { View, Text, LogBox, Alert, AppState, Keyboard } from 'react-native';
 import { enableScreens, enableFreeze } from 'react-native-screens';
 // Arka plandaki ekranlar JS'i yormasın — Spor/dal geçişinde kasma azalır.
+// DİKKAT: Modal açıkken arka plana çıkınca freeze dokunmayı öldürüyor — bkz.
+// useDisableFreezeWhile (CreateTournamentModal / KeyboardSafeModal).
 enableScreens(true);
 enableFreeze(true);
 // Yerel (non-EAS) debug derlemelerinde ExpoUpdates native modülü linklenmeyebiliyor —
@@ -98,6 +100,13 @@ class ErrorBoundary extends Component {
 export default function App() {
     useAutoUpdate();
     useWearBridgeDebugAlert();
+    // Arka plandan dönüşte takılı klavye / ghost overlay dokunmayı yutmasın.
+    useEffect(() => {
+        const sub = AppState.addEventListener('change', (state) => {
+            if (state === 'active') Keyboard.dismiss();
+        });
+        return () => sub.remove();
+    }, []);
     return (
         <ErrorBoundary>
             <SafeAreaProvider>

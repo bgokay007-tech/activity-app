@@ -2,6 +2,7 @@ import { Modal, View, StyleSheet } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../theme/colors';
+import useDisableFreezeWhile from '../hooks/useDisableFreezeWhile';
 
 // Kullanıcı isteği (defalarca): klavye formu kapatmasın — hangi form olursa olsun.
 // Proje kalıbı: Modal'da android_keyboardInputMode="adjustNothing" + her iki
@@ -13,6 +14,8 @@ export default function KeyboardSafeModal({
     visible, onClose, children, animationType = 'slide',
 }) {
     const insets = useSafeAreaInsets();
+    // enableFreeze arka planda ekranı dondurunca sheet ✕/geri ölü kalmasın.
+    useDisableFreezeWhile(visible);
     return (
         <Modal
             visible={visible}

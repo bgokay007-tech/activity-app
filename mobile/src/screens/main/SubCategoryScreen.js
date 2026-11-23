@@ -4,10 +4,11 @@ import { useFocusEffect, useNavigation, useIsFocused } from '@react-navigation/n
 import {
     View, Text, ScrollView, FlatList, TouchableOpacity, Pressable, StyleSheet,
     RefreshControl, ActivityIndicator, TextInput, Modal,
-    Alert, Platform, Switch, Linking, Image,
+    Alert, Platform, Switch, Linking, Image, AppState,
     InteractionManager, PanResponder, Animated, BackHandler, useWindowDimensions, Keyboard,
     Clipboard,
 } from 'react-native';
+import useDisableFreezeWhile from '../../hooks/useDisableFreezeWhile';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import KeyboardAwareForm from '../../components/KeyboardAwareForm';
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -10617,18 +10618,22 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
 
 function OptionPickerModal({ visible, title, options, value, onSelect, onClose }) {
     const insets = useSafeAreaInsets();
+    useDisableFreezeWhile(visible);
     return (
         <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
             <View style={opt.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" />
                 <View style={[opt.box, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={opt.header}>
                         <Text style={opt.title}>{title}</Text>
-                        <TouchableOpacity onPress={onClose}><Text style={opt.close}>✕</Text></TouchableOpacity>
+                        <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                            <Text style={opt.close}>✕</Text>
+                        </TouchableOpacity>
                     </View>
-                    <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }}>
+                    <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
                         {options.map(o => (
                             <TouchableOpacity
-                                key={o.value}
+                                key={String(o.value)}
                                 style={[opt.item, value === o.value && opt.itemActive]}
                                 onPress={() => { onSelect(o.value); onClose(); }}
                             >
@@ -14740,6 +14745,8 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
 const SINGLE_OPP_INVITE_MAX = 15;
 
 function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
+    // Modal açıkken ekran freeze olmasın — arka plandan dönüşte dokunmalar ölü kalmasın.
+    useDisableFreezeWhile(visible);
     const t = useT();
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
@@ -22984,6 +22991,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const cfg = getConfig(sub);
+    // Modal açıkken ekran freeze olmasın — arka plandan dönünce ✕/geri ölü kalıyordu.
+    useDisableFreezeWhile(visible);
     // Airsoft'ta "kort" kavramı yok — kullanıcı isteğiyle turnuva formu bu dal için
     // birkaç noktada özelleştiriliyor (mekan sözcüğü, sayı sistemi, playoff, takım
     // cinsiyet dağılımı, mekan ücreti kim öder, turnuva türü kaldırıldı — şimdilik sadece airsoft).
@@ -23074,6 +23083,60 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
     const [showSetsPicker, setShowSetsPicker] = useState(false);
     const [showScopePicker, setShowScopePicker] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
+    // Arka plandan dönüşte KeyboardAwareForm'u yeniden bağla (donmuş padding / dokunma).
+    const [formEpoch, setFormEpoch] = useState(0);
+
+    const closeNestedOverlays = useCallback(() => {
+        setShowSetsPicker(false);
+        setShowScoringPicker(false);
+        setShowScopePicker(false);
+        setShowGenderPicker(false);
+        setShowTeamSizePicker(false);
+        setShowTeamGenderModal(false);
+        setDpField(null);
+        setTimeField(null);
+        setRatingField(null);
+        setShowRatingRange(false);
+        setCitySuggestions([]);
+        setDistrictSuggestions([]);
+        Keyboard.dismiss();
+    }, []);
+
+    // Arka plana çıkınca iç picker'ları kapat; öne gelince klavye + form yenile.
+    useEffect(() => {
+        if (!visible) return undefined;
+        const onChange = (state) => {
+            if (state === 'background' || state === 'inactive') {
+                closeNestedOverlays();
+                return;
+            }
+            if (state === 'active') {
+                closeNestedOverlays();
+                setFormEpoch((n) => n + 1);
+            }
+        };
+        const sub = AppState.addEventListener('change', onChange);
+        return () => sub.remove();
+    }, [visible, closeNestedOverlays]);
+
+    // Geri: önce açık picker, yoksa formu kapat (donunca native onRequestClose yetmeyebiliyor).
+    useEffect(() => {
+        if (!visible) return undefined;
+        const nestedOpen = showSetsPicker || showScoringPicker || showScopePicker || showGenderPicker
+            || showTeamSizePicker || showTeamGenderModal || !!dpField || !!timeField || !!ratingField || showRatingRange;
+        const onBack = () => {
+            if (nestedOpen) {
+                closeNestedOverlays();
+                return true;
+            }
+            onClose();
+            return true;
+        };
+        const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+        return () => sub.remove();
+    }, [visible, showSetsPicker, showScoringPicker, showScopePicker, showGenderPicker,
+        showTeamSizePicker, showTeamGenderModal, dpField, timeField, ratingField, showRatingRange,
+        closeNestedOverlays, onClose]);
 
     const fmtISO = (d) => d
         ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -23296,9 +23359,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                     <View style={[s.modalBox, { height: '92%' }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{isEdit ? (t.sc_0512 || t.tournEditBtn) : t.createTournamentTitle}</Text>
-                            <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
+                            <TouchableOpacity onPress={onClose} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
+                                <Text style={s.modalClose}>✕</Text>
+                            </TouchableOpacity>
                         </View>
-                        <KeyboardAwareForm adjustWindow={false} ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
+                        <KeyboardAwareForm key={formEpoch} adjustWindow={false} ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
                             {/* Ad | Kapsam | İl | İlçe (Yerel ise) / Ülke (Ulusal ise) — tek satır, tek buton/modal */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
