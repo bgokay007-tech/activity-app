@@ -28,6 +28,135 @@ function addDays(date, days) {
     return d;
 }
 
+/** YYYY-MM-DD + N gün (takvim günü, TR günü bozulmasın diye öğlen UTC) */
+export function addDaysYmd(ymd, days) {
+    const d = new Date(`${String(ymd).slice(0, 10)}T12:00:00.000Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+}
+
+/** ISO weekday 1=Pzt..7=Paz for YYYY-MM-DD */
+export function isoWeekdayFromYmd(ymd) {
+    const d = new Date(`${String(ymd).slice(0, 10)}T12:00:00.000Z`);
+    const js = d.getUTCDay();
+    return js === 0 ? 7 : js;
+}
+
+/**
+ * Maç / tur oynama penceresi (YYYY-MM-DD).
+ * Grup: [eventDate+(round-1)*7 , deadline]
+ * Play-off: [readyAt , deadline] (deadline yoksa readyAt+7)
+ * Joker uzatması deadline'ı uzatır; başlangıç aynı kalır.
+ */
+export function getMatchAvailWindow(tournament, match, { now = new Date() } = {}) {
+    if (!match) return null;
+    const today = toYmd(now);
+    let startYmd = null;
+    let endYmd = match.deadline ? toYmd(match.deadline) : null;
+
+    if (match.phase === 'PLAYOFF' && match.readyAt) {
+        startYmd = toYmd(match.readyAt);
+        if (!endYmd) endYmd = addDaysYmd(startYmd, 7);
+    } else if (tournament?.eventDate) {
+        const baseYmd = toYmd(tournament.eventDate);
+        const round = Math.max(1, parseInt(match.round, 10) || 1);
+        startYmd = addDaysYmd(baseYmd, (round - 1) * 7);
+        if (!endYmd) endYmd = addDaysYmd(baseYmd, round * 7);
+    } else if (endYmd) {
+        startYmd = addDaysYmd(endYmd, -7);
+    }
+
+    if (!startYmd || !endYmd) return null;
+    // Geçmiş günler seçilemez — pencere bugünden itibaren
+    const fromYmd = startYmd < today ? today : startYmd;
+    return {
+        roundStartYmd: startYmd,
+        roundEndYmd: endYmd,
+        fromYmd,
+        toYmd: endYmd,
+        empty: fromYmd > endYmd,
+    };
+}
+
+/** Tur kaydı (availability engine) için aynı clamp */
+export function getRoundAvailWindow(round, { now = new Date() } = {}) {
+    if (!round?.startDate || !round?.endDate) return null;
+    const today = toYmd(now);
+    const startYmd = toYmd(round.startDate);
+    const endYmd = toYmd(round.endDate);
+    const fromYmd = startYmd < today ? today : startYmd;
+    return {
+        roundStartYmd: startYmd,
+        roundEndYmd: endYmd,
+        fromYmd,
+        toYmd: endYmd,
+        empty: fromYmd > endYmd,
+    };
+}
+
+/** [fromYmd, toYmd] içinde geçen ISO weekday'ler */
+export function weekdaysInYmdRange(fromYmd, toYmd) {
+    if (!fromYmd || !toYmd || fromYmd > toYmd) return [];
+    const set = new Set();
+    let cur = fromYmd;
+    let guard = 0;
+    while (cur <= toYmd && guard < 60) {
+        set.add(isoWeekdayFromYmd(cur));
+        cur = addDaysYmd(cur, 1);
+        guard += 1;
+    }
+    return [...set].sort((a, b) => a - b);
+}
+
+/**
+ * Slot'ları pencereye sıkıştır: weekday → penceredeki tüm eşleşen tarihler;
+ * date varsa aralık + bugün kontrolü. Geçmiş / dışı atılır.
+ */
+export function constrainSlotsToWindow(slots, fromYmd, toYmd) {
+    if (!fromYmd || !toYmd || fromYmd > toYmd) return [];
+    if (!Array.isArray(slots)) return [];
+    const out = [];
+    const seen = new Set();
+    for (const s of slots) {
+        if (!s || typeof s !== 'object') continue;
+        const timeFrom = String(s.timeFrom || '').slice(0, 5);
+        const timeTo = String(s.timeTo || '').slice(0, 5);
+        if (!timeFrom || !timeTo) continue;
+        const fromM = timeToMin(timeFrom);
+        const toM = timeToMin(timeTo);
+        if (fromM == null || toM == null || toM <= fromM) continue;
+
+        const push = (date) => {
+            if (!date || date < fromYmd || date > toYmd) return;
+            const key = `${date}|${timeFrom}|${timeTo}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push({ date, timeFrom, timeTo });
+        };
+
+        if (s.date && /^\d{4}-\d{2}-\d{2}$/.test(String(s.date))) {
+            push(String(s.date).slice(0, 10));
+            continue;
+        }
+        const wd = parseInt(s.weekday, 10);
+        if (!(wd >= 1 && wd <= 7)) continue;
+        let cur = fromYmd;
+        let guard = 0;
+        while (cur <= toYmd && guard < 60) {
+            if (isoWeekdayFromYmd(cur) === wd) push(cur);
+            cur = addDaysYmd(cur, 1);
+            guard += 1;
+        }
+    }
+    return out;
+}
+
+export function isYmdInWindow(ymd, fromYmd, toYmd) {
+    if (!ymd || !fromYmd || !toYmd) return false;
+    const d = String(ymd).slice(0, 10);
+    return d >= fromYmd && d <= toYmd;
+}
+
 /**
  * Turnuva başlangıcından itibaren haftalık turlar.
  * Tur 1: ilk 3 gün müsaitlik, oyun T0+3 → T0+10
@@ -54,85 +183,53 @@ export function buildWeeklyRounds(baseDate, weekCount) {
     return rounds;
 }
 
-/** Slot normalize: date zorunlu tercih; weekday varsa tur penceresindeki o güne çevirilebilir */
-export function normalizeSlots(slots, roundStart, roundEnd) {
+/** Slot normalize: date zorunlu tercih; weekday varsa tur penceresindeki o güne çevirilebilir.
+ *  Geçmiş günler ve tur dışı tarihler elenir (bugün = TR toYmd). */
+export function normalizeSlots(slots, roundStart, roundEnd, { now = new Date() } = {}) {
     if (!Array.isArray(slots)) return [];
-    const out = [];
-    for (const s of slots) {
-        if (!s || typeof s !== 'object') continue;
-        const timeFrom = String(s.timeFrom || '').slice(0, 5);
-        const timeTo = String(s.timeTo || '').slice(0, 5);
-        if (!timeFrom || !timeTo) continue;
-        const fromM = timeToMin(timeFrom);
-        const toM = timeToMin(timeTo);
-        if (fromM == null || toM == null || toM <= fromM) continue;
-
-        if (s.date && /^\d{4}-\d{2}-\d{2}$/.test(s.date)) {
-            out.push({ date: s.date, timeFrom, timeTo });
-            continue;
-        }
-        // weekday 1=Pzt..7=Paz → tur penceresindeki ilk eşleşen gün
-        const wd = parseInt(s.weekday, 10);
-        if (wd >= 1 && wd <= 7 && roundStart && roundEnd) {
-            let cur = new Date(roundStart);
-            const end = new Date(roundEnd);
-            while (cur < end) {
-                const tr = new Date(cur.getTime() + 3 * 60 * 60 * 1000);
-                // JS: 0=Paz..6=Cmt → ISO 1=Pzt..7=Paz
-                const js = tr.getUTCDay();
-                const iso = js === 0 ? 7 : js;
-                if (iso === wd) {
-                    out.push({ date: toYmd(cur), timeFrom, timeTo });
-                    break;
-                }
-                cur = addDays(cur, 1);
-            }
-        }
-    }
-    // aynı gün çakışanları birleştirme yok — ayrı bırak
-    return out;
+    if (!roundStart || !roundEnd) return [];
+    const win = getRoundAvailWindow({ startDate: roundStart, endDate: roundEnd }, { now });
+    if (!win || win.empty) return [];
+    // weekday → penceredeki TÜM eşleşen günler (eskiden sadece ilk gün yazılıyordu;
+    // tur 7+ gün / joker uzatmasında ikinci hafta kayboluyordu)
+    return constrainSlotsToWindow(slots, win.fromYmd, win.toYmd);
 }
 
 /**
- * weekday / date karışık müsaitlik → somut tarihler (önümüzdeki N gün).
- * findAllOverlaps tarih ister; maç kartı formları çoğunlukla weekday yazar.
+ * weekday / date karışık müsaitlik → somut tarihler.
+ * untilYmd verilirse tur/deadline dışına taşmaz; yoksa fromDate'ten daysAhead.
  */
-export function expandAvailabilitySlots(slots, { fromDate = new Date(), daysAhead = 21 } = {}) {
+export function expandAvailabilitySlots(slots, {
+    fromDate = new Date(),
+    daysAhead = 21,
+    fromYmd = null,
+    untilYmd = null,
+} = {}) {
     if (!Array.isArray(slots)) return [];
-    const out = [];
-    const start = new Date(fromDate);
-    for (const s of slots) {
-        if (!s || typeof s !== 'object') continue;
-        const timeFrom = String(s.timeFrom || '').slice(0, 5);
-        const timeTo = String(s.timeTo || '').slice(0, 5);
-        const fromM = timeToMin(timeFrom);
-        const toM = timeToMin(timeTo);
-        if (fromM == null || toM == null || toM <= fromM) continue;
-
-        if (s.date && /^\d{4}-\d{2}-\d{2}$/.test(String(s.date))) {
-            out.push({ date: String(s.date).slice(0, 10), timeFrom, timeTo });
-            continue;
-        }
-        const wd = parseInt(s.weekday, 10);
-        if (!(wd >= 1 && wd <= 7)) continue;
-        for (let i = 0; i < daysAhead; i++) {
-            const cur = addDays(start, i);
-            const tr = new Date(cur.getTime() + 3 * 60 * 60 * 1000);
-            const js = tr.getUTCDay();
-            const iso = js === 0 ? 7 : js;
-            if (iso === wd) out.push({ date: toYmd(cur), timeFrom, timeTo });
-        }
+    const startYmd = fromYmd || toYmd(fromDate);
+    let endYmd = untilYmd;
+    if (!endYmd) {
+        endYmd = addDaysYmd(startYmd, Math.max(0, daysAhead - 1));
     }
-    return out;
+    if (startYmd > endYmd) return [];
+    return constrainSlotsToWindow(slots, startYmd, endYmd);
 }
 
 /**
  * Maç scheduleData → ortak saat pencereleri + ortak kortlar.
  * noCourtOverlap: ortak saat var ama ortak kort yok (oyuncular kort eklesin / teklifte seçsin).
+ * availFromYmd/availUntilYmd: tur penceresi (geçmiş gün + tur dışı elenir).
  */
-export function computeMatchScheduleSuggested(schedule, { playersArrange = true } = {}) {
-    const p1 = expandAvailabilitySlots(schedule?.availability?.p1);
-    const p2 = expandAvailabilitySlots(schedule?.availability?.p2);
+export function computeMatchScheduleSuggested(schedule, {
+    playersArrange = true,
+    availFromYmd = null,
+    availUntilYmd = null,
+} = {}) {
+    const expandOpts = (availFromYmd && availUntilYmd)
+        ? { fromYmd: availFromYmd, untilYmd: availUntilYmd }
+        : {};
+    const p1 = expandAvailabilitySlots(schedule?.availability?.p1, expandOpts);
+    const p2 = expandAvailabilitySlots(schedule?.availability?.p2, expandOpts);
     if (!p1.length || !p2.length) return null;
 
     const windows = findAllOverlaps(p1, p2).slice(0, 14).map(w => ({

@@ -12,6 +12,7 @@ import {
     pairKey,
     toYmd,
     isPlayersArrangeCourts,
+    getRoundAvailWindow,
 } from '../utils/tournamentAvailabilityMatch.js';
 import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
 
@@ -239,9 +240,14 @@ export const upsertRoundAvailability = async (req, res, next) => {
         }
 
         const cap = Math.max(1, Math.min(5, parseInt(maxMatches) || 1));
+        const win = getRoundAvailWindow(round);
         const cleanSlots = normalizeSlots(slots, round.startDate, round.endDate);
         if (!cleanSlots.length) {
-            return res.status(400).json({ message: 'En az bir geçerli gün/saat aralığı girin' });
+            return res.status(400).json({
+                message: win?.empty
+                    ? 'Bu tur için seçilebilir gün kalmadı (geçmiş veya süre dolmuş)'
+                    : `En az bir geçerli gün/saat girin (tur: ${win?.roundStartYmd || '?'} – ${win?.roundEndYmd || '?'}; geçmiş günler yok)`,
+            });
         }
 
         const arrange = isPlayersArrangeCourts(tournament);

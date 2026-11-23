@@ -14,7 +14,12 @@ import { DEFI_SUBS } from '../utils/defiLadder.js';
 import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 import { ensureTournamentChatTables, isMissingChatTable } from '../utils/ensureTournamentChatTables.js';
 import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
-import { computeMatchScheduleSuggested } from '../utils/tournamentAvailabilityMatch.js';
+import {
+    computeMatchScheduleSuggested,
+    getMatchAvailWindow,
+    constrainSlotsToWindow,
+    isYmdInWindow,
+} from '../utils/tournamentAvailabilityMatch.js';
 import {
     swissRoundCount,
     americanoRoundCount,
@@ -5092,7 +5097,12 @@ async function seedDemoSchedulesForMatches(tournament, matches) {
             }
         }
         if ((schedule.availability.p1 || []).length && (schedule.availability.p2 || []).length) {
-            const sug = computeMatchScheduleSuggested(schedule, { playersArrange });
+            const win = getMatchAvailWindow(tournament, match);
+            const sug = computeMatchScheduleSuggested(schedule, {
+                playersArrange,
+                availFromYmd: win && !win.empty ? win.fromYmd : null,
+                availUntilYmd: win && !win.empty ? win.toYmd : null,
+            });
             if (JSON.stringify(schedule.suggested || null) !== JSON.stringify(sug)) {
                 schedule.suggested = sug;
                 changed = true;
@@ -5119,7 +5129,12 @@ async function healMatchSuggestedOverlaps(tournament, matches) {
         const schedule = normalizeSchedule(match.scheduleData);
         if (!(schedule.availability.p1 || []).length || !(schedule.availability.p2 || []).length) continue;
         if (schedule.agreed) continue;
-        const sug = computeMatchScheduleSuggested(schedule, { playersArrange });
+        const win = getMatchAvailWindow(tournament, match);
+        const sug = computeMatchScheduleSuggested(schedule, {
+            playersArrange,
+            availFromYmd: win && !win.empty ? win.fromYmd : null,
+            availUntilYmd: win && !win.empty ? win.toYmd : null,
+        });
         if (JSON.stringify(schedule.suggested || null) === JSON.stringify(sug)) continue;
         schedule.suggested = sug;
         await prisma.tournamentMatch.update({
@@ -5203,15 +5218,19 @@ export const setMatchAvailability = async (req, res, next) => {
         const side = await resolveUserMatchSide(tournament, match, req.userId);
         if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar müsaitlik girebilir' });
 
-        const cleaned = slots
-            .filter(s => s && (s.weekday != null || s.date) && s.timeFrom && s.timeTo)
-            .map(s => ({
-                ...(s.weekday != null ? { weekday: Number(s.weekday) } : {}),
-                ...(s.date ? { date: String(s.date).slice(0, 10) } : {}),
-                timeFrom: String(s.timeFrom).slice(0, 5),
-                timeTo: String(s.timeTo).slice(0, 5),
-            }))
-            .slice(0, 21);
+        // Sadece bu turun tarih aralığı + bugünden itibaren — geçmiş / tur dışı gün yok
+        const win = getMatchAvailWindow(tournament, match);
+        if (!win || win.empty) {
+            return res.status(400).json({
+                message: 'Bu tur için seçilebilir gün kalmadı (süre dolmuş veya tur henüz başlamadı)',
+            });
+        }
+        const cleaned = constrainSlotsToWindow(slots, win.fromYmd, win.toYmd).slice(0, 21);
+        if (slots.length > 0 && cleaned.length === 0) {
+            return res.status(400).json({
+                message: `Müsaitlik yalnızca tur tarihleri içinde seçilebilir (${win.roundStartYmd} – ${win.roundEndYmd}); geçmiş günler kabul edilmez`,
+            });
+        }
 
         const schedule = normalizeSchedule(match.scheduleData);
         schedule.availability[side] = cleaned;
@@ -5256,13 +5275,21 @@ export const setMatchAvailability = async (req, res, next) => {
         }
 
         // İki taraf da bildirdiyse ortak çakışan gün/saat (+ ortak kort) → suggested
-        schedule.suggested = computeMatchScheduleSuggested(schedule, { playersArrange });
+        schedule.suggested = computeMatchScheduleSuggested(schedule, {
+            playersArrange,
+            availFromYmd: win.fromYmd,
+            availUntilYmd: win.toYmd,
+        });
 
         const updated = await prisma.tournamentMatch.update({
             where: { id: matchId },
             data: { scheduleData: schedule },
         });
-        res.json({ scheduleData: schedule, match: updated });
+        res.json({
+            scheduleData: schedule,
+            match: updated,
+            availWindow: { from: win.fromYmd, to: win.toYmd, roundStart: win.roundStartYmd, roundEnd: win.roundEndYmd },
+        });
     } catch (e) { next(e); }
 };
 
@@ -5284,6 +5311,16 @@ export const proposeMatchSchedule = async (req, res, next) => {
 
         const side = await resolveUserMatchSide(tournament, match, req.userId);
         if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar teklif verebilir' });
+
+        const dateYmd = String(date).slice(0, 10);
+        const win = getMatchAvailWindow(tournament, match);
+        if (!win || win.empty || !isYmdInWindow(dateYmd, win.fromYmd, win.toYmd)) {
+            return res.status(400).json({
+                message: win
+                    ? `Teklif tarihi tur aralığında olmalı (${win.roundStartYmd} – ${win.roundEndYmd}); geçmiş günler kabul edilmez`
+                    : 'Bu maç için tarih penceresi yok',
+            });
+        }
 
         const playersArrange = tournamentPlayersArrangeCourts(tournament);
         let resolvedVenueName = playersArrange
@@ -5331,7 +5368,7 @@ export const proposeMatchSchedule = async (req, res, next) => {
             venueId: resolvedVenueId,
             venueCourtId: resolvedVenueCourtId,
             isProVenue: resolvedIsPro,
-            date: String(date).slice(0, 10),
+            date: dateYmd,
             timeFrom: String(timeFrom).slice(0, 5),
             timeTo: String(timeTo).slice(0, 5),
             createdAt: new Date().toISOString(),

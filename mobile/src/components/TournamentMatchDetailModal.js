@@ -11,6 +11,12 @@ import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
 import KeyboardAwareForm from './KeyboardAwareForm';
 import MatchResultShareModal from './MatchResultShareModal';
+import {
+    getMatchAvailWindow,
+    weekdaysInYmdRange,
+    fmtYmdShort,
+    slotsToWeekdayUi,
+} from '../utils/tournamentAvailWindow';
 
 const WEEKDAYS = [
     { key: 1, tr: 'Pzt', en: 'Mon', ru: 'Пн', de: 'Mo' },
@@ -193,6 +199,18 @@ export default function TournamentMatchDetailModal({
     const isReady = match?.status === 'PENDING' && match?.p1Id && match?.p2Id;
     const canAct = iAmSide && isReady;
 
+    const availWindow = useMemo(
+        () => getMatchAvailWindow(tournament, match),
+        [tournament?.eventDate, match?.deadline, match?.readyAt, match?.round, match?.phase, match?.id],
+    );
+    const allowedWeekdays = useMemo(() => {
+        if (!availWindow || availWindow.empty) return [];
+        return weekdaysInYmdRange(availWindow.fromYmd, availWindow.toYmd);
+    }, [availWindow?.fromYmd, availWindow?.toYmd, availWindow?.empty]);
+    const availWindowLabel = availWindow
+        ? `${fmtYmdShort(availWindow.roundStartYmd)} – ${fmtYmdShort(availWindow.roundEndYmd)}`
+        : '';
+
     useEffect(() => {
         if (!visible) {
             setShareOpen(false);
@@ -208,7 +226,7 @@ export default function TournamentMatchDetailModal({
             : { availability: { p1: [], p2: [] }, preferredCourts: { p1: [], p2: [] }, proposals: [], agreed: null };
         setSchedule(s);
         if (mySide) {
-            setMySlots(Array.isArray(s.availability?.[mySide]) ? s.availability[mySide] : []);
+            setMySlots(slotsToWeekdayUi(s.availability?.[mySide]));
             setMyPreferredCourts(Array.isArray(s.preferredCourts?.[mySide]) ? s.preferredCourts[mySide] : []);
         } else {
             setMySlots([]);
@@ -387,6 +405,14 @@ export default function TournamentMatchDetailModal({
     }, [visible, canReservePro, agreed?.venueId, tournament?.venueId]);
 
     const toggleWeekday = (weekday) => {
+        if (!allowedWeekdays.includes(weekday)) {
+            Alert.alert(
+                '',
+                (t.tournSchedAvailOutOfRound || 'Bu gün bu turun tarih aralığında değil veya geçmiş.')
+                    + (availWindowLabel ? `\n(${availWindowLabel})` : ''),
+            );
+            return;
+        }
         setMySlots(prev => {
             const exists = prev.some(s => s.weekday === weekday);
             if (exists) return prev.filter(s => s.weekday !== weekday);
@@ -401,9 +427,12 @@ export default function TournamentMatchDetailModal({
     const syncPreferredCourtsNow = async (nextCourts) => {
         if (!tournament?.id || !match?.id || !canAct || !playersArrangeCourts) return;
         try {
+            const slotsInWindow = mySlots.filter(s =>
+                s?.weekday == null || allowedWeekdays.includes(Number(s.weekday)),
+            );
             const { data } = await api.patch(
                 `/tournaments/${tournament.id}/matches/${match.id}/availability`,
-                { slots: mySlots, preferredCourts: nextCourts },
+                { slots: slotsInWindow, preferredCourts: nextCourts },
             );
             if (data?.scheduleData) {
                 setSchedule(data.scheduleData);
@@ -468,6 +497,21 @@ export default function TournamentMatchDetailModal({
 
     const saveAvailability = async () => {
         if (!tournament?.id || !match?.id) return;
+        if (availWindow?.empty) {
+            Alert.alert('', t.tournSchedAvailNoDaysLeft || 'Bu tur için seçilebilir gün kalmadı.');
+            return;
+        }
+        const slotsInWindow = mySlots.filter(s =>
+            s?.weekday == null || allowedWeekdays.includes(Number(s.weekday)),
+        );
+        if (mySlots.length > 0 && slotsInWindow.length === 0) {
+            Alert.alert(
+                '',
+                (t.tournSchedAvailOutOfRound || 'Müsaitlik yalnızca tur tarihleri içinde seçilebilir.')
+                    + (availWindowLabel ? `\n(${availWindowLabel})` : ''),
+            );
+            return;
+        }
         if (playersArrangeCourts && myPreferredCourts.length === 0) {
             Alert.alert('', t.tournSchedNeedPreferredCourts || t.tournAvailNeedCourts || 'En az bir kort / mekan seçin');
             return;
@@ -477,7 +521,7 @@ export default function TournamentMatchDetailModal({
             const { data } = await api.patch(
                 `/tournaments/${tournament.id}/matches/${match.id}/availability`,
                 {
-                    slots: mySlots,
+                    slots: slotsInWindow,
                     preferredCourts: playersArrangeCourts ? myPreferredCourts : [],
                 },
             );
@@ -494,6 +538,16 @@ export default function TournamentMatchDetailModal({
     const submitProposal = async () => {
         if (!propDate.trim() || !propFrom.trim() || !propTo.trim()) {
             Alert.alert('', t.tournSchedNeedDateTime || 'Tarih ve saat gerekli');
+            return;
+        }
+        if (availWindow && (availWindow.empty
+            || propDate.trim() < availWindow.fromYmd
+            || propDate.trim() > availWindow.toYmd)) {
+            Alert.alert(
+                '',
+                (t.tournSchedAvailOutOfRound || 'Teklif tarihi tur aralığında olmalı; geçmiş günler kabul edilmez.')
+                    + (availWindowLabel ? `\n(${availWindowLabel})` : ''),
+            );
             return;
         }
         if (playersArrangeCourts && !propVenue.trim() && !propVenueId && !propCourtId) {
@@ -1641,13 +1695,26 @@ export default function TournamentMatchDetailModal({
                             <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
                                 {t.tournSchedMyAvail || 'Müsait gün / saatlerin'}
                             </Text>
+                            {!!availWindowLabel && (
+                                <Text style={{ color: '#94a3b8', fontSize: 10, marginBottom: 8, lineHeight: 14 }}>
+                                    {(t.tournSchedAvailRoundOnly || 'Yalnızca bu turun tarihleri: {range}. Geçmiş günler seçilemez.')
+                                        .replace('{range}', availWindowLabel)}
+                                </Text>
+                            )}
+                            {availWindow?.empty ? (
+                                <Text style={{ color: '#f87171', fontSize: 11, marginBottom: 10 }}>
+                                    {t.tournSchedAvailNoDaysLeft || 'Bu tur için seçilebilir gün kalmadı.'}
+                                </Text>
+                            ) : null}
                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                                 {WEEKDAYS.map(d => {
-                                    const active = mySlots.some(s => s.weekday === d.key);
+                                    const inRound = allowedWeekdays.includes(d.key);
+                                    const active = inRound && mySlots.some(s => s.weekday === d.key);
                                     return (
                                         <TouchableOpacity
                                             key={d.key}
                                             onPress={() => toggleWeekday(d.key)}
+                                            disabled={!inRound}
                                             style={{
                                                 paddingHorizontal: 10,
                                                 paddingVertical: 6,
@@ -1655,6 +1722,7 @@ export default function TournamentMatchDetailModal({
                                                 backgroundColor: active ? infoColor : '#1e293b',
                                                 borderWidth: 1,
                                                 borderColor: active ? infoColor : '#334155',
+                                                opacity: inRound ? 1 : 0.35,
                                             }}
                                         >
                                             <Text style={{ color: active ? '#fff' : '#94a3b8', fontSize: 11, fontWeight: '700' }}>
@@ -1835,10 +1903,20 @@ export default function TournamentMatchDetailModal({
                                     {(t.tournSchedFixedVenue || 'Turnuva kortu')}: {tournament?.location || '—'}
                                 </Text>
                             )}
+                            {!!availWindowLabel && (
+                                <Text style={{ color: '#64748b', fontSize: 10, marginBottom: 4 }}>
+                                    {(t.tournSchedAvailRoundOnly || 'Yalnızca bu turun tarihleri: {range}. Geçmiş günler seçilemez.')
+                                        .replace('{range}', availWindowLabel)}
+                                </Text>
+                            )}
                             <TextInput
                                 value={propDate}
                                 onChangeText={setPropDate}
-                                placeholder={t.tournSchedDatePh || 'Tarih (YYYY-MM-DD)'}
+                                placeholder={
+                                    availWindow && !availWindow.empty
+                                        ? `${availWindow.fromYmd} … ${availWindow.toYmd}`
+                                        : (t.tournSchedDatePh || 'Tarih (YYYY-MM-DD)')
+                                }
                                 placeholderTextColor="#64748b"
                                 style={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderColor: '#334155', marginBottom: 6, fontSize: 13 }}
                             />

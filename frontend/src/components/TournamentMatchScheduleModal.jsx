@@ -1,6 +1,70 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+
+function toLocalYmd(d = new Date()) {
+    const x = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(x.getTime())) return null;
+    const y = x.getFullYear();
+    const m = String(x.getMonth() + 1).padStart(2, '0');
+    const day = String(x.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+function addDaysYmd(ymd, days) {
+    const d = new Date(`${String(ymd).slice(0, 10)}T12:00:00`);
+    d.setDate(d.getDate() + days);
+    return toLocalYmd(d);
+}
+function isoWeekdayFromYmd(ymd) {
+    const d = new Date(`${String(ymd).slice(0, 10)}T12:00:00`);
+    const js = d.getDay();
+    return js === 0 ? 7 : js;
+}
+function getMatchAvailWindow(tournament, match) {
+    if (!match) return null;
+    const today = toLocalYmd(new Date());
+    let startYmd = null;
+    let endYmd = match.deadline ? toLocalYmd(match.deadline) : null;
+    if (match.phase === 'PLAYOFF' && match.readyAt) {
+        startYmd = toLocalYmd(match.readyAt);
+        if (!endYmd) endYmd = addDaysYmd(startYmd, 7);
+    } else if (tournament?.eventDate) {
+        const baseYmd = toLocalYmd(tournament.eventDate);
+        const round = Math.max(1, parseInt(match.round, 10) || 1);
+        startYmd = addDaysYmd(baseYmd, (round - 1) * 7);
+        if (!endYmd) endYmd = addDaysYmd(baseYmd, round * 7);
+    } else if (endYmd) {
+        startYmd = addDaysYmd(endYmd, -7);
+    }
+    if (!startYmd || !endYmd) return null;
+    const fromYmd = startYmd < today ? today : startYmd;
+    return { roundStartYmd: startYmd, roundEndYmd: endYmd, fromYmd, toYmd: endYmd, empty: fromYmd > endYmd };
+}
+function weekdaysInYmdRange(fromYmd, toYmd) {
+    if (!fromYmd || !toYmd || fromYmd > toYmd) return [];
+    const set = new Set();
+    let cur = fromYmd;
+    let guard = 0;
+    while (cur <= toYmd && guard < 60) {
+        set.add(isoWeekdayFromYmd(cur));
+        cur = addDaysYmd(cur, 1);
+        guard += 1;
+    }
+    return [...set].sort((a, b) => a - b);
+}
+function slotsToWeekdayUi(raw) {
+    const byWd = new Map();
+    for (const s of raw || []) {
+        if (!s) continue;
+        let wd = s.weekday != null ? Number(s.weekday) : null;
+        if (!(wd >= 1 && wd <= 7) && s.date) wd = isoWeekdayFromYmd(s.date);
+        if (!(wd >= 1 && wd <= 7)) continue;
+        if (!byWd.has(wd)) {
+            byWd.set(wd, { weekday: wd, timeFrom: s.timeFrom || '09:00', timeTo: s.timeTo || '21:00' });
+        }
+    }
+    return [...byWd.values()];
+}
 
 const WEEKDAYS = [
     { key: 1, tr: 'Pzt', en: 'Mon', ru: 'Пн', de: 'Mo' },
@@ -59,8 +123,20 @@ export default function TournamentMatchScheduleModal({ tournament, match, mySide
         if (!match) return;
         const s = match.scheduleData && typeof match.scheduleData === 'object' ? match.scheduleData : EMPTY_SCHEDULE;
         setSchedule(s);
-        setMySlots(mySide && Array.isArray(s.availability?.[mySide]) ? s.availability[mySide] : []);
+        setMySlots(mySide ? slotsToWeekdayUi(s.availability?.[mySide]) : []);
     }, [match, mySide]);
+
+    const availWindow = useMemo(
+        () => getMatchAvailWindow(tournament, match),
+        [tournament?.eventDate, match?.deadline, match?.readyAt, match?.round, match?.phase, match?.id],
+    );
+    const allowedWeekdays = useMemo(() => {
+        if (!availWindow || availWindow.empty) return [];
+        return weekdaysInYmdRange(availWindow.fromYmd, availWindow.toYmd);
+    }, [availWindow]);
+    const availWindowLabel = availWindow
+        ? `${availWindow.roundStartYmd} – ${availWindow.roundEndYmd}`
+        : '';
 
     if (!match) return null;
 
@@ -76,6 +152,7 @@ export default function TournamentMatchScheduleModal({ tournament, match, mySide
         try {
             const { data } = await fn();
             setSchedule(data.scheduleData);
+            if (mySide) setMySlots(slotsToWeekdayUi(data.scheduleData?.availability?.[mySide]));
             onUpdated?.(data.scheduleData);
             if (okKey) alert(m(okKey));
             return true;
@@ -85,16 +162,34 @@ export default function TournamentMatchScheduleModal({ tournament, match, mySide
         } finally { setSaving(false); }
     };
 
-    const toggleWeekday = (weekday) => setMySlots(prev => prev.some(s => s.weekday === weekday)
-        ? prev.filter(s => s.weekday !== weekday)
-        : [...prev, { weekday, timeFrom: '09:00', timeTo: '21:00' }]);
+    const toggleWeekday = (weekday) => {
+        if (!allowedWeekdays.includes(weekday)) {
+            alert(`${m('tournSchedAvailOutOfRound')}${availWindowLabel ? `\n(${availWindowLabel})` : ''}`);
+            return;
+        }
+        setMySlots(prev => prev.some(s => s.weekday === weekday)
+            ? prev.filter(s => s.weekday !== weekday)
+            : [...prev, { weekday, timeFrom: '09:00', timeTo: '21:00' }]);
+    };
     const updateSlotTime = (weekday, field, value) =>
         setMySlots(prev => prev.map(s => s.weekday === weekday ? { ...s, [field]: value } : s));
 
-    const saveAvailability = () => run(() => api.patch(`${base}/availability`, { slots: mySlots }), 'tournSchedAvailSaved');
+    const saveAvailability = () => {
+        if (availWindow?.empty) { alert(m('tournSchedAvailNoDaysLeft')); return; }
+        const slotsInWindow = mySlots.filter(s => allowedWeekdays.includes(Number(s.weekday)));
+        if (mySlots.length > 0 && slotsInWindow.length === 0) {
+            alert(`${m('tournSchedAvailOutOfRound')}${availWindowLabel ? `\n(${availWindowLabel})` : ''}`);
+            return;
+        }
+        return run(() => api.patch(`${base}/availability`, { slots: slotsInWindow }), 'tournSchedAvailSaved');
+    };
 
     const submitProposal = async () => {
         if (!propDate || !propFrom || !propTo) { alert(m('tournSchedNeedDateTime')); return; }
+        if (availWindow && (availWindow.empty || propDate < availWindow.fromYmd || propDate > availWindow.toYmd)) {
+            alert(`${m('tournSchedAvailOutOfRound')}${availWindowLabel ? `\n(${availWindowLabel})` : ''}`);
+            return;
+        }
         if (playersArrangeCourts && !propVenue.trim()) { alert(m('tournSchedNeedVenue')); return; }
         const ok = await run(() => api.post(`${base}/schedule-propose`, {
             date: propDate, timeFrom: propFrom, timeTo: propTo,
@@ -138,12 +233,21 @@ export default function TournamentMatchScheduleModal({ tournament, match, mySide
 
                             <div>
                                 <p className={H}>{m('tournSchedMyAvail')}</p>
+                                {!!availWindowLabel && (
+                                    <p className="text-gray-500 text-[10px] mb-2">
+                                        {m('tournSchedAvailRoundOnly').replace('{range}', availWindowLabel)}
+                                    </p>
+                                )}
+                                {availWindow?.empty ? (
+                                    <p className="text-red-400 text-[11px] mb-2">{m('tournSchedAvailNoDaysLeft')}</p>
+                                ) : null}
                                 <div className="flex flex-wrap gap-1.5 mb-2">
                                     {WEEKDAYS.map(d => {
-                                        const active = mySlots.some(s => s.weekday === d.key);
+                                        const inRound = allowedWeekdays.includes(d.key);
+                                        const active = inRound && mySlots.some(s => s.weekday === d.key);
                                         return (
-                                            <button key={d.key} onClick={() => toggleWeekday(d.key)}
-                                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${active ? 'bg-sky-500 border-sky-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'}`}>
+                                            <button key={d.key} onClick={() => toggleWeekday(d.key)} disabled={!inRound}
+                                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition ${active ? 'bg-sky-500 border-sky-500 text-white' : 'bg-gray-900 border-gray-700 text-gray-400'} ${inRound ? '' : 'opacity-35 cursor-not-allowed'}`}>
                                                 {dayLabel(d.key, lang)}
                                             </button>
                                         );
@@ -167,7 +271,14 @@ export default function TournamentMatchScheduleModal({ tournament, match, mySide
                                 {playersArrangeCourts && (
                                     <input value={propVenue} onChange={e => setPropVenue(e.target.value)} placeholder={m('tournSchedVenuePh')} className={`${INPUT} w-full`} />
                                 )}
-                                <input type="date" value={propDate} onChange={e => setPropDate(e.target.value)} className={`${INPUT} w-full`} />
+                                <input
+                                    type="date"
+                                    value={propDate}
+                                    min={availWindow && !availWindow.empty ? availWindow.fromYmd : undefined}
+                                    max={availWindow && !availWindow.empty ? availWindow.toYmd : undefined}
+                                    onChange={e => setPropDate(e.target.value)}
+                                    className={`${INPUT} w-full`}
+                                />
                                 <div className="flex gap-2">
                                     <input type="time" value={propFrom} onChange={e => setPropFrom(e.target.value)} className={`${INPUT} flex-1`} />
                                     <input type="time" value={propTo} onChange={e => setPropTo(e.target.value)} className={`${INPUT} flex-1`} />

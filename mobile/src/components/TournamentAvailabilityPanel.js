@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
 import api from '../services/api';
 import colors from '../theme/colors';
+import {
+    getRoundAvailWindow,
+    weekdaysInYmdRange,
+    fmtYmdShort,
+    slotsToWeekdayUi,
+} from '../utils/tournamentAvailWindow';
 
 function courtKeyOf(c) {
     if (!c) return null;
@@ -159,6 +165,15 @@ export default function TournamentAvailabilityPanel({
 
     const active = rounds.find(r => r.id === activeRoundId) || null;
 
+    const roundWindow = useMemo(() => getRoundAvailWindow(active), [active?.id, active?.startDate, active?.endDate]);
+    const allowedWeekdays = useMemo(() => {
+        if (!roundWindow || roundWindow.empty) return [];
+        return weekdaysInYmdRange(roundWindow.fromYmd, roundWindow.toYmd);
+    }, [roundWindow?.fromYmd, roundWindow?.toYmd, roundWindow?.empty]);
+    const roundWindowLabel = roundWindow
+        ? `${fmtYmdShort(roundWindow.roundStartYmd)} – ${fmtYmdShort(roundWindow.roundEndYmd)}`
+        : '';
+
     useEffect(() => {
         if (!active) {
             setSlots([]);
@@ -171,17 +186,7 @@ export default function TournamentAvailabilityPanel({
         if (mine) {
             setMaxMatches(mine.maxMatches || 1);
             const raw = Array.isArray(mine.slots) ? mine.slots : [];
-            // weekday'e çevir (tarihten)
-            setSlots(raw.map(s => {
-                if (s.weekday) return { weekday: s.weekday, timeFrom: s.timeFrom, timeTo: s.timeTo };
-                if (s.date) {
-                    const dt = new Date(s.date + 'T12:00:00');
-                    const js = dt.getDay();
-                    const iso = js === 0 ? 7 : js;
-                    return { weekday: iso, timeFrom: s.timeFrom, timeTo: s.timeTo, date: s.date };
-                }
-                return s;
-            }));
+            setSlots(slotsToWeekdayUi(raw));
             setPreferredCourts(Array.isArray(mine.preferredCourts) ? mine.preferredCourts : []);
         } else {
             setSlots([]);
@@ -260,6 +265,14 @@ export default function TournamentAvailabilityPanel({
     };
 
     const toggleWeekday = (weekday) => {
+        if (!allowedWeekdays.includes(weekday)) {
+            Alert.alert(
+                '',
+                (t.tournSchedAvailOutOfRound || 'Bu gün bu turun tarih aralığında değil veya geçmiş.')
+                    + (roundWindowLabel ? `\n(${roundWindowLabel})` : ''),
+            );
+            return;
+        }
         setSlots(prev => {
             const exists = prev.some(s => s.weekday === weekday);
             if (exists) return prev.filter(s => s.weekday !== weekday);
@@ -273,6 +286,19 @@ export default function TournamentAvailabilityPanel({
 
     const saveMyAvailability = async () => {
         if (!active) return;
+        if (roundWindow?.empty) {
+            Alert.alert('', t.tournSchedAvailNoDaysLeft || 'Bu tur için seçilebilir gün kalmadı.');
+            return;
+        }
+        const slotsInWindow = slots.filter(s => allowedWeekdays.includes(Number(s.weekday)));
+        if (slots.length > 0 && slotsInWindow.length === 0) {
+            Alert.alert(
+                '',
+                (t.tournSchedAvailOutOfRound || 'Müsaitlik yalnızca tur tarihleri içinde seçilebilir.')
+                    + (roundWindowLabel ? `\n(${roundWindowLabel})` : ''),
+            );
+            return;
+        }
         if (playersArrangeCourts && preferredCourts.length === 0) {
             Alert.alert('', t.tournAvailNeedCourts || 'En az bir kort / mekan seçin');
             return;
@@ -281,9 +307,8 @@ export default function TournamentAvailabilityPanel({
         try {
             await api.put(`/tournaments/${tournament.id}/rounds/${active.id}/availability`, {
                 maxMatches,
-                slots: slots.map(s => ({
+                slots: slotsInWindow.map(s => ({
                     weekday: s.weekday,
-                    date: s.date,
                     timeFrom: s.timeFrom,
                     timeTo: s.timeTo,
                 })),
@@ -460,13 +485,26 @@ export default function TournamentAvailabilityPanel({
                     <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
                         {t.tournAvailMySlots || 'Müsait gün / saat'}
                     </Text>
+                    {!!roundWindowLabel && (
+                        <Text style={{ color: '#94a3b8', fontSize: 10, marginBottom: 8, lineHeight: 14 }}>
+                            {(t.tournSchedAvailRoundOnly || 'Yalnızca bu turun tarihleri: {range}. Geçmiş günler seçilemez.')
+                                .replace('{range}', roundWindowLabel)}
+                        </Text>
+                    )}
+                    {roundWindow?.empty ? (
+                        <Text style={{ color: '#f87171', fontSize: 11, marginBottom: 8 }}>
+                            {t.tournSchedAvailNoDaysLeft || 'Bu tur için seçilebilir gün kalmadı.'}
+                        </Text>
+                    ) : null}
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                         {WEEKDAYS.map(d => {
-                            const on = slots.some(s => s.weekday === d.key);
+                            const inRound = allowedWeekdays.includes(d.key);
+                            const on = inRound && slots.some(s => s.weekday === d.key);
                             return (
                                 <TouchableOpacity
                                     key={d.key}
                                     onPress={() => toggleWeekday(d.key)}
+                                    disabled={!inRound}
                                     style={{
                                         paddingHorizontal: 10,
                                         paddingVertical: 6,
@@ -474,6 +512,7 @@ export default function TournamentAvailabilityPanel({
                                         backgroundColor: on ? accent : '#0f172a',
                                         borderWidth: 1,
                                         borderColor: on ? accent : '#334155',
+                                        opacity: inRound ? 1 : 0.35,
                                     }}
                                 >
                                     <Text style={{ color: on ? '#fff' : '#94a3b8', fontSize: 11, fontWeight: '700' }}>
