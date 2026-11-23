@@ -34,9 +34,40 @@ function dayLabel(weekday, lang) {
     return d[lang] || d.en;
 }
 
+/** 2026-11-28 → 28.11.2026 */
+function formatYmdDmy(ymd) {
+    const s = String(ymd || '').slice(0, 10);
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+    if (!m) return s || '';
+    return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
+function weekdayFromYmd(ymd) {
+    const s = String(ymd || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    const d = new Date(`${s}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return null;
+    const js = d.getDay();
+    return js === 0 ? 7 : js;
+}
+
+/** Ortak uygunluk satırı: 28.11.2026 Cmt · 10:00-13:00 */
+function formatWindowLine(dateYmd, timeFrom, timeTo, lang) {
+    const dmy = formatYmdDmy(dateYmd);
+    const wd = weekdayFromYmd(dateYmd);
+    const dayName = wd != null ? dayLabel(wd, lang) : '';
+    const times = [timeFrom, timeTo].filter(Boolean).join('-');
+    const head = [dmy, dayName].filter(Boolean).join(' ');
+    if (head && times) return `${head} · ${times}`;
+    return head || times || '';
+}
+
 function formatSlot(slot, lang) {
     if (!slot) return '';
-    const day = slot.date || (slot.weekday != null ? dayLabel(slot.weekday, lang) : '');
+    if (slot.date) {
+        return formatWindowLine(slot.date, slot.timeFrom, slot.timeTo, lang);
+    }
+    const day = slot.weekday != null ? dayLabel(slot.weekday, lang) : '';
     return `${day} ${slot.timeFrom || ''}-${slot.timeTo || ''}`.trim();
 }
 
@@ -1114,7 +1145,7 @@ export default function TournamentMatchDetailModal({
                                                     }}
                                                 >
                                                     <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                                                        📅 {w.date} · {w.timeFrom}-{w.timeTo}
+                                                        📅 {formatWindowLine(w.date, w.timeFrom, w.timeTo, lang)}
                                                     </Text>
                                                 </TouchableOpacity>
                                             );
@@ -1135,7 +1166,11 @@ export default function TournamentMatchDetailModal({
                                             {t.tournAvailQuickReserveTitle || 'Ortak müsaitlikten teklif / rezervasyon'}
                                         </Text>
                                         <Text style={{ color: '#64748b', fontSize: 10 }}>
-                                            {quickWindow.date} · {t.tournAvailWindowMax || 'pencere'} {quickWindow.timeFrom}–{quickWindow.timeTo}
+                                            {formatWindowLine(quickWindow.date, null, null, lang)}
+                                            {' · '}
+                                            {t.tournAvailWindowMax || 'pencere'}
+                                            {' '}
+                                            {quickWindow.timeFrom}–{quickWindow.timeTo}
                                         </Text>
                                         {suggestedCourts.length > 0 ? (
                                             <View style={{ gap: 4 }}>
