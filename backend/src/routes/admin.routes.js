@@ -17,6 +17,7 @@ import {
     getSupportTickets, getSupportTicketMessagesAdmin, replySupportTicket, closeSupportTicket,
 } from '../controllers/admin.controller.js';
 import { getClubApprovals, setClubApproval } from '../controllers/club.controller.js';
+import { getGymApprovals, setGymApproval } from '../controllers/gym.controller.js';
 import { adminGetVerifications, adminSetVerification, adminImportOsmRoutes } from '../controllers/travel.controller.js';
 import { getNoShowReports, approveNoShow, rejectNoShow } from '../controllers/noshow.controller.js';
 import { adminGetCities, adminUpdateCity } from '../controllers/city.controller.js';
@@ -58,6 +59,8 @@ router.get('/team-name-approvals',           getTeamNameApprovals);
 router.patch('/team-name-approvals/:id',     setTeamNameApproval);
 router.get('/club-approvals',                getClubApprovals);
 router.patch('/club-approvals/:id',          setClubApproval);
+router.get('/gym-approvals',                 getGymApprovals);
+router.patch('/gym-approvals/:id',           setGymApproval);
 router.get('/tournament-permissions',                   getTournamentPermissionRequests);
 router.patch('/tournament-permissions/:userId/approve', approveTournamentPermission);
 router.patch('/tournament-permissions/:userId/reject',  rejectTournamentPermission);

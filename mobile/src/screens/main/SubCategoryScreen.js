@@ -15762,7 +15762,16 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
             await api.patch(`/rivals/${editItem.id}`, {
                 message: f.message || null,
                 ...((isTennis || isPadel || isVolleyball) && { wager: f.wager.trim() || null }),
-                ...((category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) && { ticketUrl: f.ticketUrl || null }),
+                ...((category === 'ARTS' || (SIMPLE_TAB_SUBS.has(sub) && sub !== 'fitness_gym')) && { ticketUrl: f.ticketUrl || null }),
+                ...(sub === 'fitness_gym' && {
+                    minParticipants: f.minParticipants !== '' ? parseInt(f.minParticipants, 10) : null,
+                    maxParticipants: f.maxParticipants !== '' ? parseInt(f.maxParticipants, 10) : null,
+                    genderReq: f.genderReq || 'MIX',
+                    genderCountMode: f.genderCountMode,
+                    requiredMaleCount: f.requiredMaleCount,
+                    minGenderReq: f.minGenderReq,
+                    minGenderCount: f.minGenderCount,
+                }),
                 matchDate: f.flexibleSchedule ? null : (matchDateStr || null),
                 matchTime: f.flexibleSchedule ? null : (f.matchTime || null),
                 duration: f.flexibleSchedule ? null : (f.duration || null),
@@ -15796,7 +15805,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     partnerGenderReq: f.partnerGenderReq, opp1GenderReq: f.opp1GenderReq, opp2GenderReq: f.opp2GenderReq,
                     teamFlexibility: f.teamFlexibility,
                 }),
-                ...((isVolleyball || sub === 'airsoft') && {
+                ...((isVolleyball || sub === 'airsoft' || sub === 'fitness_gym') && {
                     genderCountMode: f.genderCountMode, requiredMaleCount: f.requiredMaleCount,
                     minGenderReq: f.minGenderReq, minGenderCount: f.minGenderCount,
                 }),
@@ -15995,14 +16004,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 subCount: isVolleyball ? (f.subCount || 0) : undefined,
                 founderTeamName: (isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && f.founderTeamName.trim() ? f.founderTeamName.trim() : undefined,
                 opponentTeamName: (isVolleyball || sub === 'airsoft' || f.matchType === 'DOUBLE') && f.opponentTeamName.trim() ? f.opponentTeamName.trim() : undefined,
-                genderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') ? (f.genderReq || 'MIX') : undefined,
+                genderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash' || sub === 'fitness_gym') ? (f.genderReq || 'MIX') : undefined,
                 partnerGenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' ? f.partnerGenderReq : undefined,
                 opp1GenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' ? f.opp1GenderReq : undefined,
                 opp2GenderReq: (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && f.matchType === 'DOUBLE' ? f.opp2GenderReq : undefined,
-                genderCountMode: (isVolleyball || sub === 'airsoft') && f.genderCountMode ? f.genderCountMode : undefined,
-                requiredMaleCount: (isVolleyball || sub === 'airsoft') && f.requiredMaleCount != null ? f.requiredMaleCount : undefined,
-                minGenderReq: (isVolleyball || sub === 'airsoft') && f.minGenderReq ? f.minGenderReq : undefined,
-                minGenderCount: (isVolleyball || sub === 'airsoft') && f.minGenderCount != null ? f.minGenderCount : undefined,
+                genderCountMode: (isVolleyball || sub === 'airsoft' || sub === 'fitness_gym') && f.genderCountMode ? f.genderCountMode : undefined,
+                requiredMaleCount: (isVolleyball || sub === 'airsoft' || sub === 'fitness_gym') && f.requiredMaleCount != null ? f.requiredMaleCount : undefined,
+                minGenderReq: (isVolleyball || sub === 'airsoft' || sub === 'fitness_gym') && f.minGenderReq ? f.minGenderReq : undefined,
+                minGenderCount: (isVolleyball || sub === 'airsoft' || sub === 'fitness_gym') && f.minGenderCount != null ? f.minGenderCount : undefined,
                 winsNeeded: sub === 'airsoft' && f.winsNeeded != null ? f.winsNeeded : undefined,
                 // Kadro kartının ARKA yüzünden (Takım 1/Takım 2, belirli slota) doldurulan
                 // formalar — kullanıcı isteği: "belki takım üzerinden direk davet edicem".
@@ -17693,12 +17702,91 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 Oyun satırında; bkz. yukarısı, burada tekrar etmiyor). */}
                             {!isMatchedEdit && SIMPLIFIED_FEE_SUBS.has(sub) && (
                                 <>
-                                    <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
-                                    <TextInput style={s.fieldInput}
-                                        value={f.ticketUrl} onChangeText={v => set('ticketUrl', v)}
-                                        placeholder={t.ticketUrlPh}
-                                        placeholderTextColor={colors.textMuted}
-                                        autoCapitalize="none" keyboardType="url" />
+                                    {sub === 'fitness_gym' ? (
+                                        <View style={{ marginBottom:10 }}>
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.eventCapacityLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:6 }}>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={[s.fieldLabel, { marginBottom:2, fontSize:11 }]}>{t.eventMinParticipants}</Text>
+                                                    <TextInput style={s.fieldInput}
+                                                        value={f.minParticipants}
+                                                        onChangeText={v => set('minParticipants', v.replace(/[^0-9]/g, ''))}
+                                                        placeholder="2" placeholderTextColor={colors.textMuted}
+                                                        keyboardType="number-pad" />
+                                                </View>
+                                                <View style={{ flex:1 }}>
+                                                    <Text style={[s.fieldLabel, { marginBottom:2, fontSize:11 }]}>{t.eventMaxParticipants}</Text>
+                                                    <TextInput style={s.fieldInput}
+                                                        value={f.maxParticipants}
+                                                        onChangeText={v => set('maxParticipants', v.replace(/[^0-9]/g, ''))}
+                                                        placeholder="20" placeholderTextColor={colors.textMuted}
+                                                        keyboardType="number-pad" />
+                                                </View>
+                                            </View>
+                                            <Text style={[s.fieldLabel, { marginTop:8, marginBottom:4 }]}>{t.eventGenderRestrictLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                                {['MIX','MALE','FEMALE'].map(g => (
+                                                    <TouchableOpacity key={g} onPress={() => set('genderReq', g)}
+                                                        style={[s.chip, { flex:1 }, (f.genderReq || 'MIX') === g && { backgroundColor:'#a855f730', borderColor:'#a855f7' }]}>
+                                                        <Text style={[s.chipText, (f.genderReq || 'MIX') === g && { color:'#c084fc', fontWeight:'800' }]} numberOfLines={1}>
+                                                            {g === 'MIX' ? t.genderMix : g === 'MALE' ? t.genderMale : t.genderFemale}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </View>
+                                            <Text style={[s.fieldLabel, { marginBottom:4 }]}>{t.eventGenderCountLabel}</Text>
+                                            <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                                <TouchableOpacity onPress={() => setF(p => ({ ...p, genderCountMode: null, minGenderReq: null, minGenderCount: null, requiredMaleCount: null }))}
+                                                    style={[s.chip, { flex:1 }, !f.genderCountMode && { backgroundColor:'#64748b30', borderColor:'#64748b' }]}>
+                                                    <Text style={[s.chipText, !f.genderCountMode && { color:'#94a3b8', fontWeight:'800' }]}>{t.eventGenderCountNone}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => setF(p => ({ ...p, genderCountMode: 'MIN', minGenderReq: p.minGenderReq || 'FEMALE', minGenderCount: p.minGenderCount ?? 2, requiredMaleCount: null }))}
+                                                    style={[s.chip, { flex:1 }, f.genderCountMode === 'MIN' && { backgroundColor:'#ec489930', borderColor:'#ec4899' }]}>
+                                                    <Text style={[s.chipText, f.genderCountMode === 'MIN' && { color:'#f9a8d4', fontWeight:'800' }]}>{t.eventGenderCountMin}</Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity onPress={() => setF(p => ({ ...p, genderCountMode: 'EXACT', requiredMaleCount: p.requiredMaleCount ?? 0, minGenderReq: null, minGenderCount: null }))}
+                                                    style={[s.chip, { flex:1 }, f.genderCountMode === 'EXACT' && { backgroundColor:'#3b82f630', borderColor:'#3b82f6' }]}>
+                                                    <Text style={[s.chipText, f.genderCountMode === 'EXACT' && { color:'#93c5fd', fontWeight:'800' }]}>{t.eventGenderCountExact}</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                            {f.genderCountMode === 'MIN' && (
+                                                <View style={{ flexDirection:'row', gap:6, marginBottom:6 }}>
+                                                    <TouchableOpacity onPress={() => set('minGenderReq', 'FEMALE')}
+                                                        style={[s.chip, { flex:1 }, f.minGenderReq === 'FEMALE' && { backgroundColor:'#ec489930', borderColor:'#ec4899' }]}>
+                                                        <Text style={s.chipText}>👩 {t.genderFemale}</Text>
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={() => set('minGenderReq', 'MALE')}
+                                                        style={[s.chip, { flex:1 }, f.minGenderReq === 'MALE' && { backgroundColor:'#3b82f630', borderColor:'#3b82f6' }]}>
+                                                        <Text style={s.chipText}>👨 {t.genderMale}</Text>
+                                                    </TouchableOpacity>
+                                                    <TextInput style={[s.fieldInput, { flex:1 }]}
+                                                        value={f.minGenderCount != null ? String(f.minGenderCount) : ''}
+                                                        onChangeText={v => set('minGenderCount', v === '' ? null : parseInt(v.replace(/[^0-9]/g, ''), 10) || null)}
+                                                        placeholder={t.eventMinCountPh} placeholderTextColor={colors.textMuted}
+                                                        keyboardType="number-pad" />
+                                                </View>
+                                            )}
+                                            {f.genderCountMode === 'EXACT' && (
+                                                <View style={{ flexDirection:'row', gap:6, marginBottom:6, alignItems:'center' }}>
+                                                    <Text style={{ color: colors.textMuted, fontSize:12, flex:1 }}>{t.eventExactMaleCount}</Text>
+                                                    <TextInput style={[s.fieldInput, { flex:1 }]}
+                                                        value={f.requiredMaleCount != null ? String(f.requiredMaleCount) : ''}
+                                                        onChangeText={v => set('requiredMaleCount', v === '' ? null : parseInt(v.replace(/[^0-9]/g, ''), 10) || 0)}
+                                                        placeholder="0" placeholderTextColor={colors.textMuted}
+                                                        keyboardType="number-pad" />
+                                                </View>
+                                            )}
+                                        </View>
+                                    ) : (
+                                        <>
+                                            <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.ticketUrlLabel}</Text>
+                                            <TextInput style={s.fieldInput}
+                                                value={f.ticketUrl} onChangeText={v => set('ticketUrl', v)}
+                                                placeholder={t.ticketUrlPh}
+                                                placeholderTextColor={colors.textMuted}
+                                                autoCapitalize="none" keyboardType="url" />
+                                        </>
+                                    )}
                                     <Text style={[s.fieldLabel, { marginTop:4 }]}>{t.messageFieldLabel}</Text>
                                     <TextInput style={[s.fieldInput, { height:80, textAlignVertical:'top' }]}
                                         value={f.message} onChangeText={v => set('message', v)}
@@ -26897,7 +26985,10 @@ function SubCategoryScreen({ route, navigation }) {
     // Coaches data
     const [coachListings, setCoachListings] = useState([]);
     const [loadingCoaches, setLoadingCoaches] = useState(false);
-    const [coachSubTab, setCoachSubTab] = useState(initialCoachSubTab || 'listings'); // 'clubs' | 'listings' | 'courses' | 'referees' | 'cvs'
+    // Fitness Destek varsayılanı Spor Salonları; diğer dallarda listings.
+    const [coachSubTab, setCoachSubTab] = useState(
+        initialCoachSubTab || (sub === 'fitness_gym' ? 'gyms' : 'listings')
+    ); // 'gyms' | 'clubs' | 'listings' | 'courses' | 'support' | 'referees' | 'cvs'
     // Kullanıcı isteği: CVler sekmesinin kendi içinde 3 alt-sekmesi olsun —
     // Antrenörler / Hakemler / CV Yükle (CV Yükle burada iki seçenekli: antrenör CV'si mi
     // hakem CV'si mi). "İlan Oluştur" akışlarından CV yükleme tamamen kaldırıldı.
@@ -27748,12 +27839,14 @@ function SubCategoryScreen({ route, navigation }) {
     const loadArchive = useCallback(() => {
         if (activeTab !== 'archive') return;
         setLoadingArchive(true);
-        const params = new URLSearchParams({ category, subCategory: sub, scope: 'all' });
+        // Fitness: geçmişte katıldığı etkinlikler — sadece kullanıcının katıldıkları.
+        const params = new URLSearchParams({ category, subCategory: sub });
+        if (sub !== 'fitness_gym') params.set('scope', 'all');
         if (archiveCity) params.set('city', archiveCity);
         if (archiveDistrict) params.set('district', archiveDistrict);
         if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
         if (archiveDateTo) params.set('dateTo', archiveDateTo);
-        if (archivePlayer) params.set('player', archivePlayer.id);
+        if (archivePlayer && sub !== 'fitness_gym') params.set('player', archivePlayer.id);
         api.get(`/archive?${params.toString()}`)
             .then(res => {
                 setArchiveRivals(res.data?.rivals || []);
@@ -27765,7 +27858,6 @@ function SubCategoryScreen({ route, navigation }) {
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
     }, [activeTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo, archivePlayer]);
-
 
     const loadArchiveGyms = useCallback(async () => {
         if (activeTab !== 'archive' || archiveSubTab !== 'salons' || sub !== 'fitness_gym') return;
@@ -27813,6 +27905,7 @@ function SubCategoryScreen({ route, navigation }) {
     }, [loadArchive]);
 
     const loadArchiveTournaments = useCallback(async () => {
+        if (sub === 'fitness_gym') return;
         if (activeTab !== 'archive' || archiveSubTab !== 'tournaments') return;
         setLoadingArchiveTournaments(true);
         try {
@@ -31519,6 +31612,7 @@ function SubCategoryScreen({ route, navigation }) {
 
                     {activeTab === 'coaches' && (() => {
                         const isCoachExpanded = ['tennis', 'padel', 'volleyball', 'badminton', 'table_tennis', 'pickleball', 'squash'].includes(sub);
+                        const isFitnessSupport = sub === 'fitness_gym';
                         // Kullanıcı isteği: admin onaylayınca "sadece CV" kaydı (profileOnly) CV'ler
                         // sekmesinde görünsün diye backend artık bunu genel listeye de dahil ediyor
                         // (bkz. coach.controller.js getListings) — ama gerçek bir ders teklifi
@@ -31532,7 +31626,14 @@ function SubCategoryScreen({ route, navigation }) {
                         // CV'leri hiç görünmüyordu.
                         const refereesWithCv = refereeListings.filter(r => r.cvUrl);
                         const nonProfileOnlyCoaches = filteredCoaches.filter(c => !c.profileOnly);
-                        const subTabs = isCoachExpanded
+                        const subTabs = isFitnessSupport
+                            ? [
+                                { key:'gyms',     label: t.gymsSubTab,       count: undefined },
+                                { key:'listings', label: t.coachesSubTab,    count: individualCoaches.length },
+                                { key:'support',  label: t.coachListingsTab, count: nonProfileOnlyCoaches.length },
+                                { key:'cvs',      label: t.coachCvsTab,      count: coachesWithCv.length + refereesWithCv.length },
+                              ]
+                            : isCoachExpanded
                             ? [
                                 // Kullanıcı isteği: Destek alt-sekme sırası
                                 // Kulüpler → Antrenörler → Kurslar → Hakemler → CV'ler.
@@ -31557,7 +31658,9 @@ function SubCategoryScreen({ route, navigation }) {
                         const shown = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
                             : coachSubTab === 'clubs' ? filteredClubs
-                            : (isCoachExpanded && coachSubTab === 'listings') ? individualCoaches
+                            : coachSubTab === 'gyms' ? []
+                            : coachSubTab === 'support' ? nonProfileOnlyCoaches
+                            : ((isCoachExpanded || isFitnessSupport) && coachSubTab === 'listings') ? individualCoaches
                             : nonProfileOnlyCoaches;
                         return (
                         <>
@@ -31578,7 +31681,7 @@ function SubCategoryScreen({ route, navigation }) {
                             {/* Kullanıcı isteği: "CV Yükle" artık burada değil — sadece CVler sekmesinin
                                 kendi "CV Yükle" alt-sekmesinde yaşıyor. Burada sadece ilan/maç oluşturma
                                 kalıyor, ilan oluştururken mevcut CV zaten otomatik entegre oluyor. */}
-                            {coachSubTab === 'cvs' ? null : coachSubTab === 'clubs' ? (
+                            {coachSubTab === 'cvs' || coachSubTab === 'gyms' ? null : coachSubTab === 'clubs' ? (
                                 <CityAlertRow tab="clubs">
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
@@ -31613,7 +31716,15 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             <CompactFilter showDateChips={false} />
-                            {coachSubTab === 'clubs' ? (
+                            {coachSubTab === 'gyms' ? (
+                                <GymSupportSection
+                                    category={category}
+                                    sub={sub}
+                                    cfg={cfg}
+                                    cityFilter={filterCity || undefined}
+                                    onOpenScan={(gymId, gymName) => navigation.navigate('GymQrScan', { gymId, gymName })}
+                                />
+                            ) : coachSubTab === 'clubs' ? (
                                 loadingClubs
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
                                     : filteredClubs.length === 0
@@ -33497,6 +33608,56 @@ function SubCategoryScreen({ route, navigation }) {
                                             onPress={() => setArchiveDetailMatch(m)}
                                         />
                                     ))}
+                                </View>
+                            )
+                        )}
+
+                        {/* Fitness Arşiv > Salonlar — geçmişte üye olunan salonlar (REVOKED) */}
+                        {archiveSubTab === 'salons' && sub === 'fitness_gym' && (
+                            loadingArchiveGyms ? (
+                                <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
+                            ) : archiveGyms.length === 0 ? (
+                                <EmptyState emoji="🏋️" text={t.emptyArchiveGyms || ''} />
+                            ) : (
+                                <View style={{ gap: 8, paddingVertical: 5 }}>
+                                    {archiveGyms.map(item => {
+                                        const g = item.gym || {};
+                                        const photos = Array.isArray(g.photos) ? g.photos : [];
+                                        const cityLabel = Array.isArray(g.cities) && g.cities.length
+                                            ? g.cities.join(', ')
+                                            : (g.city || '');
+                                        const leftLabel = item.endedAt
+                                            ? new Date(item.endedAt).toLocaleDateString(appLocale(t.lang), { day: 'numeric', month: 'short', year: 'numeric' })
+                                            : '';
+                                        return (
+                                            <View key={item.id} style={[s.card, { flexDirection: 'row', gap: 10, alignItems: 'center' }]}>
+                                                {photos[0] ? (
+                                                    <Image source={{ uri: photos[0] }} style={{ width: 52, height: 52, borderRadius: 10 }} />
+                                                ) : (
+                                                    <View style={{ width: 52, height: 52, borderRadius: 10, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' }}>
+                                                        <Text style={{ fontSize: 22 }}>🏋️</Text>
+                                                    </View>
+                                                )}
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }} numberOfLines={1}>{g.name || '—'}</Text>
+                                                    {!!cityLabel && (
+                                                        <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }} numberOfLines={1}>📍 {cityLabel}{g.district ? ` / ${g.district}` : ''}</Text>
+                                                    )}
+                                                    {!!g.address && (
+                                                        <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 1 }} numberOfLines={1}>{g.address}</Text>
+                                                    )}
+                                                    {!!leftLabel && (
+                                                        <Text style={{ color: cfg.color, fontSize: 11, fontWeight: '700', marginTop: 4 }}>
+                                                            {(t.archiveGymLeftOn || '{date}').replace('{date}', leftLabel)}
+                                                        </Text>
+                                                    )}
+                                                </View>
+                                                {g.monthlyFee != null && g.monthlyFee > 0 ? (
+                                                    <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '800' }}>{g.monthlyFee} ₺</Text>
+                                                ) : null}
+                                            </View>
+                                        );
+                                    })}
                                 </View>
                             )
                         )}

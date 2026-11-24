@@ -142,6 +142,10 @@ model User {
   equipmentOffers     EquipmentOffer[]
   clubListings        ClubListing[]
   clubMembershipApplications ClubMembershipApplication[] @relation("ClubMembershipApplicant")
+  gymListings         GymListing[]
+  gymMemberships      GymMember[] @relation("GymMemberUser")
+  gymMembershipManaged GymMember[] @relation("GymMemberAddedBy")
+  gymCheckInsScanned  GymCheckIn[] @relation("GymCheckInScanner")
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
@@ -811,8 +815,10 @@ model ClubMembershipApplication {
   id            String   @id @default(uuid())
   clubListingId String
   applicantId   String
-  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED
+  status        String   @default("PENDING") // PENDING | ACCEPTED | REJECTED | LEFT
   message       String?
+  // Üyelikten ayrılınca (LEFT) doldurulur — Arşiv > Salonlar geçmiş üyelikleri buradan listeler.
+  endedAt       DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -820,6 +826,95 @@ model ClubMembershipApplication {
   applicant     User        @relation("ClubMembershipApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
 
   @@unique([clubListingId, applicantId])
+}
+
+// Fitness & Spor Salonu — Destek > Spor Salonları. Çoğu alan opsiyonel; isim + şehir zorunlu.
+model GymListing {
+  id              String   @id @default(uuid())
+  userId          String
+  category        String   @default("SPORTS")
+  subCategory     String   @default("fitness_gym")
+
+  name            String
+  description     String?
+  address         String?  // açık adres
+  city            String?
+  cities          Json?    // string[]
+  district        String?
+  photos          Json     @default("[]")  // Cloudinary URL[]
+
+  monthlyFee      Int?     // aylık üyelik ₺
+  weeklyFee       Int?
+  dailyFee        Int?
+  memberCount     Int?     // güncel üye sayısı (sahibin beyanı)
+
+  openTime        String?  // "06:00"
+  closeTime       String?  // "23:00"
+  squareMeters    Int?
+
+  lockerMale      Int?
+  lockerFemale    Int?
+  showerMale      Int?
+  showerFemale    Int?
+  wcMale          Int?
+  wcFemale        Int?
+  dressingRoomMale   Int?
+  dressingRoomFemale Int?
+
+  equipmentList   String?  // salondaki ekipman özeti (serbest metin)
+  salesList       String?  // satışta ekipman / gıda takviyesi vb. (serbest metin)
+  amenities       String?  // parking, sauna, çocuk alanı vb. serbest metin
+  contactPhone    String?
+  website         String?
+  instagram       String?
+
+  status          String   @default("PENDING")  // PENDING | ACTIVE | REJECTED | FLAGGED | REMOVED
+  adminNote       String?
+  reportCount     Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members         GymMember[]
+  checkIns        GymCheckIn[]
+}
+
+// Salon üyesi — kabul edilince QR token üretilir; giriş/çıkış GymCheckIn ile kaydedilir.
+model GymMember {
+  id            String   @id @default(uuid())
+  gymListingId  String
+  userId        String
+  status        String   @default("PENDING") // PENDING | ACTIVE | REJECTED | REVOKED
+  message       String?
+  qrToken       String   @unique @default(uuid())
+  addedById     String?  // salon sahibi elle eklediyse
+  // Üyelik iptal/ayrılma (REVOKED) anı — Arşiv > Salonlar geçmiş listesi buradan.
+  endedAt       DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  gymListing    GymListing @relation(fields: [gymListingId], references: [id], onDelete: Cascade)
+  user          User       @relation("GymMemberUser", fields: [userId], references: [id], onDelete: Cascade)
+  addedBy       User?      @relation("GymMemberAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+  checkIns      GymCheckIn[]
+
+  @@unique([gymListingId, userId])
+}
+
+model GymCheckIn {
+  id            String   @id @default(uuid())
+  gymListingId  String
+  memberId      String
+  type          String   // CHECK_IN | CHECK_OUT
+  scannedById   String?  // QR'ı okuyan (salon personeli / sahibi)
+  createdAt     DateTime @default(now())
+
+  gymListing    GymListing @relation(fields: [gymListingId], references: [id], onDelete: Cascade)
+  member        GymMember  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  scannedBy     User?      @relation("GymCheckInScanner", fields: [scannedById], references: [id], onDelete: SetNull)
+
+  @@index([gymListingId, createdAt])
+  @@index([memberId, createdAt])
 }
 
 model EquipmentListing {
@@ -893,7 +988,7 @@ model UserAchievement {
 model ListingReport {
   id          String   @id @default(uuid())
   reporterId  String
-  listingType String   // EQUIPMENT | COACH | REFEREE | CLUB
+  listingType String   // EQUIPMENT | COACH | REFEREE | CLUB | GYM
   listingId   String
   reason      String
   createdAt   DateTime @default(now())
@@ -1212,6 +1307,10 @@ model ActivityRequest {
   genderCountMode  String?                 // 'EXACT' (requiredMaleCount, yukarıdaki eski davranış) | 'MIN' (havuzun tamamında minGenderReq/minGenderCount) | 'MIN_PER_TEAM' (her iki takımda AYRI AYRI aynı alanlar) | null = kısıtlama yok
   minGenderReq     String?                 // 'MIN' modda: 'MALE' | 'FEMALE' — hangi cinsiyetten minimum isteniyor
   minGenderCount   Int?                    // 'MIN' modda: en az kaç kişi — kalan slotların cinsiyeti serbest (kullanıcı isteği: "2 kesin kız lazım, kalanı fark etmez")
+  // Fitness & Spor Salonu etkinlikleri: bilet linki yerine kontenjan (kurucu dahil).
+  // max dolunca MATCHED; min bilgilendirme + "etkinlik kesinleşti" eşiği.
+  minParticipants  Int?
+  maxParticipants  Int?
   winsNeeded       Int?                    // örn. airsoft: kaç raunt/oyun kazanınca maç biter — null = belirtilmemiş
   founderTeamName  String?                 // DOUBLE veya voleybol takımı: kurucu takımın (ilan sahibi + partner/takım arkadaşları) isteğe bağlı özel takım adı
   opponentTeamName String?                 // DOUBLE veya voleybol takımı: rakip takımın (opp1+opp2 veya katılımcılar) isteğe bağlı özel takım adı

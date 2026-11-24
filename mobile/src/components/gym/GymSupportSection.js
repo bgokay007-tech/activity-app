@@ -83,11 +83,11 @@ export default function GymSupportSection({
             const { data } = await api.get('/gyms', { params });
             setListings(Array.isArray(data) ? data : []);
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally {
             setLoading(false);
         }
-    }, [category, sub, cityFilter, feeMinFilter, feeMaxFilter, t.error, t.somethingWrong]);
+    }, [category, sub, cityFilter, feeMinFilter, feeMaxFilter, t.error, t.actionFailed]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -131,7 +131,7 @@ export default function GymSupportSection({
             }
             set('photos', urls);
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally {
             setUploading(false);
         }
@@ -180,7 +180,7 @@ export default function GymSupportSection({
             Alert.alert('', t.gymSubmittedPending);
             load();
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally {
             setSubmitting(false);
         }
@@ -204,7 +204,7 @@ export default function GymSupportSection({
                 } catch { /* ignore */ }
             }
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         }
     };
 
@@ -215,7 +215,7 @@ export default function GymSupportSection({
             load();
             if (detail?.id === gymId) openDetailFull({ id: gymId, userId: detail.user?.id });
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         }
     };
 
@@ -227,15 +227,15 @@ export default function GymSupportSection({
                 setApps(Array.isArray(mem) ? mem : []);
             }
         } catch (e) {
-            Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         }
     };
 
     const deleteGym = (id) => {
         Alert.alert(t.gymDeleteTitle, t.gymDeleteMsg, [
-            { text: t.cancel, style: 'cancel' },
+            { text: t.cancelBtn, style: 'cancel' },
             {
-                text: t.delete, style: 'destructive',
+                text: t.deleteBtn, style: 'destructive',
                 onPress: async () => {
                     try {
                         await api.delete(`/gyms/${id}`);
@@ -243,7 +243,7 @@ export default function GymSupportSection({
                         setDetailIsOwner(false);
                         load();
                     } catch (e) {
-                        Alert.alert(t.error, e?.response?.data?.message || t.somethingWrong);
+                        Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
                     }
                 },
             },
@@ -421,6 +421,34 @@ export default function GymSupportSection({
                             </View>
                         )}
 
+                        {/* Aktif üye ayrılınca Arşiv > Salonlar'a düşer (REVOKED + endedAt). */}
+                        {!detailIsOwner && detail.myMembershipStatus === 'ACTIVE' && (
+                            <TouchableOpacity
+                                style={[s.submit, { backgroundColor: '#7f1d1d', marginTop: 8 }]}
+                                onPress={() => {
+                                    Alert.alert(t.gymLeaveTitle || '', t.gymLeaveMsg || '', [
+                                        { text: t.cancel, style: 'cancel' },
+                                        {
+                                            text: t.gymLeaveBtn || t.delete,
+                                            style: 'destructive',
+                                            onPress: async () => {
+                                                try {
+                                                    await api.post(`/gyms/${detail.id}/membership-leave`);
+                                                    setMyQr(null);
+                                                    setDetail(null);
+                                                    load();
+                                                } catch (e) {
+                                                    Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+                                                }
+                                            },
+                                        },
+                                    ]);
+                                }}
+                            >
+                                <Text style={s.submitText}>{t.gymLeaveBtn}</Text>
+                            </TouchableOpacity>
+                        )}
+
                         {!detailIsOwner && detail.status === 'ACTIVE' && !detail.myMembershipStatus && (
                             <TouchableOpacity style={[s.submit, { backgroundColor: cfg?.color || '#f97316' }]} onPress={() => applyMember(detail.id)}>
                                 <Text style={s.submitText}>{t.gymApplyBtn}</Text>
@@ -448,10 +476,10 @@ export default function GymSupportSection({
                                             {a.status === 'PENDING' && (
                                                 <>
                                                     <TouchableOpacity onPress={() => respondApp(a.id, 'accept')} style={s.miniOk}>
-                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>{t.accept}</Text>
+                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>{t.acceptBtn}</Text>
                                                     </TouchableOpacity>
                                                     <TouchableOpacity onPress={() => respondApp(a.id, 'reject')} style={s.miniNo}>
-                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>{t.reject}</Text>
+                                                        <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>{t.rejectBtn}</Text>
                                                     </TouchableOpacity>
                                                 </>
                                             )}

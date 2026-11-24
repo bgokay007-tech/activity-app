@@ -478,6 +478,12 @@ const REQUIRED_PARTICIPANTS = { SINGLE: 1, DOUBLE: 2 };
 
 function getRequired(request) {
     if (request.matchType === 'PLAYER_WANTED') return Number(request.levelDetail) || 999;
+    // Fitness etkinlik kontenjanı: kurucu hariç kaç kişi daha lazım (max veya min eşiği).
+    // max dolunca MATCHED; min varsa ve max yoksa min ile kesinleşir.
+    if (request.maxParticipants != null || request.minParticipants != null) {
+        const cap = request.maxParticipants ?? request.minParticipants;
+        return Math.max(1, Number(cap) - 1);
+    }
     if (request.teamSize > 1) return 1; // team-sport participants dizisi için (bkz. teamFilledCount — asıl MATCHED eşiği artık bu değil)
     if (request.matchType === 'DOUBLE') {
         const senderTeamArr = Array.isArray(request.senderTeam) ? request.senderTeam : [];
@@ -1515,6 +1521,7 @@ export const updateRivalRequest = async (req, res, next) => {
         const { message, wager, matchDate, matchTime, duration, location, district, ticketUrl, courtName, courtAddress, courtLat, courtLng,
                 minRating, maxRating, ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
                 matchMode, genderReq, partnerGenderReq, opp1GenderReq, opp2GenderReq, genderCountMode, requiredMaleCount, minGenderReq, minGenderCount, winsNeeded,
+                minParticipants, maxParticipants,
                 venueId, venueCourtId, venueReservationId, isCourtReserved, surface, courtFeePerPerson, courtFeePerPersonByMethod, refereeRequested, refereePayment, refereeFeeIncluded, manualRefereeName,
                 teamFlexibility, matchType, participantsCanInvite, extraServices, feeIncludes, cancelPenaltyHours, subCount,
                 founderTeamName, opponentTeamName } = req.body;
@@ -1675,6 +1682,8 @@ export const updateRivalRequest = async (req, res, next) => {
                     minGenderCount: ['MIN', 'MIN_PER_TEAM'].includes(genderCountMode) && minGenderCount !== null && minGenderCount !== '' ? parseInt(minGenderCount, 10) : null,
                 }),
                 ...(winsNeeded !== undefined && { winsNeeded: winsNeeded !== null && winsNeeded !== '' ? parseInt(winsNeeded, 10) : null }),
+                ...(minParticipants !== undefined && { minParticipants: minParticipants !== null && minParticipants !== '' ? parseInt(minParticipants, 10) : null }),
+                ...(maxParticipants !== undefined && { maxParticipants: maxParticipants !== null && maxParticipants !== '' ? parseInt(maxParticipants, 10) : null }),
                 ...(cancelPenaltyHours !== undefined && { cancelPenaltyHours: cancelPenaltyHours !== null && cancelPenaltyHours !== '' ? parseInt(cancelPenaltyHours, 10) : null }),
                 ...(subCount !== undefined && { substituteCount: Math.max(0, parseInt(subCount, 10) || 0) }),
                 ...(venueId !== undefined && { venueId: venueId || null }),
@@ -2187,6 +2196,8 @@ export const createRivalRequest = async (req, res, next) => {
             requiredMaleCount, // voleybol takım ilanı: havuzun (2*teamSize) kaç kişisinin erkek olması gerektiği — undefined/null = kısıtlama yok
             minGenderReq, // 'MIN' modda: 'MALE' | 'FEMALE'
             minGenderCount, // 'MIN' modda: en az kaç kişi
+            minParticipants, // fitness etkinlik: min kontenjan (kurucu dahil)
+            maxParticipants, // fitness etkinlik: max kontenjan (kurucu dahil)
             winsNeeded, // örn. airsoft: kaç raunt/oyun kazanınca maç biter
             partnerInviteId, // DOUBLE: partner daveti gönderilecek kullanıcının id'si
             opp1InviteId, opp2InviteId, // DOUBLE: rakip 1 / rakip 2 slotuna doğrudan davet gönderilecek kullanıcı id'leri
@@ -2304,7 +2315,10 @@ export const createRivalRequest = async (req, res, next) => {
         }
 
         if (genderCountMode === 'EXACT' && requiredMaleCount !== undefined && requiredMaleCount !== null && requiredMaleCount !== '') {
-            const totalSlots = 2 * (Number(teamSize) || 1);
+            // Fitness kontenjanlı etkinlikte havuz = maxParticipants; aksi halde 2*teamSize.
+            const totalSlots = (maxParticipants != null && Number(maxParticipants) > 0)
+                ? Number(maxParticipants)
+                : 2 * (Number(teamSize) || 1);
             const rmc = parseInt(requiredMaleCount, 10);
             if (Number.isNaN(rmc) || rmc < 0 || rmc > totalSlots) {
                 return res.status(400).json({ message: 'Geçersiz erkek oyuncu sayısı' });
@@ -2327,7 +2341,9 @@ export const createRivalRequest = async (req, res, next) => {
             if (!['MALE', 'FEMALE'].includes(minGenderReq)) {
                 return res.status(400).json({ message: 'Minimum cinsiyet dağılımı için cinsiyet seçimi gerekli' });
             }
-            const totalSlots = 2 * (Number(teamSize) || 1);
+            const totalSlots = (maxParticipants != null && Number(maxParticipants) > 0)
+                ? Number(maxParticipants)
+                : 2 * (Number(teamSize) || 1);
             const mgc = parseInt(minGenderCount, 10);
             if (Number.isNaN(mgc) || mgc < 1 || mgc > totalSlots) {
                 return res.status(400).json({ message: 'Geçersiz minimum oyuncu sayısı' });
@@ -2480,6 +2496,20 @@ export const createRivalRequest = async (req, res, next) => {
                     && { genderCountMode: 'MIN_PER_TEAM', minGenderReq, minGenderCount: parseInt(minGenderCount, 10) }),
                 ...(winsNeeded !== undefined && winsNeeded !== null && winsNeeded !== ''
                     && { winsNeeded: parseInt(winsNeeded, 10) }),
+                // Fitness etkinlik kontenjanı — bilet linki yerine; kurucu 1 kişi sayılır.
+                ...(() => {
+                    const minP = minParticipants !== undefined && minParticipants !== null && minParticipants !== ''
+                        ? parseInt(minParticipants, 10) : null;
+                    const maxP = maxParticipants !== undefined && maxParticipants !== null && maxParticipants !== ''
+                        ? parseInt(maxParticipants, 10) : null;
+                    if (minP != null && (!Number.isFinite(minP) || minP < 2)) return {};
+                    if (maxP != null && (!Number.isFinite(maxP) || maxP < 2)) return {};
+                    if (minP != null && maxP != null && minP > maxP) return {};
+                    return {
+                        ...(minP != null && { minParticipants: minP }),
+                        ...(maxP != null && { maxParticipants: maxP }),
+                    };
+                })(),
                 status: 'OPEN',
             },
             include: { sender: { select: SENDER_SELECT } },
@@ -3210,6 +3240,14 @@ export const sendJoinRequest = async (req, res, next) => {
             }
             return joiner;
         };
+
+        // Fitness etkinlik kontenjanı — kurucu + mevcut katılımcılar max'a ulaştıysa başvuru kapalı.
+        if (request.maxParticipants != null) {
+            const filled = 1 + (Array.isArray(request.participants) ? request.participants.filter(p => p && (p.id || p.manualName)).length : 0);
+            if (filled >= request.maxParticipants) {
+                return res.status(400).json({ message: 'Etkinlik kontenjanı dolu.' });
+            }
+        }
 
         // Gender restriction check — SINGLE. Cinsiyeti profilinde belirtilmemiş kullanıcı,
         // cinsiyete özel bir ilana uygunluğu doğrulanamadığı için reddedilir (OTHER hariç);

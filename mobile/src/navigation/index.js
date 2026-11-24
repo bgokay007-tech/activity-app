@@ -329,6 +329,7 @@ import VenueSearchScreen from '../screens/main/VenueSearchScreen';
 import VenueDetailScreen from '../screens/main/VenueDetailScreen';
 import CourtSlotsScreen from '../screens/main/CourtSlotsScreen';
 import MyReservationsScreen from '../screens/main/MyReservationsScreen';
+import GymQrScanScreen from '../screens/main/GymQrScanScreen';
 import SavedScreen from '../screens/main/SavedScreen';
 import AthleteCardScreen from '../screens/main/AthleteCardScreen';
 import ActivityFeedScreen from '../screens/main/ActivityFeedScreen';
@@ -386,6 +387,7 @@ function HomeStackNav() {
             <HomeStack.Screen name="VenueDetail" component={VenueDetailScreen} />
             <HomeStack.Screen name="CourtSlots" component={CourtSlotsScreen} />
             <HomeStack.Screen name="MyReservations" component={MyReservationsScreen} />
+            <HomeStack.Screen name="GymQrScan" component={GymQrScanScreen} options={{ headerShown: false, presentation: 'fullScreenModal', animation: 'slide_from_bottom' }} />
             <HomeStack.Screen name="Saved" component={SavedScreen} />
             <HomeStack.Screen name="AthleteCard" component={AthleteCardScreen} />
             <HomeStack.Screen name="MusicHome" component={MusicHomeScreen} />

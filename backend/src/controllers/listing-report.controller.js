@@ -10,12 +10,13 @@ export const reportListing = async (req, res, next) => {
         const reporterId = req.userId;
 
         if (!reason?.trim()) return res.status(400).json({ message: 'Sebep gerekli' });
-        if (type !== 'equipment' && type !== 'coach' && type !== 'referee' && type !== 'club')
+        if (type !== 'equipment' && type !== 'coach' && type !== 'referee' && type !== 'club' && type !== 'gym')
             return res.status(400).json({ message: 'Geçersiz ilan tipi' });
 
         const listingType = type === 'equipment' ? 'EQUIPMENT'
             : type === 'referee' ? 'REFEREE'
             : type === 'club' ? 'CLUB'
+            : type === 'gym' ? 'GYM'
             : 'COACH';
 
         const listing = type === 'equipment'
@@ -24,7 +25,9 @@ export const reportListing = async (req, res, next) => {
                 ? await prisma.refereeListing.findUnique({ where: { id } })
                 : type === 'club'
                     ? await prisma.clubListing.findUnique({ where: { id } })
-                    : await prisma.coachListing.findUnique({ where: { id } });
+                    : type === 'gym'
+                        ? await prisma.gymListing.findUnique({ where: { id } })
+                        : await prisma.coachListing.findUnique({ where: { id } });
 
         if (!listing) return res.status(404).json({ message: 'İlan bulunamadı' });
         if (listing.userId === reporterId) return res.status(400).json({ message: 'Kendi ilanınızı bildiremezsiniz' });
@@ -45,6 +48,8 @@ export const reportListing = async (req, res, next) => {
             await prisma.refereeListing.update({ where: { id }, data: updateData });
         } else if (type === 'club') {
             await prisma.clubListing.update({ where: { id }, data: updateData });
+        } else if (type === 'gym') {
+            await prisma.gymListing.update({ where: { id }, data: updateData });
         } else {
             await prisma.coachListing.update({ where: { id }, data: updateData });
         }
@@ -52,7 +57,7 @@ export const reportListing = async (req, res, next) => {
         res.json({ ok: true });
 
         if (becameFlagged) {
-            const label = type === 'equipment' ? 'Ekipman' : type === 'referee' ? 'Hakem' : type === 'club' ? 'Kulüp' : 'Antrenör';
+            const label = type === 'equipment' ? 'Ekipman' : type === 'referee' ? 'Hakem' : type === 'club' ? 'Kulüp' : type === 'gym' ? 'Spor Salonu' : 'Antrenör';
             notifyAllAdmins(
                 'LISTING_FLAGGED',
                 '🚩 İlan Şikayet Eşiğine Ulaştı',
