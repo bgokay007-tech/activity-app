@@ -5,8 +5,8 @@ import { sanitizeDefiSettings } from './defiLadder.js';
 
 export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9', '10'];
 
-/** Sabit takım id'leri maç tarafı (p1Id/p2Id) — type 2/4 sabit çift; 7 Americano tur takımı. */
-export const TEAM_ENGINE_TYPES = ['2', '4', '7'];
+/** Sabit takım id'leri maç tarafı (p1Id/p2Id) — type 2/4/10 sabit çift; 7 Americano tur takımı. */
+export const TEAM_ENGINE_TYPES = ['2', '4', '7', '10'];
 
 export function isTeamEngineType(type) {
     return TEAM_ENGINE_TYPES.includes(String(type));
@@ -22,8 +22,8 @@ export const TOURNAMENT_PRESETS = [
     { id: 'americano', engineType: '7', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'AMERICANO', phase2: 'NONE', seeding: 'RANDOM', accent: '#2dd4bf' },
     // Defi ligi (meydan okuma merdiveni) — '8' eski kayıtlarda kullanılmış olabileceği için '9'. Kurallar: utils/defiLadder.js
     { id: 'defi_ladder', engineType: '9', entry: 'LADDER', intensity: 'COMPETITIVE', phase1: 'DEFI_LADDER', phase2: 'NONE', seeding: 'ELO', accent: '#f97316' },
-    // Saf tek eleme (grup yok) — Son 32 → … → Final ağacı
-    { id: 'single_elim', engineType: '10', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'SINGLE_ELIM', seeding: 'SEEDED', accent: '#38bdf8' },
+    // Saf eleme (grup yok) — sabit çiftler, Son 32 → … → Final ağacı (Çiftler sekmesi)
+    { id: 'single_elim', engineType: '10', entry: 'DOUBLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'SINGLE_ELIM', seeding: 'SEEDED', accent: '#38bdf8' },
 ];
 
 export function getPresetById(id) {

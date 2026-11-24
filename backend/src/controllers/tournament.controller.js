@@ -125,7 +125,7 @@ function sanitizeWhatsappGroupUrl(raw) {
 
 // Defi ligi çift girişi (padel/tenis çiftler merdiveni) çiftler puanı + partner akışı kullanır.
 const tIsDoubles = (t) => isDoublesFormat({ tournamentType: t.type }) || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
-const tAllowsPartner = (t) => t.type === '2' || t.type === '4' || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
+const tAllowsPartner = (t) => t.type === '2' || t.type === '4' || t.type === '10' || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
 export { ACTIVE_ENGINE_TYPES };
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
@@ -940,7 +940,7 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         if (m.p2Id) originalIds.add(m.p2Id);
     });
 
-    const players = (tournament.type === '2' || tournament.type === '4')
+    const players = (tournament.type === '2' || tournament.type === '4' || tournament.type === '10')
         ? await getCurrentTeamRatings(tournament, [...originalIds])
         : await getCurrentPlayerRatings(tournament, [...originalIds]);
 
@@ -2438,7 +2438,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
         let sides;
         let excludedFromTeamsAvail = [];
-        if (tournament.type === '2' || tournament.type === '4') {
+        if (tournament.type === '2' || tournament.type === '4' || tournament.type === '10') {
             const { teamsData, excluded } = await formTeamsForTournament(
                 tournament, rawParticipants, tournament.type === '4',
             );
@@ -2604,12 +2604,30 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             data: { bracketData: { engine: 'double_elim', wbRounds: built.wbRounds, size: built.size } },
         });
     } else if (tournament.type === '10') {
-        // Saf tek eleme: grup yok — power-of-2 bracket (BYE ile doldurulur), phase=PLAYOFF.
-        if (players.length < 2) {
-            throw Object.assign(new Error('Eleme usulü için en az 2 oyuncu gerekli.'), { status: 400 });
+        // Çiftler eleme usulü: sabit çiftler oluştur, sonra power-of-2 bracket (BYE), phase=PLAYOFF.
+        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants);
+        excludedFromTeams = excluded;
+        if (teamsData.length < 2) {
+            throw Object.assign(new Error('Eleme usulü için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });
         }
-        matches = singleElimMatches(players, id, 1, 'PLAYOFF');
-        const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, players.length))));
+        for (const ex of excluded) {
+            const body = ex.reason === 'capacity'
+                ? `"${tournament.name}" turnuvasında kontenjan dolduğu için bu turda yer alamadınız.`
+                : `"${tournament.name}" turnuvasında size eşleşecek bir partner bulunamadığı için bu turda yer alamadınız.`;
+            createNotification(
+                ex.userId, 'TOURNAMENT_REMOVED', '⚠️ Takım Eşleşmesi Bulunamadı', body,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
+        const createdTeams = await prisma.$transaction(teamsData.map(td => prisma.tournamentTeam.create({ data: td })));
+        const teamPlayers = createdTeams.map(t => ({
+            id: t.id,
+            fullName: `${t.player1Name} & ${t.player2Name}`,
+            username: `${t.player1Name} & ${t.player2Name}`,
+            skillRating: t.avgRating,
+        }));
+        matches = singleElimMatches(teamPlayers, id, 1, 'PLAYOFF');
+        const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, teamPlayers.length))));
         const totalRounds = Math.log2(size);
         const baseDl = new Date(baseDate);
         baseDl.setDate(baseDl.getDate() + 7);
@@ -2703,7 +2721,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     // Çiftler Rekabetçi'de yedekten takıma çekilen oyuncular da bildirim almalı, bu yüzden
     // type '2' için mainList değil tüm kabul edilenler (rawParticipants) taranır.
     const excludedIds = new Set(excludedFromTeams.map(ex => ex.userId));
-    const notifyList = (tournament.type === '2' || tournament.type === '4') ? rawParticipants : mainList;
+    const notifyList = (tournament.type === '2' || tournament.type === '4' || tournament.type === '10') ? rawParticipants : mainList;
     for (const p of notifyList) {
         if (p.userId && p.userId !== actorUserId && !excludedIds.has(p.userId)) {
             emitToUser(p.userId, 'tournament:started', { tournamentId: id });
@@ -5127,7 +5145,7 @@ function normalizeSchedule(raw) {
 /** Kullanıcı bu maçın p1/p2 tarafında mı? (bireysel veya takım üyesi) */
 async function resolveUserMatchSide(tournament, match, userId) {
     if (!userId || !match) return null;
-    const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+    const isTeamEngine = isTeamEngineType(tournament.type);
     if (!isTeamEngine) {
         if (match.p1Id === userId) return 'p1';
         if (match.p2Id === userId) return 'p2';
@@ -5154,7 +5172,7 @@ function isDemoUsername(u) {
 async function getDemoActorForMatchSide(tournament, match, sideKey) {
     const sideId = sideKey === 'p1' ? match?.p1Id : match?.p2Id;
     if (!sideId) return null;
-    const isTeamEngine = tournament?.type === '2' || tournament?.type === '4' || tournament?.type === '7';
+    const isTeamEngine = isTeamEngineType(tournament?.type);
     if (!isTeamEngine) {
         const u = await prisma.user.findUnique({
             where: { id: sideId },
@@ -5369,7 +5387,7 @@ async function seedDemoSchedulesForMatches(tournament, matches) {
     const pending = matches.filter(m => m.status === 'PENDING' && m.p1Id && m.p2Id);
     if (!pending.length) return 0;
 
-    const isTeam = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+    const isTeam = isTeamEngineType(tournament.type);
     const sideIds = [...new Set(pending.flatMap(m => [m.p1Id, m.p2Id].filter(Boolean)))];
     const sideMembers = new Map();
 
@@ -5525,7 +5543,7 @@ function tournamentPlayersArrangeCourts(tournament) {
 function courtFeeShareParts(tournament) {
     const entry = tournament?.formatConfig?.entry;
     const type = String(tournament?.type || '');
-    if (entry === 'DOUBLES' || type === '2' || type === '4' || type === '7') return 4;
+    if (entry === 'DOUBLES' || isTeamEngineType(type)) return 4;
     return 2;
 }
 
@@ -5545,7 +5563,7 @@ function minsToHHMM(totalMins) {
 async function resolveSidePayerUserId(tournament, match, sideKey) {
     const sideId = sideKey === 'p1' ? match?.p1Id : match?.p2Id;
     if (!sideId) return null;
-    const isTeam = tournament?.type === '2' || tournament?.type === '4' || tournament?.type === '7';
+    const isTeam = isTeamEngineType(tournament?.type);
     if (!isTeam) return sideId;
     const team = await prisma.tournamentTeam.findUnique({
         where: { id: sideId },
@@ -5640,7 +5658,7 @@ async function resolveVenueProFlag(venueId) {
 
 /** Maç listesinde her maçın scheduleData'sını izleyiciye göre kırp */
 async function attachSanitizedSchedules(tournament, matches, userId) {
-    const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+    const isTeamEngine = isTeamEngineType(tournament.type);
     let myTeamIds = new Set();
     if (isTeamEngine && userId) {
         const teams = await prisma.tournamentTeam.findMany({
@@ -5706,7 +5724,7 @@ export const setMatchAvailability = async (req, res, next) => {
             const otherSide = side === 'p1' ? 'p2' : 'p1';
             const otherId = otherSide === 'p1' ? match.p1Id : match.p2Id;
             const otherIsDemo = await (async () => {
-                const isTeam = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+                const isTeam = isTeamEngineType(tournament.type);
                 if (!isTeam) {
                     const u = await prisma.user.findUnique({
                         where: { id: otherId },
@@ -5987,7 +6005,7 @@ export const proposeMatchSchedule = async (req, res, next) => {
         if (!demoAutoAgreed) {
             const otherSideId = side === 'p1' ? match.p2Id : match.p1Id;
             const notifyIds = new Set();
-            const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+            const isTeamEngine = isTeamEngineType(tournament.type);
             if (isTeamEngine && otherSideId) {
                 const team = await prisma.tournamentTeam.findUnique({ where: { id: otherSideId } });
                 if (team?.player1Id) notifyIds.add(team.player1Id);
@@ -6222,7 +6240,7 @@ export const agreeMatchSchedule = async (req, res, next) => {
 
         // Her iki taraf + yaratıcıya bildir
         const notifyIds = new Set([tournament.creatorId]);
-        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+        const isTeamEngine = isTeamEngineType(tournament.type);
         for (const sideId of [match.p1Id, match.p2Id].filter(Boolean)) {
             if (isTeamEngine) {
                 const team = await prisma.tournamentTeam.findUnique({ where: { id: sideId } }).catch(() => null);
@@ -6397,7 +6415,7 @@ export const reserveMatchSchedule = async (req, res, next) => {
         const otherSide = side === 'p1' ? 'p2' : 'p1';
         const sideAUserId = await resolveSidePayerUserId(tournament, match, side) || req.userId;
         const sideBUserId = await resolveSidePayerUserId(tournament, match, otherSide);
-        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+        const isTeamEngine = isTeamEngineType(tournament.type);
 
         let segments;
         if (wantSplit && sideBUserId) {
@@ -6562,7 +6580,7 @@ export async function applyTournamentMatchAutoDraw(match, tournament, { source =
     if (!tournament || tournament.status !== 'IN_PROGRESS') return null;
 
     const now = new Date();
-    const isTeamTournament = tournament.type === '2' || tournament.type === '4';
+    const isTeamTournament = tournament.type === '2' || tournament.type === '4' || tournament.type === '10';
     let p1Members = [match.p1Id].filter(Boolean);
     let p2Members = [match.p2Id].filter(Boolean);
     if (isTeamTournament) {

@@ -14,7 +14,7 @@ function isDoublesTournament(tournament, match) {
     const fmt = String(tournament?.format || '').toUpperCase();
     if (fmt === 'DOUBLES' || fmt === 'DOUBLE') return true;
     const type = String(tournament?.type || '');
-    if (type === '2' || type === '4' || type === '7') return true;
+    if (type === '2' || type === '4' || type === '7' || type === '10') return true;
     const n1 = match?.p1Name || '';
     const n2 = match?.p2Name || '';
     return n1.includes(' & ') || n2.includes(' & ');

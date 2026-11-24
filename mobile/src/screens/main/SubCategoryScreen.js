@@ -29755,13 +29755,26 @@ function SubCategoryScreen({ route, navigation }) {
         }
         return (DATE_FILTER_OPTS.find(([v]) => v === filterDate) || DATE_FILTER_OPTS[0])[1];
     };
-    // Dala göre mekan kavramının adı değişiyor — voleybolde salon, kort kavramı olmayan
-    // dallarda (airsoft vb., SIMPLE_TAB_SUBS) mekan, diğerlerinde kort.
+    // Dala göre mekan kavramının adı değişiyor — voleybol/masa tenisinde salon,
+    // kort kavramı olmayan dallarda (airsoft vb., SIMPLE_TAB_SUBS) mekan, diğerlerinde kort.
+    const venueIsHall = sub === 'volleyball' || sub === 'table_tennis';
     const venueWord = () => {
-        if (sub === 'volleyball') return lang==='tr' ? 'Salon' : lang === 'ru' ? 'Зал' : lang === 'de' ? 'Halle' : 'Hall';
+        if (venueIsHall) return lang==='tr' ? 'Salon' : lang === 'ru' ? 'Зал' : lang === 'de' ? 'Halle' : 'Hall';
         if (SIMPLE_TAB_SUBS.has(sub)) return lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : lang === 'de' ? 'Ort' : 'Venue';
         return lang==='tr' ? 'Kort' : lang === 'ru' ? 'Корт' : lang === 'de' ? 'Platz' : 'Court';
     };
+    const venuesChipLabel = venueIsHall
+        ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls')
+        : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts');
+    const venuesSheetTitle = venueIsHall
+        ? (lang === 'tr' ? 'Kayıtlı Salonlar' : lang === 'ru' ? 'Зарегистрированные залы' : lang === 'de' ? 'Registrierte Hallen' : 'Registered Halls')
+        : (lang === 'tr' ? 'Kayıtlı Kortlar' : lang === 'ru' ? 'Зарегистрированные корты' : lang === 'de' ? 'Registrierte Plätze' : 'Registered Courts');
+    const venuesCountWord = venueIsHall
+        ? (lang === 'tr' ? 'salon' : lang === 'ru' ? 'залов' : lang === 'de' ? 'Hallen' : 'halls')
+        : (lang === 'tr' ? 'kort' : lang === 'ru' ? 'кортов' : lang === 'de' ? 'Plätze' : 'courts');
+    const venuesSearchPh = venueIsHall
+        ? (lang === 'tr' ? 'Tesis / salon adı ara...' : lang === 'ru' ? 'Поиск названия объекта / зала...' : lang === 'de' ? 'Objekt- / Hallennamen suchen...' : 'Search venue / hall name...')
+        : (lang === 'tr' ? 'Tesis / kort adı ara...' : lang === 'ru' ? 'Поиск названия объекта / корта...' : lang === 'de' ? 'Objekt- / Platznamen suchen...' : 'Search venue / court name...');
     const filterSummaryLabel = () => {
         const parts = [];
         if (sub === 'volleyball' && filterVolleyballType) {
@@ -30290,16 +30303,17 @@ function SubCategoryScreen({ route, navigation }) {
                     <Text style={[s.back, { color: cfg.color }]}>{t.back}</Text>
                 </ScreenBackButton>
                 {(sub === 'padel' || sub === 'pickleball') ? (
-                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap: moderateScale(6) }}>
+                    <View style={{ flex:1, flexDirection:'row', alignItems:'center', gap: moderateScale(6), minWidth:0 }}>
                         <Image
                             source={sub === 'pickleball' ? require('../../../assets/pickleball.jpg') : require('../../../assets/padel.png')}
                             style={{ width: moderateScale(28), height: moderateScale(28) }}
                             resizeMode="contain"
                         />
-                        <Text style={s.title}>{sportDisplayName}</Text>
+                        <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{sportDisplayName}</Text>
                     </View>
                 ) : (
-                    <Text style={s.title}>{cfg.emoji} {sportDisplayName}</Text>
+                    /* Masa Tenisi vb. uzun adlar sağdaki butonlarla 2 satıra kırılmasın — tek satırda küçült. */
+                    <Text style={s.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{cfg.emoji} {sportDisplayName}</Text>
                 )}
                 {(sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash' || sub === 'volleyball') ? (
                     <View style={{ flexDirection:'row', alignItems:'center', gap: 5 }}>
@@ -30315,11 +30329,10 @@ function SubCategoryScreen({ route, navigation }) {
                             style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center' }}>
                             <Text style={{ fontSize: moderateScale(22), lineHeight: moderateScale(28) }}>🃏</Text>
                         </TouchableOpacity>
-                        {/* Kullanıcı isteği: voleybolde de kortlar butonu görünsün, sadece etiketi
-                            "Salonlar" olsun (kort değil salon aranıyor). */}
+                        {/* Voleybol + masa tenisi: kort yok → Salonlar (bkz. venueIsHall). */}
                         <TouchableOpacity onPress={() => setShowVenuesSheet(true)}
                             style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#9333ea20', borderWidth:1, borderColor:'#9333ea50' }}>
-                            <Text style={{ color:'#c084fc', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{sub === 'volleyball' ? (lang === 'tr' ? 'Salonlar' : lang === 'ru' ? 'Залы' : lang === 'de' ? 'Hallen' : 'Halls') : (lang === 'tr' ? 'Kortlar' : lang === 'ru' ? 'Корты' : lang === 'de' ? 'Plätze' : 'Courts')}</Text>
+                            <Text style={{ color:'#c084fc', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{venuesChipLabel}</Text>
                         </TouchableOpacity>
                         {/* Kullanıcı isteği: ℹ️ soluna ? — Nasıl oynanır / Önemli sporcular / Bonus rehberi. */}
                         {hasSportGuide(sub) ? (
@@ -34576,9 +34589,9 @@ function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ color: cfg.color, fontSize:15, fontWeight:'700' }}>← {lang === 'tr' ? 'Geri' : lang === 'ru' ? 'Назад' : lang === 'de' ? 'Zurück' : 'Back'}</Text>
                             </ScreenBackButton>
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', flex:1 }}>
-                                🏟️ {lang === 'tr' ? 'Kayıtlı Kortlar' : lang === 'ru' ? 'Зарегистрированные корты' : lang === 'de' ? 'Registrierte Plätze' : 'Registered Courts'}
+                                🏟️ {venuesSheetTitle}
                             </Text>
-                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {lang === 'tr' ? 'kort' : lang === 'ru' ? 'кортов' : lang === 'de' ? 'Plätze' : 'courts'}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize:12 }}>{venuesTotal} {venuesCountWord}</Text>
                         </View>
 
                         {/* Filtreler */}
@@ -34587,7 +34600,7 @@ function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ fontSize:14, marginRight:6 }}>🔍</Text>
                                 <TextInput
                                     style={{ flex:1, color:'#fff', fontSize:13, paddingVertical:9 }}
-                                    placeholder={lang === 'tr' ? 'Tesis / kort adı ara...' : lang === 'ru' ? 'Поиск названия объекта / корта...' : lang === 'de' ? 'Objekt- / Platznamen suchen...' : 'Search venue / court name...'}
+                                    placeholder={venuesSearchPh}
                                     placeholderTextColor={colors.textMuted}
                                     value={venueFilterName}
                                     onChangeText={v => { setVenueFilterName(v); fetchVenues(venueFilterCity, v); }}
@@ -35703,7 +35716,7 @@ const s = StyleSheet.create({
     container:        { flex:1, backgroundColor: colors.bg },
     header:           { flexDirection:'row', alignItems:'center', paddingHorizontal: moderateScale(16), marginBottom: moderateScale(6), gap: moderateScale(6) },
     back:             { fontSize: moderateScale(16), fontWeight:'700' },
-    title:            { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', flex:1 },
+    title:            { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', flex:1, minWidth:0 },
 
     tabBar:           { flexGrow:0, marginBottom: moderateScale(4) },
     tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2 },

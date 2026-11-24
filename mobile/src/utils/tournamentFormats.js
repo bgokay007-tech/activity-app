@@ -22,8 +22,8 @@ export function defiEntryOf(tourn) {
     return defiEntryFor(tourn?.subCategory, tourn?.formatConfig?.defi?.entry);
 }
 
-/** Sabit/tur takım id'leri maç tarafı — 2/4 sabit çift, 7 Americano tur takımı. */
-export const TEAM_ENGINE_TYPES = ['2', '4', '7'];
+/** Sabit/tur takım id'leri maç tarafı — 2/4/10 sabit çift, 7 Americano tur takımı. */
+export const TEAM_ENGINE_TYPES = ['2', '4', '7', '10'];
 
 export function isTeamEngineType(type) {
     return TEAM_ENGINE_TYPES.includes(String(type));
@@ -125,9 +125,10 @@ export const TOURNAMENT_PRESETS = [
         subs: DEFI_SUBS,
     },
     {
+        // Kullanıcı isteği: eleme usulü Çiftler sekmesinde olsun (sabit çiftler + bracket).
         id: 'single_elim',
         engineType: '10',
-        entry: 'SINGLES',
+        entry: 'DOUBLES',
         intensity: 'COMPETITIVE',
         phase1: 'NONE',
         phase2: 'SINGLE_ELIM',

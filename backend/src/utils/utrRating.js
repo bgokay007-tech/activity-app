@@ -42,7 +42,8 @@ const SEED_WEIGHT_FLOOR = 0.1;
 // Rival ilanları matchType ('SINGLE'/'DOUBLE') taşır; turnuvalar kendi type kodunu taşır
 // ('2'/'4' = Çiftler Rekabetçi/Antrenman, '7' = Americano — bkz. tournamentFormats.js).
 export function isDoublesFormat({ matchType, tournamentType }) {
-    if (tournamentType != null) return tournamentType === '2' || tournamentType === '4' || tournamentType === '7';
+    // '10' = çiftler eleme usulü (sabit çift + bracket)
+    if (tournamentType != null) return tournamentType === '2' || tournamentType === '4' || tournamentType === '7' || tournamentType === '10';
     return matchType === 'DOUBLE';
 }
 
