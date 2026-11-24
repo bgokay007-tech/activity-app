@@ -25706,7 +25706,7 @@ function SubCategoryScreen({ route, navigation }) {
             if (tab === 'rivals') return t.player_wantedTab;
             if (tab === 'player_wanted') return t.rivalsTab;
         }
-        // Tenis sabit "Tennis Equipment" tutar; padel/badminton/masa tenisi/voleybol spor adıyla.
+        // Her dal kendi adıyla: "Kamp Ekipmanları", "Tenis Ekipmanları" vb.
         if (tab === 'equipment') return sportEquipmentTabLabel(sub, sportDisplayName, lang, t);
         return t[tab + 'Tab'];
     };

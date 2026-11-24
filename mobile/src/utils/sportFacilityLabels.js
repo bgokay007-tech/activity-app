@@ -102,16 +102,19 @@ export function sportFacilityLabels(sub, t) {
     };
 }
 
+/** Her dal: "{Dal} Ekipmanları" — tenis sabitine düşme (kamp→Kamp Ekipmanları vb.). */
 export function sportEquipmentTabLabel(sub, sportDisplayName, lang, t) {
-    const fac = sportFacilityLabels(sub, t);
-    if (sub === 'tennis') return t.equipmentTab;
-    if (fac.sportNamedEquipment || sub === 'basketball' || sub === 'dodgeball' || sub === 'handball' || sub === 'rugby') {
-        if (lang === 'tr') return `${sportDisplayName} Ekipmanları`;
-        if (lang === 'ru') return `${sportDisplayName} инвентарь`;
-        if (lang === 'de') return `${sportDisplayName} Ausrüstung`;
-        return `${sportDisplayName} Equipment`;
+    const name = (sportDisplayName || sub || '').trim();
+    if (!name) {
+        if (lang === 'tr') return 'Ekipmanlar';
+        if (lang === 'ru') return 'Инвентарь';
+        if (lang === 'de') return 'Ausrüstung';
+        return 'Equipment';
     }
-    return t.equipmentTab;
+    if (lang === 'tr') return `${name} Ekipmanları`;
+    if (lang === 'ru') return `${name} инвентарь`;
+    if (lang === 'de') return `${name}-Ausrüstung`;
+    return `${name} Equipment`;
 }
 
 /** Paylaşım rozeti — "EKİPMAN" değil "Tenis Ekipmanı" / "Padel Equipment" vb. */

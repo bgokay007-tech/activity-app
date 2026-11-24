@@ -120,14 +120,7 @@
     "description_required": "Die Beschreibung muss mindestens 5 Zeichen lang sein",
     "active_tab": "Aktiv",
     "sold_tab": "Verkauft",
-    "sport_tab": {
-      "tennis": "Tennisausrüstung",
-      "padel": "Padel-Ausrüstung",
-      "basketball": "Basketballausrüstung",
-      "volleyball": "Volleyballausrüstung",
-      "pickleball": "Pickleball-Ausrüstung",
-      "squash": "Squash-Ausrüstung"
-    },
+    "sport_tab_named": "{{sport}}-Ausrüstung",
     "condition_all": "Alle",
     "chat_btn": "Chat öffnen",
     "send_offer_btn": "Angebot senden",

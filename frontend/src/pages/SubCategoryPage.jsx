@@ -13,6 +13,7 @@ import CreatePostModal from '../components/CreatePostModal';
 import PeerReviewModal from '../components/PeerReviewModal';
 import TournamentMatchScheduleModal, { formatAgreed } from '../components/TournamentMatchScheduleModal';
 import { ENABLED_SUBS, MAINTENANCE_MESSAGE } from '../config/features';
+import { subLabel } from '../config/visualCatalog';
 import { shareRival, shareTournament } from '../utils/share';
 
 // Rival formunda kendi DB'den kort arama + yeni kort ekleme
@@ -4773,7 +4774,7 @@ function SubCategoryPage() {
                                  tab === 'events'        ? `📅 ${t('tabs.events')}` :
                                  tab === 'tournaments'   ? `🏆 ${t('tabs.tournaments')}` :
                                  tab === 'coaches'       ? `🎓 ${COACH_EXPANDED_SPORTS.has(sub) ? t('tabs.support') : t('tabs.coaches')}` :
-                                 tab === 'equipment'     ? `🎾 ${t(`equipment.sport_tab.${sub}`, { defaultValue: t('tabs.equipment') })}` :
+                                 tab === 'equipment'     ? `🎾 ${t('equipment.sport_tab_named', { sport: subLabel(sub, lang) })}` :
                                  tab === 'tickets'       ? `🎟️ ${t('tabs.tickets')}` :
                                  tab === 'archive'       ? `🗃️ ${t('tabs.archive')}` : `📷 ${t('tabs.media')}`}
                             </button>
