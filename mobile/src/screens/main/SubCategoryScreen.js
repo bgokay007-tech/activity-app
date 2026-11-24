@@ -1015,6 +1015,32 @@ async function pickAndUploadMatchMedia(onProgress, t) {
     return { url: uploadData.url, isVideo };
 }
 
+// Tam ekran maç medya videosu — parent (RivalDetail/Upcoming) her zaman mount ETMEMELİ;
+// useVideoPlayer native ağır. Sadece video URL varken bu bileşeni aç.
+function MatchMediaVideoViewer({ url, style }) {
+    const player = useVideoPlayer(null);
+    useEffect(() => {
+        if (!url) {
+            try { player.pause(); } catch { /* */ }
+            return undefined;
+        }
+        let cancelled = false;
+        player.replaceAsync(url)
+            .then(() => { if (!cancelled) player.play(); })
+            .catch(() => {});
+        return () => { cancelled = true; try { player.pause(); } catch { /* */ } };
+    }, [url]);
+    return (
+        <VideoView
+            player={player}
+            style={style}
+            allowsFullscreen
+            allowsPictureInPicture
+            nativeControls
+        />
+    );
+}
+
 // Kullanıcı isteği: Medya sekmesindeki video paylaşımları Instagram gibi akışta otomatik
 // oynasın (sessiz+döngülü) — ama "Veri Tasarrufu" açıksa otomatik oynatılmasın, kullanıcı
 // dokununca kartın içinde küçük oynasın, basılı tutunca tam ekran açılıp orada oynasın.
@@ -1504,10 +1530,6 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     // ok işaretiyle gizlenip gösterilebilsin.
     const [showSentInvites, setShowSentInvites] = useState(true);
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
-    const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
-        ? matchMediaList[matchMediaViewIdx].videoUrl : null;
-    // Video player artık MatchMediaVideoViewer içinde — sadece tam ekran video açılınca
-    // mount edilir (her detay modalında native player oluşturmak Digimon açılışını kastediyordu).
     const loadMatchMedia = () => {
         if (!item?.id) return;
         setLoadingMatchMedia(true);
@@ -1702,7 +1724,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         setAmISpectator(false);
         setLocalOrderedUserIds([]);
         if (item?.id && visible) {
-            // Fresh fetch: güncel cinsiyet, katılımcılar ve istekler
+            // Digimon kadro için taze veri hemen — yorum/medya/seyirci Digimon boyandıktan sonra
+            // (InteractionManager) çekilir; açılışta 3 paralel istek JS thread'i kilitliyordu.
             api.get(`/rivals/${item.id}`)
                 .then(({ data }) => {
                     setLocalGender({
@@ -1717,21 +1740,25 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                     setLocalOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []);
                 })
                 .catch(() => {});
-            setLoadingComments(true);
-            api.get(`/rivals/${item.id}/comments`)
-                .then(res => setComments(res.data || []))
-                .catch(e => Alert.alert(t.sc_0014, e?.response?.data?.message || t.sc_0015))
-                .finally(() => setLoadingComments(false));
-            loadMatchMedia();
-            if (item.subCategory === 'volleyball') {
-                api.get(`/rivals/${item.id}/spectators`)
-                    .then(({ data }) => {
-                        setSpectators(Array.isArray(data?.spectators) ? data.spectators : []);
-                        setAmISpectator(!!data?.amISpectator);
-                    })
-                    .catch(() => {});
-            }
+            const task = InteractionManager.runAfterInteractions(() => {
+                setLoadingComments(true);
+                api.get(`/rivals/${item.id}/comments`)
+                    .then(res => setComments(res.data || []))
+                    .catch(() => {})
+                    .finally(() => setLoadingComments(false));
+                loadMatchMedia();
+                if (item.subCategory === 'volleyball') {
+                    api.get(`/rivals/${item.id}/spectators`)
+                        .then(({ data }) => {
+                            setSpectators(Array.isArray(data?.spectators) ? data.spectators : []);
+                            setAmISpectator(!!data?.amISpectator);
+                        })
+                        .catch(() => {});
+                }
+            });
+            return () => task?.cancel?.();
         }
+        return undefined;
     }, [item?.id, visible]);
 
     const toggleSpectator = () => {
@@ -2682,130 +2709,154 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             göstermesiyle çözüldü — bkz. o bileşendeki showDropdown yorumu.) */}
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
-                {/* Header: geri + ilan sahibi fotosu + 2 kolon bilgi. */}
+                {/* Header: geri + sol (foto / isim+elo / fiyat / kort rez.) + sağ (tarih / konum / mod+format / derece+cinsiyet). */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(10), borderBottomWidth:1, borderBottomColor: colors.border, gap: moderateScale(8) }}>
                     <ScreenBackButton onPress={onClose} style={{ padding:1, marginTop: moderateScale(4) }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </ScreenBackButton>
-                    <Avatar
-                        name={item.sender?.username}
-                        avatar={item.sender?.avatar}
-                        size={moderateScale(56)}
-                        color={cfg.color}
-                        onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}
-                    />
-                    <View style={{ flex:1, flexDirection:'row', alignItems:'flex-start', gap: moderateScale(6), minWidth:0 }}>
-                        {/* Sol: isim+elo yan yana, cinsiyet, derece, fiyat, rezervasyon */}
-                        <View style={{ flex:1, minWidth:0, gap:2 }}>
-                            <Text style={{ color:'#fff', fontSize: moderateScale(13), fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                {senderAlias(item.sender)}
-                                {item.sender?.interests?.[0]?.assessmentCompleted
-                                    ? `  ${Number(item.sender.interests[0].skillRating).toFixed(2)} ★`
-                                    : ''}
+                    {/* Sol sütun: foto → altında isim+elo → fiyat (ok ile ödeme yöntemleri) → kort rezerve */}
+                    <View style={{ width: moderateScale(88), alignItems:'center', gap:2 }}>
+                        <Avatar
+                            name={item.sender?.username}
+                            avatar={item.sender?.avatar}
+                            size={moderateScale(56)}
+                            color={cfg.color}
+                            onPress={() => item.senderId && navigation.push('Profile', { userId: item.senderId })}
+                        />
+                        <Text style={{ color:'#fff', fontSize: moderateScale(11), fontWeight:'800', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                            {senderAlias(item.sender)}
+                        </Text>
+                        {item.sender?.interests?.[0]?.assessmentCompleted && item.sender.interests[0].skillRating != null && (
+                            <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'800', textAlign:'center' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                {ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}
                             </Text>
-                            {(() => {
-                                const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
-                                const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
-                                if (!hasSingleGenderReq && !hasDoubleGenderReq) return null;
-                                if (hasSingleGenderReq) {
-                                    return (
-                                        <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(11), fontWeight:'700' }}>
-                                            {item.genderReq === 'MALE' ? '👨' : '👩'}
+                        )}
+                        {item.courtFeePerPerson > 0 && (() => {
+                            const methodEntries = feeByMethodEntries(item.courtFeePerPersonByMethod);
+                            const hasMethods = methodEntries.length > 0;
+                            const feeLabel = `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}`;
+                            return (
+                                <View style={{ alignItems:'center', width:'100%' }}>
+                                    <TouchableOpacity
+                                        onPress={hasMethods ? () => setFeeMethodsExpanded(v => !v) : undefined}
+                                        disabled={!hasMethods}
+                                        activeOpacity={hasMethods ? 0.7 : 1}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, maxWidth:'100%' }}
+                                    >
+                                        <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                            {feeLabel}
                                         </Text>
-                                    );
-                                }
-                                const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
-                                return (
-                                    <Text style={{ color:'#a855f7', fontSize: moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
-                                        {`${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`}
-                                    </Text>
-                                );
-                            })()}
-                            {item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item) && (
-                                <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
-                                    {genderCountDisplayLabel(item, t)}
-                                </Text>
-                            )}
-                            {(() => {
-                                const hasRatingRange = item.ratingGenderSplit
-                                    ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
-                                    : (item.minRating != null || item.maxRating != null);
-                                if (!hasRatingRange) return null;
-                                return (
-                                    <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
-                                        {item.ratingGenderSplit
-                                            ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
-                                            : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
-                                    </Text>
-                                );
-                            })()}
-                            {item.courtFeePerPerson > 0 && (
-                                <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    {item.courtFeePerPerson}{item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺{item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / {t.perPerson}
-                                </Text>
-                            )}
-                            {feeByMethodEntries(item.courtFeePerPersonByMethod).length > 0 && feeByMethodEntries(item.courtFeePerPersonByMethod).map(([k, v]) => (
-                                <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9) }} numberOfLines={1}>
-                                    {feeMethodLabel(k, t) || k}: {v}₺
-                                </Text>
-                            ))}
-                            <Text style={{ fontSize:moderateScale(10), fontWeight:'700', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
-                                {item.isCourtReserved
-                                    ? sportFacilityLabels(sub, t).reserved
-                                    : item.location === 'Ortaklaşa Kararlaştırılır'
-                                        ? (t.courtMutualBtn || t.sc_0046)
-                                        : sportFacilityLabels(sub, t).notReserved}
+                                        {hasMethods && (
+                                            <Text style={{ color:'#86efac', fontSize:moderateScale(10), fontWeight:'700' }}>
+                                                {feeMethodsExpanded ? '▼' : '▶'}
+                                            </Text>
+                                        )}
+                                    </TouchableOpacity>
+                                    {hasMethods && feeMethodsExpanded && methodEntries.map(([k, v]) => (
+                                        <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9), textAlign:'center' }} numberOfLines={1}>
+                                            {feeMethodLabel(k, t) || k}: {v}₺
+                                        </Text>
+                                    ))}
+                                </View>
+                            );
+                        })()}
+                        <Text style={{ fontSize:moderateScale(9), fontWeight:'700', textAlign:'center', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={2}>
+                            {item.isCourtReserved
+                                ? sportFacilityLabels(sub, t).reserved
+                                : item.location === 'Ortaklaşa Kararlaştırılır'
+                                    ? (t.courtMutualBtn || t.sc_0046)
+                                    : sportFacilityLabels(sub, t).notReserved}
+                        </Text>
+                    </View>
+                    {/* Sağ sütun: tarih/gün/zaman → konum → mod+format → derece + cinsiyet kısıtı */}
+                    <View style={{ flex:1, minWidth:0, gap:2 }}>
+                        {item.matchDate && (
+                            <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
+                                {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
+                            </Text>
+                        )}
+                        {(item.matchTime || item.duration) && (
+                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                                {item.matchTime ? (() => {
+                                    const [h, m] = item.matchTime.split(':').map(Number);
+                                    const dur = parseInt(item.duration || 0);
+                                    const tot = h * 60 + m + dur;
+                                    const endT = dur > 0 ? `–${String(Math.floor(tot / 60) % 24).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')}` : '';
+                                    return `${item.matchTime}${endT}`;
+                                })() : `${item.duration} ${t.timeMinSuffix}`}
+                            </Text>
+                        )}
+                        {!!(item.location || item.district) && item.location !== 'Ortaklaşa Kararlaştırılır' && (
+                            <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={2}>
+                                {[item.location, item.district].filter(Boolean).join(' / ')}
+                            </Text>
+                        )}
+                        {item.courtName && (
+                            <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress, t)}>
+                                <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>{item.courtName}</Text>
+                            </TouchableOpacity>
+                        )}
+                        {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
+                            <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : t.lang === 'de' ? v.labelDe : v.labelEn}`; })()}
+                            </Text>
+                        )}
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
+                            <Text style={{
+                                color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
+                                fontSize: moderateScale(11), fontWeight: '700',
+                            }} numberOfLines={1}>
+                                {noEmojiStr(
+                                    item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
+                                        : item.matchMode === 'BOTH' ? t.modeBoth
+                                            : t.modePractice
+                                )}
+                            </Text>
+                            <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
+                                {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : matchFormatLabel(item, t)}
                             </Text>
                         </View>
-                        {/* Sağ: mod+format, tarih, saat, konum */}
-                        <View style={{ flex:1, minWidth:0, gap:2 }}>
-                            <View style={{ flexDirection:'row', alignItems:'center', gap:4, flexWrap:'wrap' }}>
-                                <Text style={{
-                                    color: item.matchMode === 'COMPETITIVE' ? '#f87171' : item.matchMode === 'BOTH' ? '#c084fc' : '#60a5fa',
-                                    fontSize: moderateScale(11), fontWeight: '700',
-                                }} numberOfLines={1}>
-                                    {noEmojiStr(
-                                        item.matchMode === 'COMPETITIVE' ? t.modeCompetitive
-                                            : item.matchMode === 'BOTH' ? t.modeBoth
-                                                : t.modePractice
-                                    )}
+                        {(() => {
+                            const hasRatingRange = item.ratingGenderSplit
+                                ? (item.minRatingMale != null || item.maxRatingMale != null || item.minRatingFemale != null || item.maxRatingFemale != null)
+                                : (item.minRating != null || item.maxRating != null);
+                            if (!hasRatingRange) return null;
+                            return (
+                                <Text style={{ color:'#facc15', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                    {item.ratingGenderSplit
+                                        ? `⭐ 👨${item.minRatingMale ?? 0}-${item.maxRatingMale ?? 5}  👩${item.minRatingFemale ?? 0}-${item.maxRatingFemale ?? 5}`
+                                        : `⭐ ${item.minRating ?? '0'}–${item.maxRating ?? '5'}`}
                                 </Text>
-                                <Text style={{ color: cfg.color, fontSize: moderateScale(11), fontWeight: '700' }} numberOfLines={1}>
-                                    {TEAM_SPORTS.has(sub) ? t.sc_0047(item.teamSize||1, item.teamSize||1) : matchFormatLabel(item, t)}
+                            );
+                        })()}
+                        {(() => {
+                            const hasSingleGenderReq = item.genderReq && item.genderReq !== 'MIX';
+                            const hasDoubleGenderReq = item.matchType === 'DOUBLE' && (item.partnerGenderReq !== 'MIX' || item.opp1GenderReq !== 'MIX' || item.opp2GenderReq !== 'MIX');
+                            if (!hasSingleGenderReq && !hasDoubleGenderReq) return null;
+                            if (hasSingleGenderReq) {
+                                return (
+                                    <Text style={{ color: item.genderReq === 'MALE' ? '#3b82f6' : '#ec4899', fontSize: moderateScale(11), fontWeight:'700' }}>
+                                        {item.genderReq === 'MALE' ? '👨' : '👩'}
+                                    </Text>
+                                );
+                            }
+                            const gL = (g) => g === 'MALE' ? '♂' : g === 'FEMALE' ? '♀' : '⚥';
+                            return (
+                                <Text style={{ color:'#a855f7', fontSize: moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
+                                    {`${gL(item.sender?.gender)}${gL(item.partnerGenderReq)}${gL(item.opp1GenderReq)}${gL(item.opp2GenderReq)}`}
                                 </Text>
-                            </View>
-                            {item.matchDate && (
-                                <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
-                                    {new Date(item.matchDate).toLocaleDateString(t.dateLocale, { day:'numeric', month:'long', weekday:'long' })}
-                                </Text>
-                            )}
-                            {(item.matchTime || item.duration) && (
-                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
-                                    {item.matchTime ? (() => {
-                                        const [h, m] = item.matchTime.split(':').map(Number);
-                                        const dur = parseInt(item.duration || 0);
-                                        const tot = h * 60 + m + dur;
-                                        const endT = dur > 0 ? `–${String(Math.floor(tot / 60) % 24).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')}` : '';
-                                        return `${item.matchTime}${endT}`;
-                                    })() : `${item.duration} ${t.timeMinSuffix}`}
-                                </Text>
-                            )}
-                            {item.subCategory === 'volleyball' && !!VOLLEYBALL_SURFACES.find(v => v.id === item.surface) && (
-                                <Text style={{ color: colors.textMuted, fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
-                                    {(() => { const v = VOLLEYBALL_SURFACES.find(v => v.id === item.surface); return `${v.emoji} ${t.lang === 'tr' ? v.label : t.lang === 'ru' ? v.labelRu : t.lang === 'de' ? v.labelDe : v.labelEn}`; })()}
-                                </Text>
-                            )}
-                            {item.courtName && (
-                                <TouchableOpacity onPress={() => openCourtMap(item.courtName, item.courtLat, item.courtLng, item.courtAddress, t)}>
-                                    <Text style={{ color:'#60a5fa', fontSize:moderateScale(10), textDecorationLine:'underline' }} numberOfLines={2}>{item.courtName}</Text>
-                                </TouchableOpacity>
-                            )}
-                            {item.subCategory === 'volleyball' && item.cancelPenaltyHours != null && (
-                                <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1}>
-                                    {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
-                                </Text>
-                            )}
-                        </View>
+                            );
+                        })()}
+                        {item.subCategory === 'volleyball' && item.teamSize > 1 && hasGenderCountInfo(item) && (
+                            <Text style={{ color:'#a855f7', fontSize:moderateScale(10), fontWeight:'700' }} numberOfLines={1}>
+                                {genderCountDisplayLabel(item, t)}
+                            </Text>
+                        )}
+                        {item.subCategory === 'volleyball' && item.cancelPenaltyHours != null && (
+                            <Text style={{ color:'#f87171', fontSize:moderateScale(9), fontWeight:'700' }} numberOfLines={1}>
+                                {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
+                            </Text>
+                        )}
                     </View>
                 </View>
 
@@ -5003,7 +5054,12 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                 {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
                     matchMediaList[matchMediaViewIdx].imageUrl
                         ? <Image source={{ uri: matchMediaList[matchMediaViewIdx].imageUrl }} style={{ width:'100%', height:'75%' }} resizeMode="contain" />
-                        : <VideoView player={matchMediaViewPlayer} style={{ width:'100%', height:'75%' }} allowsFullscreen allowsPictureInPicture nativeControls />
+                        : (
+                            <MatchMediaVideoViewer
+                                url={matchMediaList[matchMediaViewIdx].videoUrl}
+                                style={{ width: '100%', height: '75%' }}
+                            />
+                        )
                 )}
             </View>
         </Modal>
@@ -7210,14 +7266,28 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // Kullanıcı isteği: sipariş veren oyuncunun isminin yanında yanıp sönen bir adisyon
     // ikonu çıksın, tıklayınca sipariş detayı (mevcut "Adisyon" modalı, bkz. openBillView
     // aşağıda) açılsın — RivalDetailModal'daki (açık ilan detayı) aynı desen.
-    const [orderedUserIds, setOrderedUserIds] = useState([]);
+    const [orderedUserIds, setOrderedUserIds] = useState(
+        () => (Array.isArray(match.orderedUserIds) ? match.orderedUserIds : []),
+    );
     const orderBlink = useRef(new Animated.Value(1)).current;
     useEffect(() => {
-        if (!match.venueId) { setOrderedUserIds([]); return; }
-        api.get(`/rivals/${match.id}`)
-            .then(({ data }) => setOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []))
-            .catch(() => {});
-    }, [match.id, match.venueId]);
+        if (!match.venueId) { setOrderedUserIds([]); return undefined; }
+        // Liste zaten orderedUserIds gönderiyorsa ekstra GET yok — her UpcomingCard'ın
+        // mount'ta /rivals/:id çekmesi Digimon listesini (özellikle tenis) kilitliyordu.
+        if (Array.isArray(match.orderedUserIds)) {
+            setOrderedUserIds(match.orderedUserIds);
+            return undefined;
+        }
+        let cancelled = false;
+        const task = InteractionManager.runAfterInteractions(() => {
+            api.get(`/rivals/${match.id}`)
+                .then(({ data }) => {
+                    if (!cancelled) setOrderedUserIds(Array.isArray(data.orderedUserIds) ? data.orderedUserIds : []);
+                })
+                .catch(() => {});
+        });
+        return () => { cancelled = true; task?.cancel?.(); };
+    }, [match.id, match.venueId, match.orderedUserIds]);
     useEffect(() => {
         if (orderedUserIds.length === 0) return;
         const loop = Animated.loop(Animated.sequence([
@@ -7269,35 +7339,6 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     // ok işaretiyle gizlenip gösterilebilsin.
     const [showSentInvites, setShowSentInvites] = useState(true);
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
-    const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
-        ? matchMediaList[matchMediaViewIdx].videoUrl : null;
-    // Kullanıcı raporu: "hala oynatmıyor" — useVideoPlayer'ın setup callback'i SADECE player
-    // ilk oluşturulduğunda bir kez çalışıyor, source sonradan değişince player kendiliğinden
-    // yeni kaynağı yüklemiyor (expo-video: "the setup callback runs only once during player
-    // creation"). Source değişikliği ayrı bir efektte replaceAsync ile elle uygulanmalı.
-    const matchMediaViewPlayer = useVideoPlayer(null);
-    useEffect(() => {
-        if (matchMediaViewUrl) {
-            matchMediaViewPlayer.replaceAsync(matchMediaViewUrl).then(() => matchMediaViewPlayer.play()).catch(() => {});
-        } else {
-            matchMediaViewPlayer.pause();
-        }
-    }, [matchMediaViewUrl]);
-    useEffect(() => {
-        setLoadingMatchMedia(true);
-        api.get(`/posts?rivalId=${match.id}`)
-            .then(({ data }) => setMatchMediaList(Array.isArray(data) ? data : []))
-            .catch(() => {})
-            .finally(() => setLoadingMatchMedia(false));
-    }, [match.id]);
-    // Kullanıcı isteği: maça katılan biri medya paylaştığında bu kart açıkken ANINDA görünsün.
-    useEffect(() => {
-        const off = onSocket('rivalMediaAdded', ({ rivalId, post }) => {
-            if (rivalId !== match.id) return;
-            setMatchMediaList(prev => prev.some(p => p.id === post.id) ? prev : [post, ...prev]);
-        });
-        return off;
-    }, [match.id]);
     // Kullanıcı isteği: skor bekleyen (scoreStatus PENDING) maçlarda skoru girenin paylaştığı
     // medya da karşı tarafın onayını bekler — bu maçlar için o medyaları çekip Onayla/Reddet
     // gösterir (bkz. backend getPendingMatchMedia/approveMatchMedia/rejectMatchMedia).
@@ -7390,6 +7431,30 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
     const [propManualName, setPropManualName] = useState('');
     const [propManualCity, setPropManualCity] = useState('');
     const [showDetail, setShowDetail] = useState(false);
+    // Medya listesi: sadece Digimon/detay AÇIKKEN — her UpcomingCard mount'ta /posts çekmek
+    // listeyi kastediyordu (özellikle tenis). showDetail burada tanımlandıktan sonra efekt.
+    useEffect(() => {
+        if (!showDetail) return undefined;
+        let cancelled = false;
+        const task = InteractionManager.runAfterInteractions(() => {
+            if (cancelled) return;
+            setLoadingMatchMedia(true);
+            api.get(`/posts?rivalId=${match.id}`)
+                .then(({ data }) => { if (!cancelled) setMatchMediaList(Array.isArray(data) ? data : []); })
+                .catch(() => {})
+                .finally(() => { if (!cancelled) setLoadingMatchMedia(false); });
+        });
+        return () => { cancelled = true; task?.cancel?.(); };
+    }, [match.id, showDetail]);
+    // Kullanıcı isteği: maça katılan biri medya paylaştığında bu kart açıkken ANINDA görünsün.
+    useEffect(() => {
+        if (!showDetail) return undefined;
+        const off = onSocket('rivalMediaAdded', ({ rivalId, post }) => {
+            if (rivalId !== match.id) return;
+            setMatchMediaList(prev => prev.some(p => p.id === post.id) ? prev : [post, ...prev]);
+        });
+        return off;
+    }, [match.id, showDetail]);
     const [localComments, setLocalComments] = useState([]);
     const [loadingLocalComments, setLoadingLocalComments] = useState(false);
     const [localCommentsLoaded, setLocalCommentsLoaded] = useState(false);
@@ -10339,7 +10404,12 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 {matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && (
                     matchMediaList[matchMediaViewIdx].imageUrl
                         ? <Image source={{ uri: matchMediaList[matchMediaViewIdx].imageUrl }} style={{ width:'100%', height:'75%' }} resizeMode="contain" />
-                        : <VideoView player={matchMediaViewPlayer} style={{ width:'100%', height:'75%' }} allowsFullscreen allowsPictureInPicture nativeControls />
+                        : (
+                            <MatchMediaVideoViewer
+                                url={matchMediaList[matchMediaViewIdx].videoUrl}
+                                style={{ width: '100%', height: '75%' }}
+                            />
+                        )
                 )}
             </View>
         </Modal>
