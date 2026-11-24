@@ -228,6 +228,16 @@ function isLiveUrgent(item, now) {
     return matchHasStarted(item, now) && !matchHasEnded(item, now);
 }
 
+/** Katıldın ama henüz sadece gün/saat bekleniyor (esnek veya tarih/saat boş). */
+function isWaitingForDateTime(item) {
+    if (!item || item.kind === 'tournament') return false;
+    const status = String(item.status || '');
+    if (status !== 'MATCHED' && status !== 'OPEN') return false;
+    if (item.flexibleSchedule && !item.matchDate) return true;
+    if (!item.matchDate || !item.matchTime) return true;
+    return false;
+}
+
 function BlinkRedKicker({ children, style }) {
     const opacity = useRef(new Animated.Value(1)).current;
     useEffect(() => {
@@ -270,6 +280,8 @@ export default function HomeScreen({ navigation }) {
     const [openListings, setOpenListings] = useState([]);
     const [showCityPicker, setShowCityPicker] = useState(false);
     const [listingsLoading, setListingsLoading] = useState(false);
+    // Katıldığın Aktiviteler ve İlanların — varsayılan kapalı (ok sola); açılınca aşağı
+    const [joinedSectionExpanded, setJoinedSectionExpanded] = useState(false);
     const CAT_LABELS = {
         SPORTS: t.catLabelSports, SOCIAL: t.catLabelSocial, ARTS: t.catLabelArts, GAMES: t.catLabelGames,
     };
@@ -514,7 +526,9 @@ export default function HomeScreen({ navigation }) {
         const isTourn = item.kind === 'tournament';
         const mineOpen = isMineOpenListing(item, user?.id);
         const playing = !isTourn && matchHasStarted(item, now) && !matchHasEnded(item, now);
-        const urgent = isLiveUrgent(item, now);
+        const waitingDate = !isTourn && !mineOpen && isWaitingForDateTime(item);
+        // Devam eden / oynanan VEYA gün-saat bekleyen katılım → kırmızı yanıp sönen "Katıldığın"
+        const urgent = isLiveUrgent(item, now) || waitingDate;
         const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
         const meta = isTourn ? null : listingMeta(item);
         const kicker = isTourn
@@ -609,28 +623,45 @@ export default function HomeScreen({ navigation }) {
 
                 {(myListingsCol.length > 0 || joinedActsCol.length > 0) ? (
                     <>
-                        <Text style={[nv.section, { marginBottom: 10 }]}>
-                            {t.homeJoinedActivities}
-                            {` (${myListingsCol.length + joinedActsCol.length})`}
-                        </Text>
-                        <View style={nv.splitRow}>
-                            <View style={nv.splitCol}>
-                                <Text style={nv.splitHead}>{t.homeListingsCol}</Text>
-                                {myListingsCol.length === 0 ? (
-                                    <Text style={nv.splitEmpty}>—</Text>
-                                ) : (
-                                    myListingsCol.map(item => renderJoinedCard(item, true))
-                                )}
+                        <TouchableOpacity
+                            onPress={() => setJoinedSectionExpanded(v => !v)}
+                            activeOpacity={0.85}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginBottom: joinedSectionExpanded ? 10 : 4,
+                                gap: 8,
+                            }}
+                        >
+                            <Text style={[nv.section, { marginBottom: 0, flex: 1 }]}>
+                                {t.homeJoinedActivities}
+                                {` (${myListingsCol.length + joinedActsCol.length})`}
+                            </Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 18, fontWeight: '700' }}>
+                                {joinedSectionExpanded ? '▼' : '◀'}
+                            </Text>
+                        </TouchableOpacity>
+                        {joinedSectionExpanded ? (
+                            <View style={nv.splitRow}>
+                                <View style={nv.splitCol}>
+                                    <Text style={nv.splitHead}>{t.homeListingsCol}</Text>
+                                    {myListingsCol.length === 0 ? (
+                                        <Text style={nv.splitEmpty}>—</Text>
+                                    ) : (
+                                        myListingsCol.map(item => renderJoinedCard(item, true))
+                                    )}
+                                </View>
+                                <View style={nv.splitCol}>
+                                    <Text style={nv.splitHead}>{t.homeJoinedCol}</Text>
+                                    {joinedActsCol.length === 0 ? (
+                                        <Text style={nv.splitEmpty}>—</Text>
+                                    ) : (
+                                        joinedActsCol.map(item => renderJoinedCard(item, true))
+                                    )}
+                                </View>
                             </View>
-                            <View style={nv.splitCol}>
-                                <Text style={nv.splitHead}>{t.homeJoinedCol}</Text>
-                                {joinedActsCol.length === 0 ? (
-                                    <Text style={nv.splitEmpty}>—</Text>
-                                ) : (
-                                    joinedActsCol.map(item => renderJoinedCard(item, true))
-                                )}
-                            </View>
-                        </View>
+                        ) : null}
                     </>
                 ) : null}
 
