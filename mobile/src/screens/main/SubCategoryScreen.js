@@ -18597,7 +18597,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editName, setEditName] = useState(item.name || '');
     const [editDescription, setEditDescription] = useState(item.description || '');
     const [editContactPhone, setEditContactPhone] = useState(item.contactPhone || '');
+    const [editWhatsappGroupUrl, setEditWhatsappGroupUrl] = useState(item.whatsappGroupUrl || '');
     const [editScope, setEditScope] = useState(item.scope || 'YEREL');
+    // Puan tablosu: satıra tıklanınca o oyuncunun turnuvadaki maç sonuçları
+    const [expandedStandingId, setExpandedStandingId] = useState(null);
+    // Mesajlar: sahip WhatsApp linkini buradan da ekleyebilsin / güncelleyebilsin
+    const [waLinkDraft, setWaLinkDraft] = useState(item.whatsappGroupUrl || '');
+    const [savingWaLink, setSavingWaLink] = useState(false);
+    const [waLinkEditing, setWaLinkEditing] = useState(false);
     const [editGenderType, setEditGenderType] = useState(item.genderType || 'MIX');
     const [editMin, setEditMin] = useState(String(item.minPlayers || 2));
     const [editMax, setEditMax] = useState(String(item.maxPlayers || 32));
@@ -18877,9 +18884,74 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     }, [item.id, loadChatMentionUsers]);
 
     const openChatModal = () => {
+        setWaLinkDraft(item.whatsappGroupUrl || '');
+        setWaLinkEditing(!item.whatsappGroupUrl);
         fetchChat();
         fetchChatNotifyPref();
         setShowChatModal(true);
+    };
+
+    const saveWhatsappGroupLink = async () => {
+        const raw = (waLinkDraft || '').trim();
+        setSavingWaLink(true);
+        try {
+            await api.patch(`/tournaments/${item.id}`, { whatsappGroupUrl: raw || null });
+            setWaLinkEditing(false);
+            onUpdated?.();
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSavingWaLink(false);
+        }
+    };
+
+    /** Puan tablosu satırı için bu turnuvadaki tamamlanmış maçlar (tur sırasıyla). */
+    const standingMatchesFor = (rowId) => {
+        if (!rowId) return [];
+        let sideIds = new Set([rowId]);
+        // Americano: satır bireysel kullanıcı — tur takımları üzerinden eşleşir
+        if (item.type === '7' && tournTeams.length) {
+            for (const tm of tournTeams) {
+                if (tm.player1Id === rowId || tm.player2Id === rowId) sideIds.add(tm.id);
+            }
+        }
+        const done = tournMatches.filter(m =>
+            (m.status === 'COMPLETED' || m.status === 'FORFEIT' || m.status === 'BYE')
+            && (sideIds.has(m.p1Id) || sideIds.has(m.p2Id))
+        );
+        return done.sort((a, b) => {
+            const pa = String(a.phase || '');
+            const pb = String(b.phase || '');
+            if (pa !== pb) return pa.localeCompare(pb);
+            return (a.round || 0) - (b.round || 0) || (a.matchIndex || 0) - (b.matchIndex || 0);
+        });
+    };
+
+    const formatStandingMatchLine = (m, rowId) => {
+        let sideIds = new Set([rowId]);
+        if (item.type === '7' && tournTeams.length) {
+            for (const tm of tournTeams) {
+                if (tm.player1Id === rowId || tm.player2Id === rowId) sideIds.add(tm.id);
+            }
+        }
+        const isP1 = sideIds.has(m.p1Id);
+        const oppName = isP1 ? (m.p2Name || '—') : (m.p1Name || '—');
+        const myIdSide = isP1 ? m.p1Id : m.p2Id;
+        const won = m.winnerId && m.winnerId === myIdSide;
+        const sets = Array.isArray(m.score?.sets) ? m.score.sets : [];
+        const scoreStr = sets.length
+            ? sets.map(s => {
+                const a = isP1 ? (s.p1 ?? 0) : (s.p2 ?? 0);
+                const b = isP1 ? (s.p2 ?? 0) : (s.p1 ?? 0);
+                return `${a}-${b}`;
+            }).join(' ')
+            : (m.status === 'BYE' ? 'BYE' : (m.score?.autoDraw ? '0-0' : '—'));
+        const phaseLab = m.phase === 'GROUP' ? (t.sc_0462?.(m.round) || `Tur ${m.round}`)
+            : m.phase === 'PLAYOFF' ? (typeof t.sc_0439 === 'function' ? t.sc_0439(m.round) : `Playoff ${m.round}`)
+            : m.phase === 'WINNERS' ? (t.sc_0463?.(m.round) || `WB ${m.round}`)
+            : m.phase === 'LOSERS' ? (t.sc_0464?.(m.round) || `LB ${m.round}`)
+            : (m.phase || '');
+        return { oppName, scoreStr, won, phaseLab, bye: m.status === 'BYE' };
     };
 
     const sendChatMessage = async () => {
@@ -19848,6 +19920,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 name: editName || item.name,
                 description: editDescription || null,
                 contactPhone: editContactPhone || null,
+                whatsappGroupUrl: editWhatsappGroupUrl.trim() || null,
                 scope: editScope,
                 genderType: editGenderType,
                 minRating: editMinRating !== '' ? parseFloat(editMinRating) : null,
@@ -20452,16 +20525,56 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Text key={h} style={{ color: colors.textMuted, fontSize:10, fontWeight:'700', width:24, textAlign:'center' }}>{h}</Text>
                                 ))}
                             </View>
-                            {standings.map((row, i) => (
-                                <View key={row.id} style={{ flexDirection:'row', alignItems:'center', paddingVertical:2, borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
-                                    <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                        {i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
-                                    </Text>
-                                    {[row.played, row.won, row.drawn, row.lost, (() => { const t = row.gamesWon + row.gamesLost; return t === 0 ? '-' : `${Math.round((row.gamesWon / t) * 100)}%`; })(), row.points].map((v,j) => (
-                                        <Text key={j} style={{ color: j===5 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===5 ? '800' : '400', width:24, textAlign:'center' }}>{String(v)}</Text>
-                                    ))}
+                            {standings.map((row, i) => {
+                                const expanded = expandedStandingId === row.id;
+                                const hist = expanded ? standingMatchesFor(row.id) : [];
+                                return (
+                                <View key={row.id} style={{ borderBottomWidth: i < standings.length-1 ? 1 : 0, borderBottomColor: colors.border+'30' }}>
+                                    <TouchableOpacity
+                                        activeOpacity={0.75}
+                                        onPress={() => setExpandedStandingId(expanded ? null : row.id)}
+                                        style={{ flexDirection:'row', alignItems:'center', paddingVertical:4 }}
+                                    >
+                                        <Text style={{ color:'#fff', fontSize:11, flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {expanded ? '▼ ' : '▶ '}{i+1}. {row.name}{skillRatingMap[row.id] != null ? `  ${starEmoji(Number(skillRatingMap[row.id]))} ${Number(skillRatingMap[row.id]).toFixed(2)}` : ''}
+                                        </Text>
+                                        {[row.played, row.won, row.drawn, row.lost, (() => { const tot = row.gamesWon + row.gamesLost; return tot === 0 ? '-' : `${Math.round((row.gamesWon / tot) * 100)}%`; })(), row.points].map((v,j) => (
+                                            <Text key={j} style={{ color: j===5 ? '#4ade80' : '#fff', fontSize:11, fontWeight: j===5 ? '800' : '400', width:24, textAlign:'center' }}>{String(v)}</Text>
+                                        ))}
+                                    </TouchableOpacity>
+                                    {expanded ? (
+                                        <View style={{ backgroundColor: '#0f172a', borderRadius: 8, padding: 8, marginBottom: 6, borderWidth: 1, borderColor: '#334155' }}>
+                                            <Text style={{ color: '#94a3b8', fontSize: 10, fontWeight: '800', marginBottom: 6 }}>
+                                                {t.tournStandingMatchHistory || 'Bu turnuvadaki maçları'}
+                                            </Text>
+                                            {hist.length === 0 ? (
+                                                <Text style={{ color: colors.textMuted, fontSize: 11 }}>{t.tournStandingNoMatches || 'Henüz tamamlanmış maç yok'}</Text>
+                                            ) : hist.map(m => {
+                                                const line = formatStandingMatchLine(m, row.id);
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={m.id}
+                                                        onPress={() => setDetailMatch(m)}
+                                                        style={{ paddingVertical: 5, borderTopWidth: 1, borderTopColor: '#1e293b' }}
+                                                    >
+                                                        <Text style={{ color: '#64748b', fontSize: 9, fontWeight: '700', marginBottom: 2 }}>{line.phaseLab}</Text>
+                                                        <Text style={{ color: '#e2e8f0', fontSize: 11, fontWeight: '600' }} numberOfLines={2}>
+                                                            vs {line.oppName}
+                                                            {'  '}
+                                                            <Text style={{ color: '#93c5fd', fontWeight: '800' }}>{line.scoreStr}</Text>
+                                                            {'  '}
+                                                            <Text style={{ color: line.bye ? '#94a3b8' : (line.won ? '#4ade80' : '#f87171'), fontWeight: '900' }}>
+                                                                {line.bye ? 'BYE' : (line.won ? (t.sc_st_won || 'G') : (t.sc_st_lost || 'M'))}
+                                                            </Text>
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+                                    ) : null}
                                 </View>
-                            ))}
+                                );
+                            })}
                             </>}
                           </View>
                 ) : matchTab === 'playoffs' ? (() => {
@@ -21772,6 +21885,22 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <Text style={s.fieldLabel}>{t.sc_0515}</Text>
                                 <TextInput style={s.fieldInput} value={editContactPhone} onChangeText={setEditContactPhone} keyboardType="phone-pad" placeholderTextColor={colors.textMuted} />
 
+                                {/* WhatsApp grup davet linki */}
+                                <Text style={s.fieldLabel}>{t.tournWhatsappGroupLabel || 'WhatsApp grubu (isteğe bağlı)'}</Text>
+                                <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
+                                    {t.tournWhatsappGroupHint || 'Davet linkini yapıştırın. Turnuva başlayınca katılımcılar Mesajlar’dan gruba katılabilir.'}
+                                </Text>
+                                <TextInput
+                                    style={s.fieldInput}
+                                    value={editWhatsappGroupUrl}
+                                    onChangeText={setEditWhatsappGroupUrl}
+                                    placeholder={t.tournWhatsappGroupPh || 'https://chat.whatsapp.com/...'}
+                                    placeholderTextColor={colors.textMuted}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    keyboardType="url"
+                                />
+
                                 {/* Scope */}
                                 <Text style={s.fieldLabel}>{t.sc_0516}</Text>
                                 <View style={s.chipRow}>
@@ -22577,10 +22706,94 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <TouchableOpacity onPress={() => setShowChatModal(false)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
                                 </View>
                             </View>
-                            {/* Turnuva başlayınca WhatsApp grubu — katılımcılar + sahip, sohbetin en üstünde sabit */}
-                            {!!item.whatsappGroupUrl
+                            {/* WhatsApp grubu — sahip link ekler/düzenler; başladıktan sonra katılımcılar katılır */}
+                            {isCreator ? (
+                                <View style={{
+                                    backgroundColor: '#14532d22',
+                                    borderRadius: 12,
+                                    padding: 10,
+                                    borderWidth: 1,
+                                    borderColor: '#22c55e50',
+                                    marginBottom: 10,
+                                }}>
+                                    <Text style={{ color: '#86efac', fontSize: 12, fontWeight: '900', marginBottom: 6 }}>
+                                        {t.tournWhatsappGroupLabel || 'WhatsApp grubu'}
+                                    </Text>
+                                    {(item.whatsappGroupUrl && !waLinkEditing) ? (
+                                        <>
+                                            <TouchableOpacity
+                                                onPress={() => Linking.openURL(String(item.whatsappGroupUrl).trim()).catch(() => Alert.alert('', t.actionFailed))}
+                                                style={{
+                                                    backgroundColor: '#16a34a35',
+                                                    borderRadius: 10,
+                                                    paddingVertical: 10,
+                                                    alignItems: 'center',
+                                                    borderWidth: 1,
+                                                    borderColor: '#22c55e60',
+                                                    marginBottom: 6,
+                                                }}
+                                            >
+                                                <Text style={{ color: '#4ade80', fontSize: 13, fontWeight: '900' }}>
+                                                    {t.tournWhatsappJoinBtn || 'WhatsApp grubuna katıl'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => { setWaLinkDraft(item.whatsappGroupUrl || ''); setWaLinkEditing(true); }}>
+                                                <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700', textAlign: 'center' }}>
+                                                    {t.tournWhatsappEditLink || 'Linki değiştir'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Text style={{ color: '#94a3b8', fontSize: 10, marginBottom: 6, lineHeight: 14 }}>
+                                                {t.tournWhatsappGroupHint || 'Davet linkini yapıştırın. Turnuva başlayınca katılımcılar buradan gruba katılabilir.'}
+                                            </Text>
+                                            <TextInput
+                                                value={waLinkDraft}
+                                                onChangeText={setWaLinkDraft}
+                                                placeholder={t.tournWhatsappGroupPh || 'https://chat.whatsapp.com/...'}
+                                                placeholderTextColor="#64748b"
+                                                autoCapitalize="none"
+                                                autoCorrect={false}
+                                                keyboardType="url"
+                                                style={{
+                                                    backgroundColor: '#0f172a',
+                                                    color: '#fff',
+                                                    borderRadius: 8,
+                                                    borderWidth: 1,
+                                                    borderColor: '#334155',
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 8,
+                                                    fontSize: 12,
+                                                    marginBottom: 8,
+                                                }}
+                                            />
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                {!!item.whatsappGroupUrl && (
+                                                    <TouchableOpacity
+                                                        onPress={() => { setWaLinkEditing(false); setWaLinkDraft(item.whatsappGroupUrl || ''); }}
+                                                        style={{ flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 8, borderWidth: 1, borderColor: '#334155' }}
+                                                    >
+                                                        <Text style={{ color: '#94a3b8', fontWeight: '700', fontSize: 12 }}>{t.sc_0190 || 'İptal'}</Text>
+                                                    </TouchableOpacity>
+                                                )}
+                                                <TouchableOpacity
+                                                    onPress={saveWhatsappGroupLink}
+                                                    disabled={savingWaLink}
+                                                    style={{ flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 8, backgroundColor: '#16a34a40', borderWidth: 1, borderColor: '#16a34a60', opacity: savingWaLink ? 0.6 : 1 }}
+                                                >
+                                                    <Text style={{ color: '#4ade80', fontWeight: '800', fontSize: 12 }}>
+                                                        {savingWaLink ? '...' : (t.tournWhatsappSaveLink || 'Linki kaydet')}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </>
+                                    )}
+                                </View>
+                            ) : (
+                                !!item.whatsappGroupUrl
                                 && (item.status === 'IN_PROGRESS' || item.status === 'COMPLETED')
-                                && (isCreator || myStatus === 'ACCEPTED') && (
+                                && myStatus === 'ACCEPTED' && (
                                 <TouchableOpacity
                                     onPress={() => {
                                         const url = String(item.whatsappGroupUrl).trim();
@@ -22595,16 +22808,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         borderWidth: 1,
                                         borderColor: '#22c55e60',
                                         marginBottom: 10,
-                                        flexDirection: 'row',
                                         alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: 8,
                                     }}
                                 >
                                     <Text style={{ color: '#4ade80', fontSize: 14, fontWeight: '900' }}>
                                         {t.tournWhatsappJoinBtn || 'WhatsApp grubuna katıl'}
                                     </Text>
                                 </TouchableOpacity>
+                                )
                             )}
                             {loadingChat ? (
                                 <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />
@@ -22958,7 +23169,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <TouchableOpacity style={{ backgroundColor: infoColor + '20', borderRadius:8, paddingHorizontal:10, paddingVertical:7, borderWidth:1, borderColor: infoColor + '50' }} onPress={() => {
                             // Kullanıcı isteği: düzenle = turnuva oluştur ekranı, alanlar seçili/dolu.
                             if (onRequestEdit) onRequestEdit(item);
-                            else setShowEditModal(true);
+                            else {
+                                setEditWhatsappGroupUrl(item.whatsappGroupUrl || '');
+                                setShowEditModal(true);
+                            }
                         }}>
                             <Text style={{ color: infoColor, fontSize:11, fontWeight:'700' }}>{t.tournEditBtn}</Text>
                         </TouchableOpacity>
