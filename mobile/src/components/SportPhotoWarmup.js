@@ -7,8 +7,10 @@ const SPORT_IDS = [
     'tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash',
     'volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball', 'rugby',
     'running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano',
-    'wellness', 'fitness_gym', 'ice_skating', 'roller_skating',
-    'motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting',
+    'wellness', 'fitness_gym', 'ice_skating',
+    'roller_skating', 'paragliding', 'bungee_jumping', 'skydiving', 'base_jumping',
+    'rafting', 'surf_kitesurf', 'scuba_diving', 'mountain_biking', 'motocross',
+    'motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'shooting_hunting',
 ];
 
 // Ana sayfa boştayken spor dal JPEG'lerini çöz — Spor'a basınca decode kuyruğu oluşmasın.

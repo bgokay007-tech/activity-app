@@ -72,6 +72,9 @@ const SUB_NAMES_TR = {
     handball: 'Hentbol', dodgeball: 'Yakar Top', rugby: 'Ragbi', badminton: 'Badminton', shooting_hunting: 'Atıcılık ve Avcılık',
     equestrian: 'Binicilik', golf: 'Golf', fitness_gym: 'Fitness ve Gym',
     skiing_snowboard: 'Kayak ve Snowboard', ice_skating: 'Buz Pateni', roller_skating: 'Paten',
+    paragliding: 'Yamaç Paraşütü', bungee_jumping: 'Bungee Jumping', skydiving: 'Skydiving',
+    base_jumping: 'BASE Jumping', rafting: 'Rafting', surf_kitesurf: 'Sörf & Uçurtma Sörfü',
+    scuba_diving: 'Dalış', mountain_biking: 'Dağ Bisikleti', motocross: 'Motokros',
     hiking: 'Dağ Bayır Doğa Yürüyüşleri', camping: 'Kamp', motorcycle: 'Sürüş (Motosiklet)',
     extreme_sports: 'Ekstrem Sporları', paintball: 'Paintball', airsoft: 'Airsoft',
 };

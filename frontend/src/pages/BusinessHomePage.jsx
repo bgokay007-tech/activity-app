@@ -42,6 +42,15 @@ const BRANCH_LABEL = {
     skiing_snowboard: 'biz_branch_skiing_snowboard',
     ice_skating: 'biz_branch_ice_skating',
     roller_skating: 'biz_branch_roller_skating',
+    paragliding: 'biz_branch_paragliding',
+    bungee_jumping: 'biz_branch_bungee_jumping',
+    skydiving: 'biz_branch_skydiving',
+    base_jumping: 'biz_branch_base_jumping',
+    rafting: 'biz_branch_rafting',
+    surf_kitesurf: 'biz_branch_surf_kitesurf',
+    scuba_diving: 'biz_branch_scuba_diving',
+    mountain_biking: 'biz_branch_mountain_biking',
+    motocross: 'biz_branch_motocross',
     hiking: 'biz_branch_hiking',
     camping: 'biz_branch_camping',
     motorcycle: 'biz_branch_motorcycle',
@@ -52,8 +61,9 @@ const BRANCH_LABEL = {
 const BRANCHES = [
     'football','tennis','padel','pickleball','squash','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness',
     'cycling','running','table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','dodgeball','rugby',
-    'shooting_hunting','equestrian','golf','fitness_gym','skiing_snowboard','ice_skating','roller_skating','hiking','camping',
-    'motorcycle','extreme_sports','paintball','airsoft',
+    'shooting_hunting','equestrian','golf','fitness_gym','skiing_snowboard','ice_skating','roller_skating',
+    'paragliding','bungee_jumping','skydiving','base_jumping','rafting','surf_kitesurf','scuba_diving','mountain_biking','motocross',
+    'hiking','camping','motorcycle','paintball','airsoft',
 ];
 const PACKAGES = [
     { key: 'STARTER',     icon: '🏅', name: 'biz_pkg_starter', price: '399',
