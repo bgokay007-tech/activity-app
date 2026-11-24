@@ -4959,12 +4959,16 @@ export const extendRoundDeadline = async (req, res, next) => {
             if (!u?.isAdmin) return res.status(403).json({ message: 'Yalnızca turnuva sahibi veya admin süre uzatabilir' });
         }
 
+        // onlyThisRound: yalnızca bu turun PENDING maçları (maç kartındaki "tümünü uzat").
+        // Varsayılan: bu tur ve sonraki turlar (eski davranış — tur gecikince zincir kayar).
+        const onlyThisRound = req.body?.onlyThisRound === true;
         const toShift = await prisma.tournamentMatch.findMany({
             where: {
                 tournamentId: id,
                 phase,
-                round: { gte: round },
+                round: onlyThisRound ? round : { gte: round },
                 deadline: { not: null },
+                ...(onlyThisRound ? { status: 'PENDING' } : {}),
             },
             select: { id: true, deadline: true, round: true },
         });
@@ -4995,7 +4999,9 @@ export const extendRoundDeadline = async (req, res, next) => {
                 tournament.creatorId,
                 'TOURNAMENT_ROUND_EXTENDED',
                 '📅 Tur süresi uzatıldı',
-                `${tournament.name}: ${phase} Tur ${round} ve sonrası +${days} gün uzatıldı.`,
+                onlyThisRound
+                    ? `${tournament.name}: ${phase} Tur ${round} maçları +${days} gün uzatıldı.`
+                    : `${tournament.name}: ${phase} Tur ${round} ve sonrası +${days} gün uzatıldı.`,
                 { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         }

@@ -18767,7 +18767,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         } finally { setSavingPlayoffDeadline(false); }
     };
 
-    const submitDeadlineExtend = async (daysRaw, targetOverride = null) => {
+    // mode: 'match' | 'round' | 'roundOnly' — roundOnly = yalnızca o turdaki bekleyen maçlar
+    const submitDeadlineExtend = async (daysRaw, targetOverride = null, modeOverride = null) => {
         const days = parseInt(daysRaw, 10);
         if (!Number.isFinite(days) || days < 1 || days > 60) {
             Alert.alert('', t.tournExtendDaysInvalid || t.sc_0366);
@@ -18775,14 +18776,19 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         }
         const target = targetOverride || extendTarget;
         if (!target) return;
+        const mode = modeOverride
+            || (target.kind === 'round' ? 'round' : 'match');
         setExtendingDeadline(true);
         try {
             let data;
-            if (target.kind === 'round') {
+            if (mode === 'round' || mode === 'roundOnly') {
+                const phase = target.phase || target.match?.phase || 'GROUP';
+                const round = target.round != null ? target.round : target.match?.round;
                 ({ data } = await api.post(`/tournaments/${item.id}/extend-round`, {
-                    phase: target.phase,
-                    round: target.round,
+                    phase,
+                    round,
                     days,
+                    ...(mode === 'roundOnly' ? { onlyThisRound: true } : {}),
                 }));
             } else {
                 ({ data } = await api.post(`/tournaments/${item.id}/matches/${target.match.id}/extend`, { days }));
@@ -18827,6 +18833,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     useEffect(() => {
         setChatMessageCount(item._count?.messages ?? 0);
     }, [item.id, item._count?.messages]);
+
+    useEffect(() => {
+        setWaLinkDraft(item.whatsappGroupUrl || '');
+        if (item.whatsappGroupUrl) setWaLinkEditing(false);
+    }, [item.id, item.whatsappGroupUrl]);
 
     const loadChatMentionUsers = useCallback(async (messageList = []) => {
         try {
@@ -19733,6 +19744,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             || (dispute.bySide === 'p2' && match.p2Id === mySideId)
         );
         const buttons = [];
+        // Onaylandı + Skor Değiştir aynı satırda (değiştir solda onay rozeti)
+        buttons.push(
+            <Text
+                key="ok"
+                style={{ color: '#4ade80', fontSize: fs, fontWeight: '800', flexShrink: 0 }}
+            >
+                {t.confirmedScore || t.sc_0500 || '✓ Onaylandı'}
+            </Text>,
+        );
         if (isCreator || myIsAdmin) {
             buttons.push(
                 <TouchableOpacity
@@ -20766,6 +20786,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                 setExtendTarget({
                                                     kind: 'match',
                                                     match,
+                                                    phase: match.phase,
+                                                    round: match.round,
                                                     label: `${match.p1Name || '?'} vs ${match.p2Name || '?'}`,
                                                 });
                                             }}
@@ -21221,34 +21243,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             })}
                                         </View>
                                     </ScrollView>
-                                    {(isCreator || myIsAdmin) && !item.dayTrip && activeKey && roundRanges[activeKey] && (
-                                        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:4, marginBottom:8 }}>
-                                            <TouchableOpacity
-                                                onPress={() => Alert.alert(
-                                                    t.tournExtendRoundTitle || t.sc_0474,
-                                                    (t.tournExtendRoundConfirm7 || t.sc_0475).replace('{label}', getRoundLabel(activeRound, activePhase)),
-                                                    [
-                                                        { text: t.cancel || t.sc_0004, style: 'cancel' },
-                                                        { text: '+7', onPress: () => {
-                                                            submitDeadlineExtend(7, { kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
-                                                        }},
-                                                    ]
-                                                )}
-                                                style={{ backgroundColor:'#0ea5e920', borderRadius:8, borderWidth:1, borderColor:'#0ea5e950', paddingHorizontal:8, paddingVertical:6 }}
-                                            >
-                                                <Text style={{ color:'#38bdf8', fontSize:10, fontWeight:'800' }}>{t.tournExtendPlus7 || t.sc_0477}</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => {
-                                                    setExtendDaysInput('7');
-                                                    setExtendTarget({ kind:'round', phase: activePhase, round: activeRound, label: getRoundLabel(activeRound, activePhase) });
-                                                }}
-                                                style={{ backgroundColor:'#334155', borderRadius:8, borderWidth:1, borderColor: colors.border, paddingHorizontal:8, paddingVertical:6 }}
-                                            >
-                                                <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'800' }}>{t.tournExtendManualBtn || t.sc_0478}</Text>
-                                            </TouchableOpacity>
-                                        </View>
-                                    )}
+                                    {/* Üstteki +7 / Gün uzat kaldırıldı — maç satırındaki Gün uzat
+                                        modalında tek maç + bu turdaki tüm maçlar seçenekleri var. */}
                                     {isCreator && activePhase === 'PLAYOFF' && !roundRanges[activeKey] && rMatches.some(m => m.readyAt) && (
                                         <TouchableOpacity onPress={() => setPlayoffDeadlineRound(activeRound)}
                                             style={{ backgroundColor:'#7c3aed20', borderRadius:8, borderWidth:1, borderColor:'#7c3aed50', padding:8, marginBottom:8, flexDirection:'row', alignItems:'center', gap:6 }}>
@@ -21335,6 +21331,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             setExtendTarget({
                                                                 kind: 'match',
                                                                 match,
+                                                                phase: match.phase,
+                                                                round: match.round,
                                                                 label: `${match.p1Name || '?'} vs ${match.p2Name || '?'}`,
                                                             });
                                                         }}
@@ -21630,6 +21628,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     setExtendTarget({
                         kind: 'match',
                         match: m,
+                        phase: m.phase,
+                        round: m.round,
                         label: `${m.p1Name || '?'} vs ${m.p2Name || '?'}`,
                     });
                 }}
@@ -21781,7 +21781,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             onPress={() => {
                                                 setShowDeadlinePickModal(false);
                                                 setExtendDaysInput('7');
-                                                setExtendTarget({ kind: 'match', match, label });
+                                                setExtendTarget({
+                                                    kind: 'match',
+                                                    match,
+                                                    phase: match.phase,
+                                                    round: match.round,
+                                                    label,
+                                                });
                                             }}
                                             style={{
                                                 backgroundColor: colors.surface, borderRadius: 10, padding: 12, marginBottom: 8,
@@ -21805,7 +21811,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 </View>
             </Modal>
 
-            {/* Tur / maç süre uzatma (sahip + admin) */}
+            {/* Tur / maç süre uzatma (sahip + admin). Maç kartından: tek maç + bu turdaki tümü. */}
             <Modal visible={extendTarget != null} animationType="slide" transparent onRequestClose={() => !extendingDeadline && setExtendTarget(null)} android_keyboardInputMode="adjustNothing">
                 <View style={s.modalOverlay}>
                     <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
@@ -21834,8 +21840,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <TouchableOpacity
                                         key={d}
                                         disabled={extendingDeadline}
-                                        onPress={() => submitDeadlineExtend(d)}
-                                        style={{ flex:1, backgroundColor:'#0ea5e920', borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:12, alignItems:'center' }}
+                                        onPress={() => setExtendDaysInput(String(d))}
+                                        style={{ flex:1, backgroundColor: String(extendDaysInput) === String(d) ? '#0ea5e940' : '#0ea5e920', borderRadius:10, borderWidth:1, borderColor:'#0ea5e950', paddingVertical:12, alignItems:'center' }}
                                     >
                                         <Text style={{ color:'#38bdf8', fontSize:14, fontWeight:'900' }}>+{d} {t.tournExtendDaysUnit || t.sc_0509}</Text>
                                     </TouchableOpacity>
@@ -21851,13 +21857,36 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 placeholder="1–60"
                                 placeholderTextColor={colors.textMuted}
                             />
-                            <TouchableOpacity
-                                style={[s.submitBtn, { marginTop: 4, marginBottom: 4 }, extendingDeadline && { opacity:0.6 }]}
-                                onPress={() => submitDeadlineExtend(extendDaysInput)}
-                                disabled={extendingDeadline}
-                            >
-                                <Text style={s.submitBtnText}>{extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendConfirm || t.sc_0511)}</Text>
-                            </TouchableOpacity>
+                            {extendTarget?.kind === 'match' ? (
+                                <View style={{ gap: 8, marginBottom: 4 }}>
+                                    <TouchableOpacity
+                                        style={[s.submitBtn, { marginTop: 0, marginBottom: 0, backgroundColor: '#0ea5e9' }, extendingDeadline && { opacity:0.6 }]}
+                                        onPress={() => submitDeadlineExtend(extendDaysInput, null, 'match')}
+                                        disabled={extendingDeadline}
+                                    >
+                                        <Text style={s.submitBtnText}>
+                                            {extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendThisMatchBtn || 'Bu maçı uzat')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[s.submitBtn, { marginTop: 0, marginBottom: 0, backgroundColor: '#0369a1' }, extendingDeadline && { opacity:0.6 }]}
+                                        onPress={() => submitDeadlineExtend(extendDaysInput, null, 'roundOnly')}
+                                        disabled={extendingDeadline}
+                                    >
+                                        <Text style={s.submitBtnText}>
+                                            {extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendAllRoundBtn || 'Bu turdaki tüm maçları uzat')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <TouchableOpacity
+                                    style={[s.submitBtn, { marginTop: 4, marginBottom: 4 }, extendingDeadline && { opacity:0.6 }]}
+                                    onPress={() => submitDeadlineExtend(extendDaysInput, null, 'round')}
+                                    disabled={extendingDeadline}
+                                >
+                                    <Text style={s.submitBtnText}>{extendingDeadline ? (t.submittingBtn || '…') : (t.tournExtendConfirm || t.sc_0511)}</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     </KeyboardAvoidingView>
                 </View>
