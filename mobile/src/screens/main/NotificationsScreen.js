@@ -99,6 +99,8 @@ const TYPE_ICON = {
     TOURNAMENT_MATCH: '🎾',
     TOURNAMENT_MATCH_DEADLINE_WARNING: '⏳',
     TOURNAMENT_MATCH_AUTO_DRAW: '🤝',
+    TOURNAMENT_SCHEDULE_PROPOSAL: '📅',
+    TOURNAMENT_SCHEDULE_AGREED: '✅',
     TOURNAMENT_ROUND_SCORE_NEEDED: '⚠️',
     TOURNAMENT_CANCEL_REQUEST: '⚠️',
     CANCELLATION_REQUEST: '⚠️',
@@ -521,10 +523,13 @@ export default function NotificationsScreen({ navigation }) {
             goToSub('equipment');
         } else if (type === 'TOURNAMENT_STARTED' || type === 'TOURNAMENT_EXTRA_ROUND') {
             goToSub('tournaments', 'inprogress');
-        } else if (type === 'TOURNAMENT_MATCH') {
+        } else if (type === 'TOURNAMENT_MATCH'
+            || type === 'TOURNAMENT_SCHEDULE_AGREED'
+            || type === 'TOURNAMENT_SCHEDULE_PROPOSAL') {
+            // Maç / yer-zaman teklifi / anlaşıldı → o turnuvanın maç tablosu + ilgili maç
             if (data.tournamentId) {
                 navigation.push('SubCategory', {
-                    category: data.category,
+                    category: String(data.category || '').toUpperCase() || data.category,
                     sub: data.subCategory,
                     initialTab: 'tournaments',
                     openMatchId: data.matchId || null,

@@ -18503,6 +18503,26 @@ function insertMatchCommentMention(text, tag) {
     return String(text || '').replace(/@([\p{L}\p{N}._]*)$/u, `@${tag} `);
 }
 
+/** Maç kartında anlaşılmış yer/zaman satırı (detaya girmeden). */
+function formatMatchAgreedLine(agreed) {
+    if (!agreed || typeof agreed !== 'object') return '';
+    const time = [agreed.timeFrom, agreed.timeTo].filter(Boolean).join('-');
+    return [agreed.date, time, agreed.venueName].filter(Boolean).join(' · ');
+}
+
+function MatchAgreedScheduleLine({ agreed, t }) {
+    const line = formatMatchAgreedLine(agreed);
+    if (!line) return null;
+    return (
+        <Text
+            style={{ color: '#4ade80', fontSize: 9, fontWeight: '700', marginTop: 4, lineHeight: 12 }}
+            numberOfLines={2}
+        >
+            📅 {(t?.tournSchedAgreedTitle || 'Anlaşılan')}: {line}
+        </Text>
+    );
+}
+
 function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, onDelete, onUpdated, onRequestEdit, openChatTournamentId, onChatOpened, highlightTournamentId, onHighlightOpened, openMatchId, openMatchTournamentId, openExpiredResolve, onMatchOpened, onUserPress }) {
     const insets = useSafeAreaInsets();
     const myPart = item.participants?.[0];
@@ -20432,6 +20452,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </TouchableOpacity>
                                     ) : null}
                                 </View>
+                                <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} />
                                 {isBye && <Text style={{ color: colors.textMuted, fontSize: 9, marginTop: 3 }}>BYE</Text>}
                                 {/* Skor Gir → aynı satır alta doğru genişler */}
                                 {isEntering && (
@@ -21149,6 +21170,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {jokerBtn}
                                                             </View>
                                                             )}
+                                                        <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} />
                                                         {(() => {
                                                             if (isDone || isBye || isTBD || !match.deadline) return null;
                                                             const roundDefaultTime = roundDefaultDeadline[`${match.phase}|${match.round}`];

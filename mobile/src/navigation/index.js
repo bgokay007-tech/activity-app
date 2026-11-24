@@ -164,7 +164,9 @@ function navigateFromNotif(data, isBusiness) {
                 }),
                 ...((type === 'TOURNAMENT_MATCH'
                     || type === 'TOURNAMENT_MATCH_DEADLINE_WARNING'
-                    || type === 'TOURNAMENT_MATCH_AUTO_DRAW') && {
+                    || type === 'TOURNAMENT_MATCH_AUTO_DRAW'
+                    || type === 'TOURNAMENT_SCHEDULE_AGREED'
+                    || type === 'TOURNAMENT_SCHEDULE_PROPOSAL') && {
                     openMatchTournamentId: data.tournamentId || null,
                     openMatchId: data.matchId || null,
                 }),
