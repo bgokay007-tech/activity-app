@@ -522,29 +522,32 @@ export default function HomeScreen({ navigation }) {
     // Açık ilanlar zaten sadece başkaları; yine de katıldığınla çakışmasın.
     const openOnly = (openListings || []).filter(item => !joinedIds.has(item.id) && !isOwnListing(item, user?.id));
 
-    const renderJoinedCard = (item, compact) => {
+    const renderJoinedCard = (item, compact, inPairGrid = false) => {
         const isTourn = item.kind === 'tournament';
         const mineOpen = isMineOpenListing(item, user?.id);
+        const tournLive = isTourn && String(item.status || '') === 'IN_PROGRESS';
         const playing = !isTourn && matchHasStarted(item, now) && !matchHasEnded(item, now);
         const waitingDate = !isTourn && !mineOpen && isWaitingForDateTime(item);
-        // Devam eden / oynanan VEYA gün-saat bekleyen katılım → kırmızı yanıp sönen "Katıldığın"
-        const urgent = isLiveUrgent(item, now) || waitingDate;
+        // Devam eden turnuva / oynanan maç / gün-saat bekleyen → kırmızı yanıp sönen "Katıldığın"
+        const urgent = (!mineOpen && (isLiveUrgent(item, now) || waitingDate || tournLive));
         const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
         const meta = isTourn ? null : listingMeta(item);
         const kicker = isTourn
             ? (mineOpen
                 ? (t.yourTournament || t.yourListing)
-                : (t.homeOngoingTournamentKicker || t.homeJoinedKicker))
+                : t.homeJoinedKicker)
             : (playing
                 ? t.featuredNowPlaying
                 : (mineOpen ? t.yourListing : t.homeJoinedKicker));
         const title = isTourn
             ? (item.name || getSubCategoryLabel(item.subCategory, lang))
             : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
+        // Devam eden turnuvada tarih satırı saçma duruyor — sadece dal adı.
+        const tournWhen = (!tournLive && formatWhen(item, t)) || '';
         return (
             <TouchableOpacity
                 key={`joined-${isTourn ? 't' : 'r'}-${item.id}`}
-                style={compact ? nv.colCard : nv.row}
+                style={[compact ? nv.colCard : nv.row, inPairGrid && { marginBottom: 0 }]}
                 onPress={() => openListing(item)}
                 activeOpacity={0.85}
             >
@@ -561,7 +564,7 @@ export default function HomeScreen({ navigation }) {
                     {isTourn ? (
                         <Text style={compact ? nv.colMeta : nv.rowMeta} numberOfLines={1}>
                             {getSubCategoryLabel(item.subCategory, lang)}
-                            {formatWhen(item, t) ? ` · ${formatWhen(item, t)}` : ''}
+                            {tournWhen ? ` · ${tournWhen}` : ''}
                         </Text>
                     ) : (
                         <Text style={compact ? nv.colMeta : nv.rowMeta} numberOfLines={1}>
@@ -577,6 +580,19 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
         );
     };
+
+    const renderJoinedPairGrid = (items) => (
+        <View style={nv.pairGrid}>
+            {items.map(item => (
+                <View
+                    key={`pair-${item.kind === 'tournament' ? 't' : 'r'}-${item.id}`}
+                    style={nv.pairCell}
+                >
+                    {renderJoinedCard(item, true, true)}
+                </View>
+            ))}
+        </View>
+    );
 
     return (
         <View style={s.container}>
@@ -643,24 +659,44 @@ export default function HomeScreen({ navigation }) {
                             </Text>
                         </TouchableOpacity>
                         {joinedSectionExpanded ? (
-                            <View style={nv.splitRow}>
-                                <View style={nv.splitCol}>
-                                    <Text style={nv.splitHead}>{t.homeListingsCol}</Text>
-                                    {myListingsCol.length === 0 ? (
-                                        <Text style={nv.splitEmpty}>—</Text>
-                                    ) : (
-                                        myListingsCol.map(item => renderJoinedCard(item, true))
-                                    )}
+                            (myListingsCol.length > 0 && joinedActsCol.length > 0) ? (
+                                <View style={nv.splitRow}>
+                                    <View style={nv.splitCol}>
+                                        <Text style={nv.splitHead}>
+                                            {t.homeListingsCol}
+                                            {` (${myListingsCol.length})`}
+                                        </Text>
+                                        {myListingsCol.map(item => renderJoinedCard(item, true))}
+                                    </View>
+                                    <View style={nv.splitCol}>
+                                        <Text style={nv.splitHead}>
+                                            {t.homeJoinedCol}
+                                            {` (${joinedActsCol.length})`}
+                                        </Text>
+                                        {joinedActsCol.map(item => renderJoinedCard(item, true))}
+                                    </View>
                                 </View>
-                                <View style={nv.splitCol}>
-                                    <Text style={nv.splitHead}>{t.homeJoinedCol}</Text>
-                                    {joinedActsCol.length === 0 ? (
-                                        <Text style={nv.splitEmpty}>—</Text>
-                                    ) : (
-                                        joinedActsCol.map(item => renderJoinedCard(item, true))
-                                    )}
+                            ) : (
+                                <View style={{ marginBottom: 8 }}>
+                                    <View style={nv.splitRow}>
+                                        <View style={nv.splitCol}>
+                                            <Text style={nv.splitHead}>
+                                                {t.homeListingsCol}
+                                                {` (${myListingsCol.length})`}
+                                            </Text>
+                                        </View>
+                                        <View style={nv.splitCol}>
+                                            <Text style={nv.splitHead}>
+                                                {t.homeJoinedCol}
+                                                {` (${joinedActsCol.length})`}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    {myListingsCol.length > 0
+                                        ? renderJoinedPairGrid(myListingsCol)
+                                        : renderJoinedPairGrid(joinedActsCol)}
                                 </View>
-                            </View>
+                            )
                         ) : null}
                     </>
                 ) : null}
@@ -794,6 +830,8 @@ const nv = StyleSheet.create({
         textTransform: 'uppercase', letterSpacing: 0.4,
     },
     splitEmpty: { color: colors.textMuted, fontSize: 13, fontWeight: '600', paddingVertical: 12, textAlign: 'center' },
+    pairGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 },
+    pairCell: { width: '47.5%' },
     colCard: {
         backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden',
         marginBottom: 8, borderWidth: 1, borderColor: colors.border,
