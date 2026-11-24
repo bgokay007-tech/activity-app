@@ -949,13 +949,16 @@ export default function TournamentMatchDetailModal({
             onRefresh?.();
             const held = !!data?.proposal?.reservationId;
             const primary = data?.proposal?.isPrimary === true || data?.proposal?.priority === 1;
+            const demoAgreed = data?.demoAutoAgreed === true && !!data?.scheduleData?.agreed;
             Alert.alert(
                 '',
-                held
-                    ? (t.tournAvailProposeHeldOk || '1. öncelik teklifi gönderildi — Pro+ slot 4 saat askıda. Rakip kabul edince ödeme kesinleşir.')
-                    : primary
-                        ? (t.tournSchedProposed || 'Teklif gönderildi')
-                        : (t.tournAvailProposeInfoOk || 'Bilgi teklifi gönderildi (askı yok). 1. öncelik teklifi geçerliliğini korur.'),
+                demoAgreed
+                    ? (t.tournAvailDemoAgreedOk || 'Teklif gönderildi — demo rakip kabul etti.')
+                    : held
+                        ? (t.tournAvailProposeHeldOk || '1. öncelik teklifi gönderildi — Pro+ slot 4 saat askıda. Rakip kabul edince ödeme kesinleşir.')
+                        : primary
+                            ? (t.tournSchedProposed || 'Teklif gönderildi')
+                            : (t.tournAvailProposeInfoOk || 'Bilgi teklifi gönderildi (askı yok). 1. öncelik teklifi geçerliliğini korur.'),
             );
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');

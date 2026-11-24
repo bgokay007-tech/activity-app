@@ -1,5 +1,6 @@
 import prisma from '../config/prisma.js';
 import { respondToJoin, cancelMatch, tryDemoAutoConfirmScore } from '../controllers/rival.controller.js';
+import { tryDemoAutoAgreeSchedule } from '../controllers/tournament.controller.js';
 import { invokeControllerAs } from '../utils/internalInvoke.js';
 
 const AUTO_RESPOND_DELAY_MS = 20 * 1000;
@@ -92,10 +93,47 @@ async function respondPendingScores() {
     }
 }
 
+// TEST: turnuva yer/zaman teklifinde rakip taraf demo ise kabul et (propose anında da
+// çalışır; bu tick kaçırılan / eski teklifler için yedek).
+async function respondPendingTournamentSchedules() {
+    const matches = await prisma.tournamentMatch.findMany({
+        where: {
+            status: 'PENDING',
+            p1Id: { not: null },
+            p2Id: { not: null },
+        },
+        select: {
+            id: true, tournamentId: true, p1Id: true, p2Id: true,
+            scheduleData: true, status: true,
+        },
+        take: 100,
+        orderBy: { createdAt: 'desc' },
+    });
+    for (const match of matches) {
+        const schedule = match.scheduleData && typeof match.scheduleData === 'object'
+            ? match.scheduleData
+            : null;
+        if (!schedule || schedule.agreed) continue;
+        const proposals = Array.isArray(schedule.proposals) ? schedule.proposals : [];
+        if (!proposals.length) continue;
+        const primary = proposals.find(p => p.isPrimary || p.priority === 1 || p.reservationId)
+            || proposals[proposals.length - 1];
+        if (!primary?.id) continue;
+        try {
+            const tournament = await prisma.tournament.findUnique({ where: { id: match.tournamentId } });
+            if (!tournament) continue;
+            await tryDemoAutoAgreeSchedule(tournament, match, primary.id);
+        } catch (e) {
+            console.error('[demoBot] schedule agree error:', e.message);
+        }
+    }
+}
+
 async function tick() {
     try { await respondPendingInvites(); } catch (e) { console.error('[demoBot] invite tick error:', e.message); }
     try { await respondMutualCancels(); } catch (e) { console.error('[demoBot] mutual tick error:', e.message); }
     try { await respondPendingScores(); } catch (e) { console.error('[demoBot] score tick error:', e.message); }
+    try { await respondPendingTournamentSchedules(); } catch (e) { console.error('[demoBot] schedule tick error:', e.message); }
 }
 
 export function startDemoBotResponderJob() {

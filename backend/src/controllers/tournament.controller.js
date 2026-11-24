@@ -4836,6 +4836,67 @@ async function resolveUserMatchSide(tournament, match, userId) {
     return null;
 }
 
+function isDemoUsername(u) {
+    return !!(u?.isDemoUser || (typeof u?.username === 'string' && u.username.startsWith('demo_')));
+}
+
+/**
+ * TEST: maçın p1/p2 tarafı tamamen demo ise kabul/onay için kullanılacak bir demo userId döner.
+ * Test bitince çağrıları kaldırmak yeterli.
+ */
+async function getDemoActorForMatchSide(tournament, match, sideKey) {
+    const sideId = sideKey === 'p1' ? match?.p1Id : match?.p2Id;
+    if (!sideId) return null;
+    const isTeamEngine = tournament?.type === '2' || tournament?.type === '4' || tournament?.type === '7';
+    if (!isTeamEngine) {
+        const u = await prisma.user.findUnique({
+            where: { id: sideId },
+            select: { id: true, username: true, isDemoUser: true },
+        });
+        return isDemoUsername(u) ? { id: u.id } : null;
+    }
+    const team = await prisma.tournamentTeam.findUnique({
+        where: { id: sideId },
+        select: { player1Id: true, player2Id: true },
+    });
+    if (!team) return null;
+    const memberIds = [team.player1Id, team.player2Id].filter(Boolean);
+    if (!memberIds.length) return null;
+    const members = await prisma.user.findMany({
+        where: { id: { in: memberIds } },
+        select: { id: true, username: true, isDemoUser: true },
+    });
+    if (!members.length || members.length !== memberIds.length) return null;
+    if (!members.every(isDemoUsername)) return null;
+    return { id: members[0].id };
+}
+
+/**
+ * TEST: rakip taraf demo ise teklifi onun adına kabul eder (HOLD varsa kesinleştirir).
+ */
+export async function tryDemoAutoAgreeSchedule(tournament, match, proposalId) {
+    if (!tournament?.id || !match?.id || !proposalId) return null;
+    if (match.status !== 'PENDING' || !match.p1Id || !match.p2Id) return null;
+    const schedule = normalizeSchedule(match.scheduleData);
+    if (schedule.agreed) return null;
+    const proposal = (schedule.proposals || []).find(p => p.id === proposalId);
+    if (!proposal?.side) return null;
+    const otherSide = proposal.side === 'p1' ? 'p2' : 'p1';
+    const demoActor = await getDemoActorForMatchSide(tournament, match, otherSide);
+    if (!demoActor) return null;
+    const { invokeControllerAs } = await import('../utils/internalInvoke.js');
+    const result = await invokeControllerAs(agreeMatchSchedule, {
+        userId: demoActor.id,
+        params: { id: tournament.id, matchId: match.id },
+        body: { proposalId },
+    });
+    if (result.status >= 400) {
+        console.error('[demoBot] auto-agree schedule rejected:', result.status, result.body?.message, match.id);
+        return null;
+    }
+    return result.body;
+}
+
 function sanitizeScheduleForViewer(scheduleData, isMatchParticipant) {
     const s = normalizeSchedule(scheduleData);
     // Eşleşme kartında herkes hangi tarafın müsaitlik / teklif bildirdiğini görsün
@@ -5483,33 +5544,54 @@ export const proposeMatchSchedule = async (req, res, next) => {
             data: { scheduleData: schedule },
         });
 
-        // Rakip tarafa bildir
-        const otherSideId = side === 'p1' ? match.p2Id : match.p1Id;
-        const notifyIds = new Set();
-        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
-        if (isTeamEngine && otherSideId) {
-            const team = await prisma.tournamentTeam.findUnique({ where: { id: otherSideId } });
-            if (team?.player1Id) notifyIds.add(team.player1Id);
-            if (team?.player2Id) notifyIds.add(team.player2Id);
-        } else if (otherSideId) {
-            notifyIds.add(otherSideId);
-        }
-        const holdHint = proposal.reservationId
-            ? ` · Askıda 4s · pay 1/${shareParts}${proposal.amountDue != null ? ` (${proposal.amountDue} TL)` : ''}`
-            : '';
-        for (const uid of notifyIds) {
-            if (!uid || uid === req.userId) continue;
-            createNotification(
-                uid,
-                'TOURNAMENT_SCHEDULE_PROPOSAL',
-                '📅 Maç yeri / zaman teklifi',
-                `${tournament.name}: ${proposal.date} ${proposal.timeFrom}-${proposal.timeTo}${proposal.venueName ? ` · ${proposal.venueName}` : ''}${holdHint}`,
-                { tournamentId: id, matchId, category: tournament.category, subCategory: tournament.subCategory },
-            ).catch(() => {});
-            emitToUser(uid, 'tournament:schedule_updated', { tournamentId: id, matchId, scheduleData: schedule });
+        // TEST: rakip taraf tamamen demo ise teklifi hemen kabul et
+        let finalSchedule = schedule;
+        let demoAutoAgreed = false;
+        try {
+            const freshMatch = { ...match, scheduleData: schedule };
+            const autoBody = await tryDemoAutoAgreeSchedule(tournament, freshMatch, proposal.id);
+            if (autoBody?.scheduleData) {
+                finalSchedule = autoBody.scheduleData;
+                demoAutoAgreed = true;
+            }
+        } catch (autoErr) {
+            console.error('[proposeMatchSchedule] demo auto-agree failed:', autoErr?.message);
         }
 
-        res.json({ scheduleData: schedule, proposal });
+        // Rakip tarafa bildir (demo auto-agree olduysa AGREED bildirimi agreeMatchSchedule'dan gider)
+        if (!demoAutoAgreed) {
+            const otherSideId = side === 'p1' ? match.p2Id : match.p1Id;
+            const notifyIds = new Set();
+            const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
+            if (isTeamEngine && otherSideId) {
+                const team = await prisma.tournamentTeam.findUnique({ where: { id: otherSideId } });
+                if (team?.player1Id) notifyIds.add(team.player1Id);
+                if (team?.player2Id) notifyIds.add(team.player2Id);
+            } else if (otherSideId) {
+                notifyIds.add(otherSideId);
+            }
+            const holdHint = proposal.reservationId
+                ? ` · Askıda 4s · pay 1/${shareParts}${proposal.amountDue != null ? ` (${proposal.amountDue} TL)` : ''}`
+                : '';
+            for (const uid of notifyIds) {
+                if (!uid || uid === req.userId) continue;
+                createNotification(
+                    uid,
+                    'TOURNAMENT_SCHEDULE_PROPOSAL',
+                    '📅 Maç yeri / zaman teklifi',
+                    `${tournament.name}: ${proposal.date} ${proposal.timeFrom}-${proposal.timeTo}${proposal.venueName ? ` · ${proposal.venueName}` : ''}${holdHint}`,
+                    { tournamentId: id, matchId, category: tournament.category, subCategory: tournament.subCategory },
+                ).catch(() => {});
+                emitToUser(uid, 'tournament:schedule_updated', { tournamentId: id, matchId, scheduleData: finalSchedule });
+            }
+        } else {
+            // Teklif sahibine de anlık güncelleme (agree zaten her iki tarafı bildirir; ekstra socket)
+            emitToUser(req.userId, 'tournament:schedule_updated', {
+                tournamentId: id, matchId, scheduleData: finalSchedule,
+            });
+        }
+
+        res.json({ scheduleData: finalSchedule, proposal, demoAutoAgreed });
     } catch (e) { next(e); }
 };
 
