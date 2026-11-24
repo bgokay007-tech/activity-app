@@ -1,4 +1,5 @@
 ﻿import prisma from '../config/prisma.js';
+import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
@@ -3562,11 +3563,10 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const isPlayer = isTeamTournament
             ? (p1Members.includes(req.userId) || p2Members.includes(req.userId))
             : (match.p1Id === req.userId || match.p2Id === req.userId);
-        let isAdminUser = false;
-        if (!isCreator && !isPlayer) {
-            const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
-            if (!requester?.isAdmin) return res.status(403).json({ message: 'Not authorized' });
-            isAdminUser = true;
+        const requester = await prisma.user.findUnique({ where: { id: req.userId }, select: { isAdmin: true } });
+        const isAdminUser = !!requester?.isAdmin;
+        if (!isCreator && !isPlayer && !isAdminUser) {
+            return res.status(403).json({ message: 'Not authorized' });
         }
 
         // Tip 3/4 antreman: önceki tur bitmeden sonraki tur skoruna karşılıklı anlaşma şart.
@@ -3599,10 +3599,27 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         const loserId  = winner === 'p1' ? match.p2Id : match.p1Id;
         const isCorrection = match.status === 'COMPLETED';
 
-        // Skor her iki taraf tarafından onaylandıysa kilitlenir — admin/oluşturucu dahil
-        // kimse artık düzenleyemez.
-        if (isCorrection && match.p1Confirmed && match.p2Confirmed) {
-            return res.status(400).json({ message: 'Skor her iki taraf tarafından onaylandı, artık düzenlenemez.' });
+        // Onaylı skor kilidi: oyuncular düzenleyemez. Admin/oluşturucu adminOverride ile
+        // doğrudan yazar; rakip acceptCorrection ile bekleyen düzeltmeyi uygular.
+        const adminOverride = !!req.body?.adminOverride && (isCreator || isAdminUser);
+        const acceptCorrection = !!req.body?.acceptCorrection;
+        if (acceptCorrection) {
+            const d = match.scoreDispute && typeof match.scoreDispute === 'object' ? match.scoreDispute : null;
+            if (!d || d.status !== 'CORRECTION_PENDING') {
+                return res.status(400).json({ message: 'Bekleyen bir skor düzeltmesi yok.' });
+            }
+            const proposerSide = d.bySide;
+            const iAmProposerSide = (proposerSide === 'p1' && p1Members.includes(req.userId))
+                || (proposerSide === 'p2' && p2Members.includes(req.userId));
+            if (iAmProposerSide) {
+                return res.status(403).json({ message: 'Düzeltmeyi yalnızca karşı taraf onaylayabilir.' });
+            }
+            if (!p1Members.includes(req.userId) && !p2Members.includes(req.userId)) {
+                return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
+            }
+        }
+        if (isCorrection && match.p1Confirmed && match.p2Confirmed && !adminOverride && !acceptCorrection) {
+            return res.status(400).json({ message: 'Skor her iki taraf tarafından onaylandı, artık düzenlenemez. İtiraz veya düzeltme isteği kullanın.' });
         }
 
         // Skoru giren taraf otomatik onaylanır (kendi tarafı için); diğer taraf ayrıca onaylamalı.
@@ -3856,14 +3873,18 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
         const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter, p1MemberRatings, p2MemberRatings };
 
+        // Admin override / kabul edilen düzeltme: skor hemen kilitli kalır, açık itiraz temizlenir.
+        const lockBothSides = adminOverride || acceptCorrection;
+
         await prisma.tournamentMatch.update({
             where: { id: matchId },
             data: {
                 score, status: 'COMPLETED', winnerId,
                 scoreEnteredBy: req.userId,
-                p1Confirmed: enteredByP1 || p1AllDemo,
-                p2Confirmed: enteredByP2 || p2AllDemo,
+                p1Confirmed: lockBothSides ? true : (enteredByP1 || p1AllDemo),
+                p2Confirmed: lockBothSides ? true : (enteredByP2 || p2AllDemo),
                 scoreSubmittedAt: new Date(),
+                ...(lockBothSides ? { scoreDispute: Prisma.DbNull } : {}),
             },
         });
 
@@ -4052,9 +4073,235 @@ export const assignThirdPlaceMatchDate = async (req, res, next) => {
     } catch (e) { next(e); }
 };
 
+/** Tur penceresi (deadline) bitene kadar onaylı skora itiraz/düzeltme açık mı? */
+function isTournamentScoreAppealOpen(match, tournament) {
+    if (match?.deadline) return Date.now() <= new Date(match.deadline).getTime();
+    if (tournament?.endDate) return Date.now() <= new Date(tournament.endDate).getTime();
+    return tournament?.status === 'IN_PROGRESS';
+}
+
+async function resolveTournamentMatchSideMembers(tournament, match) {
+    const isTeamTournament = isTeamEngineType(tournament.type);
+    let p1Members = [match.p1Id].filter(Boolean);
+    let p2Members = [match.p2Id].filter(Boolean);
+    if (isTeamTournament) {
+        const teams = await prisma.tournamentTeam.findMany({
+            where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } },
+        });
+        const t1 = teams.find(t => t.id === match.p1Id);
+        const t2 = teams.find(t => t.id === match.p2Id);
+        if (t1) p1Members = [t1.player1Id, t1.player2Id];
+        if (t2) p2Members = [t2.player1Id, t2.player2Id];
+    }
+    return { isTeamTournament, p1Members, p2Members };
+}
+
+/** Oyuncu: onaylı skor için düzeltme isteği (rakip onayına gider). */
+export const proposeTournamentScoreCorrection = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        let { sets, winner, note } = req.body || {};
+        const trimmedNote = typeof note === 'string' ? note.trim() : '';
+        if (!trimmedNote) return res.status(400).json({ message: 'Düzeltme için bir açıklama yazmalısınız.' });
+        if (!Array.isArray(sets) || !sets.length) return res.status(400).json({ message: 'Yeni skor zorunludur.' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı.' });
+        if (match.status !== 'COMPLETED' || !match.p1Confirmed || !match.p2Confirmed) {
+            return res.status(400).json({ message: 'Yalnızca her iki tarafın onayladığı skorlar için düzeltme istenebilir.' });
+        }
+        if (!isTournamentScoreAppealOpen(match, tournament)) {
+            return res.status(400).json({ message: 'Bu tur için itiraz / düzeltme süresi doldu.' });
+        }
+        const existing = match.scoreDispute && typeof match.scoreDispute === 'object' ? match.scoreDispute : null;
+        if (existing?.status === 'CORRECTION_PENDING' || existing?.status === 'DISPUTE_PENDING') {
+            return res.status(400).json({ message: 'Bu maç için zaten açık bir düzeltme veya itiraz var.' });
+        }
+
+        const { p1Members, p2Members } = await resolveTournamentMatchSideMembers(tournament, match);
+        const isP1 = p1Members.includes(req.userId);
+        const isP2 = p2Members.includes(req.userId);
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
+
+        if (isRacketSetSport(tournament.subCategory)) {
+            const spm = tournament.setsPerMatch || 3;
+            const deciding = !!tournament.decidingTiebreak && [2, 3, 5].includes(spm);
+            const checked = normalizeRacketSets(sets, {
+                decidingTiebreak: deciding,
+                setsPerMatch: spm,
+                a: 'p1', b: 'p2', tbA: 'tb1', tbB: 'tb2',
+            });
+            if (!checked.ok) return res.status(400).json({ message: checked.message });
+            sets = checked.sets;
+            winner = checked.winner === 'a' ? 'p1' : 'p2';
+        }
+        if (winner !== 'p1' && winner !== 'p2') {
+            return res.status(400).json({ message: 'Kazanan belirtilmeli.' });
+        }
+
+        const scoreDispute = {
+            status: 'CORRECTION_PENDING',
+            type: 'CORRECTION',
+            byUserId: req.userId,
+            bySide: isP1 ? 'p1' : 'p2',
+            note: trimmedNote,
+            proposedSets: sets,
+            proposedWinner: winner,
+            createdAt: new Date().toISOString(),
+        };
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { scoreDispute } });
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        const opponents = isP1 ? p2Members : p1Members;
+        for (const uid of opponents) {
+            createNotification(
+                uid, 'SCORE_DISPUTED',
+                '📝 Skor düzeltme isteği',
+                `${me?.username || 'Rakip'} skor düzeltmesi istedi: ${trimmedNote}`,
+                { tournamentId: id, matchId, scoreCorrection: true, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+            emitToUser(uid, 'tournament:match_scored', { tournamentId: id });
+        }
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        res.json(allMatches);
+    } catch (e) { next(e); }
+};
+
+/** Rakip: skor düzeltmesini onayla veya reddet. Onay → skor güncellenir; red → teklif sahibi admine itiraz edebilir. */
+export const respondTournamentScoreCorrection = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const accept = !!req.body?.accept;
+        const rejectNote = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı.' });
+
+        const d = match.scoreDispute && typeof match.scoreDispute === 'object' ? match.scoreDispute : null;
+        if (!d || d.status !== 'CORRECTION_PENDING') {
+            return res.status(400).json({ message: 'Bekleyen bir skor düzeltmesi yok.' });
+        }
+        if (!isTournamentScoreAppealOpen(match, tournament)) {
+            return res.status(400).json({ message: 'Bu tur için itiraz / düzeltme süresi doldu.' });
+        }
+
+        const { p1Members, p2Members } = await resolveTournamentMatchSideMembers(tournament, match);
+        const isP1 = p1Members.includes(req.userId);
+        const isP2 = p2Members.includes(req.userId);
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
+        const iAmProposerSide = (d.bySide === 'p1' && isP1) || (d.bySide === 'p2' && isP2);
+        if (iAmProposerSide) return res.status(403).json({ message: 'Düzeltmeyi yalnızca karşı taraf yanıtlayabilir.' });
+
+        if (accept) {
+            req.body = {
+                sets: d.proposedSets,
+                winner: d.proposedWinner,
+                acceptCorrection: true,
+            };
+            return enterTournamentMatchScore(req, res, next);
+        }
+
+        const scoreDispute = {
+            ...d,
+            status: 'CORRECTION_REJECTED',
+            rejectedAt: new Date().toISOString(),
+            rejectedByUserId: req.userId,
+            rejectNote: rejectNote || undefined,
+        };
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { scoreDispute } });
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        if (d.byUserId) {
+            createNotification(
+                d.byUserId, 'SCORE_DISPUTED',
+                '❌ Skor düzeltmesi reddedildi',
+                `${me?.username || 'Rakip'} düzeltme isteğinizi reddetti. Dilerseniz admine itiraz edebilirsiniz.`,
+                { tournamentId: id, matchId, scoreCorrectionRejected: true, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+            emitToUser(d.byUserId, 'tournament:match_scored', { tournamentId: id });
+        }
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        res.json(allMatches);
+    } catch (e) { next(e); }
+};
+
+/** Oyuncu: onaylı skora veya reddedilen düzeltmeye admin itirazı. */
+export const fileTournamentScoreDispute = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const trimmedNote = typeof req.body?.note === 'string' ? req.body.note.trim() : '';
+        if (!trimmedNote) return res.status(400).json({ message: 'İtiraz için bir açıklama yazmalısınız.' });
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı.' });
+        if (match.status !== 'COMPLETED' || !match.p1Confirmed || !match.p2Confirmed) {
+            return res.status(400).json({ message: 'Yalnızca onaylanmış skorlara itiraz edilebilir.' });
+        }
+        if (!isTournamentScoreAppealOpen(match, tournament)) {
+            return res.status(400).json({ message: 'Bu tur için itiraz süresi doldu.' });
+        }
+
+        const existing = match.scoreDispute && typeof match.scoreDispute === 'object' ? match.scoreDispute : null;
+        if (existing?.status === 'DISPUTE_PENDING' || existing?.status === 'CORRECTION_PENDING') {
+            return res.status(400).json({ message: 'Bu maç için zaten açık bir itiraz veya düzeltme var.' });
+        }
+
+        const { p1Members, p2Members } = await resolveTournamentMatchSideMembers(tournament, match);
+        const isP1 = p1Members.includes(req.userId);
+        const isP2 = p2Members.includes(req.userId);
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
+
+        const scoreDispute = {
+            status: 'DISPUTE_PENDING',
+            type: 'DISPUTE',
+            byUserId: req.userId,
+            bySide: isP1 ? 'p1' : 'p2',
+            note: trimmedNote,
+            createdAt: new Date().toISOString(),
+            previous: existing || undefined,
+        };
+        await prisma.tournamentMatch.update({ where: { id: matchId }, data: { scoreDispute } });
+
+        const me = await prisma.user.findUnique({ where: { id: req.userId }, select: { username: true } });
+        const admins = await prisma.user.findMany({ where: { isAdmin: true }, select: { id: true } });
+        const notifyIds = new Set([tournament.creatorId, ...admins.map(a => a.id)].filter(Boolean));
+        for (const uid of notifyIds) {
+            if (uid === req.userId) continue;
+            createNotification(
+                uid, 'SCORE_DISPUTED',
+                '⚠️ Turnuva skor itirazı',
+                `${me?.username || 'Oyuncu'} skor itirazı açtı: ${trimmedNote}`,
+                { tournamentId: id, matchId, scoreDispute: true, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+            emitToUser(uid, 'notification', {});
+        }
+
+        const allMatches = await prisma.tournamentMatch.findMany({
+            where: { tournamentId: id },
+            orderBy: [{ round: 'asc' }, { matchIndex: 'asc' }],
+        });
+        res.json(allMatches);
+    } catch (e) { next(e); }
+};
+
 /** Skoru girmemiş taraf, kendi tarafından biri (Çiftler'de takım üyesi) olarak skoru
- *  onaylar. İki taraf da onaylayınca skor kilitlenir — bundan sonra admin/oluşturucu
- *  dahil kimse Düzelt ile değiştiremez (enterTournamentMatchScore'daki kilit kontrolü).
+ *  onaylar. İki taraf da onaylayınca skor kilitlenir — oyuncular düzenleyemez; admin/oluşturucu
+ *  adminOverride ile değiştirebilir, oyuncular tur bitene kadar itiraz/düzeltme kullanır.
  */
 export const confirmTournamentMatchScore = async (req, res, next) => {
     try {

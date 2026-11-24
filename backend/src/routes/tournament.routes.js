@@ -20,6 +20,9 @@ import {
     getTournamentMatches,
     enterTournamentMatchScore,
     confirmTournamentMatchScore,
+    proposeTournamentScoreCorrection,
+    respondTournamentScoreCorrection,
+    fileTournamentScoreDispute,
     respondThirdPlaceMatch,
     assignThirdPlaceMatchDate,
     approveCancelRequest,
@@ -91,6 +94,9 @@ router.post('/:id/rematch',                             rematchTournament);
 router.get('/:id/matches',                   getTournamentMatches);
 router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
 router.post('/:id/matches/:matchId/confirm', confirmTournamentMatchScore);
+router.post('/:id/matches/:matchId/score-correction', proposeTournamentScoreCorrection);
+router.post('/:id/matches/:matchId/score-correction/respond', respondTournamentScoreCorrection);
+router.post('/:id/matches/:matchId/score-dispute', fileTournamentScoreDispute);
 router.patch('/:id/matches/:matchId/third-place-response', respondThirdPlaceMatch);
 router.patch('/:id/matches/:matchId/third-place-date',     assignThirdPlaceMatchDate);
 router.post('/:id/matches/:matchId/joker',   useJoker);

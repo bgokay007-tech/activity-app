@@ -242,6 +242,8 @@ export default function TournamentMatchDetailModal({
     playersArrangeCourts,
     standings = null,
     onOpenScore,
+    onAdminChangeScore,
+    onScoreDispute,
     onRequestExtend,
     onRefresh,
 }) {
@@ -1993,6 +1995,46 @@ export default function TournamentMatchDetailModal({
                                         </Text>
                                     </TouchableOpacity>
                                 )}
+                            </View>
+                        )}
+
+                        {/* Onaylı skor: admin değiştir + oyuncu itiraz (tur bitene) */}
+                        {hasResult && match?.p1Confirmed && match?.p2Confirmed && (
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6, marginBottom: 8 }}>
+                                {(isCreator || myIsAdmin) && (
+                                    <TouchableOpacity
+                                        onPress={() => { onClose(); setTimeout(() => (onAdminChangeScore || onOpenScore)?.(match), 200); }}
+                                        style={{ flexGrow: 1, backgroundColor: '#f59e0b20', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: '#f59e0b50', alignItems: 'center' }}
+                                    >
+                                        <Text style={{ color: '#fbbf24', fontWeight: '800', fontSize: 13 }}>{t.tournScoreChangeBtn || 'Skor Değiştir'}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {iAmSide && (() => {
+                                    const open = match.deadline
+                                        ? Date.now() <= new Date(match.deadline).getTime()
+                                        : (tournament?.endDate
+                                            ? Date.now() <= new Date(tournament.endDate).getTime()
+                                            : tournament?.status === 'IN_PROGRESS');
+                                    const d = match.scoreDispute;
+                                    if (!open) return null;
+                                    if (d?.status === 'CORRECTION_PENDING' || d?.status === 'DISPUTE_PENDING') {
+                                        return (
+                                            <Text style={{ color: d.status === 'DISPUTE_PENDING' ? '#c084fc' : '#fbbf24', fontSize: 12, fontWeight: '700', flexGrow: 1 }}>
+                                                {d.status === 'DISPUTE_PENDING'
+                                                    ? (t.tournScoreDisputePending || 'İtiraz admin incelemesinde')
+                                                    : (t.tournScoreCorrectionPending || 'Düzeltme rakip onayında')}
+                                            </Text>
+                                        );
+                                    }
+                                    return (
+                                        <TouchableOpacity
+                                            onPress={() => { onClose(); setTimeout(() => onScoreDispute?.(match), 200); }}
+                                            style={{ flexGrow: 1, backgroundColor: '#ef444420', borderRadius: 10, paddingVertical: 12, paddingHorizontal: 10, borderWidth: 1, borderColor: '#ef444460', alignItems: 'center' }}
+                                        >
+                                            <Text style={{ color: '#f87171', fontWeight: '800', fontSize: 13 }}>{t.tournScoreDisputeBtn || 'İtiraz'}</Text>
+                                        </TouchableOpacity>
+                                    );
+                                })()}
                             </View>
                         )}
 

@@ -1523,6 +1523,11 @@ model TournamentMatch {
   p1Confirmed        Boolean   @default(false) // p1 tarafından biri (Çiftler'de takım üyesi) skoru onayladı
   p2Confirmed        Boolean   @default(false) // p2 tarafından biri skoru onayladı — ikisi de true olunca skor kilitlenir, Düzelt kalkar
   scoreSubmittedAt   DateTime? // skor en son ne zaman girildi — karşı taraf 1 saat içinde onaylamazsa otomatik onaylanır
+  // Onaylı skor itiraz/düzeltme (tur penceresi bitene kadar):
+  // { status:'CORRECTION_PENDING'|'CORRECTION_REJECTED'|'DISPUTE_PENDING',
+  //   type:'CORRECTION'|'DISPUTE', byUserId, bySide:'p1'|'p2', note?,
+  //   proposedSets?, proposedWinner?, createdAt, rejectedAt?, rejectedByUserId? }
+  scoreDispute       Json?
   courtId            String?
   createdAt          DateTime  @default(now())
   // 3.'lük maçı — her iki yarı final bitince otomatik oluşturulur (round=final'in round'u,

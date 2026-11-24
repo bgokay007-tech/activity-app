@@ -18682,6 +18682,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [scoreEntry, setScoreEntry] = useState(null);
     const [scoreSets, setScoreSets] = useState([]);
     const [submittingScore, setSubmittingScore] = useState(false);
+    // Onaylı skor: admin değiştir / oyuncu itiraz-düzeltme (tur deadline bitene)
+    const [scoreDisputeTarget, setScoreDisputeTarget] = useState(null); // { match, mode:'dispute'|'correction-note' }
+    const [scoreDisputeNote, setScoreDisputeNote] = useState('');
+    const [submittingDispute, setSubmittingDispute] = useState(false);
     // Play-off turu (çeyrek/yarı final/final) rakipleri belli olup henüz tarih atanmadığında
     // turnuva sahibinin kendi tarihini atayabilmesi için — atamazsa 3 gün sonra sistem otomatik
     // 7 günlük süre veriyor (bkz. backend autoAssignPlayoffDeadlines).
@@ -19522,10 +19526,16 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         );
     };
 
-    const openScoreEntry = (match) => {
+    const isScoreAppealOpen = (match) => {
+        if (match?.deadline) return Date.now() <= new Date(match.deadline).getTime();
+        if (item?.endDate) return Date.now() <= new Date(item.endDate).getTime();
+        return item?.status === 'IN_PROGRESS';
+    };
+
+    const openScoreEntry = (match, opts = {}) => {
         // Antreman eleme (tip 3/4): önceki tur hâlâ bitmemişken sonraki tur skoruna
         // rakiple yer/zaman anlaşması şart (backend assertTrainingEarlyPlayAllowed ile aynı).
-        if ((item.type === '3' || item.type === '4') && match.phase === 'GROUP' && match.round > 1
+        if (!opts.adminOverride && !opts.mode && (item.type === '3' || item.type === '4') && match.phase === 'GROUP' && match.round > 1
             && !(isCreator || myIsAdmin) && !match.scheduleData?.agreed) {
             const sideIds = [match.p1Id, match.p2Id].filter(Boolean);
             const earlierPending = tournMatches.some(m =>
@@ -19539,11 +19549,170 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 return;
             }
         }
-        setScoreEntry({ matchId: match.id, p1Name: match.p1Name, p2Name: match.p2Name });
+        setScoreEntry({
+            matchId: match.id,
+            p1Name: match.p1Name,
+            p2Name: match.p2Name,
+            mode: opts.mode || 'normal',
+            note: opts.note || '',
+            adminOverride: !!opts.adminOverride,
+        });
         // Karar setine kadar alan: N set → N-1 satır başta; eşitlikte son satır açılır (STB veya normal).
+        const existing = match.score?.sets;
+        if ((opts.adminOverride || opts.mode === 'correction') && Array.isArray(existing) && existing.length) {
+            setScoreSets(existing.map(s => ({
+                p1: s.p1 != null ? String(s.p1) : '',
+                p2: s.p2 != null ? String(s.p2) : '',
+                ...(s.tb1 != null ? { tb1: String(s.tb1) } : {}),
+                ...(s.tb2 != null ? { tb2: String(s.tb2) } : {}),
+                ...(s.matchTiebreak ? { matchTiebreak: true } : {}),
+            })));
+            return;
+        }
         const effectiveN = (numSets === 2 && item.decidingTiebreak) ? 3 : numSets;
         const initialCount = effectiveN <= 1 ? 1 : Math.max(1, effectiveN - 1);
         setScoreSets(Array.from({ length: initialCount }, () => ({ p1: '', p2: '' })));
+    };
+
+    const openScoreDisputeMenu = (match) => {
+        Alert.alert(
+            t.tournScoreDisputeTitle || 'Skor itirazı',
+            t.tournScoreDisputeChoose || 'Ne yapmak istersiniz?',
+            [
+                { text: t.sc_0004 || t.cancel || 'İptal', style: 'cancel' },
+                {
+                    text: t.tournScoreDisputeFile || 'İtiraz et (admine)',
+                    onPress: () => { setScoreDisputeNote(''); setScoreDisputeTarget({ match, mode: 'dispute' }); },
+                },
+                {
+                    text: t.tournScoreCorrectionAsk || 'Düzeltme iste',
+                    onPress: () => { setScoreDisputeNote(''); setScoreDisputeTarget({ match, mode: 'correction-note' }); },
+                },
+            ],
+        );
+    };
+
+    const respondScoreCorrection = async (match, accept) => {
+        try {
+            const { data } = await api.post(
+                `/tournaments/${item.id}/matches/${match.id}/score-correction/respond`,
+                { accept },
+            );
+            setTournMatches(Array.isArray(data) ? data : []);
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const submitScoreDisputeFlow = async () => {
+        if (!scoreDisputeTarget?.match) return;
+        const note = (scoreDisputeNote || '').trim();
+        if (!note) {
+            Alert.alert('', t.tournScoreNoteRequired || 'Lütfen bir açıklama yazın');
+            return;
+        }
+        if (scoreDisputeTarget.mode === 'correction-note') {
+            const m = scoreDisputeTarget.match;
+            setScoreDisputeTarget(null);
+            openScoreEntry(m, { mode: 'correction', note });
+            return;
+        }
+        setSubmittingDispute(true);
+        try {
+            const { data } = await api.post(
+                `/tournaments/${item.id}/matches/${scoreDisputeTarget.match.id}/score-dispute`,
+                { note },
+            );
+            setTournMatches(Array.isArray(data) ? data : []);
+            setScoreDisputeTarget(null);
+            setScoreDisputeNote('');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSubmittingDispute(false);
+        }
+    };
+
+    const renderConfirmedScoreActions = (match, { compact } = {}) => {
+        const bothConfirmed = match.p1Confirmed && match.p2Confirmed;
+        if (match.status !== 'COMPLETED' || !bothConfirmed) return null;
+        if (scoreEntry?.matchId === match.id) return null;
+        const fs = compact ? 9 : 10;
+        const padH = compact ? 6 : 7;
+        const dispute = match.scoreDispute && typeof match.scoreDispute === 'object' ? match.scoreDispute : null;
+        const appealOpen = isScoreAppealOpen(match);
+        const iAmSide = matchSideMine(match);
+        const iAmProposer = dispute && (
+            dispute.byUserId === myId
+            || (dispute.bySide === 'p1' && match.p1Id === mySideId)
+            || (dispute.bySide === 'p2' && match.p2Id === mySideId)
+        );
+        const buttons = [];
+        if (isCreator || myIsAdmin) {
+            buttons.push(
+                <TouchableOpacity
+                    key="chg"
+                    onPress={() => openScoreEntry(match, { adminOverride: true })}
+                    style={{ backgroundColor: '#f59e0b20', borderRadius: 6, paddingHorizontal: padH, paddingVertical: 3, borderWidth: 1, borderColor: '#f59e0b50', flexShrink: 0 }}
+                >
+                    <Text style={{ color: '#fbbf24', fontSize: fs, fontWeight: '700' }}>{t.tournScoreChangeBtn || 'Skor Değiştir'}</Text>
+                </TouchableOpacity>,
+            );
+        }
+        if (dispute?.status === 'CORRECTION_PENDING') {
+            buttons.push(
+                <Text key="pend" style={{ color: '#fbbf24', fontSize: fs, fontWeight: '700', flexShrink: 1 }} numberOfLines={2}>
+                    {t.tournScoreCorrectionPending || 'Düzeltme rakip onayında'}
+                </Text>,
+            );
+            if (iAmSide && !iAmProposer) {
+                buttons.push(
+                    <TouchableOpacity
+                        key="acc"
+                        onPress={() => respondScoreCorrection(match, true)}
+                        style={{ backgroundColor: '#16a34a20', borderRadius: 6, paddingHorizontal: padH, paddingVertical: 3, borderWidth: 1, borderColor: '#16a34a60', flexShrink: 0 }}
+                    >
+                        <Text style={{ color: '#4ade80', fontSize: fs, fontWeight: '700' }}>{t.tournScoreCorrectionAccept || 'Onayla'}</Text>
+                    </TouchableOpacity>,
+                    <TouchableOpacity
+                        key="rej"
+                        onPress={() => respondScoreCorrection(match, false)}
+                        style={{ backgroundColor: '#ef444420', borderRadius: 6, paddingHorizontal: padH, paddingVertical: 3, borderWidth: 1, borderColor: '#ef444460', flexShrink: 0 }}
+                    >
+                        <Text style={{ color: '#f87171', fontSize: fs, fontWeight: '700' }}>{t.tournScoreCorrectionReject || 'Reddet'}</Text>
+                    </TouchableOpacity>,
+                );
+            }
+        } else if (dispute?.status === 'DISPUTE_PENDING') {
+            buttons.push(
+                <Text key="disp" style={{ color: '#c084fc', fontSize: fs, fontWeight: '700', flexShrink: 1 }} numberOfLines={2}>
+                    {t.tournScoreDisputePending || 'İtiraz admin incelemesinde'}
+                </Text>,
+            );
+        } else if (appealOpen && iAmSide) {
+            if (dispute?.status === 'CORRECTION_REJECTED' && iAmProposer) {
+                buttons.push(
+                    <Text key="rejHint" style={{ color: '#f87171', fontSize: fs - 1, fontWeight: '600', flexShrink: 1 }} numberOfLines={2}>
+                        {t.tournScoreCorrectionRejectedHint || 'Düzeltme reddedildi'}
+                    </Text>,
+                );
+            }
+            buttons.push(
+                <TouchableOpacity
+                    key="dispute"
+                    onPress={() => openScoreDisputeMenu(match)}
+                    style={{ backgroundColor: '#ef444420', borderRadius: 6, paddingHorizontal: padH, paddingVertical: 3, borderWidth: 1, borderColor: '#ef444460', flexShrink: 0 }}
+                >
+                    <Text style={{ color: '#f87171', fontSize: fs, fontWeight: '700' }}>{t.tournScoreDisputeBtn || 'İtiraz'}</Text>
+                </TouchableOpacity>,
+            );
+        }
+        if (!buttons.length) return null;
+        return (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6, alignItems: 'center' }}>
+                {buttons}
+            </View>
+        );
     };
 
     const updateTournSet = (si, field, val) => {
@@ -19588,9 +19757,30 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             if (p1Wins === p2Wins) { Alert.alert('', t.racketDraw); return; }
             winner = p1Wins > p2Wins ? 'p1' : 'p2';
         }
+        if (scoreEntry.mode === 'correction') {
+            const note = (scoreEntry.note || '').trim();
+            if (!note) {
+                Alert.alert('', t.tournScoreNoteRequired || 'Lütfen bir açıklama yazın');
+                return;
+            }
+            setSubmittingScore(true);
+            try {
+                const { data } = await api.post(
+                    `/tournaments/${item.id}/matches/${scoreEntry.matchId}/score-correction`,
+                    { sets, winner, note },
+                );
+                setTournMatches(Array.isArray(data) ? data : []);
+                setScoreEntry(null);
+            } catch (e) {
+                Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            } finally { setSubmittingScore(false); }
+            return;
+        }
         setSubmittingScore(true);
         try {
-            const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, { sets, winner });
+            const body = { sets, winner };
+            if (scoreEntry.adminOverride) body.adminOverride = true;
+            const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, body);
             setTournMatches(Array.isArray(data) ? data : []);
             setScoreEntry(null);
         } catch (e) {
@@ -20452,6 +20642,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </TouchableOpacity>
                                     ) : null}
                                 </View>
+                                {renderConfirmedScoreActions(match)}
                                 {/* Skor girilmeden: tur listesinde anlaşılan yer/zaman; skor sonrası sadece detayda */}
                                 {!isDone ? <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} /> : null}
                                 {isBye && <Text style={{ color: colors.textMuted, fontSize: 9, marginTop: 3 }}>BYE</Text>}
@@ -20462,7 +20653,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                                             <TouchableOpacity onPress={submitScore} disabled={submittingScore}
                                                 style={{ backgroundColor: '#16a34a30', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 5, borderWidth: 1, borderColor: '#16a34a60' }}>
-                                                <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>{submittingScore ? '...' : t.sc_0118}</Text>
+                                                <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>
+                                                    {submittingScore ? '...' : (scoreEntry?.mode === 'correction'
+                                                        ? (t.tournScoreCorrectionSubmit || t.sc_0118)
+                                                        : (scoreEntry?.adminOverride ? (t.tournScoreChangeBtn || t.sc_0118) : t.sc_0118))}
+                                                </Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
                                                 <Text style={{ color: colors.textMuted, fontSize: 12 }}>{t.sc_0190}</Text>
@@ -21060,6 +21255,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                                             </TouchableOpacity>
                                                                         ) : null}
                                                                     </View>
+                                                                    {renderConfirmedScoreActions(match, { compact: true })}
                                                                 </>
                                                             ) : (
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
@@ -21211,7 +21407,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                                                 <TouchableOpacity onPress={submitScore} disabled={submittingScore}
                                                                     style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
-                                                                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>{submittingScore ? '...' : t.sc_0118}</Text>
+                                                                    <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>
+                                                                        {submittingScore ? '...' : (scoreEntry?.mode === 'correction'
+                                                                            ? (t.tournScoreCorrectionSubmit || t.sc_0118)
+                                                                            : (scoreEntry?.adminOverride ? (t.tournScoreChangeBtn || t.sc_0118) : t.sc_0118))}
+                                                                    </Text>
                                                                 </TouchableOpacity>
                                                                 <TouchableOpacity onPress={() => setScoreEntry(null)} style={{ paddingHorizontal:7, paddingVertical:2 }}>
                                                                     <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.sc_0190}</Text>
@@ -21268,6 +21468,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 playersArrangeCourts={!hasTournSpecificCourt(item)}
                 standings={standings}
                 onOpenScore={(m) => openScoreEntry(m)}
+                onAdminChangeScore={(m) => openScoreEntry(m, { adminOverride: true })}
+                onScoreDispute={(m) => openScoreDisputeMenu(m)}
                 onRequestExtend={(m) => {
                     setExtendDaysInput('7');
                     setExtendTarget({
@@ -21292,6 +21494,64 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 standings={standings}
                 onClose={() => setShareMatch(null)}
             />
+
+            <KeyboardSafeModal
+                visible={!!scoreDisputeTarget}
+                onClose={() => { if (!submittingDispute) { setScoreDisputeTarget(null); setScoreDisputeNote(''); } }}
+            >
+                <View style={{ padding: 16, paddingBottom: 24 }}>
+                    <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', marginBottom: 8 }}>
+                        {scoreDisputeTarget?.mode === 'correction-note'
+                            ? (t.tournScoreCorrectionAsk || 'Düzeltme iste')
+                            : (t.tournScoreDisputeTitle || 'Skor itirazı')}
+                    </Text>
+                    <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 10 }}>
+                        {scoreDisputeTarget?.match
+                            ? `${scoreDisputeTarget.match.p1Name || '?'} vs ${scoreDisputeTarget.match.p2Name || '?'}`
+                            : ''}
+                    </Text>
+                    <TextInput
+                        value={scoreDisputeNote}
+                        onChangeText={setScoreDisputeNote}
+                        placeholder={t.tournScoreDisputeNotePh || 'Açıklamanızı yazın…'}
+                        placeholderTextColor="#64748b"
+                        multiline
+                        style={{
+                            backgroundColor: '#0f172a',
+                            color: '#fff',
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: '#334155',
+                            minHeight: 90,
+                            padding: 12,
+                            textAlignVertical: 'top',
+                            marginBottom: 12,
+                            fontSize: 13,
+                        }}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                            onPress={() => { setScoreDisputeTarget(null); setScoreDisputeNote(''); }}
+                            style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: '#334155' }}
+                        >
+                            <Text style={{ color: '#94a3b8', fontWeight: '700' }}>{t.sc_0190 || t.sc_0004 || 'İptal'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={submitScoreDisputeFlow}
+                            disabled={submittingDispute}
+                            style={{ flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 10, backgroundColor: '#ef444430', borderWidth: 1, borderColor: '#ef444460' }}
+                        >
+                            <Text style={{ color: '#f87171', fontWeight: '800' }}>
+                                {submittingDispute
+                                    ? '...'
+                                    : (scoreDisputeTarget?.mode === 'correction-note'
+                                        ? (t.tournScoreCorrectionAsk || 'Devam')
+                                        : (t.tournScoreDisputeSubmit || 'Gönder'))}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </KeyboardSafeModal>
 
             {/* Play-off turu için tarih atama */}
             <Modal visible={playoffDeadlineRound != null} animationType="slide" transparent onRequestClose={() => setPlayoffDeadlineRound(null)} android_keyboardInputMode="adjustNothing">
