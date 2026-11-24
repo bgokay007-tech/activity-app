@@ -177,6 +177,52 @@ function slotOverlapsWindow(slot, winFrom, winTo) {
     return s < winTo && end > winFrom;
 }
 
+/** FLEXIBLE / VAR_DURATION pencerelerini ortak aralığa kırp. */
+function clipWindowsToShared(windows, winFrom, winTo) {
+    if (winFrom == null || winTo == null || winTo - winFrom < 60) return [];
+    const out = [];
+    for (const w of (Array.isArray(windows) ? windows : [])) {
+        let s = timeToMinLocal(w?.start);
+        let e = timeToMinLocal(w?.end);
+        if (s == null || e == null) continue;
+        if (e <= s) e += 1440;
+        const cs = Math.max(s, winFrom);
+        const ce = Math.min(e, winTo);
+        if (ce - cs < 60) continue;
+        out.push({
+            start: minToTimeLocal(cs),
+            end: minToTimeLocal(ce >= 1440 ? ce - 1440 : ce),
+            durationMins: ce - cs,
+            _startM: cs,
+            _endM: ce,
+        });
+    }
+    return out;
+}
+
+/** Kırpılmış boş pencerelerden 60 dk'lık seçilebilir slotlar (arka arkaya seçim için). */
+function synthesizeHourlySlotsFromWindows(clippedWindows) {
+    const slots = [];
+    const seen = new Set();
+    for (const w of clippedWindows) {
+        const s = w._startM ?? timeToMinLocal(w.start);
+        const e = w._endM ?? (() => {
+            const raw = timeToMinLocal(w.end);
+            return raw != null && raw <= s ? raw + 1440 : raw;
+        })();
+        if (s == null || e == null) continue;
+        for (let m = s; m + 60 <= e; m += 60) {
+            const start = minToTimeLocal(m % 1440);
+            const end = minToTimeLocal((m + 60) % 1440);
+            const key = `${start}-${end}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            slots.push({ start, end, free: true });
+        }
+    }
+    return slots;
+}
+
 /**
  * Turnuva maç detayı: eşleşen taraflar müsaitlik + yer/zaman teklifi;
  * diğerleri yalnızca anlaşılmış yer/zamanı görür.
@@ -386,6 +432,8 @@ export default function TournamentMatchDetailModal({
         || ['2', '4', '7'].includes(String(tournament?.type || ''));
     const feeShareParts = isDoublesMatch ? 4 : 2;
     const quickIsPro = !!(quickCourt?.isProVenue && quickCourt?.venueId);
+    // Yalnızca ilk teklifte Pro+ askı (HOLD); sonraki teklifler bilgi (gün/saat/kort)
+    const canCreateHold = quickIsPro && proposals.length === 0;
 
     useEffect(() => {
         if (!visible || !playersArrangeCourts) {
@@ -813,11 +861,20 @@ export default function TournamentMatchDetailModal({
                                 `/venues/${quickCourt.venueId}/courts/${c.id}/slots`,
                                 { params: { date: quickWindow.date } },
                             );
-                            const raw = Array.isArray(data?.slots) ? data.slots : [];
-                            const slots = raw.filter(s => s.free && slotOverlapsWindow(s, winFrom, winTo));
-                            return { id: c.id, type: data?.type || 'FULL_HOUR', slots };
+                            const type = data?.type || 'FULL_HOUR';
+                            // Yapılandırılmış grid (FULL_HOUR / HALF_HOUR / NINETY_MIN)
+                            const rawSlots = Array.isArray(data?.slots) ? data.slots : [];
+                            let slots = rawSlots.filter(s => s.free && slotOverlapsWindow(s, winFrom, winTo));
+                            // Esnek / değişken süre: API `windows` döner — ortak aralığa kırpıp
+                            // saatlik boş kutucuklara çevir (arka arkaya seçim).
+                            let windows = [];
+                            if (slots.length === 0 && Array.isArray(data?.windows) && data.windows.length > 0) {
+                                windows = clipWindowsToShared(data.windows, winFrom, winTo);
+                                slots = synthesizeHourlySlotsFromWindows(windows);
+                            }
+                            return { id: c.id, type, slots, windows };
                         } catch {
-                            return { id: c.id, type: 'FULL_HOUR', slots: [] };
+                            return { id: c.id, type: 'FULL_HOUR', slots: [], windows: [] };
                         }
                     }),
                 );
@@ -891,11 +948,14 @@ export default function TournamentMatchDetailModal({
             setSchedule(data.scheduleData);
             onRefresh?.();
             const held = !!data?.proposal?.reservationId;
+            const primary = data?.proposal?.isPrimary === true || data?.proposal?.priority === 1;
             Alert.alert(
                 '',
                 held
-                    ? (t.tournAvailProposeHeldOk || 'Teklif gönderildi — Pro+ slot 4 saat askıda. Rakip kabul edince ödeme kesinleşir.')
-                    : (t.tournSchedProposed || 'Teklif gönderildi'),
+                    ? (t.tournAvailProposeHeldOk || '1. öncelik teklifi gönderildi — Pro+ slot 4 saat askıda. Rakip kabul edince ödeme kesinleşir.')
+                    : primary
+                        ? (t.tournSchedProposed || 'Teklif gönderildi')
+                        : (t.tournAvailProposeInfoOk || 'Bilgi teklifi gönderildi (askı yok). 1. öncelik teklifi geçerliliğini korur.'),
             );
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
@@ -1450,7 +1510,9 @@ export default function TournamentMatchDetailModal({
                                                     {t.tournAvailProReservePanel || 'Pro+ rezervasyon alanı'}
                                                 </Text>
                                                 <Text style={{ color: '#94a3b8', fontSize: 10, lineHeight: 14 }}>
-                                                    {t.tournAvailProReserveHint || 'Ortak saatte boş kortlara dokunun; arka arkaya saat seçin. Teklif gönderilince slot 4 saat askıda kalır; rakip kabul edince ödeme kesinleşir.'}
+                                                    {canCreateHold
+                                                        ? (t.tournAvailProReserveHint || 'Ortak saatte boş kortlara dokunun; arka arkaya saat seçin. İlk teklifte slot 4 saat askıda kalır; rakip kabul edince ödeme kesinleşir.')
+                                                        : (t.tournAvailProSecondaryHint || 'İlk teklif öncelikli ve askıda. Sonraki teklifler yalnızca gün / saat / kort bilgisi — yeni askı açılmaz.')}
                                                 </Text>
                                                 {(quickCourtsLoading || quickSlotsLoading) ? <ActivityIndicator color="#38bdf8" /> : null}
                                                 {!quickCourtsLoading && !quickSlotsLoading && quickVenueCourts.length === 0 ? (
@@ -1602,12 +1664,14 @@ export default function TournamentMatchDetailModal({
                                                         {t.tournAvailTapConsecutive || 'Kaç saat oynayacaksanız arka arkaya slotlara dokunun.'}
                                                     </Text>
                                                 ) : null}
-                                                <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700' }}>
-                                                    {(t.tournAvailFeeShare || 'Kişi başı pay')}: 1/{feeShareParts}
-                                                    {isDoublesMatch
-                                                        ? ` (${t.tournAvailFeeShareDoubles || 'çiftli'})`
-                                                        : ` (${t.tournAvailFeeShareSingles || 'tekli'})`}
-                                                </Text>
+                                                {canCreateHold ? (
+                                                    <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700' }}>
+                                                        {(t.tournAvailFeeShare || 'Kişi başı pay')}: 1/{feeShareParts}
+                                                        {isDoublesMatch
+                                                            ? ` (${t.tournAvailFeeShareDoubles || 'çiftli'})`
+                                                            : ` (${t.tournAvailFeeShareSingles || 'tekli'})`}
+                                                    </Text>
+                                                ) : null}
                                             </View>
                                         )}
 
@@ -1615,23 +1679,23 @@ export default function TournamentMatchDetailModal({
                                             disabled={saving}
                                             onPress={submitQuickProposal}
                                             style={{
-                                                backgroundColor: quickIsPro ? '#0ea5e930' : '#7c3aed40',
+                                                backgroundColor: canCreateHold ? '#0ea5e930' : '#7c3aed40',
                                                 borderRadius: 8,
                                                 paddingVertical: 10,
                                                 alignItems: 'center',
                                                 borderWidth: 1,
-                                                borderColor: quickIsPro ? '#0ea5e960' : '#a78bfa80',
+                                                borderColor: canCreateHold ? '#0ea5e960' : '#a78bfa80',
                                                 opacity: saving ? 0.6 : 1,
                                                 marginTop: 2,
                                             }}
                                         >
                                             {saving ? (
-                                                <ActivityIndicator color={quickIsPro ? '#38bdf8' : '#c4b5fd'} />
+                                                <ActivityIndicator color={canCreateHold ? '#38bdf8' : '#c4b5fd'} />
                                             ) : (
-                                                <Text style={{ color: quickIsPro ? '#38bdf8' : '#c4b5fd', fontWeight: '800', fontSize: 12 }}>
-                                                    {quickIsPro
-                                                        ? (t.tournAvailSendHoldPropose || 'Teklif gönder (4 saat askıda)')
-                                                        : (t.tournAvailSendQuickPropose || 'Teklif gönder')}
+                                                <Text style={{ color: canCreateHold ? '#38bdf8' : '#c4b5fd', fontWeight: '800', fontSize: 12 }}>
+                                                    {canCreateHold
+                                                        ? (t.tournAvailSendHoldPropose || 'Teklif gönder (1. öncelik · 4 saat askıda)')
+                                                        : (t.tournAvailSendInfoPropose || 'Teklif gönder (gün / saat / kort)')}
                                                 </Text>
                                             )}
                                         </TouchableOpacity>
@@ -1786,10 +1850,26 @@ export default function TournamentMatchDetailModal({
                                             borderWidth: 1,
                                             borderColor: '#334155',
                                         }}>
-                                            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>
-                                                {[p.date, `${p.timeFrom}-${p.timeTo}`, p.venueName].filter(Boolean).join(' · ')}
-                                                {p.isProVenue ? ' · Pro+' : ''}
-                                            </Text>
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+                                                {(p.isPrimary || p.priority === 1) ? (
+                                                    <View style={{
+                                                        backgroundColor: '#f59e0b30',
+                                                        borderRadius: 999,
+                                                        paddingHorizontal: 8,
+                                                        paddingVertical: 2,
+                                                        borderWidth: 1,
+                                                        borderColor: '#f59e0b70',
+                                                    }}>
+                                                        <Text style={{ color: '#fbbf24', fontSize: 10, fontWeight: '900' }}>
+                                                            {t.tournAvailPrimaryBadge || '1. öncelik'}
+                                                        </Text>
+                                                    </View>
+                                                ) : null}
+                                                <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700', flex: 1 }}>
+                                                    {[p.date, `${p.timeFrom}-${p.timeTo}`, p.venueName].filter(Boolean).join(' · ')}
+                                                    {p.isProVenue ? ' · Pro+' : ''}
+                                                </Text>
+                                            </View>
                                             <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }}>
                                                 {mine
                                                     ? (t.tournSchedYourProposal || 'Senin teklifin')
@@ -1801,6 +1881,10 @@ export default function TournamentMatchDetailModal({
                                                     {p.amountDue != null
                                                         ? ` · 1/${p.splitParts || feeShareParts} (${p.amountDue}/${p.fullPrice ?? '?'} TL)`
                                                         : ` · 1/${p.splitParts || feeShareParts}`}
+                                                </Text>
+                                            ) : (!(p.isPrimary || p.priority === 1) || p.isProVenue) ? (
+                                                <Text style={{ color: '#94a3b8', fontSize: 10, marginTop: 4, fontWeight: '600' }}>
+                                                    {t.tournAvailInfoProposeBadge || 'Bilgi teklifi (askı yok)'}
                                                 </Text>
                                             ) : null}
                                             {canAct && !lockedByAdmin && !mine && !agreedText ? (
