@@ -35848,13 +35848,15 @@ const s = StyleSheet.create({
     back:             { fontSize: moderateScale(16), fontWeight:'700' },
     title:            { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', flex:1, minWidth:0 },
 
-    tabBar:           { flexGrow:0, marginBottom: moderateScale(4) },
-    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2 },
-    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: 2, paddingBottom: moderateScale(4) },
-    tab:              { paddingHorizontal: 3, paddingTop: moderateScale(8), paddingBottom: moderateScale(10), minHeight: 40, borderRadius: 8, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
-    tabCompact:       { paddingHorizontal: 3, paddingTop: moderateScale(7), paddingBottom: moderateScale(8), borderRadius: 8, minHeight: 40 },
-    tabText:          { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'700', lineHeight: moderateScale(20), includeFontPadding: false },
-    tabTextCompact:   { fontSize: moderateScale(13), lineHeight: moderateScale(18) },
+    // Kullanıcı raporu: Rakip Bul/Turnuvalar şeridi alttaki Kort Rez./İlan Oluştur ile
+    // hafif çakışıyordu — sekme yüksekliğini bir tık düşür, alt boşluğu artır.
+    tabBar:           { flexGrow:0, marginBottom: moderateScale(10) },
+    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2, alignItems:'center' },
+    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: 2, paddingBottom: 0 },
+    tab:              { paddingHorizontal: 3, paddingTop: moderateScale(5), paddingBottom: moderateScale(5), minHeight: 34, borderRadius: 8, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    tabCompact:       { paddingHorizontal: 3, paddingTop: moderateScale(4), paddingBottom: moderateScale(5), borderRadius: 8, minHeight: 34 },
+    tabText:          { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700', lineHeight: moderateScale(17), includeFontPadding: false },
+    tabTextCompact:   { fontSize: moderateScale(12), lineHeight: moderateScale(16) },
     tabTextActive:    { color:'#fff' },
 
     list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingBottom: moderateScale(64) },
