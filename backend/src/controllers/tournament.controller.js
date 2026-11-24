@@ -2174,28 +2174,41 @@ export const updateTournament = async (req, res, next) => {
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId) return res.status(403).json({ message: 'Not authorized' });
 
-        const nextEndDate = b.endDate !== undefined ? (b.endDate ? new Date(b.endDate) : null) : tournament.endDate;
-        const nextEndTime = b.endTime !== undefined ? (b.endTime || null) : tournament.endTime;
-        if (nextEndDate) {
-            const ms = registrationDeadlineMs(nextEndDate, nextEndTime);
-            if (ms != null && ms <= Date.now()) {
+        // Geçmiş tarih engeli yalnızca ALAN GERÇEKTEN DEĞİŞİNCE. Sadece WhatsApp linki /
+        // açıklama vb. güncellenirken veya form aynı geçmiş son başvuruyu tekrar gönderirken
+        // engelleme — turnuva başlangıcından bitişe kadar düzenleme serbest kalsın.
+        const pastDateChanged = (nextMs, prevMs) => {
+            if (nextMs == null || nextMs > Date.now()) return false;
+            if (prevMs == null) return true;
+            return Math.abs(nextMs - prevMs) >= 60_000;
+        };
+        if (b.endDate !== undefined || b.endTime !== undefined) {
+            const nextEndDate = b.endDate !== undefined ? (b.endDate ? new Date(b.endDate) : null) : tournament.endDate;
+            const nextEndTime = b.endTime !== undefined ? (b.endTime || null) : tournament.endTime;
+            const nextMs = nextEndDate ? registrationDeadlineMs(nextEndDate, nextEndTime) : null;
+            const prevMs = registrationDeadlineMs(tournament.endDate, tournament.endTime);
+            if (pastDateChanged(nextMs, prevMs)) {
                 return res.status(400).json({ message: 'Son başvuru tarih ve saati geçmiş olamaz.' });
             }
         }
 
-        const nextEventDate = b.eventDate !== undefined ? (b.eventDate ? new Date(b.eventDate) : null) : tournament.eventDate;
-        const nextEventTime = b.eventTime !== undefined ? (b.eventTime || null) : tournament.eventTime;
-        if (nextEventDate && nextEventTime) {
-            const ms = registrationDeadlineMs(nextEventDate, nextEventTime);
-            if (ms != null && ms <= Date.now()) {
+        if (b.eventDate !== undefined || b.eventTime !== undefined) {
+            const nextEventDate = b.eventDate !== undefined ? (b.eventDate ? new Date(b.eventDate) : null) : tournament.eventDate;
+            const nextEventTime = b.eventTime !== undefined ? (b.eventTime || null) : tournament.eventTime;
+            const nextMs = (nextEventDate && nextEventTime)
+                ? registrationDeadlineMs(nextEventDate, nextEventTime) : null;
+            const prevMs = registrationDeadlineMs(tournament.eventDate, tournament.eventTime);
+            if (pastDateChanged(nextMs, prevMs)) {
                 return res.status(400).json({ message: 'Turnuva başlangıç tarih ve saati geçmiş olamaz.' });
             }
         }
-        const nextEventEndDate = b.eventEndDate !== undefined ? (b.eventEndDate ? new Date(b.eventEndDate) : null) : tournament.eventEndDate;
-        const nextEventEndTime = b.eventEndTime !== undefined ? (b.eventEndTime || null) : tournament.eventEndTime;
-        if (nextEventEndDate && nextEventEndTime) {
-            const ms = registrationDeadlineMs(nextEventEndDate, nextEventEndTime);
-            if (ms != null && ms <= Date.now()) {
+        if (b.eventEndDate !== undefined || b.eventEndTime !== undefined) {
+            const nextEventEndDate = b.eventEndDate !== undefined ? (b.eventEndDate ? new Date(b.eventEndDate) : null) : tournament.eventEndDate;
+            const nextEventEndTime = b.eventEndTime !== undefined ? (b.eventEndTime || null) : tournament.eventEndTime;
+            const nextMs = (nextEventEndDate && nextEventEndTime)
+                ? registrationDeadlineMs(nextEventEndDate, nextEventEndTime) : null;
+            const prevMs = registrationDeadlineMs(tournament.eventEndDate, tournament.eventEndTime);
+            if (pastDateChanged(nextMs, prevMs)) {
                 return res.status(400).json({ message: 'Tahmini bitiş tarih ve saati geçmiş olamaz.' });
             }
         }

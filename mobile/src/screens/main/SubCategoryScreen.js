@@ -19907,11 +19907,21 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         const minP = parseInt(editMin) || item.minPlayers;
         const maxP = parseInt(editMax) || item.maxPlayers;
         if (minP > maxP) { Alert.alert('', t.sc_0391); return; }
+        // Mevcut geçmiş tarihleri aynen bırakmaya izin ver (grup linki / diğer alanlar);
+        // yalnızca yeni seçilen geçmiş tarihler engellenir.
+        const unchangedPastOk = (nextDt, prevDate, prevTime) => {
+            if (!nextDt || nextDt.getTime() > Date.now()) return true;
+            if (!prevDate) return false;
+            const prev = new Date(prevDate);
+            const [ph, pm] = prevTime ? String(prevTime).split(':').map(Number) : [23, 59];
+            prev.setHours(ph || 0, pm || 0, 0, 0);
+            return Math.abs(nextDt.getTime() - prev.getTime()) < 60_000;
+        };
         if (editRegEndDate) {
             const regDt = new Date(editRegEndDate);
             const [rh, rm] = editRegEndTime ? editRegEndTime.split(':').map(Number) : [23, 59];
             regDt.setHours(rh || 0, rm || 0, 0, 0);
-            if (regDt.getTime() <= Date.now()) {
+            if (regDt.getTime() <= Date.now() && !unchangedPastOk(regDt, item.endDate, item.endTime)) {
                 Alert.alert('', t.tournRegEndPast);
                 return;
             }
@@ -19920,7 +19930,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const startDt = new Date(editEventDate);
             const [sh, sm] = editEventTime.split(':').map(Number);
             startDt.setHours(sh || 0, sm || 0, 0, 0);
-            if (startDt.getTime() <= Date.now()) {
+            if (startDt.getTime() <= Date.now() && !unchangedPastOk(startDt, item.eventDate, item.eventTime)) {
                 Alert.alert('', t.tournEventStartPast);
                 return;
             }
@@ -19929,7 +19939,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             const endDt = new Date(editEventEndDate);
             const [eh, em] = editEventEndTime.split(':').map(Number);
             endDt.setHours(eh || 0, em || 0, 0, 0);
-            if (endDt.getTime() <= Date.now()) {
+            if (endDt.getTime() <= Date.now() && !unchangedPastOk(endDt, item.eventEndDate, item.eventEndTime)) {
                 Alert.alert('', t.tournEventEndPast);
                 return;
             }
@@ -21540,18 +21550,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {isReady && match.deadline && new Date(match.deadline).getTime() < Date.now() && (
                                                                 <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'800' }}>⌛ {t.tournExpiredBadge || t.sc_0488}</Text>
                                                             )}
-                                                            {isDone ? (
-                                                                bothConfirmed ? (
-                                                                    match.scoreEnteredBy ? (
-                                                                        <Text style={{ color:'#4ade80', fontSize:8, fontWeight:'700' }}>{t.sc_0500}</Text>
-                                                                    ) : (
-                                                                        <Text style={{ color:'#fbbf24', fontSize:8, fontWeight:'700' }}>{t.sc_0501}</Text>
-                                                                    )
-                                                                ) : (
-                                                                    <Text style={{ color: colors.textMuted, fontSize:8 }}>
-                                                                        {match.p1Confirmed && !match.p2Confirmed ? t.sc_0502 : !match.p1Confirmed && match.p2Confirmed ? t.sc_0502 : t.sc_0503}
-                                                                    </Text>
-                                                                )
+                                                            {/* bothConfirmed iken "Onaylandı" renderConfirmedScoreActions'ta var — altta tekrarlama. */}
+                                                            {isDone && !bothConfirmed ? (
+                                                                <Text style={{ color: colors.textMuted, fontSize:8 }}>
+                                                                    {match.p1Confirmed && !match.p2Confirmed ? t.sc_0502 : !match.p1Confirmed && match.p2Confirmed ? t.sc_0502 : t.sc_0503}
+                                                                </Text>
                                                             ) : null}
                                                         </View>
                                                     {isEntering && (
