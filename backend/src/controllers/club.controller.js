@@ -155,10 +155,7 @@ export const createListing = async (req, res, next) => {
             if (resolvedCities.length === 0) resolvedCities = [fCity];
         }
 
-        // Bireysel kulüpte tesis zorunlu (işletme venueId ile gelir)
-        if (!linkedVenueId && !linkedCourtId) {
-            return res.status(400).json({ message: 'Tesis seçmeli veya yeni tesis bilgisi girmelisiniz' });
-        }
+        // Tesis opsiyonel — serbest / tesissiz kulüp de açılabilir (venueId/courtId null kalır)
 
         if (!resolvedCategory || !resolvedSub || !resolvedName)
             return res.status(400).json({ message: 'Zorunlu alanlar eksik' });

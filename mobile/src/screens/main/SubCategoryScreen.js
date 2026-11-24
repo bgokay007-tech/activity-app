@@ -32191,7 +32191,7 @@ function SubCategoryScreen({ route, navigation }) {
 
                             <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:2 }}>{t.clubFacilityLabel || t.sc_0277}</Text>
                             <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4, lineHeight:14 }}>
-                                {t.clubFacilityOptionalHint || t.sc_0992}
+                                {t.clubFacilityOptionalHint}
                             </Text>
                             <View style={{ marginBottom: clubForm.facilityManual ? 4 : 8, zIndex: 50 }}>
                                 <VenueNameAutocomplete
