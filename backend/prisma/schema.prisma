@@ -1409,6 +1409,8 @@ model Tournament {
   prize3               String?
   surpriseGifts        String?  // isteğe bağlı, ödüllerin yanına ek bilgi amaçlı "sürpriz hediyeler" notu
   contactPhone         String?
+  // İsteğe bağlı WhatsApp grup davet linki (chat.whatsapp.com / wa.me) — turnuva başlayınca katılımcılara sohbette sabit buton
+  whatsappGroupUrl     String?
   minRating            Float?       // minimum skillRating to join (0.0–5.0)
   maxRating            Float?       // maximum skillRating to join (0.0–5.0)
   ratingGenderSplit    Boolean      @default(false) // true ise minRating/maxRating yerine cinsiyete göre ayrı aralıklar (aşağıda) kullanılır — genderType MIX iken anlamlı

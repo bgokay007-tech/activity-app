@@ -106,7 +106,22 @@ function hasGeneralAssessment(interest, subCategory) {
 
 // Motor türleri '1'..'4'. Eski anketlerde '5'..'8' oyları varsa kabul edilmeye devam eder
 // (geriye dönük); yeni oluşturmada sadece aktif motorlar + formatConfig kullanılır.
-export const VALID_TOURN_TYPES = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
+export const VALID_TOURN_TYPES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+
+/** WhatsApp grup davet URL'si — sadece bilinen hostlar. */
+function sanitizeWhatsappGroupUrl(raw) {
+    if (raw == null) return null;
+    const s = String(raw).trim();
+    if (!s) return null;
+    try {
+        const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`);
+        const host = u.hostname.replace(/^www\./i, '').toLowerCase();
+        if (host === 'chat.whatsapp.com' || host === 'wa.me' || host === 'api.whatsapp.com') {
+            return u.toString();
+        }
+    } catch { /* invalid */ }
+    return null;
+}
 
 // Defi ligi çift girişi (padel/tenis çiftler merdiveni) çiftler puanı + partner akışı kullanır.
 const tIsDoubles = (t) => isDoublesFormat({ tournamentType: t.type }) || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
@@ -1154,7 +1169,7 @@ export const createTournament = async (req, res, next) => {
         const {
             name, type, category, subCategory, description,
             scope, genderType, isPaid, feeType, playerFee, paymentMethod, ibanNumber, ibanHolder,
-            prize1, prize2, prize3, surpriseGifts, contactPhone,
+            prize1, prize2, prize3, surpriseGifts, contactPhone, whatsappGroupUrl,
             minPlayers, maxPlayers, minRating, maxRating,
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
@@ -1218,6 +1233,11 @@ export const createTournament = async (req, res, next) => {
         if (resolved.type === '9' && !DEFI_SUBS.includes(subCategory)) {
             return res.status(400).json({ message: 'Defi ligi bu dalda kullanılamıyor' });
         }
+        let cleanWa = null;
+        if (whatsappGroupUrl != null && String(whatsappGroupUrl).trim()) {
+            cleanWa = sanitizeWhatsappGroupUrl(whatsappGroupUrl);
+            if (!cleanWa) return res.status(400).json({ message: 'Geçersiz WhatsApp grup linki (chat.whatsapp.com veya wa.me olmalı).' });
+        }
         const tournament = await prisma.tournament.create({
             data: {
                 name,
@@ -1243,6 +1263,7 @@ export const createTournament = async (req, res, next) => {
                 prize3: prize3 || null,
                 surpriseGifts: surpriseGifts || null,
                 contactPhone: contactPhone || null,
+                whatsappGroupUrl: cleanWa,
                 minRating: minRating !== undefined && minRating !== '' ? parseFloat(minRating) : null,
                 maxRating: maxRating !== undefined && maxRating !== '' ? parseFloat(maxRating) : null,
                 ratingGenderSplit: !!ratingGenderSplit,
@@ -2192,6 +2213,7 @@ export const updateTournament = async (req, res, next) => {
                 ...(cleanExtraServices    !== undefined && { extraServices: cleanExtraServices }),
                 ...(b.description         !== undefined && { description: b.description || null }),
                 ...(b.contactPhone        !== undefined && { contactPhone: b.contactPhone || null }),
+                ...(b.whatsappGroupUrl    !== undefined && { whatsappGroupUrl: sanitizeWhatsappGroupUrl(b.whatsappGroupUrl) }),
                 ...(b.scope               !== undefined && { scope: b.scope }),
                 ...(b.genderType          !== undefined && { genderType: b.genderType }),
                 ...(b.location            !== undefined && { location: b.location || null }),
@@ -2568,6 +2590,25 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             where: { id },
             data: { bracketData: { engine: 'double_elim', wbRounds: built.wbRounds, size: built.size } },
         });
+    } else if (tournament.type === '10') {
+        // Saf tek eleme: grup yok — power-of-2 bracket (BYE ile doldurulur), phase=PLAYOFF.
+        if (players.length < 2) {
+            throw Object.assign(new Error('Eleme usulü için en az 2 oyuncu gerekli.'), { status: 400 });
+        }
+        matches = singleElimMatches(players, id, 1, 'PLAYOFF');
+        const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, players.length))));
+        const totalRounds = Math.log2(size);
+        const baseDl = new Date(baseDate);
+        baseDl.setDate(baseDl.getDate() + 7);
+        matches = matches.map(m => (
+            m.round === 1 && m.status === 'PENDING' && m.p1Id && m.p2Id
+                ? { ...m, deadline: baseDl, readyAt: new Date() }
+                : m
+        ));
+        await prisma.tournament.update({
+            where: { id },
+            data: { bracketData: { engine: 'single_elim', totalRounds, size } },
+        });
     } else if (tournament.type === '7') {
         // Americano: bireysel kayıt, her tur geçici çiftler; min 4 oyuncu.
         if (players.length < 4) {
@@ -2601,9 +2642,9 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
     }
 
-    // type 5/6'da bracketData yukarıda yazıldıysa status güncellemesi createMany ile birleşsin —
+    // type 5/6/7/10'da bracketData yukarıda yazıldıysa status güncellemesi createMany ile birleşsin —
     // tekrar overwrite etmemek için mevcut bracketData'yı koru.
-    const existingBracket = tournament.type === '5' || tournament.type === '6' || tournament.type === '7'
+    const existingBracket = tournament.type === '5' || tournament.type === '6' || tournament.type === '7' || tournament.type === '10'
         ? (await prisma.tournament.findUnique({ where: { id }, select: { bracketData: true } }))?.bracketData
         : tournament.bracketData;
 
@@ -4357,8 +4398,8 @@ export const useJoker = async (req, res, next) => {
             include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
         });
         if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı.' });
-        if (!['1', '2', '3', '4'].includes(tournament.type)) {
-            return res.status(400).json({ message: 'Joker hakkı sadece Bireysel Rekabetçi, Çiftler Rekabetçi, Bireysel Antrenman ve Çiftler Antrenman turnuvalarda kullanılabilir.' });
+        if (!['1', '2', '3', '4', '10'].includes(tournament.type)) {
+            return res.status(400).json({ message: 'Joker hakkı sadece Bireysel Rekabetçi, Çiftler Rekabetçi, Bireysel Antrenman, Çiftler Antrenman ve Eleme usulü turnuvalarda kullanılabilir.' });
         }
         if (tournament.dayTrip) {
             return res.status(400).json({ message: 'Günübirlik turnuvalarda joker hakkı bulunmaz — tüm maçlar aynı gün oynanır.' });

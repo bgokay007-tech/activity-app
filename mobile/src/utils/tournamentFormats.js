@@ -1,7 +1,7 @@
 // Turnuva formatı: kullanıcıya anlamlı paketler; motor tarafında type '1'..'7'.
 // formatConfig JSON olarak Tournament.formatConfig'e yazılır.
 
-export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9'];
+export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9', '10'];
 
 // Defi ligi (meydan okuma merdiveni) — kurallar backend/src/utils/defiLadder.js ile aynı.
 export const DEFI_SUBS = ['tennis', 'padel', 'volleyball', 'basketball', 'football'];
@@ -124,6 +124,16 @@ export const TOURNAMENT_PRESETS = [
         accent: '#f97316',
         subs: DEFI_SUBS,
     },
+    {
+        id: 'single_elim',
+        engineType: '10',
+        entry: 'SINGLES',
+        intensity: 'COMPETITIVE',
+        phase1: 'NONE',
+        phase2: 'SINGLE_ELIM',
+        seeding: 'SEEDED',
+        accent: '#38bdf8',
+    },
 ];
 
 export function getPresetById(id) {
@@ -167,6 +177,7 @@ export function tournFormatLabel(tourn, t) {
         '6': t.tournPreset_double_elim || t.tournType6,
         '7': t.tournPreset_americano || t.tournType7,
         '9': t.tournPreset_defi_ladder,
+        '10': t.tournPreset_single_elim,
     };
     return legacy[type] || type || '—';
 }

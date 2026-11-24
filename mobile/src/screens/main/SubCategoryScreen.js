@@ -74,6 +74,7 @@ import {
     deriveStats, recordLineCall, LINE_CALL_SPORTS, engineToWearScore,
 } from '../../utils/liveMatchEngine';
 import { TOURNAMENT_PRESETS, getPresetById, buildFormatConfig, tournFormatLabel, ACTIVE_ENGINE_TYPES, activePresets, DEFI_DEFAULTS, DEFI_TEAM_SUBS, defiEntryFor, isDefiTourn, defiEntryOf } from '../../utils/tournamentFormats';
+import EliminationBracketView, { elimRoundLabel } from '../../components/EliminationBracketView';
 import { tournPlayoffCardText } from '../../utils/tournamentCardText';
 import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
 import MatchVideoAnalysisModal from '../../components/MatchVideoAnalysisModal';
@@ -20340,7 +20341,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : (
                 <TouchableOpacity
                     style={{ backgroundColor:'#16a34a15', borderRadius:8, paddingHorizontal:7, paddingVertical:4, borderWidth:1, borderColor:'#16a34a40', flexDirection:'row', justifyContent:'space-between', alignItems:'center' }}
-                    onPress={() => { fetchMatches(); if (!isCreator && participants.length === 0) fetchParticipants(); setShowMatchesModal(true); }}>
+                    onPress={() => {
+                        fetchMatches();
+                        if (!isCreator && participants.length === 0) fetchParticipants();
+                        if (item.type === '10') setMatchTab('bracket');
+                        setShowMatchesModal(true);
+                    }}>
                     <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0425}</Text>
                     <Text style={{ color:'#4ade80', fontSize:12 }}>›</Text>
                 </TouchableOpacity>
@@ -20389,16 +20395,25 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             onRefresh={() => { fetchMatches?.(); }}
                         />
                     )}
-                    {TOURN_TYPES.includes(item.type) && (
+                    {(TOURN_TYPES.includes(item.type) || item.type === '5' || item.type === '6' || item.type === '7' || item.type === '10') && (
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
                             {/* Kullanıcı isteği: Play-Off'lar sekmesi turnuva grup aşamasından çıkıp
                                 play-off'a geçince (en az bir PLAYOFF fazlı maç oluşunca) beliriyor —
-                                grup aşamasındayken gösterilecek bir bilgi henüz yok. */}
-                            {['matches','standings', ...(tournMatches.some(m => m.phase === 'PLAYOFF') ? ['playoffs'] : [])].map(tab => (
+                                grup aşamasındayken gösterilecek bir bilgi henüz yok.
+                                Tip 10 (eleme usulü): baştan bracket ağacı. */}
+                            {[
+                                'matches',
+                                ...(item.type === '10' || tournMatches.some(m => m.phase === 'PLAYOFF') ? ['bracket'] : []),
+                                'standings',
+                                ...(item.type !== '10' && tournMatches.some(m => m.phase === 'PLAYOFF') ? ['playoffs'] : []),
+                            ].map(tab => (
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
                                     style={{ paddingHorizontal:11, paddingVertical:3, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
                                     <Text style={{ color: matchTab===tab ? '#4ade80' : colors.textMuted, fontSize:12, fontWeight:'700' }}>
-                                        {tab === 'matches' ? t.sc_0428 : tab === 'standings' ? t.sc_0429 : t.sc_0430}
+                                        {tab === 'matches' ? t.sc_0428
+                                            : tab === 'standings' ? t.sc_0429
+                                            : tab === 'bracket' ? (t.tournElimBracketTab || 'Eleme Ağacı')
+                                            : t.sc_0430}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -20414,6 +20429,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0432}</Text>
                         </TouchableOpacity>
                     </View>
+                ) : matchTab === 'bracket' ? (
+                    <EliminationBracketView
+                        matches={tournMatches}
+                        t={t}
+                        onMatchPress={(m) => setDetailMatch(m)}
+                    />
                 ) : matchTab === 'standings' ? (
                     <View>
                         <TouchableOpacity
@@ -20872,6 +20893,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 const minP = Math.min(...playoffRoundsNow);
                                 const maxP = Math.max(...playoffRoundsNow);
                                 for (let r = minP; r <= maxP; r++) pushRound('PLAYOFF', r);
+                            } else if (tournType === '10') {
+                                const size = Number.isFinite(bracketSize) && bracketSize >= 2
+                                    ? bracketSize
+                                    : nextPow2(Math.max(2, sideCount || 2));
+                                const totalR = Math.round(Math.log2(size));
+                                for (let r = 1; r <= totalR; r++) pushRound('PLAYOFF', r);
                             } else if (!item.dayTrip && groupTotal > 0 && ['1', '2', '3', '4'].includes(tournType)) {
                                 const qual = item.playoffQualifiers || 4;
                                 const poRounds = Math.round(Math.log2(nextPow2(Math.max(2, qual))));
@@ -20893,6 +20920,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 if (phase === 'WINNERS') return t.sc_0463(round);
                                 if (phase === 'LOSERS') return t.sc_0464(round);
                                 if (phase === 'GRAND_FINAL') return t.sc_0465;
+                                if (phase === 'PLAYOFF' && playoffMaxRound > 0) {
+                                    return elimRoundLabel(round, playoffMaxRound, t);
+                                }
                                 const fromEnd = playoffMaxRound - round;
                                 if (fromEnd === 0) return t.sc_0436;
                                 if (fromEnd === 1) return t.sc_0437;
@@ -21128,7 +21158,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
                                                 : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
                                             const jokerBtn = (() => {
-                                                if (!((item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering)) return null;
+                                                if (!((item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7' || item.type === '10') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering)) return null;
                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
                                                 const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                 if (myJokerRequested) return null;
@@ -22547,6 +22577,35 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <TouchableOpacity onPress={() => setShowChatModal(false)}><Text style={{ color: colors.textMuted, fontSize:20 }}>✕</Text></TouchableOpacity>
                                 </View>
                             </View>
+                            {/* Turnuva başlayınca WhatsApp grubu — katılımcılar + sahip, sohbetin en üstünde sabit */}
+                            {!!item.whatsappGroupUrl
+                                && (item.status === 'IN_PROGRESS' || item.status === 'COMPLETED')
+                                && (isCreator || myStatus === 'ACCEPTED') && (
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        const url = String(item.whatsappGroupUrl).trim();
+                                        if (!url) return;
+                                        Linking.openURL(url).catch(() => Alert.alert('', t.actionFailed));
+                                    }}
+                                    style={{
+                                        backgroundColor: '#16a34a25',
+                                        borderRadius: 12,
+                                        paddingVertical: 12,
+                                        paddingHorizontal: 12,
+                                        borderWidth: 1,
+                                        borderColor: '#22c55e60',
+                                        marginBottom: 10,
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 8,
+                                    }}
+                                >
+                                    <Text style={{ color: '#4ade80', fontSize: 14, fontWeight: '900' }}>
+                                        {t.tournWhatsappJoinBtn || 'WhatsApp grubuna katıl'}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
                             {loadingChat ? (
                                 <ActivityIndicator color="#4ade80" style={{ marginTop:30 }} />
                             ) : (
@@ -23269,6 +23328,7 @@ function formFromTournament(item, INIT) {
         prize3: item.prize3 || '',
         surpriseGifts: item.surpriseGifts || '',
         contactPhone: item.contactPhone || '',
+        whatsappGroupUrl: item.whatsappGroupUrl || '',
         description: item.description || '',
         setsPerMatch: item.setsPerMatch != null ? String(item.setsPerMatch) : '',
         advantageScoring: item.advantageScoring !== undefined ? item.advantageScoring : undefined,
@@ -23320,7 +23380,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
         // oluşturan isterse sert/toprak/çim/diğer seçebilir.
         surface: 'PLAYERS_DECIDE', isPaid: false,
         feeType: 'SHARED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
-        prize1: '', prize2: '', prize3: '', surpriseGifts: '', contactPhone: '', description: '',
+        prize1: '', prize2: '', prize3: '', surpriseGifts: '', contactPhone: '', whatsappGroupUrl: '', description: '',
         setsPerMatch: '', advantageScoring: undefined, decidingTiebreak: false,
         matchesBeforePlayoff: '', playoffQualifiers: '',
         rules: [],
@@ -23591,7 +23651,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 prize3: f.prize3.trim() || null,
                 surpriseGifts: f.surpriseGifts.trim() || null,
                 contactPhone: f.contactPhone.trim() || null,
-                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9') && {
+                whatsappGroupUrl: f.whatsappGroupUrl.trim() || null,
+                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9' || f.type === '10' || f.type === '5' || f.type === '6' || f.type === '7') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : null,
                     advantageScoring: f.advantageScoring,
                     decidingTiebreak: isRacketSetSport(sub) && decidingTiebreakAllowed(f.setsPerMatch) && !!f.decidingTiebreak,
@@ -23678,13 +23739,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 </TouchableOpacity>
                                 {f.scope === 'YEREL' && (
                                     <>
-                                        <View style={{ flex:1 }}>
+                                        <View style={{ flex:1, zIndex: 30 }}>
                                             <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournCityLabel}</Text>
                                             <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeCity}
                                                 onChangeText={searchCityProvince}
                                                 placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
                                             {citySuggestions.length > 0 && (
-                                                <View style={s.courtResultsBox}>
+                                                <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:40, elevation:12 }]}>
                                                     {citySuggestions.map(p => (
                                                         <TouchableOpacity key={p} style={s.courtResultRow}
                                                             onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
@@ -23694,13 +23755,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                                 </View>
                                             )}
                                         </View>
-                                        <View style={{ flex:1 }}>
+                                        <View style={{ flex:1, zIndex: 29 }}>
                                             <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournDistrictLabel}</Text>
                                             <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeDistrict}
                                                 onChangeText={searchDistrict}
                                                 placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
                                             {districtSuggestions.length > 0 && (
-                                                <View style={s.courtResultsBox}>
+                                                <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:40, elevation:12 }]}>
                                                     {districtSuggestions.map(d => (
                                                         <TouchableOpacity key={d} style={s.courtResultRow}
                                                             onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
@@ -23736,10 +23797,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
 
                             {/* Turnuva formatı — preset kartları. İzinli kullanıcılar (admin /
                                 onaylı turnuva izni) bu modalı zaten dışarıdan açabiliyor.
-                                Airsoft'ta format seçimi yok (varsayılan type='1'). */}
+                                Airsoft'ta format seçimi yok (varsayılan type='1').
+                                marginTop: üst satır (ad/kapsam/il) ile etiket çakışmasın. */}
                             {!isAirsoft && (
                             <>
-                            <Text style={s.fieldLabelRed}>{t.tournFormatLabel}</Text>
+                            <Text style={[s.fieldLabelRed, { marginTop: 18 }]}>{t.tournFormatLabel}</Text>
 
                             {!f.pollEnabled && !DEFI_TEAM_SUBS.includes(sub) && (
                                 <>
@@ -24666,6 +24728,19 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 placeholder={t.tournContactPhonePh}
                                 placeholderTextColor={colors.textMuted}
                                 keyboardType="phone-pad" />
+
+                            {/* İsteğe bağlı WhatsApp grup davet linki — turnuva başlayınca sohbette sabit buton */}
+                            <Text style={s.fieldLabelRed}>{t.tournWhatsappGroupLabel || 'WhatsApp grubu (isteğe bağlı)'}</Text>
+                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
+                                {t.tournWhatsappGroupHint || 'Grubu kurup davet linkini yapıştırın. Turnuva başlayınca katılımcılar sohbette en üstteki butondan gruba katılabilir.'}
+                            </Text>
+                            <TextInput style={[s.fieldInput, ti]} value={f.whatsappGroupUrl}
+                                onChangeText={v => set('whatsappGroupUrl', v)}
+                                placeholder={t.tournWhatsappGroupPh || 'https://chat.whatsapp.com/...'}
+                                placeholderTextColor={colors.textMuted}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                keyboardType="url" />
 
                             {/* Description */}
                             <Text style={s.fieldLabelRed}>{t.tournDescLabel}</Text>
