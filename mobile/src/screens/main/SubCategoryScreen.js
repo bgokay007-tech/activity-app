@@ -1346,6 +1346,10 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
         const initialCount = (Array.isArray(item.joinRequests) ? item.joinRequests : []).filter(jr => jr.initiatedBy !== 'OWNER').length;
         return initialCount <= 5;
     });
+    // Kullanıcı isteği: ilan detayında kişi başı fiyatın yanında ok — varsayılan gizli (sağa ▶),
+    // açılınca (aşağı ▼) EFT/nakit/online/kredi kartı fiyat farkları görünsün.
+    const [feeMethodsExpanded, setFeeMethodsExpanded] = useState(false);
+    useEffect(() => { setFeeMethodsExpanded(false); }, [item?.id, visible]);
     // Oyuncular kartı "Takımları Düzenle"ye basınca kart çevrilir gibi arka
     // yüzüne (takım düzenleme ızgarası) döner; tekrar çevirince ön yüze
     // (katılımcı listesi) geri gelir. rotateY 0->90 derece dönerken (kart
@@ -1502,18 +1506,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
     const [matchMediaViewIdx, setMatchMediaViewIdx] = useState(null);
     const matchMediaViewUrl = (matchMediaViewIdx !== null && matchMediaList[matchMediaViewIdx] && !matchMediaList[matchMediaViewIdx].imageUrl)
         ? matchMediaList[matchMediaViewIdx].videoUrl : null;
-    // Kullanıcı raporu: "hala oynatmıyor" — useVideoPlayer'ın setup callback'i SADECE player
-    // ilk oluşturulduğunda bir kez çalışıyor, source sonradan değişince player kendiliğinden
-    // yeni kaynağı yüklemiyor (expo-video: "the setup callback runs only once during player
-    // creation"). Source değişikliği ayrı bir efektte replaceAsync ile elle uygulanmalı.
-    const matchMediaViewPlayer = useVideoPlayer(null);
-    useEffect(() => {
-        if (matchMediaViewUrl) {
-            matchMediaViewPlayer.replaceAsync(matchMediaViewUrl).then(() => matchMediaViewPlayer.play()).catch(() => {});
-        } else {
-            matchMediaViewPlayer.pause();
-        }
-    }, [matchMediaViewUrl]);
+    // Video player artık MatchMediaVideoViewer içinde — sadece tam ekran video açılınca
+    // mount edilir (her detay modalında native player oluşturmak Digimon açılışını kastediyordu).
     const loadMatchMedia = () => {
         if (!item?.id) return;
         setLoadingMatchMedia(true);
@@ -5949,27 +5943,32 @@ function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, aut
             )}
         </Animated.View>
 
-        <RivalDetailModal
-            visible={detailVisible}
-            item={item}
-            myId={myId}
-            sub={sub}
-            cfg={cfg}
-            t={t}
-            onClose={() => setDetailVisible(false)}
-            navigation={navigation}
-            handleJoin={(slot) => { setDetailVisible(false); setTimeout(() => isTeamWantedAd ? setShowTeamJoinModal(true) : handleJoinPress(slot), 300); }}
-            handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
-            handleRespondJoin={handleRespondJoin}
-            handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
-            onRefresh={onRefresh}
-            onRivalMatched={onRivalMatched}
-            onEdit={() => { editOpenedFromDetailRef.current = true; setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
-            myRefereeListing={refereeListings.find(r => r.userId === myId)}
-            onConfirmLateJoin={handleConfirmLateJoin}
-            highlightSlot={highlightSlot}
-            autoOpenOrder={autoOpenOrder}
-        />
+        {/* Digimon/kadar detayı: kapalıyken mount ETME — her RivalCard için useVideoPlayer +
+            onlarca Animated/effect listede kasma yapıyordu (tenis Digimon kartı en ağır).
+            CreateRivalModal gibi yalnızca açıkken mount (bkz. editVisible && …). */}
+        {detailVisible ? (
+            <RivalDetailModal
+                visible
+                item={item}
+                myId={myId}
+                sub={sub}
+                cfg={cfg}
+                t={t}
+                onClose={() => setDetailVisible(false)}
+                navigation={navigation}
+                handleJoin={(slot) => { setDetailVisible(false); setTimeout(() => isTeamWantedAd ? setShowTeamJoinModal(true) : handleJoinPress(slot), 300); }}
+                handleCancel={() => { setDetailVisible(false); setTimeout(handleCancel, 300); }}
+                handleRespondJoin={handleRespondJoin}
+                handleWithdraw={() => { setDetailVisible(false); setTimeout(handleWithdraw, 300); }}
+                onRefresh={onRefresh}
+                onRivalMatched={onRivalMatched}
+                onEdit={() => { editOpenedFromDetailRef.current = true; setDetailVisible(false); setTimeout(() => setEditVisible(true), 300); }}
+                myRefereeListing={refereeListings.find(r => r.userId === myId)}
+                onConfirmLateJoin={handleConfirmLateJoin}
+                highlightSlot={highlightSlot}
+                autoOpenOrder={autoOpenOrder}
+            />
+        ) : null}
         {isTeamWantedAd && (
             <TeamJoinRequestModal
                 visible={showTeamJoinModal}
@@ -5986,20 +5985,23 @@ function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, aut
         {/* "Katıl" derece anketi eksik olduğu için reddedilince açılır (bkz. handleJoin catch) —
             tamamlanınca yarım kalan katılım isteği otomatik tekrar gönderilir. Kullanıcının
             interest'i zaten var (başka bir anketi tamamlamış olabilir), bu yüzden vazgeçince
-            root'taki ilk-kurulum akışının aksine interest SİLİNMEZ, sadece pencere kapanır. */}
-        <AssessmentModal
-            visible={!!joinAssessGate}
-            interestId={joinAssessGate?.interestId}
-            subCategory={sub}
-            ratingType={joinAssessGate?.ratingType || null}
-            mandatory
-            onClose={() => setJoinAssessGate(null)}
-            onComplete={() => {
-                const gate = joinAssessGate;
-                setJoinAssessGate(null);
-                if (gate) handleJoin(gate.requestedSlot, gate.positionPreferences);
-            }}
-        />
+            root'taki ilk-kurulum akışının aksine interest SİLİNMEZ, sadece pencere kapanır.
+            Kapalıyken mount etme — AssessmentModal ağır. */}
+        {joinAssessGate ? (
+            <AssessmentModal
+                visible
+                interestId={joinAssessGate.interestId}
+                subCategory={sub}
+                ratingType={joinAssessGate.ratingType || null}
+                mandatory
+                onClose={() => setJoinAssessGate(null)}
+                onComplete={() => {
+                    const gate = joinAssessGate;
+                    setJoinAssessGate(null);
+                    if (gate) handleJoin(gate.requestedSlot, gate.positionPreferences);
+                }}
+            />
+        ) : null}
         {/* Kullanıcı isteği: voleybol takım maçına katılmadan önce hangi pozisyonda oynamak
             istediğini (öncelik sırasıyla, dokunma sırası = öncelik) seçebilsin — ilan sahibi
             İstekler listesinde bunu görüp kabul/red kararını buna göre versin. */}
@@ -14776,6 +14778,14 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // (kullanıcı isteği: çiftler padel'de varsayılan/birincil) Tekli formatı seçilince de
     // tekli anketine yönlendirilir. Tenis'te bu hiç oluşmaz çünkü tekli zaten en baştan şart.
     const [singlesGateOpen, setSinglesGateOpen] = useState(false);
+    // Kapı anketi bittikten hemen sonra Redux henüz gelmemiş olsa bile format seçimi
+    // tekrar ankete düşmesin (AssessmentModal /auth/me tazeler; bu yerel bayrak emniyet).
+    const [assessDoneLocal, setAssessDoneLocal] = useState({ singles: false, doubles: false });
+    useEffect(() => {
+        if (!visible) setAssessDoneLocal({ singles: false, doubles: false });
+    }, [visible]);
+    const singlesAssessDone = !!myInterestForSub?.assessmentCompleted || assessDoneLocal.singles;
+    const doublesAssessDone = !!myInterestForSub?.doublesAssessmentCompleted || assessDoneLocal.doubles;
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isFootball  = sub === 'football';
     const isVolleyball = sub === 'volleyball';
@@ -16223,12 +16233,12 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                                                 Alert.alert(t.sc_0339, t.sc_0340);
                                                                 return;
                                                             }
-                                                            if (fmt.id === 'DOUBLE' && UTR_MOBILE_SUBS.has(sub) && !myInterestForSub?.doublesAssessmentCompleted) {
+                                                            if (fmt.id === 'DOUBLE' && UTR_MOBILE_SUBS.has(sub) && !doublesAssessDone) {
                                                                 setActivePopup(null);
                                                                 setDoublesGateOpen(true);
                                                                 return;
                                                             }
-                                                            if (fmt.id === 'SINGLE' && UTR_MOBILE_SUBS.has(sub) && !myInterestForSub?.assessmentCompleted) {
+                                                            if (fmt.id === 'SINGLE' && UTR_MOBILE_SUBS.has(sub) && !singlesAssessDone) {
                                                                 setActivePopup(null);
                                                                 setSinglesGateOpen(true);
                                                                 return;
@@ -17820,6 +17830,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     ratingType="doubles"
                     onClose={() => setDoublesGateOpen(false)}
                     onComplete={() => {
+                        setAssessDoneLocal(p => ({ ...p, doubles: true }));
                         setDoublesGateOpen(false);
                         courtFeeInputRef.current?.blur();
                         setShowGenderReqModal(true);
@@ -17835,6 +17846,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                     subCategory={sub}
                     onClose={() => setSinglesGateOpen(false)}
                     onComplete={() => {
+                        setAssessDoneLocal(p => ({ ...p, singles: true }));
                         setSinglesGateOpen(false);
                         courtFeeInputRef.current?.blur();
                         setShowGenderReqModal(true);
@@ -34559,9 +34571,15 @@ function SubCategoryScreen({ route, navigation }) {
                         ]
                     );
                 }}
-                onComplete={() => {
+                onComplete={async () => {
                     const pending = gateAssessTarget?.pendingAction;
                     setGateAssessTarget(null);
+                    // Anket AssessmentModal içinde /auth/me tazeler; yine de form açılmadan
+                    // bir tick bekleyip Redux'ın yerleşmesini sağla (format 1v1 tekrar anket bug'ı).
+                    try {
+                        const { data } = await api.get('/auth/me');
+                        if (data) dispatch(setUser(data));
+                    } catch { /* */ }
                     pending?.();
                 }}
             />

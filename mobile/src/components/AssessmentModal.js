@@ -5,10 +5,20 @@ import {
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { store } from '../store';
+import { setUser } from '../store/slices/authSlice';
 import api from '../services/api';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';
 import { getSubCategoryLabel } from '../utils/subCategoryLabels';
+
+/** Anket kaydından sonra Redux interests tazelenmezse ilan formunda format seçimi
+ *  yeniden ankete düşürüyordu (kullanıcı raporu: tenis 1v1 anketi → format 1v1 → yine anket). */
+async function refreshAuthUser() {
+    try {
+        const { data } = await api.get('/auth/me');
+        if (data) store.dispatch(setUser(data));
+    } catch { /* sessiz — format kapısı yine de onComplete ile devam eder */ }
+}
 
 const LEVEL_COLORS = {
     BEGINNER:     '#4ade80',
@@ -106,6 +116,7 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
         setSaving(true);
         try {
             const { data } = await api.patch(`/interests/${interestId}/assess`, { answers: finalAnswers, ...(isDoubles && { ratingType: 'doubles' }) });
+            await refreshAuthUser();
             setResult(data);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.assessmentSubmitFailed);
