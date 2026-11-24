@@ -4447,6 +4447,12 @@ const slots = Array.from({ length: total }, (_, i) => peoplePositional[i] || nul
                                 <Text style={{ color:'#fff', fontWeight:'800', fontSize: moderateScale(12) }}>{t.buyTicketBtn}</Text>
                             </TouchableOpacity>
                         )}
+                        {(item.minParticipants != null || item.maxParticipants != null) && (
+                            <Text style={{ color: colors.textMuted, fontSize: moderateScale(11), fontWeight:'700', marginBottom: 3 }}>
+                                {'👥 '}{[item.minParticipants != null ? ('min ' + item.minParticipants) : null, item.maxParticipants != null ? ('max ' + item.maxParticipants) : null].filter(Boolean).join(' · ')}
+                                {item.genderReq && item.genderReq !== 'MIX' ? (' · ' + (item.genderReq === 'MALE' ? '👨' : '👩')) : ''}
+                            </Text>
+                        )}
                         {isOwner && isRefereeAd ? null : isOwner ? (
                             <>
                                 {/* Kullanıcı isteği: Oyuncu Davet Et / Paylaş / Düzenle / İptal Et
