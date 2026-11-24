@@ -117,6 +117,29 @@ const COUNTRIES = [
     { code: '+57',  flag: '🇨🇴', name: 'Kolombiya' },
 ];
 
+// Kayıtlı "+90555..." gibi numarayı ülke kodu + yerel kısma ayırır.
+// \+\d{1,4} greedy olduğu için +90'ı +9055 sanıyordu; en uzun bilinen kodla eşleştir.
+const COUNTRIES_BY_CODE_LEN = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length);
+function splitPhoneCC(raw) {
+    if (!raw || typeof raw !== 'string') return { cc: '+90', local: '' };
+    const s = raw.trim();
+    if (!s) return { cc: '+90', local: '' };
+    const withPlus = s.startsWith('+') ? s : `+${s.replace(/\D/g, '')}`;
+    const match = COUNTRIES_BY_CODE_LEN.find(c => withPlus.startsWith(c.code));
+    if (match) {
+        return { cc: match.code, local: withPlus.slice(match.code.length).replace(/\D/g, '') };
+    }
+    // Bilinmeyen kod: baştaki +ve rakamları ülke kodu sayma, hepsini yerel bırak
+    if (s.startsWith('+')) {
+        const m = s.match(/^\+(\d{1,4})(.*)/);
+        if (m) return { cc: `+${m[1]}`, local: m[2].replace(/\D/g, '') };
+    }
+    return { cc: '+90', local: s.replace(/\D/g, '').replace(/^0+/, '') };
+}
+function localPhoneDigits(v) {
+    return String(v || '').replace(/\D/g, '').replace(/^0+/, '');
+}
+
 const EFT_BANK = {
     banka:    'Ziraat Bankası',
     iban:     'TR00 0000 0000 0000 0000 0000 00',
@@ -2125,18 +2148,13 @@ function VenueCard({
     const [localLng, setLocalLng] = useState(venue.lng != null ? String(venue.lng) : '');
 
     // ── İletişim butonları state ──────────────────────────────────────────────
+    // WhatsApp / Beni Ara: ülke kodu ayrı seçilir, yerel numara elle girilir.
     const [localContactLinks, setLocalContactLinks] = useState(() => {
         const raw = venue.contactLinks;
         const cl = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
-        const numOnly = (val) => {
-            if (!val || typeof val !== 'string') return '';
-            if (!val.startsWith('+')) return val;
-            const m = val.match(/^\+\d{1,4}(.*)/);
-            return m ? m[1].trim() : val;
-        };
         return {
-            whatsapp:  numOnly(cl.whatsapp),
-            phone:     numOnly(cl.phone),
+            whatsapp:  splitPhoneCC(cl.whatsapp).local,
+            phone:     splitPhoneCC(cl.phone).local,
             telegram:  typeof cl.telegram  === 'string' ? cl.telegram  : '',
             instagram: typeof cl.instagram === 'string' ? cl.instagram : '',
             email:     typeof cl.email     === 'string' ? cl.email     : '',
@@ -2145,12 +2163,10 @@ function VenueCard({
     const [localCCs, setLocalCCs] = useState(() => {
         const raw = venue.contactLinks;
         const cl = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
-        const ccOnly = (val) => {
-            if (!val || typeof val !== 'string' || !val.startsWith('+')) return '+90';
-            const m = val.match(/^(\+\d{1,4})/);
-            return m ? m[1] : '+90';
+        return {
+            whatsapp: splitPhoneCC(cl.whatsapp).cc,
+            phone:    splitPhoneCC(cl.phone).cc,
         };
-        return { whatsapp: ccOnly(cl.whatsapp), phone: ccOnly(cl.phone) };
     });
     const [savingContactLinks, setSavingContactLinks] = useState(false);
     const [ccPickerKey, setCcPickerKey] = useState(null);
@@ -2881,12 +2897,21 @@ function VenueCard({
         setSavingContactLinks(true);
         try {
             const clean = {};
-            if (localContactLinks.whatsapp?.trim())  clean.whatsapp  = localCCs.whatsapp + localContactLinks.whatsapp.trim();
-            if (localContactLinks.phone?.trim())     clean.phone     = localCCs.phone    + localContactLinks.phone.trim();
+            // Ülke kodu seçici + yerel numara (baştaki 0 ve harfler atılır) → +905551234567
+            const waLocal = localPhoneDigits(localContactLinks.whatsapp);
+            const phLocal = localPhoneDigits(localContactLinks.phone);
+            if (waLocal) clean.whatsapp = (localCCs.whatsapp || '+90') + waLocal;
+            if (phLocal) clean.phone    = (localCCs.phone    || '+90') + phLocal;
             if (localContactLinks.telegram?.trim())  clean.telegram  = localContactLinks.telegram.trim();
             if (localContactLinks.instagram?.trim()) clean.instagram = localContactLinks.instagram.trim();
             if (localContactLinks.email?.trim())     clean.email     = localContactLinks.email.trim();
             await api.patch(`/venues/${venue.id}/settings`, { lat, lng, contactLinks: clean });
+            // Yerel state'i temizlenmiş haliyle tut — tekrar açınca çift kod / 0 kalmasın
+            setLocalContactLinks(p => ({
+                ...p,
+                whatsapp: waLocal,
+                phone: phLocal,
+            }));
             Alert.alert('✅ Kaydedildi', 'Konum ve iletişim butonları güncellendi.');
         } catch (e) { Alert.alert('Hata', e?.response?.data?.message || 'Kaydedilemedi'); }
         finally { setSavingContactLinks(false); }
@@ -5125,13 +5150,20 @@ function VenueCard({
                         </View>
                     </View>
 
+                    <Text style={{ color: '#555', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                        WhatsApp ve Beni Ara: ülke kodunu seçin, numarayı başında 0 olmadan yazın.
+                    </Text>
                     {[
                         { key: 'whatsapp',  label: 'WhatsApp',  placeholder: '5551234567', hasCC: true,  keyboardType: 'phone-pad' },
                         { key: 'phone',     label: 'Beni Ara',  placeholder: '5551234567', hasCC: true,  keyboardType: 'phone-pad' },
                         { key: 'telegram',  label: 'Telegram',  placeholder: '@kullanici', hasCC: false, keyboardType: 'default' },
                         { key: 'instagram', label: 'Instagram', placeholder: '@hesap',     hasCC: false, keyboardType: 'default' },
                         { key: 'email',     label: 'E-posta',   placeholder: 'info@tesis.com', hasCC: false, keyboardType: 'email-address' },
-                    ].map(item => (
+                    ].map(item => {
+                        const ccInfo = item.hasCC
+                            ? (COUNTRIES.find(c => c.code === (localCCs[item.key] || '+90')) || { flag: '', code: localCCs[item.key] || '+90' })
+                            : null;
+                        return (
                         <View key={item.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                             <Text style={{ color: '#666', fontSize: 12, fontWeight: '700', width: 72 }}>{item.label}</Text>
                             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center',
@@ -5140,10 +5172,11 @@ function VenueCard({
                                 {item.hasCC && (
                                     <TouchableOpacity
                                         onPress={() => { setCcSearch(''); setCcPickerKey(item.key); }}
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 2,
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4,
                                             paddingHorizontal: 10, paddingVertical: 7,
                                             borderRightWidth: 1, borderRightColor: '#ffffff15' }}>
-                                        <Text style={{ color: '#aaa', fontSize: 13 }}>{localCCs[item.key] || '+90'}</Text>
+                                        {!!ccInfo.flag && <Text style={{ fontSize: 14 }}>{ccInfo.flag}</Text>}
+                                        <Text style={{ color: '#aaa', fontSize: 13 }}>{ccInfo.code}</Text>
                                         <Text style={{ color: '#555', fontSize: 9 }}>▾</Text>
                                     </TouchableOpacity>
                                 )}
@@ -5153,13 +5186,18 @@ function VenueCard({
                                     placeholder={item.placeholder}
                                     placeholderTextColor="#444"
                                     value={localContactLinks[item.key] || ''}
-                                    onChangeText={v => setLocalContactLinks(p => ({ ...p, [item.key]: v }))}
+                                    onChangeText={v => setLocalContactLinks(p => ({
+                                        ...p,
+                                        // Telefon alanlarında sadece rakam; ülke kodu soldaki seçicide
+                                        [item.key]: item.hasCC ? v.replace(/\D/g, '') : v,
+                                    }))}
                                     autoCapitalize="none"
                                     keyboardType={item.keyboardType}
                                 />
                             </View>
                         </View>
-                    ))}
+                        );
+                    })}
                     <TouchableOpacity disabled={savingContactLinks}
                         onPress={handleSaveContactLinks}
                         style={{ backgroundColor: BIZ_COLOR + '20', borderRadius: 8,
