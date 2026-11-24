@@ -238,6 +238,31 @@ function isWaitingForDateTime(item) {
     return false;
 }
 
+function rosterSlotFilled(p) {
+    return !!(p && (p.id || p.manualName));
+}
+
+/** İlan kadrosu dolu mu (1v1 / 2v2 / NvN — SubCategoryScreen totalCapacity ile aynı). */
+function isRosterComplete(item) {
+    if (!item || item.kind === 'tournament') return false;
+    const teamSize = item.teamSize || 1;
+    const participants = Array.isArray(item.participants) ? item.participants : [];
+    const senderTeam = Array.isArray(item.senderTeam) ? item.senderTeam : [];
+    const unassigned = Array.isArray(item.unassignedPlayers) ? item.unassignedPlayers : [];
+    const oppManual = (Array.isArray(item.oppTeamManualNames) ? item.oppTeamManualNames : [])
+        .filter(n => typeof n === 'string' && n.trim());
+    const totalFilled = 1
+        + senderTeam.filter(rosterSlotFilled).length
+        + participants.filter(rosterSlotFilled).length
+        + unassigned.filter(rosterSlotFilled).length
+        + oppManual.length;
+    let capacity;
+    if (item.matchType === 'DOUBLE') capacity = 4;
+    else if (item.matchType === 'SINGLE' || teamSize <= 1) capacity = 2;
+    else capacity = 2 * teamSize;
+    return totalFilled >= capacity;
+}
+
 function BlinkRedKicker({ children, style }) {
     const opacity = useRef(new Animated.Value(1)).current;
     useEffect(() => {
@@ -525,25 +550,41 @@ export default function HomeScreen({ navigation }) {
     const renderJoinedCard = (item, compact, inPairGrid = false) => {
         const isTourn = item.kind === 'tournament';
         const mineOpen = isMineOpenListing(item, user?.id);
+        const tournCreator = isTourn && isOwnListing(item, user?.id);
         const tournLive = isTourn && String(item.status || '') === 'IN_PROGRESS';
         const playing = !isTourn && matchHasStarted(item, now) && !matchHasEnded(item, now);
-        const waitingDate = !isTourn && !mineOpen && isWaitingForDateTime(item);
-        // Devam eden turnuva / oynanan maç / gün-saat bekleyen → kırmızı yanıp sönen "Katıldığın"
-        const urgent = (!mineOpen && (isLiveUrgent(item, now) || waitingDate || tournLive));
+        const rosterFull = !isTourn && isRosterComplete(item);
+        // Kicker + renk: kurucu turnuva → Organize Ettiğin (kırmızı yanıp sönen);
+        // diğer katılım → kadro doluysa kırmızı yanıp sönen, değilse yeşil.
+        let kicker = t.homeJoinedKicker;
+        let kickerMode = 'purple'; // blinkRed | green | purple
+        if (isTourn) {
+            if (tournCreator) {
+                kicker = t.homeOrganizedTournamentKicker || t.yourTournament || t.homeJoinedKicker;
+                kickerMode = 'blinkRed';
+            } else {
+                kicker = t.homeJoinedKicker;
+                kickerMode = (isLiveUrgent(item, now) || tournLive) ? 'blinkRed' : 'purple';
+            }
+        } else if (playing) {
+            kicker = t.featuredNowPlaying;
+            kickerMode = 'blinkRed';
+        } else if (mineOpen) {
+            kicker = t.yourListing;
+            kickerMode = rosterFull ? 'blinkRed' : 'green';
+        } else {
+            kicker = t.homeJoinedKicker;
+            kickerMode = rosterFull ? 'blinkRed' : 'green';
+        }
         const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
         const meta = isTourn ? null : listingMeta(item);
-        const kicker = isTourn
-            ? (mineOpen
-                ? (t.yourTournament || t.yourListing)
-                : t.homeJoinedKicker)
-            : (playing
-                ? t.featuredNowPlaying
-                : (mineOpen ? t.yourListing : t.homeJoinedKicker));
         const title = isTourn
             ? (item.name || getSubCategoryLabel(item.subCategory, lang))
             : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
         // Devam eden turnuvada tarih satırı saçma duruyor — sadece dal adı.
         const tournWhen = (!tournLive && formatWhen(item, t)) || '';
+        const kickerStyle = compact ? nv.colKicker : nv.rowKicker;
+        const kickerColor = kickerMode === 'green' ? '#4ade80' : colors.purple;
         return (
             <TouchableOpacity
                 key={`joined-${isTourn ? 't' : 'r'}-${item.id}`}
@@ -553,10 +594,10 @@ export default function HomeScreen({ navigation }) {
             >
                 <Image source={photo} style={compact ? nv.colImg : nv.rowImg} resizeMode="cover" />
                 <View style={compact ? nv.colBody : nv.rowBody}>
-                    {urgent ? (
-                        <BlinkRedKicker style={compact ? nv.colKicker : nv.rowKicker}>{kicker}</BlinkRedKicker>
+                    {kickerMode === 'blinkRed' ? (
+                        <BlinkRedKicker style={kickerStyle}>{kicker}</BlinkRedKicker>
                     ) : (
-                        <Text style={[compact ? nv.colKicker : nv.rowKicker, { color: colors.purple }]}>
+                        <Text style={[kickerStyle, { color: kickerColor }]}>
                             {kicker}
                         </Text>
                     )}
