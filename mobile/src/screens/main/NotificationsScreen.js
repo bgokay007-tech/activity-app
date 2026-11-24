@@ -645,18 +645,27 @@ export default function NotificationsScreen({ navigation }) {
                 // düşüyordu (kullanıcı raporu: "padel iptal talebi tenis kortlarını açtı").
                 // reservationId varsa (ör. iptal talebi) takvimde o saat kutucuğu yanıp
                 // söner ve dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
-                navigation.navigate('BusinessApp', {
-                    openReservations: true,
-                    venueId: data.venueId || null,
-                    highlightReservationId: data.reservationId || null,
-                    highlightDate: data.date || null,
-                    highlightCourtId: data.courtId || null,
-                    highlightStartTime: data.startTime || null,
-                    highlightEndTime: data.endTime || null,
-                    highlightIsExternal: data.isExternal === true || data.isExternal === 'true',
-                    highlightClaimerUserId: data.claimerUserId || null,
-                    highlightClaimerUsername: data.claimerUsername || null,
-                    highlightCourtName: data.courtName || null,
+                // Eski bildirimlerde data.date yoksa gövde metninden YYYY-MM-DD / saat çıkar.
+                const bodyText = String(item.body || '');
+                const bodyDate = data.date || bodyText.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1] || null;
+                const bodyTimes = bodyText.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/);
+                navigation.navigate({
+                    name: 'BusinessApp',
+                    merge: true,
+                    params: {
+                        openReservations: true,
+                        venueId: data.venueId || null,
+                        highlightReservationId: data.reservationId || null,
+                        highlightDate: bodyDate,
+                        highlightCourtId: data.courtId || null,
+                        highlightStartTime: data.startTime || bodyTimes?.[1] || null,
+                        highlightEndTime: data.endTime || bodyTimes?.[2] || null,
+                        highlightIsExternal: data.isExternal === true || data.isExternal === 'true',
+                        highlightClaimerUserId: data.claimerUserId || null,
+                        highlightClaimerUsername: data.claimerUsername || null,
+                        highlightCourtName: data.courtName || null,
+                        notifNavKey: String(Date.now()),
+                    },
                 });
             } else {
                 navigation.navigate('HomeTab', { screen: 'MyReservations' });

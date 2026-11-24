@@ -1249,11 +1249,18 @@ function VenueScheduleModal({
             externalStatusShownRef.current = false;
             return;
         }
+        // highlightDate sonradan gelirse (eski bildirim → API tamamlaması) tekrar uygula.
+        // İlk açılışta date yokken bugüne düşülüp ref kilitlenmesin diye: date gelince
+        // bir kez daha setSelDate yapılır.
+        if (highlightDate) {
+            if (highlightAppliedRef.current === highlightDate) return;
+            highlightAppliedRef.current = highlightDate;
+            setSelDate(highlightDate);
+            return;
+        }
         if (highlightAppliedRef.current) return;
         highlightAppliedRef.current = true;
-        // highlightDate yoksa bugüne düş; varsa bildirilen güne git (bugüne sıfırlama
-        // highlightDate'i eziyordu — iptal/uygulama dışı bildirimleri yanlış güne açılıyordu).
-        setSelDate(highlightDate || toDateStr(new Date()));
+        setSelDate(toDateStr(new Date()));
     }, [visible, highlightDate]);
     useEffect(() => {
         if (!visible || !hasSlotHighlight) return;
@@ -2000,6 +2007,7 @@ function VenueCard({
     highlightIsExternal = false, highlightClaimerUserId = null, highlightClaimerUsername = null,
     highlightCourtName = null,
     openOrders = false, highlightActivityId = null, openClubs = false,
+    openReservationsKey = null,
 }) {
     const insets = useSafeAreaInsets();
     const { height: winH } = useWindowDimensions();
@@ -2018,6 +2026,11 @@ function VenueCard({
     // edilmiş" hatası alınıyordu (kullanıcı raporu).
     const [scheduleRefreshTick, setScheduleRefreshTick] = useState(0);
     const [scheduleOpen, setScheduleOpen]     = useState(!!openReservations);
+    // Bildirimde date/saat eksikse (eski kayıtlar) rezervasyon listesinden tamamla.
+    const [resolvedHighlight, setResolvedHighlight] = useState({
+        date: highlightDate, courtId: highlightCourtId,
+        startTime: highlightStartTime, endTime: highlightEndTime,
+    });
 
     const [blocks, setBlocks]             = useState([]);
     const [blockQ, setBlockQ]             = useState('');
@@ -2537,7 +2550,36 @@ function VenueCard({
             if (!resLoaded) loadReservations();
             loadCancelRequests();
         }
-    }, [openReservations]);
+    }, [openReservations, openReservationsKey]);
+
+    useEffect(() => {
+        setResolvedHighlight({
+            date: highlightDate, courtId: highlightCourtId,
+            startTime: highlightStartTime, endTime: highlightEndTime,
+        });
+    }, [highlightDate, highlightCourtId, highlightStartTime, highlightEndTime, openReservationsKey]);
+
+    // Eski bildirimlerde date yok — reservationId ile tesis rezervasyonlarından tamamla.
+    useEffect(() => {
+        if (!openReservations || !highlightReservationId) return;
+        if (resolvedHighlight.date && resolvedHighlight.startTime) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const { data } = await api.get(`/venues/${venue.id}/reservations`);
+                if (cancelled) return;
+                const r = (data || []).find(x => x.id === highlightReservationId);
+                if (!r) return;
+                setResolvedHighlight(prev => ({
+                    date: prev.date || r.date || null,
+                    courtId: prev.courtId || r.courtId || r.court?.id || null,
+                    startTime: prev.startTime || r.startTime || null,
+                    endTime: prev.endTime || r.endTime || null,
+                }));
+            } catch { /* */ }
+        })();
+        return () => { cancelled = true; };
+    }, [openReservations, openReservationsKey, highlightReservationId, venue.id, resolvedHighlight.date, resolvedHighlight.startTime]);
 
     // Kullanıcı raporu: "Yeni Sipariş" bildirimine dokununca rezervasyon takvimi açılıyordu,
     // hâlbuki doğrudan Siparişler sekmesine (o maçın siparişlerine) gitmeli — bkz. aşağıdaki
@@ -5301,10 +5343,10 @@ function VenueCard({
                 venue={venue}
                 isPro={isPro}
                 highlightReservationId={highlightReservationId}
-                highlightDate={highlightDate}
-                highlightCourtId={highlightCourtId}
-                highlightStartTime={highlightStartTime}
-                highlightEndTime={highlightEndTime}
+                highlightDate={resolvedHighlight.date || highlightDate}
+                highlightCourtId={resolvedHighlight.courtId || highlightCourtId}
+                highlightStartTime={resolvedHighlight.startTime || highlightStartTime}
+                highlightEndTime={resolvedHighlight.endTime || highlightEndTime}
                 highlightIsExternal={highlightIsExternal}
                 highlightClaimerUserId={highlightClaimerUserId}
                 highlightClaimerUsername={highlightClaimerUsername}
@@ -5978,6 +6020,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                             // o saat kutucuğu yanıp sönsün diye (kullanıcı isteği) — sadece bu karta
                             // aktarılır, aynı isteğin diğer tesis kartlarına sızmaması için shouldOpen
                             // ile aynı venueId eşleşmesine bağlı.
+                            const openReservationsKey = shouldOpen ? (route?.params?.notifNavKey || null) : null;
                             const highlightReservationId = shouldOpen ? (route?.params?.highlightReservationId || null) : null;
                             const highlightDate = shouldOpen ? (route?.params?.highlightDate || null) : null;
                             const highlightCourtId = shouldOpen ? (route?.params?.highlightCourtId || null) : null;
@@ -6002,6 +6045,7 @@ export default function BusinessHomeScreen({ navigation, route }) {
                                     navigation={navigation}
                                     onDelete={id => setVenues(prev => prev.filter(x => x.id !== id))}
                                     openReservations={shouldOpen}
+                                    openReservationsKey={openReservationsKey}
                                     highlightReservationId={highlightReservationId}
                                     highlightDate={highlightDate}
                                     highlightCourtId={highlightCourtId}

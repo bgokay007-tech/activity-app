@@ -2064,13 +2064,23 @@ async function updateMatchedRivalCourt(req, res, rival) {
                 });
                 createNotification(oldReservation.venue.userId, 'RESERVATION', '⏳ İptal Onayı Gerekiyor',
                     `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu için oyuncu maçı farklı bir tesise taşıdı, ancak iptal süresi geçtiği için onayınız gerekiyor. Onaylarsanız rezervasyon iptal edilecek.`,
-                    { reservationId: oldReservation.id, category: rival.category, subCategory: rival.subCategory }
+                    {
+                        reservationId: oldReservation.id, venueId: oldReservation.venueId || oldReservation.venue?.id,
+                        courtId: oldReservation.courtId, date: oldReservation.date,
+                        startTime: oldReservation.startTime, endTime: oldReservation.endTime,
+                        category: rival.category, subCategory: rival.subCategory,
+                    }
                 ).catch(() => {});
             } else {
                 await prisma.courtReservation.update({ where: { id: oldReservation.id }, data: { status: 'CANCELLED' } });
                 createNotification(oldReservation.venue.userId, 'RESERVATION', '🚫 Rezervasyon İptal Edildi',
                     `${oldReservation.date} ${oldReservation.startTime}–${oldReservation.endTime} rezervasyonu, oyuncu farklı bir tesise geçtiği için iptal edildi.`,
-                    { reservationId: oldReservation.id, category: rival.category, subCategory: rival.subCategory }
+                    {
+                        reservationId: oldReservation.id, venueId: oldReservation.venueId || oldReservation.venue?.id,
+                        courtId: oldReservation.courtId, date: oldReservation.date,
+                        startTime: oldReservation.startTime, endTime: oldReservation.endTime,
+                        category: rival.category, subCategory: rival.subCategory,
+                    }
                 ).catch(() => {});
             }
             emitToUser(oldReservation.venue.userId, 'notification', {});
@@ -2086,7 +2096,11 @@ async function updateMatchedRivalCourt(req, res, rival) {
             createNotification(targetVenue.userId, 'RESERVATION',
                 newStatus === 'CONFIRMED' ? '✅ Otomatik Onaylı Rezervasyon' : '📅 Yeni Rezervasyon',
                 `Bir maç ilanı bu tesise taşındı: ${targetCourt.name} — ${matchDate} ${matchTime}–${newEndTime}.${newStatus === 'PENDING' ? ' Onayınız bekleniyor.' : ''}`,
-                { reservationId: newReservation.id, category: rival.category, subCategory: rival.subCategory }
+                {
+                    reservationId: newReservation.id, venueId: targetVenue.id, courtId: venueCourtId,
+                    date: matchDate, startTime: matchTime, endTime: newEndTime, courtName: targetCourt.name || null,
+                    category: rival.category, subCategory: rival.subCategory,
+                }
             ).catch(() => {});
             emitToUser(targetVenue.userId, 'notification', {});
         } else {
@@ -2097,7 +2111,11 @@ async function updateMatchedRivalCourt(req, res, rival) {
             createNotification(targetVenue.userId, 'RESERVATION',
                 newStatus === 'CONFIRMED' ? '✅ Rezervasyon Değişti (Otomatik Onaylı)' : '📅 Rezervasyon Değiştirme Talebi',
                 `${targetCourt.name} — ${matchDate} ${matchTime}–${newEndTime} olarak güncellendi.${newStatus === 'PENDING' ? ' Onayınız bekleniyor.' : ''}`,
-                { reservationId: oldReservation.id, category: rival.category, subCategory: rival.subCategory }
+                {
+                    reservationId: oldReservation.id, venueId: targetVenue.id, courtId: venueCourtId,
+                    date: matchDate, startTime: matchTime, endTime: newEndTime, courtName: targetCourt.name || null,
+                    category: rival.category, subCategory: rival.subCategory,
+                }
             ).catch(() => {});
             emitToUser(targetVenue.userId, 'notification', {});
         }
@@ -7332,7 +7350,11 @@ async function cancelLinkedVenueReservation(request) {
         // unutulmuştu.
         createNotification(reservation.venue.userId, 'RESERVATION_UPDATE', '❌ Rezervasyon İptal Edildi',
             `${reservation.date} ${reservation.startTime}–${reservation.endTime} rezervasyonu, bağlı maç iptal edildiği için iptal edildi.`,
-            { reservationId: reservation.id, category: 'SPORTS', subCategory: reservation.venue.branch, venueId: reservation.venue.id, date: reservation.date }
+            {
+                reservationId: reservation.id, venueId: reservation.venue.id, courtId: reservation.courtId,
+                date: reservation.date, startTime: reservation.startTime, endTime: reservation.endTime,
+                category: 'SPORTS', subCategory: reservation.venue.branch,
+            }
         ).catch(() => {});
         emitToUser(reservation.venue.userId, 'notification', {});
         return { compliant: true, venueName: reservation.venue.name };
@@ -7349,7 +7371,11 @@ async function cancelLinkedVenueReservation(request) {
         await prisma.courtReservation.update({ where: { id: reservation.id }, data: { cancelRequested: true, cancelRequestNote: 'AUTO' } });
         createNotification(reservation.venue.userId, 'RESERVATION', '📋 İptal Talebi',
             `${reservation.date} ${reservation.startTime}–${reservation.endTime} rezervasyonu için iptal talebi gönderildi (bağlı maç iptal edildi).`,
-            { reservationId: reservation.id, category: 'SPORTS', subCategory: reservation.venue.branch, venueId: reservation.venue.id, date: reservation.date }
+            {
+                reservationId: reservation.id, venueId: reservation.venue.id, courtId: reservation.courtId,
+                date: reservation.date, startTime: reservation.startTime, endTime: reservation.endTime,
+                category: 'SPORTS', subCategory: reservation.venue.branch,
+            }
         ).catch(() => {});
         emitToUser(reservation.venue.userId, 'notification', {});
     }

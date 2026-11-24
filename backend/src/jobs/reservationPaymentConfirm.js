@@ -37,14 +37,22 @@ export async function processReservationPaymentConfirms() {
                 autoConfirmedCount++;
                 createNotification(r.venue.userId, 'RESERVATION', '✅ Rezervasyon Otomatik Onaylandı',
                     `${r.venue.name} — ${r.court?.name}: ${r.date} ${r.startTime}–${r.endTime} rezervasyonu 1 saat içinde yanıtlanmadığı için otomatik onaylandı sayıldı.`,
-                    { reservationId: r.id, category: 'SPORTS', subCategory: r.venue.branch }
+                    {
+                        reservationId: r.id, venueId: r.venueId || r.venue?.id, courtId: r.courtId,
+                        date: r.date, startTime: r.startTime, endTime: r.endTime, courtName: r.court?.name || null,
+                        category: 'SPORTS', subCategory: r.venue.branch,
+                    }
                 ).catch(() => {});
             } else if (minutesSinceStart >= 30 && !r.paymentPromptSent) {
                 await prisma.courtReservation.update({ where: { id: r.id }, data: { paymentPromptSent: true } });
                 promptedCount++;
                 createNotification(r.venue.userId, 'RESERVATION', '🕐 Ödeme Onayı Bekleniyor',
                     `${r.venue.name} — ${r.court?.name}: ${r.date} ${r.startTime}–${r.endTime} rezervasyonu için müşteri geldi mi, ödeme alındı mı? 1 saat içinde onaylamazsanız otomatik onaylanmış sayılacak.`,
-                    { reservationId: r.id, category: 'SPORTS', subCategory: r.venue.branch }
+                    {
+                        reservationId: r.id, venueId: r.venueId || r.venue?.id, courtId: r.courtId,
+                        date: r.date, startTime: r.startTime, endTime: r.endTime, courtName: r.court?.name || null,
+                        category: 'SPORTS', subCategory: r.venue.branch,
+                    }
                 ).catch(() => {});
             }
         }

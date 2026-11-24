@@ -102,18 +102,27 @@ function navigateFromNotif(data, isBusiness) {
         // dokununca doğrudan Onayla/Reddet sorulur (kullanıcı isteği).
         // Uygulama dışı rezervasyon: tarih/kort/saat + claimer — takvim o slota gitsin,
         // müsait/başkası aldı mı kontrol edilebilsin.
-        navigationRef.navigate('BusinessApp', {
-            openReservations: true,
-            venueId: data.venueId || null,
-            highlightReservationId: data.reservationId || null,
-            highlightDate: data.date || null,
-            highlightCourtId: data.courtId || null,
-            highlightStartTime: data.startTime || null,
-            highlightEndTime: data.endTime || null,
-            highlightIsExternal: data.isExternal === true || data.isExternal === 'true',
-            highlightClaimerUserId: data.claimerUserId || null,
-            highlightClaimerUsername: data.claimerUsername || null,
-            highlightCourtName: data.courtName || null,
+        // Eski bildirimlerde date/saat data'da yoksa gövde metninden çıkar (YYYY-MM-DD, HH:MM–HH:MM).
+        const bodyDate = String(data.message || data.body || '').match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1]
+            || null;
+        const bodyTimes = String(data.message || data.body || '').match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/);
+        navigationRef.navigate({
+            name: 'BusinessApp',
+            merge: true,
+            params: {
+                openReservations: true,
+                venueId: data.venueId || null,
+                highlightReservationId: data.reservationId || null,
+                highlightDate: data.date || bodyDate || null,
+                highlightCourtId: data.courtId || null,
+                highlightStartTime: data.startTime || bodyTimes?.[1] || null,
+                highlightEndTime: data.endTime || bodyTimes?.[2] || null,
+                highlightIsExternal: data.isExternal === true || data.isExternal === 'true',
+                highlightClaimerUserId: data.claimerUserId || null,
+                highlightClaimerUsername: data.claimerUsername || null,
+                highlightCourtName: data.courtName || null,
+                notifNavKey,
+            },
         });
     } else if (type === 'SCORE_DISPUTED' && data.scoreAppeal) {
         goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'disputes' } });
@@ -658,10 +667,9 @@ function AppTabs() {
     return (
         <View style={{ flex: 1 }}>
         <Tab.Navigator
-            // İşletme hesabı "App" sekmelerine (bildirim/mesaj ikonlarından) dıştan girdiğinde,
-            // sekmeler arası geri-tuşu geçmişi devreye girmesin — geri tuşu her zaman doğrudan
-            // BusinessApp'e (nereden geldiyse oraya) dönsün.
-            backBehavior={isBusiness ? 'none' : 'history'}
+            // İşletme de normal sekme geçmişi kullansın: tenis → bildirimler → geri = tenis
+            // (eskiden 'none' idi, geri her zaman BusinessApp'e düşüyordu).
+            backBehavior="history"
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {

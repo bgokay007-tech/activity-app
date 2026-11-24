@@ -33,7 +33,11 @@ export async function autoApproveEftReservations() {
 
             createNotification(res.venue.userId, 'RESERVATION', '⏱️ EFT Rezervasyon Otomatik Onaylandı',
                 `${res.user?.username} — ${res.venue.name} / ${res.court?.name} için ${res.date} ${res.startTime}–${res.endTime} EFT rezervasyonu 1 saat içinde onaylanmadı, otomatik onaylandı.`,
-                { reservationId: res.id, category: 'SPORTS', subCategory: res.venue.branch }
+                {
+                    reservationId: res.id, venueId: res.venueId || res.venue?.id, courtId: res.courtId,
+                    date: res.date, startTime: res.startTime, endTime: res.endTime, courtName: res.court?.name || null,
+                    category: 'SPORTS', subCategory: res.venue.branch,
+                }
             ).catch(() => {});
 
             createNotification(res.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',

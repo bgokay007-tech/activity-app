@@ -31,6 +31,24 @@ function fixMidnightLabels(val) {
 }
 export const overlaps = (as, ae, bs, be) => as < be && ae > bs;
 
+// İşletmeye giden rezervasyon bildirimi — mobil takvim venueId+date+saat ile açılsın
+// (eksik payload bugüne / yanlış tesise düşüyordu).
+function businessResNotifData(r, venue, court) {
+    const v = venue || r?.venue || {};
+    const ct = court || r?.court || {};
+    return {
+        reservationId: r.id,
+        venueId: v.id || r.venueId || null,
+        courtId: ct.id || r.courtId || null,
+        date: r.date || null,
+        startTime: r.startTime || null,
+        endTime: r.endTime || null,
+        courtName: ct.name || null,
+        category: 'SPORTS',
+        subCategory: v.branch || null,
+    };
+}
+
 // Türkiye saatiyle "şu an" — tarih (YYYY-MM-DD) ve gün içi dakika olarak.
 function nowIstanbul() {
     const parts = new Intl.DateTimeFormat('en-CA', {
@@ -1064,7 +1082,7 @@ export const makeReservation = async (req, res, next) => {
             // İşletmeye bilgi bildirimi
             createNotification(venue.userId, 'RESERVATION', '✅ Otomatik Onaylı Rezervasyon',
                 `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. Ödeme yöntemi: ${pmLabel}. (Otomatik onaylandı)`,
-                { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch }
+                businessResNotifData(reservation, venue, court)
             ).catch(() => {});
             // Müşteriye onay bildirimi
             createNotification(req.userId, 'RESERVATION', '✅ Rezervasyonunuz Onaylandı',
@@ -1075,7 +1093,7 @@ export const makeReservation = async (req, res, next) => {
         } else {
             await createNotification(venue.userId, 'RESERVATION', '📅 Yeni Rezervasyon',
                 `${user?.username}, ${venue.name} — ${court?.name || 'Kort'} için ${date} tarihinde ${startTime}–${endTime} rezervasyon yaptı. Ödeme yöntemi: ${pmLabel}.`,
-                { reservationId: reservation.id, category: 'SPORTS', subCategory: venue.branch }
+                businessResNotifData(reservation, venue, court)
             );
         }
         emitToUser(venue.userId, 'notification', {});
@@ -1874,7 +1892,11 @@ export const rescheduleReservation = async (req, res, next) => {
             newStatus === 'CONFIRMED'
                 ? `Rezervasyon ${newDate} ${newStartTime}–${newEndTime} olarak güncellendi ve otomatik onaylandı.`
                 : `Rezervasyon tarihi değiştirildi: ${newDate} ${newStartTime}–${newEndTime}. Onayınız bekleniyor.`,
-            { reservationId: resId, category: 'SPORTS', subCategory: res_.venue.branch }
+            businessResNotifData(
+                { ...res_, id: resId, date: newDate, startTime: newStartTime, endTime: newEndTime },
+                res_.venue,
+                courtForApproval,
+            )
         ).catch(() => {});
         emitToUser(res_.venue.userId, 'notification', {});
         if (newStatus === 'CONFIRMED') {
@@ -1960,7 +1982,7 @@ export const requestCancelReservation = async (req, res, next) => {
         // raporu: "padel rezervasyonu için gelen bildirim tenisteki kortlara yönlendirdi".
         // date de eklendi — mobil takvim bugünden değil, rezervasyonun asıl tarihinden
         // açılıp o saat kutucuğunu yanıp söndürebilsin diye (kullanıcı isteği).
-        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, { reservationId: resId, category: 'SPORTS', subCategory: r.venue.branch, venueId: r.venue.id, date: r.date }).catch(() => {});
+        await createNotification(r.venue.userId, 'RESERVATION', notifTitle, notifBody, businessResNotifData(r, r.venue, r.court)).catch(() => {});
         emitToUser(r.venue.userId, 'notification', {});
 
         res.json({ ok: true });
