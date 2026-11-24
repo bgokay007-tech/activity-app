@@ -1529,7 +1529,12 @@ function VenueScheduleModal({
                                                             <Text style={{ color: color, fontSize: 10, fontWeight: '800', width: '100%' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                                                 {slot.start} – {slot.end}
                                                             </Text>
-                                                            {slot.user ? (
+                                                            {slot.user && slot.coPayerUser ? (
+                                                                <Text style={{ color: '#60a5fa', fontSize: 9, marginTop: 2,
+                                                                    fontWeight: '700', width: '100%' }} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                                    ½ @{slot.user.username}{'\n'}½ @{slot.coPayerUser.username}
+                                                                </Text>
+                                                            ) : slot.user ? (
                                                                 <TouchableOpacity onPress={() => onUserPress?.(slot.user)}>
                                                                     <Text style={{ color: '#60a5fa', fontSize: 10, marginTop: 2,
                                                                         fontWeight: '700', textDecorationLine: 'underline', width: '100%' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -1562,7 +1567,11 @@ function VenueScheduleModal({
                                                             )}
                                                             {slot.price != null && (
                                                                 <Text style={{ color: color + 'cc', fontSize: 9, marginTop: 2, fontWeight: '800', width: '100%' }} numberOfLines={1}>
-                                                                    {slot.price > 0 ? `${slot.price}₺` : 'Ücretsiz'}
+                                                                    {slot.price > 0
+                                                                        ? (slot.splitPay && slot.coPayerUser
+                                                                            ? `${slot.price}₺ ×2`
+                                                                            : `${slot.price}₺`)
+                                                                        : 'Ücretsiz'}
                                                                 </Text>
                                                             )}
                                                             {isPending && (

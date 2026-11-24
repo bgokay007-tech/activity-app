@@ -5515,6 +5515,98 @@ function toMinsHHMM(t) {
     return (h || 0) * 60 + (m || 0);
 }
 
+function minsToHHMM(totalMins) {
+    const x = ((totalMins % 1440) + 1440) % 1440;
+    const h = Math.floor(x / 60);
+    const m = x % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Maç tarafının ödeme sorumlusu (bireysel id veya takımın 1. oyuncusu). */
+async function resolveSidePayerUserId(tournament, match, sideKey) {
+    const sideId = sideKey === 'p1' ? match?.p1Id : match?.p2Id;
+    if (!sideId) return null;
+    const isTeam = tournament?.type === '2' || tournament?.type === '4' || tournament?.type === '7';
+    if (!isTeam) return sideId;
+    const team = await prisma.tournamentTeam.findUnique({
+        where: { id: sideId },
+        select: { player1Id: true },
+    }).catch(() => null);
+    return team?.player1Id || null;
+}
+
+/**
+ * Turnuva maçı saatlerini iki tarafa böl:
+ * - 2 saat → 1. saat A, 2. saat B
+ * - 3 saat → 1. A, orta 50/50, 3. B
+ * - tek saat → tamamı 50/50
+ * Fiyat her saat diliminin gerçek getSlotPrice değeriyle.
+ */
+function buildMatchFeeSegments({ startTime, endTime, sideAUserId, sideBUserId, venue, court, getSlotPriceFn }) {
+    let start = toMinsHHMM(startTime);
+    let end = toMinsHHMM(endTime);
+    if (end <= start) end += 1440;
+    const hours = [];
+    for (let t = start; t + 60 <= end; t += 60) {
+        hours.push({ startMins: t, endMins: t + 60 });
+    }
+    if (hours.length === 0 && end > start) {
+        hours.push({ startMins: start, endMins: end });
+    } else if (hours.length && hours[hours.length - 1].endMins < end) {
+        hours[hours.length - 1].endMins = end;
+    }
+    const n = hours.length;
+    const half = Math.floor(n / 2);
+    const hasMiddle = n % 2 === 1;
+    const aId = sideAUserId || sideBUserId;
+    const bId = sideBUserId || sideAUserId;
+    return hours.map((h, i) => {
+        const st = minsToHHMM(h.startMins);
+        const et = minsToHHMM(h.endMins);
+        const dur = h.endMins - h.startMins;
+        const hourPrice = Math.round((getSlotPriceFn?.(venue, court, st, dur) || 0));
+        let userId = aId;
+        let coPayerUserId = null;
+        let splitPay = false;
+        let amountDue = hourPrice;
+        if (hasMiddle && i === half) {
+            userId = aId;
+            coPayerUserId = bId && bId !== aId ? bId : null;
+            splitPay = !!coPayerUserId;
+            amountDue = splitPay ? Math.ceil(hourPrice / 2) : hourPrice;
+        } else if (i >= half + (hasMiddle ? 1 : 0)) {
+            userId = bId;
+        }
+        return {
+            startTime: st,
+            endTime: et,
+            userId,
+            coPayerUserId,
+            splitPay,
+            fullPrice: hourPrice,
+            amountDue,
+        };
+    });
+}
+
+function bizReservationNotifData({
+    reservationId, venueId, courtId, date, startTime, endTime, courtName, tournament, matchId,
+}) {
+    return {
+        reservationId: reservationId || null,
+        venueId: venueId || null,
+        courtId: courtId || null,
+        date: date || null,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        courtName: courtName || null,
+        tournamentId: tournament?.id || null,
+        matchId: matchId || null,
+        category: tournament?.category || null,
+        subCategory: tournament?.subCategory || null,
+    };
+}
+
 async function resolveVenueProFlag(venueId) {
     if (!venueId) return { venue: null, isProVenue: false };
     const venue = await prisma.businessVenue.findUnique({
@@ -5772,32 +5864,54 @@ export const proposeMatchSchedule = async (req, res, next) => {
                             data: { status: 'CANCELLED', holdUntil: null },
                         });
                         const court = await prisma.venueCourt.findUnique({ where: { id: vCourtId } });
-                        let durationMins = toMinsHHMM(tt) - toMinsHHMM(tf);
-                        if (durationMins <= 0) durationMins += 1440;
-                        const fullPrice = Math.round(getSlotPrice(venue, court, tf, durationMins) || 0);
-                        const amountDue = Math.ceil(fullPrice / shareParts);
-                        const holdUntil = new Date(Date.now() + 4 * 60 * 60 * 1000);
-                        const holdRes = await prisma.courtReservation.create({
-                            data: {
-                                venueId: resolvedVenueId,
-                                courtId: vCourtId,
-                                userId: req.userId,
-                                date: d,
-                                startTime: tf,
-                                endTime: tt,
-                                paymentMethod: 'CASH',
-                                notes: `Askıda (1. öncelik turnuva teklifi): ${tournament.name}. Pay 1/${shareParts} = ${amountDue}/${fullPrice} TL.`,
-                                status: 'HOLD',
-                                holdUntil,
-                                tournamentMatchId: matchId,
-                                splitPay: true,
-                                fullPrice,
-                                amountDue,
-                            },
+                        const otherSide = side === 'p1' ? 'p2' : 'p1';
+                        const sideAUserId = await resolveSidePayerUserId(tournament, match, side) || req.userId;
+                        const sideBUserId = await resolveSidePayerUserId(tournament, match, otherSide);
+                        const segments = buildMatchFeeSegments({
+                            startTime: tf,
+                            endTime: tt,
+                            sideAUserId,
+                            sideBUserId,
+                            venue,
+                            court,
+                            getSlotPriceFn: getSlotPrice,
                         });
+                        const holdUntil = new Date(Date.now() + 4 * 60 * 60 * 1000);
+                        const createdHolds = [];
+                        for (const seg of segments) {
+                            const noteParts = seg.splitPay
+                                ? `Orta saat yarı yarıya: ${seg.amountDue}/${seg.fullPrice} TL`
+                                : `Saat ücreti ${seg.amountDue} TL`;
+                            const holdRes = await prisma.courtReservation.create({
+                                data: {
+                                    venueId: resolvedVenueId,
+                                    courtId: vCourtId,
+                                    userId: seg.userId || req.userId,
+                                    date: d,
+                                    startTime: seg.startTime,
+                                    endTime: seg.endTime,
+                                    paymentMethod: 'CASH',
+                                    notes: `Askıda (1. öncelik turnuva teklifi): ${tournament.name}. ${noteParts}.`,
+                                    status: 'HOLD',
+                                    holdUntil,
+                                    tournamentMatchId: matchId,
+                                    splitPay: seg.splitPay,
+                                    fullPrice: seg.fullPrice,
+                                    amountDue: seg.amountDue,
+                                    coPayerUserId: seg.coPayerUserId,
+                                },
+                            });
+                            createdHolds.push(holdRes);
+                        }
+                        const fullPrice = segments.reduce((s, x) => s + (x.fullPrice || 0), 0);
+                        const amountDue = segments
+                            .filter(x => x.userId === sideAUserId)
+                            .reduce((s, x) => s + (x.amountDue || 0), 0);
+                        const holdRes = createdHolds[0];
                         proposal.venueCourtId = vCourtId;
                         proposal.venueName = proposal.venueName || venue.name;
-                        proposal.reservationId = holdRes.id;
+                        proposal.reservationId = holdRes?.id || null;
+                        proposal.reservationIds = createdHolds.map(h => h.id);
                         proposal.holdUntil = holdUntil.toISOString();
                         proposal.fullPrice = fullPrice;
                         proposal.amountDue = amountDue;
@@ -5807,13 +5921,17 @@ export const proposeMatchSchedule = async (req, res, next) => {
                             'RESERVATION',
                             '⏳ Askıda rezervasyon (1. öncelik teklif)',
                             `${venue.name} — ${d} ${tf}–${tt} 4 saat askıda (turnuva: ${tournament.name}).`,
-                            {
-                                reservationId: holdRes.id,
-                                tournamentId: id,
+                            bizReservationNotifData({
+                                reservationId: holdRes?.id,
+                                venueId: resolvedVenueId,
+                                courtId: vCourtId,
+                                date: d,
+                                startTime: tf,
+                                endTime: tt,
+                                courtName: court?.name,
+                                tournament,
                                 matchId,
-                                category: tournament.category,
-                                subCategory: tournament.subCategory,
-                            },
+                            }),
                         ).catch(() => {});
                     }
                 }
@@ -5927,67 +6045,144 @@ export const agreeMatchSchedule = async (req, res, next) => {
             amountDue: proposal.amountDue ?? null,
         };
 
-        // Teklifte açılan HOLD varsa kabul → kesin rezervasyon + ortak ödeme payı
-        if (proposal.reservationId) {
+        // Teklifte açılan HOLD(lar) varsa kabul → kesin rezervasyon (saatler oyuncu adına bölünmüş)
+        if (proposal.reservationId || (Array.isArray(proposal.reservationIds) && proposal.reservationIds.length)) {
             try {
                 const {
                     computeReservationStatus,
+                    getSlotPrice,
                 } = await import('./venue.controller.js');
-                const holdRes = await prisma.courtReservation.findUnique({
-                    where: { id: proposal.reservationId },
-                    include: {
-                        venue: { select: { id: true, userId: true, name: true, approvalMode: true, branch: true } },
-                        court: { select: { id: true, name: true, approvalMode: true } },
+                const holdIds = [
+                    ...(Array.isArray(proposal.reservationIds) ? proposal.reservationIds : []),
+                    proposal.reservationId,
+                ].filter(Boolean);
+                let holds = await prisma.courtReservation.findMany({
+                    where: {
+                        OR: [
+                            { id: { in: [...new Set(holdIds)] } },
+                            { tournamentMatchId: matchId, status: 'HOLD' },
+                        ],
                     },
+                    include: {
+                        venue: { select: { id: true, userId: true, name: true, approvalMode: true, branch: true, pricingWindows: true, pricePerSlot: true, discountCampaigns: true } },
+                        court: { select: { id: true, name: true, approvalMode: true, pricingWindows: true, pricePerSlot: true } },
+                        user: { select: { id: true, username: true } },
+                    },
+                    orderBy: [{ startTime: 'asc' }],
                 });
-                if (!holdRes || holdRes.status !== 'HOLD') {
+                holds = holds.filter(h => h.status === 'HOLD');
+                if (!holds.length) {
                     return res.status(400).json({
                         message: 'Askıdaki rezervasyon süresi dolmuş veya iptal — yeni teklif gönderin',
                     });
                 }
-                if (holdRes.holdUntil && new Date(holdRes.holdUntil) < new Date()) {
-                    await prisma.courtReservation.update({
-                        where: { id: holdRes.id },
+                if (holds.some(h => h.holdUntil && new Date(h.holdUntil) < new Date())) {
+                    await prisma.courtReservation.updateMany({
+                        where: { id: { in: holds.map(h => h.id) } },
                         data: { status: 'CANCELLED', holdUntil: null },
                     });
                     return res.status(400).json({ message: 'Askı süresi dolmuş — yeni teklif gönderin' });
                 }
 
-                const fullPrice = holdRes.fullPrice ?? proposal.fullPrice ?? 0;
-                const amountDue = Math.ceil(Number(fullPrice) / shareParts);
-                const initialStatus = computeReservationStatus(holdRes.court, holdRes.venue, holdRes.paymentMethod || 'CASH');
-                const updated = await prisma.courtReservation.update({
-                    where: { id: holdRes.id },
-                    data: {
-                        status: initialStatus,
-                        holdUntil: null,
-                        splitPay: true,
-                        fullPrice: Number(fullPrice) || 0,
-                        amountDue,
-                        notes: `Turnuva eşleşmesi kesin: ${tournament.name}. Ortak ödeme 1/${shareParts} = ${amountDue}/${fullPrice} TL.`,
-                        tournamentMatchId: matchId,
-                    },
-                });
-                schedule.agreed.reservationId = updated.id;
-                schedule.agreed.reservationStatus = updated.status;
-                schedule.agreed.venueCourtId = updated.courtId;
-                schedule.agreed.fullPrice = Number(fullPrice) || 0;
+                const primary = holds[0];
+                // Eski tek parça HOLD (çok saat, tek kayıt) → saatlik parçalara böl
+                let durationMins = toMinsHHMM(proposal.timeTo) - toMinsHHMM(proposal.timeFrom);
+                if (durationMins <= 0) durationMins += 1440;
+                const needsResplit = holds.length === 1 && durationMins > 60;
+                if (needsResplit) {
+                    const proposerSide = proposal.side === 'p1' || proposal.side === 'p2' ? proposal.side : 'p1';
+                    const otherSide = proposerSide === 'p1' ? 'p2' : 'p1';
+                    const sideAUserId = await resolveSidePayerUserId(tournament, match, proposerSide) || primary.userId;
+                    const sideBUserId = await resolveSidePayerUserId(tournament, match, otherSide);
+                    const segments = buildMatchFeeSegments({
+                        startTime: proposal.timeFrom,
+                        endTime: proposal.timeTo,
+                        sideAUserId,
+                        sideBUserId,
+                        venue: primary.venue,
+                        court: primary.court,
+                        getSlotPriceFn: getSlotPrice,
+                    });
+                    await prisma.courtReservation.update({
+                        where: { id: primary.id },
+                        data: { status: 'CANCELLED', holdUntil: null },
+                    });
+                    const initialStatus = computeReservationStatus(primary.court, primary.venue, primary.paymentMethod || 'CASH');
+                    const created = [];
+                    for (const seg of segments) {
+                        const noteParts = seg.splitPay
+                            ? `Orta saat yarı yarıya: ${seg.amountDue}/${seg.fullPrice} TL`
+                            : `Saat ücreti ${seg.amountDue} TL`;
+                        created.push(await prisma.courtReservation.create({
+                            data: {
+                                venueId: primary.venueId,
+                                courtId: primary.courtId,
+                                userId: seg.userId || primary.userId,
+                                date: primary.date,
+                                startTime: seg.startTime,
+                                endTime: seg.endTime,
+                                paymentMethod: primary.paymentMethod || 'CASH',
+                                notes: `Turnuva eşleşmesi kesin: ${tournament.name}. ${noteParts}.`,
+                                status: initialStatus,
+                                tournamentMatchId: matchId,
+                                splitPay: seg.splitPay,
+                                fullPrice: seg.fullPrice,
+                                amountDue: seg.amountDue,
+                                coPayerUserId: seg.coPayerUserId,
+                            },
+                        }));
+                    }
+                    holds = created;
+                } else {
+                    const initialStatus = computeReservationStatus(
+                        primary.court, primary.venue, primary.paymentMethod || 'CASH',
+                    );
+                    for (const h of holds) {
+                        await prisma.courtReservation.update({
+                            where: { id: h.id },
+                            data: {
+                                status: initialStatus,
+                                holdUntil: null,
+                                notes: `Turnuva eşleşmesi kesin: ${tournament.name}. ${h.splitPay ? `Ortak ${h.amountDue}/${h.fullPrice} TL` : `Ücret ${h.amountDue ?? h.fullPrice} TL`}.`,
+                                tournamentMatchId: matchId,
+                            },
+                        });
+                        h.status = initialStatus;
+                    }
+                }
+
+                const fullPrice = holds.reduce((s, h) => s + (Number(h.fullPrice) || 0), 0)
+                    || Number(proposal.fullPrice) || 0;
+                const amountDue = Number(proposal.amountDue) || Math.ceil(fullPrice / Math.max(2, shareParts));
+                const firstId = holds[0]?.id || proposal.reservationId;
+                const firstStatus = holds[0]?.status || computeReservationStatus(
+                    primary.court, primary.venue, primary.paymentMethod || 'CASH',
+                );
+                schedule.agreed.reservationId = firstId;
+                schedule.agreed.reservationIds = holds.map(h => h.id);
+                schedule.agreed.reservationStatus = firstStatus;
+                schedule.agreed.venueCourtId = primary.courtId;
+                schedule.agreed.fullPrice = fullPrice;
                 schedule.agreed.amountDue = amountDue;
                 schedule.agreed.isProVenue = true;
                 schedule.agreed.holdUntil = null;
 
                 createNotification(
-                    holdRes.venue.userId,
+                    primary.venue.userId,
                     'RESERVATION',
-                    initialStatus === 'CONFIRMED' ? '✅ Turnuva rezervasyonu kesinleşti' : '🔔 Turnuva rezervasyon onayı',
-                    `${holdRes.venue.name} — ${holdRes.date} ${holdRes.startTime}–${holdRes.endTime} kesinleşti (turnuva: ${tournament.name}). Ortak ödeme 1/${shareParts}.`,
-                    {
-                        reservationId: updated.id,
-                        tournamentId: id,
+                    firstStatus === 'PENDING' ? '🔔 Turnuva rezervasyon onayı' : '✅ Turnuva rezervasyonu kesinleşti',
+                    `${primary.venue.name} — ${proposal.date} ${proposal.timeFrom}–${proposal.timeTo} kesinleşti (turnuva: ${tournament.name}). Saatler oyuncu adına bölündü.`,
+                    bizReservationNotifData({
+                        reservationId: firstId,
+                        venueId: primary.venueId,
+                        courtId: primary.courtId,
+                        date: proposal.date,
+                        startTime: proposal.timeFrom,
+                        endTime: proposal.timeTo,
+                        courtName: primary.court?.name,
+                        tournament,
                         matchId,
-                        category: tournament.category,
-                        subCategory: tournament.subCategory,
-                    },
+                    }),
                 ).catch(() => {});
             } catch (finErr) {
                 console.error('[agreeMatchSchedule] HOLD finalize failed:', finErr?.message);
@@ -6089,15 +6284,22 @@ export const reserveMatchSchedule = async (req, res, next) => {
             return res.status(400).json({ message: 'Önce gün ve saat üzerinde anlaşın' });
         }
 
-        const existingHoldId = schedule.agreed.reservationId || null;
-        let existingHold = null;
-        if (existingHoldId) {
-            existingHold = await prisma.courtReservation.findUnique({ where: { id: existingHoldId } });
-            if (existingHold && existingHold.status !== 'HOLD' && existingHold.status !== 'CANCELLED') {
-                return res.status(400).json({ message: 'Bu eşleşme için zaten rezervasyon var' });
-            }
-            if (existingHold?.status === 'CANCELLED') existingHold = null;
+        const existingHoldIds = [
+            ...(Array.isArray(schedule.agreed.reservationIds) ? schedule.agreed.reservationIds : []),
+            schedule.agreed.reservationId,
+        ].filter(Boolean);
+        const existingHolds = existingHoldIds.length
+            ? await prisma.courtReservation.findMany({
+                where: { OR: [{ id: { in: [...new Set(existingHoldIds)] } }, { tournamentMatchId: matchId, status: 'HOLD' }] },
+            })
+            : await prisma.courtReservation.findMany({
+                where: { tournamentMatchId: matchId, status: 'HOLD' },
+            });
+        const activeNonHold = existingHolds.find(h => h.status !== 'HOLD' && h.status !== 'CANCELLED');
+        if (activeNonHold) {
+            return res.status(400).json({ message: 'Bu eşleşme için zaten rezervasyon var' });
         }
+        const holdRows = existingHolds.filter(h => h.status === 'HOLD');
 
         const venueId = schedule.agreed.venueId || tournament.venueId || null;
         if (!venueId) {
@@ -6126,7 +6328,7 @@ export const reserveMatchSchedule = async (req, res, next) => {
 
         const venueCourtId = req.body?.venueCourtId
             || schedule.agreed.venueCourtId
-            || existingHold?.courtId
+            || holdRows[0]?.courtId
             || tournament.venueCourtId
             || null;
         if (!venueCourtId) {
@@ -6160,85 +6362,82 @@ export const reserveMatchSchedule = async (req, res, next) => {
             });
         }
 
-        // HOLD kendi slotunu hariç tutarak doğrula
+        // Eski askıları düş → tüm aralığı doğrula → saatlik parçalar oluştur
+        if (holdRows.length) {
+            await prisma.courtReservation.updateMany({
+                where: { id: { in: holdRows.map(h => h.id) } },
+                data: { status: 'CANCELLED', holdUntil: null },
+            });
+        }
         const slotErr = await validateReservationSlot(
-            venue, venueCourtId, date, startTime, endTime, paymentMethod, req.userId,
-            existingHold?.id || null,
+            venue, venueCourtId, date, startTime, endTime, paymentMethod, req.userId, null,
         );
         if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
 
-        const toMins = (t) => {
-            const [h, m] = String(t || '').split(':').map(Number);
-            return (h || 0) * 60 + (m || 0);
-        };
-        let durationMins = toMins(endTime) - toMins(startTime);
-        if (durationMins <= 0) durationMins += 1440;
-        const fullPrice = Math.round(getSlotPrice(venue, court, startTime, durationMins) || 0);
-
-        // Turnuva maçı: tekli 1/2, çiftli 1/4 ortak ödeme
-        const shareParts = courtFeeShareParts(tournament);
         const wantSplit = req.body?.splitPay !== false && req.body?.splitPay !== 'false';
-        const amountDue = wantSplit ? Math.ceil(fullPrice / shareParts) : fullPrice;
-
-        // Rakip tarafın ödeme sorumlusu (bireysel id veya takımın 1. oyuncusu)
-        const otherSideId = side === 'p1' ? match.p2Id : match.p1Id;
+        const otherSide = side === 'p1' ? 'p2' : 'p1';
+        const sideAUserId = await resolveSidePayerUserId(tournament, match, side) || req.userId;
+        const sideBUserId = await resolveSidePayerUserId(tournament, match, otherSide);
         const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7';
-        let coPayerUserId = null;
-        if (wantSplit && otherSideId) {
-            if (isTeamEngine) {
-                const team = await prisma.tournamentTeam.findUnique({
-                    where: { id: otherSideId },
-                    select: { player1Id: true },
-                }).catch(() => null);
-                coPayerUserId = team?.player1Id || null;
-            } else {
-                coPayerUserId = otherSideId;
-            }
+
+        let segments;
+        if (wantSplit && sideBUserId) {
+            segments = buildMatchFeeSegments({
+                startTime,
+                endTime,
+                sideAUserId,
+                sideBUserId,
+                venue,
+                court,
+                getSlotPriceFn: getSlotPrice,
+            });
+        } else {
+            let durationMins = toMinsHHMM(endTime) - toMinsHHMM(startTime);
+            if (durationMins <= 0) durationMins += 1440;
+            const fp = Math.round(getSlotPrice(venue, court, startTime, durationMins) || 0);
+            segments = [{
+                startTime, endTime, userId: req.userId, coPayerUserId: null,
+                splitPay: false, fullPrice: fp, amountDue: fp,
+            }];
         }
 
         const initialStatus = computeReservationStatus(court, venue, paymentMethod);
-        const splitNote = wantSplit
-            ? ` Ortaklaşa ödeme 1/${shareParts}: tam ${fullPrice} TL, pay ${amountDue} TL.`
-            : ` Ücret: ${fullPrice} TL.`;
-
-        let reservation;
-        if (existingHold) {
-            reservation = await prisma.courtReservation.update({
-                where: { id: existingHold.id },
-                data: {
-                    courtId: venueCourtId,
-                    userId: req.userId,
-                    paymentMethod,
-                    notes: `Turnuva eşleşmesi: ${tournament.name}.${splitNote}`,
-                    status: initialStatus,
-                    holdUntil: null,
-                    splitPay: wantSplit,
-                    fullPrice,
-                    amountDue,
-                    coPayerUserId,
-                    tournamentMatchId: matchId,
-                },
-            });
-        } else {
-            reservation = await prisma.courtReservation.create({
+        const created = [];
+        for (const seg of segments) {
+            const noteParts = seg.splitPay
+                ? `Orta saat yarı yarıya: ${seg.amountDue}/${seg.fullPrice} TL`
+                : `Saat ücreti ${seg.amountDue} TL`;
+            created.push(await prisma.courtReservation.create({
                 data: {
                     venueId,
                     courtId: venueCourtId,
-                    userId: req.userId,
+                    userId: seg.userId || req.userId,
                     date,
-                    startTime,
-                    endTime,
+                    startTime: seg.startTime,
+                    endTime: seg.endTime,
                     paymentMethod,
-                    notes: `Turnuva eşleşmesi: ${tournament.name}.${splitNote}`,
+                    notes: `Turnuva eşleşmesi: ${tournament.name}. ${noteParts}.`,
                     status: initialStatus,
-                    splitPay: wantSplit,
-                    fullPrice,
-                    amountDue,
-                    coPayerUserId,
+                    splitPay: !!seg.splitPay,
+                    fullPrice: seg.fullPrice,
+                    amountDue: seg.amountDue,
+                    coPayerUserId: seg.coPayerUserId || null,
                     tournamentMatchId: matchId,
                 },
-            });
+            }));
         }
+        const reservation = created[0];
+        const fullPrice = segments.reduce((s, x) => s + (x.fullPrice || 0), 0);
+        const amountDue = segments
+            .filter(x => x.userId === sideAUserId)
+            .reduce((s, x) => s + (x.amountDue || 0), 0);
+        const coPayerDue = segments.reduce((s, x) => {
+            if (x.userId === sideBUserId) return s + (x.amountDue || 0);
+            if (x.splitPay && x.coPayerUserId === sideBUserId) {
+                return s + Math.max(0, (x.fullPrice || 0) - (x.amountDue || 0));
+            }
+            return s;
+        }, 0);
 
         schedule.agreed = {
             ...schedule.agreed,
@@ -6247,6 +6446,7 @@ export const reserveMatchSchedule = async (req, res, next) => {
             venueName: schedule.agreed.venueName || venue.name,
             isProVenue: true,
             reservationId: reservation.id,
+            reservationIds: created.map(r => r.id),
             reservationStatus: reservation.status,
             holdUntil: null,
             reservedByUserId: req.userId,
@@ -6254,7 +6454,7 @@ export const reserveMatchSchedule = async (req, res, next) => {
             splitPay: wantSplit,
             fullPrice,
             amountDue,
-            coPayerUserId,
+            coPayerUserId: sideBUserId || null,
         };
 
         await prisma.tournamentMatch.update({
@@ -6272,22 +6472,45 @@ export const reserveMatchSchedule = async (req, res, next) => {
             CREDIT_CARD: 'Kortta Kredi Kartı',
             ONLINE: 'Online',
         }[paymentMethod] || paymentMethod;
+        const splitNote = wantSplit
+            ? ` Saatler oyuncu adına bölündü · toplam ${fullPrice} TL (senin payın ~${amountDue} TL).`
+            : ` Ücret: ${fullPrice} TL.`;
 
         createNotification(
             venue.userId,
             'RESERVATION',
             initialStatus === 'CONFIRMED' ? '✅ Turnuva maçı rezervasyonu' : '🔔 Turnuva maçı rezervasyon talebi',
             `${user?.username || 'Oyuncu'}, ${venue.name} — ${court.name || 'Kort'} için ${date} ${startTime}–${endTime} (turnuva: ${tournament.name}). Ödeme: ${pmLabel}.${splitNote}`,
-            { reservationId: reservation.id, tournamentId: id, matchId, category: tournament.category, subCategory: tournament.subCategory },
+            bizReservationNotifData({
+                reservationId: reservation.id,
+                venueId,
+                courtId: venueCourtId,
+                date,
+                startTime,
+                endTime,
+                courtName: court.name,
+                tournament,
+                matchId,
+            }),
         ).catch(() => {});
 
-        if (wantSplit && coPayerUserId && coPayerUserId !== req.userId) {
+        if (wantSplit && sideBUserId && sideBUserId !== req.userId) {
             createNotification(
-                coPayerUserId,
+                sideBUserId,
                 'RESERVATION',
                 '🤝 Ortaklaşa kort ücreti',
-                `${tournament.name}: kort ücreti ${fullPrice} TL — senin payın ${amountDue} TL (${date} ${startTime}–${endTime}).`,
-                { reservationId: reservation.id, tournamentId: id, matchId, category: tournament.category, subCategory: tournament.subCategory },
+                `${tournament.name}: kort ücreti ${fullPrice} TL — senin payın ~${coPayerDue} TL (${date} ${startTime}–${endTime}).`,
+                bizReservationNotifData({
+                    reservationId: reservation.id,
+                    venueId,
+                    courtId: venueCourtId,
+                    date,
+                    startTime,
+                    endTime,
+                    courtName: court.name,
+                    tournament,
+                    matchId,
+                }),
             ).catch(() => {});
         }
 
@@ -6306,7 +6529,7 @@ export const reserveMatchSchedule = async (req, res, next) => {
             emitToUser(uid, 'tournament:schedule_updated', { tournamentId: id, matchId, scheduleData: schedule });
         }
 
-        res.status(201).json({ scheduleData: schedule, reservation });
+        res.status(201).json({ scheduleData: schedule, reservation, reservations: created });
     } catch (e) { next(e); }
 };
 

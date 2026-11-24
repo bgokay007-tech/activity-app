@@ -1325,10 +1325,22 @@ export const getOwnerSchedule = async (req, res, next) => {
         });
         if (!venue || venue.userId !== req.userId) return res.status(403).json({ message: 'Yetkisiz' });
 
-        const allRes = await prisma.courtReservation.findMany({
+        const allResRaw = await prisma.courtReservation.findMany({
             where: { venueId: id, date, status: { not: 'CANCELLED' } },
             include: { user: { select: { id: true, username: true, fullName: true } } },
         });
+        const coPayerIds = [...new Set(allResRaw.map(r => r.coPayerUserId).filter(Boolean))];
+        const coPayers = coPayerIds.length
+            ? await prisma.user.findMany({
+                where: { id: { in: coPayerIds } },
+                select: { id: true, username: true, fullName: true },
+            })
+            : [];
+        const coPayerById = Object.fromEntries(coPayers.map(u => [u.id, u]));
+        const allRes = allResRaw.map(r => ({
+            ...r,
+            coPayerUser: r.coPayerUserId ? (coPayerById[r.coPayerUserId] || null) : null,
+        }));
 
         const findRes = (courtId, s, e) =>
             allRes.filter(r => {
@@ -1337,6 +1349,27 @@ export const getOwnerSchedule = async (req, res, next) => {
                 if (re < rs) return overlaps(s, e, rs, 1440) || overlaps(s, e, 0, re);
                 return overlaps(s, e, rs, re);
             });
+
+        const enrichSlot = (base, r, court, startLabel, durMins) => {
+            const hourly = getMethodPrice(venue, court, startLabel, durMins, r?.paymentMethod || 'CASH');
+            // Turnuva saat bölüşümü: amountDue varsa (tam saat veya ½ ortak) onu göster
+            const price = (r && r.amountDue != null) ? r.amountDue : hourly;
+            return {
+                ...base,
+                user: r?.user || null,
+                coPayerUser: r?.coPayerUser || null,
+                manualName: r?.manualName || null,
+                reservationId: r?.id || null,
+                cancelRequested: r?.cancelRequested || false,
+                paymentMethod: r?.paymentMethod || null,
+                paymentConfirmStatus: r?.paymentConfirmStatus || null,
+                isExternal: !!r?.isExternal,
+                price,
+                splitPay: !!r?.splitPay,
+                fullPrice: r?.fullPrice ?? null,
+                amountDue: r?.amountDue ?? null,
+            };
+        };
 
         // Bugünse, geçmişte kalan saatler işaretlensin diye "şu an"ı dakika cinsinden al —
         // işletmeci geçmiş bir saate manuel rezervasyon giremesin (mobil tarafta uyarı gösterilir).
@@ -1358,7 +1391,10 @@ export const getOwnerSchedule = async (req, res, next) => {
                     for (let t = open; t + 60 <= close; t += 60) {
                         if (close - (t + 60) > 0 && close - (t + 60) < 60) continue;
                         const rs = findRes(court.id, t, t + 60);
-                        slots.push({ start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, isExternal: !!rs[0]?.isExternal, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push(enrichSlot(
+                            { start: toTime(t), end: toTime(t + 60), status: rs[0]?.status || 'FREE', past: isPastMin(t) },
+                            rs[0], court, toTime(t), 60,
+                        ));
                     }
                 } else if (effectiveSlotType === 'HALF_HOUR') {
                     let start = open;
@@ -1370,13 +1406,19 @@ export const getOwnerSchedule = async (req, res, next) => {
                         const midnight = endT > 1440;
                         if (!midnight) { const rem = effectiveClose - endT; if (rem > 0 && rem < 60) continue; }
                         const rs = findRes(court.id, t, midnight ? 1470 : endT);
-                        slots.push({ start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, isExternal: !!rs[0]?.isExternal, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 60, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push(enrichSlot(
+                            { start: toTime(t), end: midnight ? toTime(endT - 1440) : toTime(endT), status: rs[0]?.status || 'FREE', past: isPastMin(t) },
+                            rs[0], court, toTime(t), 60,
+                        ));
                     }
                 } else if (effectiveSlotType === 'NINETY_MIN') {
                     for (let t = open; t + 90 <= close; t += 120) {
                         if (close - (t + 90) > 0 && close - (t + 90) < 90) continue;
                         const rs = findRes(court.id, t, t + 90);
-                        slots.push({ start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', user: rs[0]?.user || null, manualName: rs[0]?.manualName || null, reservationId: rs[0]?.id || null, cancelRequested: rs[0]?.cancelRequested || false, paymentMethod: rs[0]?.paymentMethod || null, paymentConfirmStatus: rs[0]?.paymentConfirmStatus || null, isExternal: !!rs[0]?.isExternal, past: isPastMin(t), price: getMethodPrice(venue, court, toTime(t), 90, rs[0]?.paymentMethod || 'CASH') });
+                        slots.push(enrichSlot(
+                            { start: toTime(t), end: toTime(t + 90), status: rs[0]?.status || 'FREE', past: isPastMin(t) },
+                            rs[0], court, toTime(t), 90,
+                        ));
                     }
                 } else {
                     // VAR_DURATION: gerçek rezervasyon bloklarını ve boş pencereleri göster (saatlik grid değil)
@@ -1387,7 +1429,11 @@ export const getOwnerSchedule = async (req, res, next) => {
                     let cur = open;
                     for (const { s, e, r } of courtRes) {
                         if (s > cur) slots.push({ start: toTime(cur), end: toTime(s), status: 'FREE', user: null, reservationId: null, paymentMethod: null, past: isPastMin(cur), price: 0 });
-                        slots.push({ start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, user: r.user, manualName: r.manualName || null, reservationId: r.id, cancelRequested: r.cancelRequested || false, paymentMethod: r.paymentMethod, paymentConfirmStatus: r.paymentConfirmStatus, isExternal: !!r.isExternal, price: null });
+                        const dur = Math.max(30, Math.min(e, close) - Math.max(s, open));
+                        slots.push(enrichSlot(
+                            { start: toTime(Math.max(s, open)), end: toTime(Math.min(e, close)), status: r.status, past: false },
+                            r, court, toTime(Math.max(s, open)), dur,
+                        ));
                         cur = Math.max(cur, e);
                     }
                     if (cur < close) slots.push({ start: toTime(cur), end: toTime(close), status: 'FREE', user: null, reservationId: null, paymentMethod: null, past: isPastMin(cur), price: 0 });
