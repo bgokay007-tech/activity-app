@@ -1,5 +1,6 @@
 import { BASE_URL } from '../services/api';
 import { buildMatchSharePayload, matchShareMessage } from './matchShareCard';
+import { buildStandingsTable } from './entityShareCard';
 
 const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
 
@@ -141,6 +142,11 @@ export function buildTournamentMatchSharePayload(tournament, match, standings, t
     const roundLbl = tournamentRoundLabel(match, tournament, t);
     const tournName = tournament.name || base.sport || '';
 
+    // Bitmiş maç paylaşımında Digimon kartının altına küçültülmüş puan tablosu
+    const standingsTable = (!isUpcoming && Array.isArray(standings) && standings.length)
+        ? buildStandingsTable(standings, t)
+        : null;
+
     return {
         ...base,
         isTournament: true,
@@ -155,6 +161,7 @@ export function buildTournamentMatchSharePayload(tournament, match, standings, t
         // Yaklaşan: kazanan satırı yerine turnuva adı + VS
         resultLabel: isUpcoming ? tournName : base.resultLabel,
         winnerSide: isUpcoming ? null : base.winnerSide,
+        standingsTable,
     };
 }
 

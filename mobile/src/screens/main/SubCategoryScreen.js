@@ -20452,7 +20452,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                         </TouchableOpacity>
                                     ) : null}
                                 </View>
-                                <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} />
+                                {/* Skor girilmeden: tur listesinde anlaşılan yer/zaman; skor sonrası sadece detayda */}
+                                {!isDone ? <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} /> : null}
                                 {isBye && <Text style={{ color: colors.textMuted, fontSize: 9, marginTop: 3 }}>BYE</Text>}
                                 {/* Skor Gir → aynı satır alta doğru genişler */}
                                 {isEntering && (
@@ -21170,7 +21171,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             {jokerBtn}
                                                             </View>
                                                             )}
-                                                        <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} />
+                                                        {/* Skor girilmeden tur kartında; skor sonrası sadece maç detayında */}
+                                                        {!isDone ? <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} /> : null}
                                                         {(() => {
                                                             if (isDone || isBye || isTBD || !match.deadline) return null;
                                                             const roundDefaultTime = roundDefaultDeadline[`${match.phase}|${match.round}`];

@@ -193,8 +193,8 @@ function fmtTournDateTime(d, tm, lang) {
     return tm ? `${base} ${tm}` : base;
 }
 
-/** Uygulamadaki puan tablosu satırı — O/G/B/M/Av/P. */
-function buildStandingsTable(standings, t) {
+/** Uygulamadaki puan tablosu satırı — O/G/B/M/Av/P. Skor paylaşımında da kullanılır. */
+export function buildStandingsTable(standings, t) {
     const headers = {
         player: t?.sc_0434 || 'Player',
         played: t?.sc_st_played || 'P',

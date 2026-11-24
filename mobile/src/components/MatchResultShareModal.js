@@ -372,10 +372,72 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         ny = digTop + cardH + 20;
       }
 
-      // Canlı takip istatistik panelleri — digimon ile CTA arasında kalan alana sığdır
+      // Turnuva skor paylaşımı: Digimon (veya meta) altında küçültülmüş puan tablosu
+      var standingsTable=${JSON.stringify(p.standingsTable || null)};
+      var hasStandings=!!(standingsTable && standingsTable.rows && standingsTable.rows.length);
+      if(hasStandings){
+        var stRowCount=Math.min(standingsTable.rows.length, 10);
+        var stRowH=stRowCount>8?22:24;
+        var stTitleH=28;
+        var stHdrH=22;
+        var stBoxH=18 + stTitleH + stHdrH + stRowCount*stRowH + 14;
+        var stTop=ny;
+        if(stTop + stBoxH > CTA_Y - 24){
+          stBoxH=Math.max(80, CTA_Y - 24 - stTop);
+          stRowCount=Math.max(3, Math.floor((stBoxH - 18 - stTitleH - stHdrH - 14)/stRowH));
+          stBoxH=18 + stTitleH + stHdrH + stRowCount*stRowH + 14;
+        }
+        roundRect(56, stTop, W-112, stBoxH, 16);
+        ctx.fillStyle='rgba(15,23,42,0.90)'; ctx.fill();
+        ctx.strokeStyle='rgba(200,245,74,0.40)'; ctx.lineWidth=2; ctx.stroke();
+        var hdr=standingsTable.headers||{};
+        // Dar sütunlar — kartın altındaki kompakt tablo
+        var colX=[72, 108, 560, 640, 720, 800, 880, 960];
+        var sy=stTop+24;
+        text(standingsTable.title||'', 540, sy, 20, '#C8F54A', 'center', '900');
+        sy+=stTitleH-4;
+        text('#', colX[0], sy, 16, '#94A3B8', 'center', '800');
+        text(hdr.player||'', colX[1]+4, sy, 16, '#94A3B8', 'left', '800');
+        text(hdr.played||'P', colX[2], sy, 16, '#94A3B8', 'center', '800');
+        text(hdr.won||'W', colX[3], sy, 16, '#94A3B8', 'center', '800');
+        text(hdr.drawn||'D', colX[4], sy, 16, '#94A3B8', 'center', '800');
+        text(hdr.lost||'L', colX[5], sy, 16, '#94A3B8', 'center', '800');
+        text(hdr.avg||'Av', colX[6], sy, 16, '#94A3B8', 'center', '800');
+        text(hdr.pts||'P', colX[7], sy, 16, '#4ade80', 'center', '800');
+        sy+=8;
+        ctx.strokeStyle='rgba(148,163,184,0.30)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(72, sy); ctx.lineTo(W-72, sy); ctx.stroke();
+        sy+=stRowH-6;
+        var nameMaxW=colX[2]-colX[1]-16;
+        for(var ri=0; ri<stRowCount; ri++){
+          var row=standingsTable.rows[ri];
+          if(!row) continue;
+          var rowFs=15;
+          text(String(row.rank), colX[0], sy, rowFs, '#F4F1EA', 'center', '800');
+          ctx.font='700 '+rowFs+'px sans-serif';
+          var nm=String(row.name||'');
+          while(nm.length>3 && ctx.measureText(nm).width>nameMaxW) nm=nm.slice(0,-1);
+          if(nm!==String(row.name||'') && nm.length) nm=nm.slice(0,-1)+'…';
+          text(nm, colX[1]+4, sy, rowFs, '#F4F1EA', 'left', '700');
+          text(String(row.played), colX[2], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.won), colX[3], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.drawn), colX[4], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.lost), colX[5], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.avg), colX[6], sy, rowFs, '#E7E5E4', 'center', '700');
+          text(String(row.points), colX[7], sy, rowFs, '#4ade80', 'center', '900');
+          sy+=stRowH;
+        }
+        if(standingsTable.rows.length>stRowCount){
+          text('… +'+(standingsTable.rows.length-stRowCount), 540, Math.min(sy-2, stTop+stBoxH-10), 14, '#94A3B8', 'center', '700');
+        }
+        ny = stTop + stBoxH + 14;
+      }
+
+      // Canlı takip istatistik panelleri — digimon / puan tablosu ile CTA arasında kalan alana sığdır
       var panels=${JSON.stringify((stats && stats.panels) || [])};
       var roomForStats = CTA_Y - 36 - ny;
       var maxPanels = panels.length > 4 ? 4 : panels.length;
+      if(hasStandings) maxPanels = Math.min(maxPanels, 2);
       if(roomForStats < 140) maxPanels = 0;
       else if(roomForStats < 280) maxPanels = Math.min(maxPanels, 2);
       var colW = (W-112-20)/2;
