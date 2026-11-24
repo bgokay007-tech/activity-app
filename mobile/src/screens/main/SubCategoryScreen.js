@@ -14829,7 +14829,7 @@ function TeamAssignCard({ founderPlayers, oppPlayers, unassigned, substitutePlay
 // adayına gönderilebilecek üst sınır — gerçek bir kısıt değil, spam'i önleyen makul bir tavan.
 const SINGLE_OPP_INVITE_MAX = 15;
 
-function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null }) {
+function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill = null, editItem = null, assessSeed = null }) {
     // Modal açıkken ekran freeze olmasın — arka plandan dönüşte dokunmalar ölü kalmasın.
     useDisableFreezeWhile(visible);
     const t = useT();
@@ -14848,12 +14848,24 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
     // (kullanıcı isteği: çiftler padel'de varsayılan/birincil) Tekli formatı seçilince de
     // tekli anketine yönlendirilir. Tenis'te bu hiç oluşmaz çünkü tekli zaten en baştan şart.
     const [singlesGateOpen, setSinglesGateOpen] = useState(false);
-    // Kapı anketi bittikten hemen sonra Redux henüz gelmemiş olsa bile format seçimi
-    // tekrar ankete düşmesin (AssessmentModal /auth/me tazeler; bu yerel bayrak emniyet).
-    const [assessDoneLocal, setAssessDoneLocal] = useState({ singles: false, doubles: false });
+    // Kapı anketi (requireActivity) biter bitmez form açılınca Redux gecikse bile format
+    // seçimi tekrar ankete düşmesin — parent assessSeed + yerel bayrak.
+    const [assessDoneLocal, setAssessDoneLocal] = useState({
+        singles: !!assessSeed?.singles,
+        doubles: !!assessSeed?.doubles,
+    });
     useEffect(() => {
-        if (!visible) setAssessDoneLocal({ singles: false, doubles: false });
-    }, [visible]);
+        if (!visible) {
+            setAssessDoneLocal({ singles: false, doubles: false });
+            return;
+        }
+        if (assessSeed) {
+            setAssessDoneLocal({
+                singles: !!assessSeed.singles,
+                doubles: !!assessSeed.doubles,
+            });
+        }
+    }, [visible, assessSeed]);
     const singlesAssessDone = !!myInterestForSub?.assessmentCompleted || assessDoneLocal.singles;
     const doublesAssessDone = !!myInterestForSub?.doublesAssessmentCompleted || assessDoneLocal.doubles;
     const isTeamSport = TEAM_SPORTS.has(sub);
@@ -25912,6 +25924,9 @@ function SubCategoryScreen({ route, navigation }) {
     // formu doldurup gönderene kadar bunu öğrenmiyordu. Şimdi anket eksikse form hiç açılmıyor,
     // direkt anket (AssessmentModal) açılıyor; tamamlanınca orijinal eylem otomatik devam eder.
     const [gateAssessTarget, setGateAssessTarget] = useState(null); // { interestId, pendingAction, ratingType }
+    // Kapı anketi bitince CreateRivalModal'a hangi disiplinin tamamlandığını taşı — Redux
+    // settle olmasa bile format 1v1/çiftler tekrar ankete düşmesin.
+    const [createAssessSeed, setCreateAssessSeed] = useState(null);
     // Kapalı pencereler ilk karede kurulmasın; liste hemen gelsin.
     const [chromeReady, setChromeReady] = useState(false);
     useEffect(() => {
@@ -25921,7 +25936,7 @@ function SubCategoryScreen({ route, navigation }) {
     }, [sub]);
     // Padel/pickleball: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ.
     const defaultAssessRatingType = (sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined;
-    const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen') => {
+    const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen', opts = {}) => {
         try {
             const { data } = await api.get('/interests/my');
             let interest = Array.isArray(data) ? data.find(i => i.category === category && i.subCategory === sub && !i.hidden) : null;
@@ -25940,7 +25955,13 @@ function SubCategoryScreen({ route, navigation }) {
                 ? (interest.assessmentCompleted || interest.doublesAssessmentCompleted)
                 : interest.assessmentCompleted;
             if (RATING_REQUIRED_SUBS.has(sub) && !generalAssessmentDone) {
-                setGateAssessTarget({ interestId: interest.id, pendingAction: onOk, ratingType: defaultAssessRatingType });
+                setGateAssessTarget({
+                    interestId: interest.id,
+                    pendingAction: onOk,
+                    ratingType: defaultAssessRatingType,
+                    // Sadece ilan oluşturma: formata assessSeed taşınsın (kort/venue yoluna değil).
+                    seedCreate: !!opts.seedCreate,
+                });
                 return;
             }
         } catch {
@@ -25948,7 +25969,9 @@ function SubCategoryScreen({ route, navigation }) {
         }
         onOk();
     };
-    const requireActivityThenCreate = () => requireActivity(() => setShowCreateRival(true), 'ilan oluşturabilmen');
+    const requireActivityThenCreate = () => requireActivity(() => {
+        setShowCreateRival(true);
+    }, 'ilan oluşturabilmen', { seedCreate: true });
     const requireActivityThenVenueSearch = () => requireActivity(() => navigation.navigate('VenueSearch', { branch: sub }), 'kort rezervasyonu yapabilmen');
     const lang = useSelector(s => s.lang?.lang || 'en');
     const insets = useSafeAreaInsets();
@@ -34617,7 +34640,17 @@ function SubCategoryScreen({ route, navigation }) {
             {/* onCreated: load() değil onRefresh — aksi halde branchCache eski listeyi
                 geri basıyor; socket ile anlık gelen yeni ilan 2–3 sn sonra silinip sadece
                 yenilemede / poll'da görünüyordu. */}
-            {showCreateRival && <CreateRivalModal visible onClose={() => { setShowCreateRival(false); setRivalPrefill(null); }} category={category} sub={sub} onCreated={onRefresh} prefill={rivalPrefill} />}
+            {showCreateRival && (
+                <CreateRivalModal
+                    visible
+                    onClose={() => { setShowCreateRival(false); setRivalPrefill(null); setCreateAssessSeed(null); }}
+                    category={category}
+                    sub={sub}
+                    onCreated={onRefresh}
+                    prefill={rivalPrefill}
+                    assessSeed={createAssessSeed}
+                />
+            )}
 
             {/* İlan oluşturma/kort rezervasyonu öncesi anket eksikse burada açılır — bkz. requireActivity */}
             <AssessmentModal
@@ -34643,9 +34676,18 @@ function SubCategoryScreen({ route, navigation }) {
                 }}
                 onComplete={async () => {
                     const pending = gateAssessTarget?.pendingAction;
+                    const ratingType = gateAssessTarget?.ratingType;
+                    const seedCreate = gateAssessTarget?.seedCreate;
                     setGateAssessTarget(null);
-                    // Anket AssessmentModal içinde /auth/me tazeler; yine de form açılmadan
-                    // bir tick bekleyip Redux'ın yerleşmesini sağla (format 1v1 tekrar anket bug'ı).
+                    // Form açılmadan önce hangi anketin bittiğini forma yaz — Redux /auth/me
+                    // gecikse bile format seçimi tekrar ankete düşmez (yalnızca ilan oluşturma).
+                    if (seedCreate) {
+                        setCreateAssessSeed(
+                            ratingType === 'doubles'
+                                ? { doubles: true }
+                                : { singles: true }
+                        );
+                    }
                     try {
                         const { data } = await api.get('/auth/me');
                         if (data) dispatch(setUser(data));

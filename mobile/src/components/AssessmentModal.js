@@ -116,6 +116,19 @@ export default function AssessmentModal({ visible, interestId, subCategory, lang
         setSaving(true);
         try {
             const { data } = await api.patch(`/interests/${interestId}/assess`, { answers: finalAnswers, ...(isDoubles && { ratingType: 'doubles' }) });
+            // /auth/me gecikse bile interests anında güncellensin — aksi halde ilan formunda
+            // format seçimi (1v1) hemen ardından yine ankete düşüyordu.
+            const patched = data?.interest;
+            if (patched?.id) {
+                const user = store.getState().auth.user;
+                if (user) {
+                    const list = Array.isArray(user.interests) ? user.interests : [];
+                    const next = list.some(i => i.id === patched.id)
+                        ? list.map(i => (i.id === patched.id ? { ...i, ...patched } : i))
+                        : [...list, patched];
+                    store.dispatch(setUser({ ...user, interests: next }));
+                }
+            }
             await refreshAuthUser();
             setResult(data);
         } catch (e) {
