@@ -34,6 +34,7 @@ export const SUB_PHOTOS = {
     sup_kano:         require('../../assets/visual/sub-sup-kano.jpg'),
     fitness_gym:      require('../../assets/visual/sub-fitness.jpg'),
     ice_skating:      require('../../assets/visual/sub-ice-skating.jpg'),
+    roller_skating:   require('../../assets/visual/sub-roller-skating.jpg'),
     skiing_snowboard: require('../../assets/visual/sub-skiing.jpg'),
     motorcycle:       require('../../assets/visual/sub-motorcycle.jpg'),
     extreme_sports:   require('../../assets/visual/sub-extreme.jpg'),

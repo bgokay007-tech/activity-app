@@ -28,6 +28,7 @@ const LABELS = {
     fitness_gym: { en: 'Fitness & Gym', tr: 'Fitness & Spor Salonu', ru: 'Фитнес и тренажёрный зал', de: 'Fitness & Fitnessstudio' },
     skiing_snowboard: { en: 'Skiing & Snowboard', tr: 'Kayak & Snowboard', ru: 'Лыжи и сноуборд', de: 'Skifahren & Snowboard' },
     ice_skating: { en: 'Ice Skating', tr: 'Buz Pateni', ru: 'Катание на коньках', de: 'Eislaufen' },
+    roller_skating: { en: 'Roller Skating', tr: 'Paten', ru: 'Катание на роликах', de: 'Inlineskaten' },
     hiking: { en: 'Hiking', tr: 'Doğa Yürüyüşü', ru: 'Пеший туризм', de: 'Wandern' },
     camping: { en: 'Camping', tr: 'Kamp', ru: 'Кемпинг', de: 'Camping' },
     motorcycle: { en: 'Motorcycle Riding', tr: 'Motosiklet', ru: 'Мотоцикл', de: 'Motorradfahren' },

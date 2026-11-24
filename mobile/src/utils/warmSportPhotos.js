@@ -6,7 +6,7 @@ const SPORT_IDS = [
     'tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash',
     'volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball', 'rugby',
     'running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano',
-    'wellness', 'fitness_gym', 'ice_skating',
+    'wellness', 'fitness_gym', 'ice_skating', 'roller_skating',
     'motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting',
 ];
 

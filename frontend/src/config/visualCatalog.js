@@ -18,7 +18,7 @@ const SUB_PHOTO_FILE = {
     volleyball: 'sub-volleyball', badminton: 'sub-badminton', table_tennis: 'sub-table-tennis',
     foot_tennis: 'sub-foot-tennis', handball: 'sub-handball', dodgeball: 'sub-dodgeball', rugby: 'sub-rugby', golf: 'sub-golf', hiking: 'sub-hiking',
     camping: 'sub-camping', walking: 'sub-walking', archery: 'sub-archery', equestrian: 'sub-equestrian',
-    sup_kano: 'sub-sup-kano', fitness_gym: 'sub-fitness', ice_skating: 'sub-ice-skating',
+    sup_kano: 'sub-sup-kano', fitness_gym: 'sub-fitness', ice_skating: 'sub-ice-skating', roller_skating: 'sub-roller-skating',
     skiing_snowboard: 'sub-skiing', motorcycle: 'sub-motorcycle', extreme_sports: 'sub-extreme',
     paintball: 'sub-paintball', airsoft: 'sub-airsoft', shooting_hunting: 'sub-shooting',
     painting: 'sub-painting', music: 'sub-music', theater: 'sub-theater', cinema: 'sub-cinema',
@@ -42,13 +42,13 @@ export const SPORT_GROUPS = [
     { id: 'racket',  key: 'sport_group_racket',  ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash'] },
     { id: 'team',    key: 'sport_group_team',    ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball', 'rugby'] },
     { id: 'outdoor', key: 'sport_group_outdoor', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
-    { id: 'studio',  key: 'sport_group_studio',  ids: ['wellness', 'fitness_gym', 'ice_skating'] },
+    { id: 'studio',  key: 'sport_group_studio',  ids: ['wellness', 'fitness_gym', 'ice_skating', 'roller_skating'] },
     { id: 'motor',   key: 'sport_group_motor',   ids: ['motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting'] },
 ];
 
 export const COURT_SUBS = new Set([
     'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash', 'football', 'basketball',
-    'volleyball', 'handball', 'rugby', 'golf', 'ice_skating', 'wellness', 'fitness_gym',
+    'volleyball', 'handball', 'rugby', 'golf', 'ice_skating', 'roller_skating', 'wellness', 'fitness_gym',
 ]);
 
 export const SUB_TINT = {
@@ -56,7 +56,7 @@ export const SUB_TINT = {
     football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c', rugby: '#14532d',
     running: '#854d0e', walking: '#57534e', hiking: '#3f6212', camping: '#44403c', climbing: '#9a3412',
     sup_kano: '#0e7490', archery: '#7f1d1d', equestrian: '#78350f', golf: '#166534',
-    wellness: '#6b21a8', fitness_gym: '#334155', ice_skating: '#1e3a5f',
+    wellness: '#6b21a8', fitness_gym: '#334155', ice_skating: '#1e3a5f', roller_skating: '#0f766e',
     motorcycle: '#1c1917', extreme_sports: '#9f1239', paintball: '#3f3f46', airsoft: '#365314',
     skiing_snowboard: '#164e63', shooting_hunting: '#44403c',
 };
@@ -87,6 +87,7 @@ export const SUB_MAP = {
         { id: 'fitness_gym',      en: 'Fitness & Gym',      tr: 'Fitness & Spor Salonu', ru: 'Фитнес и тренажёрный зал',  de: 'Fitness & Fitnessstudio', emoji: '🏋️' },
         { id: 'skiing_snowboard', en: 'Skiing & Snowboard', tr: 'Kayak & Snowboard',     ru: 'Лыжи и сноуборд',           de: 'Skifahren & Snowboard',   emoji: '⛷️' },
         { id: 'ice_skating',      en: 'Ice Skating',        tr: 'Buz Pateni',            ru: 'Катание на коньках',        de: 'Eislaufen',               emoji: '⛸️' },
+        { id: 'roller_skating',   en: 'Roller Skating',     tr: 'Paten',                 ru: 'Катание на роликах',        de: 'Inlineskaten',            emoji: '🛼' },
         { id: 'camping',          en: 'Camping',            tr: 'Kamp',                  ru: 'Кемпинг',                   de: 'Camping',                 emoji: '🏕️' },
         { id: 'motorcycle',       en: 'Motorcycle Riding',  tr: 'Motosiklet',            ru: 'Мотоцикл',                  de: 'Motorradfahren',          emoji: '🏍️' },
         { id: 'extreme_sports',   en: 'Extreme Sports',     tr: 'Ekstrem Sporlar',       ru: 'Экстремальные виды спорта', de: 'Extremsport',             emoji: '🪂' },

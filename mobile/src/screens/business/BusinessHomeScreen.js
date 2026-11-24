@@ -405,6 +405,7 @@ const VENUE_BRANCHES = [
     { key: 'fitness_gym',       label: '🏋️ Fitness ve Gym',          subCategory: 'fitness_gym', color: '#334155' },
     { key: 'skiing_snowboard',  label: '⛷️ Kayak ve Snowboard',       subCategory: 'skiing_snowboard', color: '#38bdf8' },
     { key: 'ice_skating',       label: '⛸️ Buz Pateni',               subCategory: 'ice_skating', color: '#7dd3fc' },
+    { key: 'roller_skating',    label: '🛼 Paten',                    subCategory: 'roller_skating', color: '#2dd4bf' },
     { key: 'hiking',            label: '🥾 Dağ Bayır Doğa Yürüyüşleri', subCategory: 'hiking', color: '#4d7c0f' },
     { key: 'camping',           label: '🏕️ Kamp',                    subCategory: 'camping', color: '#a16207' },
     { key: 'motorcycle',        label: '🏍️ Sürüş (Motosiklet)',      subCategory: 'motorcycle', color: '#991b1b' },

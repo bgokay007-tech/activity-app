@@ -15,6 +15,7 @@ export const ENABLED_SUBS = {
     pickleball: true,
     volleyball:  true,
     rugby:      true,
+    roller_skating: true,
     football:   false,
     basketball: false,
     // Social

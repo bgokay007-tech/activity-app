@@ -26,6 +26,9 @@ function branchToSub(branch) {
     if (b.includes('voleybol') || b.includes('volley'))  return { sub: 'volleyball', cat: 'SPORTS' };
     if (b.includes('ragbi') || b.includes('rugby'))      return { sub: 'rugby',      cat: 'SPORTS' };
     if (b.includes('badminton'))                         return { sub: 'badminton',  cat: 'SPORTS' };
+    // "buz pateni" önce — düz "paten" roller skating'e düşmesin
+    if (b.includes('buz pateni') || b.includes('ice skat')) return { sub: 'ice_skating', cat: 'SPORTS' };
+    if (b.includes('paten') || b.includes('roller') || b.includes('inline')) return { sub: 'roller_skating', cat: 'SPORTS' };
     return { sub: b || 'tennis', cat: 'SPORTS' };
 }
 

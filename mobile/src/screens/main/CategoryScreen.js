@@ -36,7 +36,7 @@ const RECENT_KEY = 'activity_recent_subs_SPORTS';
 
 const COURT_SUBS = new Set([
     'tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash', 'football', 'basketball',
-    'volleyball', 'handball', 'rugby', 'golf', 'ice_skating', 'wellness', 'fitness_gym',
+    'volleyball', 'handball', 'rugby', 'golf', 'ice_skating', 'roller_skating', 'wellness', 'fitness_gym',
 ]);
 
 // ids sırası = ilan sayısı eşitken popülerlik (soldan sağa). Grup içinde önce açık
@@ -46,7 +46,7 @@ const SPORT_GROUPS = [
     { id: 'racket', key: 'sportGroupRacket', emoji: '🎾', ids: ['tennis', 'padel', 'table_tennis', 'badminton', 'pickleball', 'squash'] },
     { id: 'team', key: 'sportGroupTeam', emoji: '⚽', ids: ['volleyball', 'football', 'basketball', 'foot_tennis', 'handball', 'dodgeball', 'rugby'] },
     { id: 'outdoor', key: 'sportGroupOutdoor', emoji: '🥾', ids: ['running', 'camping', 'climbing', 'golf', 'equestrian', 'archery', 'sup_kano'] },
-    { id: 'studio', key: 'sportGroupStudio', emoji: '🧘', ids: ['wellness', 'fitness_gym', 'ice_skating'] },
+    { id: 'studio', key: 'sportGroupStudio', emoji: '🧘', ids: ['wellness', 'fitness_gym', 'ice_skating', 'roller_skating'] },
     { id: 'motor', key: 'sportGroupMotor', emoji: '🏍️', ids: ['motorcycle', 'skiing_snowboard', 'paintball', 'airsoft', 'extreme_sports', 'shooting_hunting'] },
 ];
 
@@ -57,7 +57,7 @@ const SUB_TINT = {
     football: '#14532d', basketball: '#7c2d12', volleyball: '#1e40af', handball: '#9a3412', dodgeball: '#c2410c', rugby: '#14532d',
     running: '#854d0e', walking: '#57534e', hiking: '#3f6212', camping: '#44403c', climbing: '#9a3412',
     sup_kano: '#0e7490', archery: '#7f1d1d', equestrian: '#78350f', golf: '#166534',
-    wellness: '#6b21a8', fitness_gym: '#334155', ice_skating: '#1e3a5f',
+    wellness: '#6b21a8', fitness_gym: '#334155', ice_skating: '#1e3a5f', roller_skating: '#0f766e',
     motorcycle: '#1c1917', extreme_sports: '#9f1239', paintball: '#3f3f46', airsoft: '#365314',
     skiing_snowboard: '#164e63', shooting_hunting: '#44403c',
 };
@@ -88,6 +88,7 @@ const SUB_MAP = {
         { id: 'fitness_gym',      label: 'Fitness & Gym',       labelTR: 'Fitness & Spor Salonu', labelRU: 'Фитнес и тренажёрный зал', labelDE: 'Fitness & Fitnessstudio', emoji: '🏋️' },
         { id: 'skiing_snowboard', label: 'Skiing & Snowboard',  labelTR: 'Kayak & Snowboard',   labelRU: 'Лыжи и сноуборд',        labelDE: 'Skifahren & Snowboard', emoji: '⛷️' },
         { id: 'ice_skating',      label: 'Ice Skating',         labelTR: 'Buz Pateni',          labelRU: 'Катание на коньках',     labelDE: 'Eislaufen',             emoji: '⛸️' },
+        { id: 'roller_skating',   label: 'Roller Skating',      labelTR: 'Paten',               labelRU: 'Катание на роликах',     labelDE: 'Inlineskaten',          emoji: '🛼' },
         { id: 'camping',          label: 'Camping',             labelTR: 'Kamp',                labelRU: 'Кемпинг',                labelDE: 'Camping',               emoji: '🏕️' },
         { id: 'motorcycle',       label: 'Motorcycle Riding',   labelTR: 'Motosiklet',          labelRU: 'Мотоцикл',               labelDE: 'Motorradfahren',        emoji: '🏍️' },
         { id: 'extreme_sports',   label: 'Extreme Sports',      labelTR: 'Ekstrem Sporlar',     labelRU: 'Экстремальные виды спорта', labelDE: 'Extremsport',        emoji: '🪂' },

@@ -363,6 +363,7 @@ const SUB_CONFIG = {
     golf:             { name:'Golf',                      nameTR:'Golf',                       nameRu:'Гольф',                     nameDe:'Golf',                      emoji:'⛳',  color:'#15803d' },
     skiing_snowboard: { name:'Skiing & Snowboard',        nameTR:'Kayak & Snowboard',           nameRu:'Лыжи и сноуборд',           nameDe:'Skifahren & Snowboard',     emoji:'⛷️', color:'#0ea5e9' },
     ice_skating:      { name:'Ice Skating',                nameTR:'Buz Pateni',                 nameRu:'Катание на коньках',        nameDe:'Eislaufen',                 emoji:'⛸️', color:'#0891b2' },
+    roller_skating:   { name:'Roller Skating',             nameTR:'Paten',                      nameRu:'Катание на роликах',        nameDe:'Inlineskaten',              emoji:'🛼', color:'#0f766e' },
     motorcycle:       { name:'Motorcycle Riding',          nameTR:'Motosiklet',                 nameRu:'Мотоциклы',                 nameDe:'Motorradfahren',            emoji:'🏍️', color:'#b91c1c' },
     sanal_alem:     { name:'Virtual World',  nameTR:'Sanal Alem',     nameRu:'Виртуальный мир', nameDe:'Virtuelle Welt', emoji:'🌐', color:'#ec4899' },
     travel_explore: { name:'Travel / Explore', nameTR:'Seyahat / Keşfetme', nameRu:'Путешествия / Открытия', nameDe:'Reisen / Entdecken', emoji:'✈️', color:'#ea580c' },
@@ -450,7 +451,7 @@ function feeByMethodHint(byMethod, t) {
 // Bilet Al, Haberler, Arşiv.
 const SIMPLE_TAB_SUBS = new Set([
     'airsoft', 'archery', 'camping', 'climbing', 'equestrian', 'extreme_sports', 'fitness_gym', 'foot_tennis', 'dodgeball', 'rugby', 'paintball', 'sup_kano', 'running', 'walking', 'hiking',
-    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'roller_skating', 'shooting_hunting', 'golf',
 ]);
 
 // GPS rota kaydetme/paylaşma (Wikiloc tarzı) mantıklı olan dallar — "Etkinlik"in
@@ -468,7 +469,7 @@ const TICKET_ENABLED_EXTRA_SUBS = new Set(['boxing', 'martial_arts', 'ice_hockey
 // arama bloğu tamamen kaldırılıp yerine basit Ücretli/Ücretsiz seçimi konur.
 const SIMPLIFIED_FEE_SUBS = new Set([
     'sup_kano', 'airsoft', 'equestrian', 'fitness_gym', 'camping', 'running', 'walking', 'extreme_sports', 'hiking', 'archery', 'climbing', 'paintball', 'dodgeball', 'rugby',
-    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'shooting_hunting', 'golf', 'travel_explore',
+    'wellness', 'skiing_snowboard', 'motorcycle', 'ice_skating', 'roller_skating', 'shooting_hunting', 'golf', 'travel_explore',
 ]);
 
 // extreme_sports için Format'ın yerini alan asıl dal seçimi — mevcut `surface`

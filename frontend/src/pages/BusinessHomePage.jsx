@@ -41,6 +41,7 @@ const BRANCH_LABEL = {
     fitness_gym: 'biz_branch_fitness_gym',
     skiing_snowboard: 'biz_branch_skiing_snowboard',
     ice_skating: 'biz_branch_ice_skating',
+    roller_skating: 'biz_branch_roller_skating',
     hiking: 'biz_branch_hiking',
     camping: 'biz_branch_camping',
     motorcycle: 'biz_branch_motorcycle',
@@ -51,7 +52,7 @@ const BRANCH_LABEL = {
 const BRANCHES = [
     'football','tennis','padel','pickleball','squash','basketball','volleyball','badminton','swimming','boxing','martial_arts','wellness',
     'cycling','running','table_tennis','climbing','archery','walking','foot_tennis','sup_kano','handball','dodgeball','rugby',
-    'shooting_hunting','equestrian','golf','fitness_gym','skiing_snowboard','ice_skating','hiking','camping',
+    'shooting_hunting','equestrian','golf','fitness_gym','skiing_snowboard','ice_skating','roller_skating','hiking','camping',
     'motorcycle','extreme_sports','paintball','airsoft',
 ];
 const PACKAGES = [

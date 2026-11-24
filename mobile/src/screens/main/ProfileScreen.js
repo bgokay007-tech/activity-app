@@ -1384,6 +1384,7 @@ const fc = StyleSheet.create({
 const SUB_EMOJI = {
     football:'⚽', basketball:'🏀', tennis:'🎾', padel:'🏓', pickleball:'🏓', squash:'🟡', volleyball:'🏐',
     rugby:'🏉', handball:'🤾', dodgeball:'🟠',
+    ice_skating:'⛸️', roller_skating:'🛼',
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
     writing:'✍️', sculpture:'🗿', cinema:'🎬', poetry:'📜', illustration:'🖼️',
@@ -1576,6 +1577,7 @@ const ALL_BRANCHES = [
     { key: 'fitness_gym',       label: '🏋️ Fitness ve Gym',          category: 'SPORTS', subCategory: 'fitness_gym' },
     { key: 'skiing_snowboard',  label: '⛷️ Kayak ve Snowboard',       category: 'SPORTS', subCategory: 'skiing_snowboard' },
     { key: 'ice_skating',       label: '⛸️ Buz Pateni',               category: 'SPORTS', subCategory: 'ice_skating' },
+    { key: 'roller_skating',    label: '🛼 Paten',                    category: 'SPORTS', subCategory: 'roller_skating' },
     { key: 'camping',           label: '🏕️ Kamp',                    category: 'SPORTS', subCategory: 'camping' },
     { key: 'motorcycle',        label: '🏍️ Sürüş (Motosiklet)',      category: 'SPORTS', subCategory: 'motorcycle' },
     { key: 'extreme_sports',    label: '🪂 Ekstrem Sporları',         category: 'SPORTS', subCategory: 'extreme_sports' },

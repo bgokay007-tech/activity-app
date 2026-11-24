@@ -9,7 +9,7 @@ const SUB_EMOJI = {
     swimming:'🏊', running:'🏃', cycling:'🚴', boxing:'🥊', martial_arts:'🥋', wellness:'🧘',
     table_tennis:'🏓', climbing:'🧗', archery:'🏹', walking:'🚶', foot_tennis:'🦶',
     sup_kano:'🛶', handball:'🤾', dodgeball:'🟠', rugby:'🏉', squash:'🟡', badminton:'🏸', shooting_hunting:'🔫', equestrian:'🐎',
-    golf:'⛳', fitness_gym:'🏋️', skiing_snowboard:'⛷️', ice_skating:'⛸️', hiking:'🥾',
+    golf:'⛳', fitness_gym:'🏋️', skiing_snowboard:'⛷️', ice_skating:'⛸️', roller_skating:'🛼', hiking:'🥾',
     camping:'🏕️', motorcycle:'🏍️', extreme_sports:'🪂', paintball:'🎯', airsoft:'🪖',
     music:'🎵', painting:'🎨', dance:'💃', photography:'📸', theater:'🎭',
     writing:'✍️', sculpture:'🗿', cinema:'🎬', poetry:'📜', illustration:'🖼️',
