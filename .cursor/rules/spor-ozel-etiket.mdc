@@ -12,7 +12,7 @@ Kullanıcı “aynısını X’e uygula” (tenis→masa tenisi/badminton vb.) d
 
 1. **Rezervasyon butonu** — `Kort Rez.` değil; `Masa Tenisi Rezervasyonu` / `Badminton Rezervasyonu`
 2. **Ekipman sekmesi / paylaşım rozeti** — her dal kendi adı: `{Dal} Ekipmanları` / `{Dal} Ekipmanı` (`sportEquipmentTabLabel` / `sportEquipmentShareBadge`). Whitelist yok; tenis sabiti fallback yasak (kamp→Kamp Ekipmanları).
-3. **Tesis adı** — masa tenisinde **masa**, badmintonda **badminton kortu**, voleybolda **salon**
+3. **Tesis adı** — masa tenisinde rezervasyon **masa**; üstteki tesis listesi chip’i **Salonlar** / sheet **Kayıtlı Salonlar** (kort yok). Badminton **badminton kortu**, voleybol **salon**
 4. **Haberler** — o sporun RSS/Google News sorgusu (tenis feed’ine düşmesin); TR=yerel, EN=global
 
 Yardımcı: `mobile/src/utils/sportFacilityLabels.js`  
