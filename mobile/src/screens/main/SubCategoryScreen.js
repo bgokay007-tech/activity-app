@@ -59,6 +59,7 @@ import TimePickerModal from '../../components/TimePickerModal';
 import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
+import GymSupportSection from '../../components/gym/GymSupportSection';
 import TrailsTab from './TrailsTab';
 import { RUN_ACTIVITY_TYPES, RUN_TRAIL_SUBS } from '../../constants/runActivityTypes';
 import { shareRival, shareTournament, shareEquipment, shareCoach, shareClub } from '../../utils/share';
@@ -80,6 +81,7 @@ import { tournPlayoffCardText } from '../../utils/tournamentCardText';
 import DefiLadderModal, { DefiTeamNameModal, DefiSettingsForm } from '../../components/DefiLadderModal';
 import MatchVideoAnalysisModal from '../../components/MatchVideoAnalysisModal';
 import SportGuideModal from '../../components/SportGuideModal';
+import FitnessGymInfoModal from '../../components/FitnessGymInfoModal';
 import { hasSportGuide } from '../../data/sportGuides';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -14916,6 +14918,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         message: '',
         wager: '',
         ticketUrl: '',
+        // Fitness etkinlik: bilet linki yerine kontenjan (kurucu dahil)
+        minParticipants: '',
+        maxParticipants: '',
         minRating: '', maxRating: '',
         ratingGenderSplit: false,
         minRatingMale: '', maxRatingMale: '',
@@ -15011,6 +15016,8 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 message: editItem.message || '',
                 wager: editItem.wager || '',
                 ticketUrl: editItem.ticketUrl || '',
+                minParticipants: editItem.minParticipants != null ? String(editItem.minParticipants) : '',
+                maxParticipants: editItem.maxParticipants != null ? String(editItem.maxParticipants) : '',
                 minRating: editItem.minRating != null ? String(editItem.minRating) : '',
                 maxRating: editItem.maxRating != null ? String(editItem.maxRating) : '',
                 ratingGenderSplit: !!editItem.ratingGenderSplit,
@@ -15974,7 +15981,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                 feeIncludes: SIMPLIFIED_FEE_SUBS.has(sub) && f.activityIsPaid ? (f.feeIncludes || undefined) : undefined,
                 message:   f.message || undefined,
                 wager: (isTennis || isPadel || isVolleyball) && f.wager.trim() ? f.wager.trim() : undefined,
-                ticketUrl: (category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub)) ? (f.ticketUrl || undefined) : undefined,
+                ticketUrl: (category === 'ARTS' || (SIMPLE_TAB_SUBS.has(sub) && sub !== 'fitness_gym')) ? (f.ticketUrl || undefined) : undefined,
+                minParticipants: sub === 'fitness_gym' && f.minParticipants !== '' ? parseInt(f.minParticipants, 10) : undefined,
+                maxParticipants: sub === 'fitness_gym' && f.maxParticipants !== '' ? parseInt(f.maxParticipants, 10) : undefined,
                 minRating: f.minRating !== '' ? parseFloat(f.minRating) : undefined,
                 maxRating: f.maxRating !== '' ? parseFloat(f.maxRating) : undefined,
                 ratingGenderSplit: f.ratingGenderSplit || undefined,
@@ -18300,6 +18309,11 @@ const TOURN_TYPE_LABELS = (t) => ({
     '6': t.tournPreset_double_elim || t.tournType6,
     '7': t.tournPreset_americano || t.tournType7,
     '9': t.tournPreset_defi_ladder,
+    '10': t.tournPreset_single_elim,
+    '11': t.tournPreset_singles_elim,
+    '12': t.tournPreset_swiss_doubles || t.tournPreset_swiss,
+    '13': t.tournPreset_singles_elim_practice,
+    '14': t.tournPreset_single_elim_practice,
 });
 const SCOPE_EMOJI  = { YEREL: '📍', ULUSAL: '🇹🇷', ULUSLARARASI: '🌍' };
 const getSurface = (t, id) => t['surface' + (id?.toUpperCase())] || id || '';
@@ -20542,7 +20556,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     onPress={() => {
                         fetchMatches();
                         if (!isCreator && participants.length === 0) fetchParticipants();
-                        if (item.type === '10') setMatchTab('bracket');
+                        if (item.type === '10' || item.type === '11' || item.type === '13' || item.type === '14') setMatchTab('bracket');
                         setShowMatchesModal(true);
                     }}>
                     <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'700' }}>{t.sc_0425}</Text>
@@ -20593,7 +20607,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             onRefresh={() => { fetchMatches?.(); }}
                         />
                     )}
-                    {(TOURN_TYPES.includes(item.type) || item.type === '5' || item.type === '6' || item.type === '7' || item.type === '10') && (
+                    {(TOURN_TYPES.includes(item.type) || ['5','6','7','10','11','12','13','14'].includes(item.type)) && (
                         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3, marginBottom:10 }}>
                             {/* Kullanıcı isteği: Play-Off'lar sekmesi turnuva grup aşamasından çıkıp
                                 play-off'a geçince (en az bir PLAYOFF fazlı maç oluşunca) beliriyor —
@@ -20601,9 +20615,9 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 Tip 10 (eleme usulü): baştan bracket ağacı. */}
                             {[
                                 'matches',
-                                ...(item.type === '10' || tournMatches.some(m => m.phase === 'PLAYOFF') ? ['bracket'] : []),
+                                ...(['10', '11', '13', '14'].includes(item.type) || tournMatches.some(m => m.phase === 'PLAYOFF') ? ['bracket'] : []),
                                 'standings',
-                                ...(item.type !== '10' && tournMatches.some(m => m.phase === 'PLAYOFF') ? ['playoffs'] : []),
+                                ...(!['10', '11', '13', '14'].includes(item.type) && tournMatches.some(m => m.phase === 'PLAYOFF') ? ['playoffs'] : []),
                             ].map(tab => (
                                 <TouchableOpacity key={tab} onPress={() => setMatchTab(tab)}
                                     style={{ paddingHorizontal:11, paddingVertical:3, borderRadius:8, backgroundColor: matchTab===tab ? '#16a34a40' : 'transparent', borderWidth:1, borderColor: matchTab===tab ? '#16a34a60' : colors.border }}>
@@ -21075,7 +21089,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const playoffMs = tournMatches.filter(m => m.phase === 'PLAYOFF');
                             const tournType = String(item.type || '');
                             const bracketMeta = (item.bracketData && typeof item.bracketData === 'object') ? item.bracketData : {};
-                            const sideCount = (tournType === '2' || tournType === '4')
+                            const sideCount = (tournType === '2' || tournType === '4' || tournType === '10' || tournType === '12' || tournType === '14')
                                 ? (tournTeams.length || Math.floor(participantCount / 2))
                                 : participantCount;
                             const nextPow2 = (n) => { let p = 1; while (p < n) p *= 2; return p; };
@@ -21083,8 +21097,8 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             const hasReqRounds = Number.isFinite(reqRounds) && reqRounds > 0;
                             const bracketTotal = parseInt(bracketMeta.totalRounds, 10);
                             let plannedGroup = 0;
-                            if (!item.dayTrip && ['1', '2', '3', '4', '5', '7'].includes(tournType)) {
-                                if ((tournType === '5' || tournType === '7') && Number.isFinite(bracketTotal) && bracketTotal > 0) {
+                            if (!item.dayTrip && ['1', '2', '3', '4', '5', '7', '12'].includes(tournType)) {
+                                if ((tournType === '5' || tournType === '12' || tournType === '7') && Number.isFinite(bracketTotal) && bracketTotal > 0) {
                                     plannedGroup = bracketTotal;
                                 } else if (tournType === '5') {
                                     const n = Math.max(2, sideCount || 0);
@@ -21133,7 +21147,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 const minP = Math.min(...playoffRoundsNow);
                                 const maxP = Math.max(...playoffRoundsNow);
                                 for (let r = minP; r <= maxP; r++) pushRound('PLAYOFF', r);
-                            } else if (tournType === '10') {
+                            } else if (tournType === '10' || tournType === '11' || tournType === '13' || tournType === '14') {
                                 const size = Number.isFinite(bracketSize) && bracketSize >= 2
                                     ? bracketSize
                                     : nextPow2(Math.max(2, sideCount || 2));
@@ -21372,7 +21386,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             const myUnconfirmedSide = (match.p1Id === mySideId && !match.p1Confirmed) ? 'p1'
                                                 : (match.p2Id === mySideId && !match.p2Confirmed) ? 'p2' : null;
                                             const jokerBtn = (() => {
-                                                if (!((item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7' || item.type === '10') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering)) return null;
+                                                if (!((item.type === '1' || item.type === '2' || item.type === '3' || item.type === '4' || item.type === '5' || item.type === '6' || item.type === '7' || item.type === '10' || item.type === '11' || item.type === '12' || item.type === '13' || item.type === '14') && !item.dayTrip && isReady && matchSideMine(match) && !isEntering)) return null;
                                                 const myJokerRequested = match.p1Id === mySideId ? match.p1JokerRequested : match.p2JokerRequested;
                                                 const otherJokerRequested = match.p1Id === mySideId ? match.p2JokerRequested : match.p1JokerRequested;
                                                 if (myJokerRequested) return null;
@@ -23993,7 +24007,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 surpriseGifts: f.surpriseGifts.trim() || null,
                 contactPhone: f.contactPhone.trim() || null,
                 whatsappGroupUrl: f.whatsappGroupUrl.trim() || null,
-                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9' || f.type === '10' || f.type === '5' || f.type === '6' || f.type === '7') && {
+                ...((f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '9' || f.type === '10' || f.type === '11' || f.type === '12' || f.type === '13' || f.type === '14' || f.type === '5' || f.type === '6' || f.type === '7') && {
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : null,
                     advantageScoring: f.advantageScoring,
                     decidingTiebreak: isRacketSetSport(sub) && decidingTiebreakAllowed(f.setsPerMatch) && !!f.decidingTiebreak,
@@ -24371,7 +24385,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             )}
 
                             {/* İsviçre sistemi kuralları */}
-                            {!f.pollEnabled && f.type === '5' && (
+                            {!f.pollEnabled && (f.type === '5' || f.type === '12') && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_swiss}</Text>
                                     {[
@@ -24878,7 +24892,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 Airsoft'ta Min/Max Oyuncu yerine Takım Büyüklüğü + cinsiyet dağılımı formu çıkar
                                 (aşağıdaki ayrı satır), Play-off etiketleri de "savaş"/"takım" diline çevrilir. */}
                             <View style={{ flexDirection:'row', gap:2, marginBottom:8 }}>
-                                {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '5' || f.type === '7') && (
+                                {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '5' || f.type === '12' || f.type === '7') && (
                                     <>
                                         <View style={{ flex:1 }}>
                                             <Text style={{ color: '#ef4444', fontSize:8, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -26094,6 +26108,7 @@ function SubCategoryScreen({ route, navigation }) {
     // "Bu sporda otomatik açma" işaretlenirse sadece O dalda bir daha otomatik açılmaz.
     const [showSpotlight, setShowSpotlight] = useState(false);
     const [showRatingInfo, setShowRatingInfo] = useState(false);
+    const [showFitnessGymInfo, setShowFitnessGymInfo] = useState(false);
     const [showSportGuide, setShowSportGuide] = useState(false);
     const [showLeaderboard, setShowLeaderboard] = useState(false);
     // Kullanıcı isteği: Medya sekmesindeki videolar Instagram gibi akışta otomatik oynasın,
@@ -26641,7 +26656,16 @@ function SubCategoryScreen({ route, navigation }) {
         }, 300);
         return () => clearTimeout(task);
     }, [archivePlayerQuery, sub, category]);
-    const [archiveSubTab, setArchiveSubTab] = useState(initialArchiveSubTab === 'tournaments' ? 'tournaments' : 'rivals');
+    // Fitness arşiv: bireysel maç / turnuva yok — Etkinlikler | Salonlar | Ekipmanlar.
+    const [archiveSubTab, setArchiveSubTab] = useState(
+        sub === 'fitness_gym'
+            ? (initialArchiveSubTab === 'salons' ? 'salons' : initialArchiveSubTab === 'equipment' ? 'equipment' : 'rivals')
+            : (initialArchiveSubTab === 'tournaments' ? 'tournaments' : 'rivals')
+    );
+    useEffect(() => {
+        if (sub !== 'fitness_gym') return;
+        if (archiveSubTab === 'tournaments' || archiveSubTab === 'referee') setArchiveSubTab('rivals');
+    }, [sub, archiveSubTab]);
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
     const [ratingSubject, setRatingSubject] = useState(null); // { userId, subCategory } — Voleybol oyuncu değerlendirme anketi (VolleyballRatingModal) hedefi
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
@@ -26686,14 +26710,17 @@ function SubCategoryScreen({ route, navigation }) {
     // sekmesine (Açık İlanlar/Devam Eden) gidiyordu ama tamamlanmış turnuvalar orada hiç
     // gösterilmiyor, sadece Arşiv > Turnuvalar alt-sekmesinde listeleniyor.
     useEffect(() => {
-        if (route.params?.initialArchiveSubTab === 'tournaments') {
-            setArchiveSubTab('tournaments');
+        const next = route.params?.initialArchiveSubTab;
+        if (!next) return;
+        if (sub === 'fitness_gym') {
+            if (next === 'salons' || next === 'equipment' || next === 'rivals') setArchiveSubTab(next);
+            return;
         }
-    }, [route.params?.initialArchiveSubTab]);
+        if (next === 'tournaments') setArchiveSubTab('tournaments');
+    }, [route.params?.initialArchiveSubTab, sub]);
     // Kullanıcı isteği: Rakip Bul'daki gibi Arşiv'de de filtre (konum + tarih aralığı) artık
-    // sağda tek bir butonla açılan tek bir formda toplandı (bkz. showArchiveFilterModal,
-    // aşağıda render ediliyor). Alt-sekmeler arasında (Bireysel Maçlar/Turnuvalar/Ekipmanlar)
-    // geçince aynı mantık: konum kalıcı kalır, tarih aralığı sıfırlanır.
+    // sağda tek bir butonla açılan tek bir formda toplandı (bkz. showArchiveFilterModal).
+    // Fitness alt-sekmeleri: Etkinlikler / Salonlar / Ekipmanlar.
     const [showArchiveFilterModal, setShowArchiveFilterModal] = useState(false);
     useEffect(() => {
         setArchiveDateFrom('');
@@ -26719,6 +26746,9 @@ function SubCategoryScreen({ route, navigation }) {
     const fmtArchiveDate = (d) => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
     const [archiveTournaments, setArchiveTournaments] = useState([]);
     const [loadingArchiveTournaments, setLoadingArchiveTournaments] = useState(false);
+    // Fitness Arşiv > Salonlar — geçmiş (REVOKED) üyelikler.
+    const [archiveGyms, setArchiveGyms] = useState([]);
+    const [loadingArchiveGyms, setLoadingArchiveGyms] = useState(false);
     // Arşiv > Ekipmanlar (satılmış ilanlar) ve Hakemlik (hakemlik yapılan tamamlanmış maçlar)
     const [archiveEquipment, setArchiveEquipment] = useState([]);
     const [loadingArchiveEquipment, setLoadingArchiveEquipment] = useState(false);
@@ -27735,6 +27765,27 @@ function SubCategoryScreen({ route, navigation }) {
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
     }, [activeTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo, archivePlayer]);
+
+
+    const loadArchiveGyms = useCallback(async () => {
+        if (activeTab !== 'archive' || archiveSubTab !== 'salons' || sub !== 'fitness_gym') return;
+        setLoadingArchiveGyms(true);
+        try {
+            const params = new URLSearchParams({ subCategory: sub, category, history: 'past' });
+            if (archiveCity) params.set('city', archiveCity);
+            if (archiveDistrict) params.set('district', archiveDistrict);
+            if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
+            if (archiveDateTo) params.set('dateTo', archiveDateTo);
+            const { data } = await api.get(`/gyms/my-memberships?${params.toString()}`);
+            setArchiveGyms(Array.isArray(data) ? data : []);
+        } catch { setArchiveGyms([]); }
+        finally { setLoadingArchiveGyms(false); }
+    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo]);
+
+    useEffect(() => {
+        const task = InteractionManager.runAfterInteractions(() => { loadArchiveGyms(); });
+        return () => task.cancel();
+    }, [loadArchiveGyms]);
 
     const loadArchiveEquipment = useCallback(async () => {
         if (activeTab !== 'archive' || archiveSubTab !== 'equipment') return;
@@ -30496,7 +30547,8 @@ function SubCategoryScreen({ route, navigation }) {
                     /* Kullanıcı isteği: "Günün Yıldızı" digimon kart butonu (🃏) sıralama grubu
                         olmayan spor dallarında da tek başına sağ üstte görünmeye devam ediyor —
                         algoritma/veri tenisle birebir aynı (bkz. TennisSpotlightModal, backend
-                        spotlight.controller.js zaten subCategory'ye göre generic çalışıyor). */
+                        spotlight.controller.js zaten subCategory'ye göre generic çalışıyor).
+                        Fitness: Digimon yanına İ — hareket kataloğu + bilimsel çalışmalar. */
                     <View style={{ flexDirection:'row', alignItems:'center', gap: 6 }}>
                         {hasSportGuide(sub) ? (
                             <TouchableOpacity onPress={() => setShowSportGuide(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
@@ -30507,6 +30559,12 @@ function SubCategoryScreen({ route, navigation }) {
                         <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
                         </TouchableOpacity>
+                        {sub === 'fitness_gym' ? (
+                            <TouchableOpacity onPress={() => setShowFitnessGymInfo(true)} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                                style={{ height: moderateScale(28), width: moderateScale(28), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(14), backgroundColor:'#ffffff12', borderWidth:1, borderColor:'#ffffff28' }}>
+                                <Text style={{ color:'#fff', fontSize: moderateScale(15), fontWeight:'900', lineHeight: moderateScale(20) }}>İ</Text>
+                            </TouchableOpacity>
+                        ) : null}
                     </View>
                 )}
             </View>
@@ -33213,13 +33271,22 @@ function SubCategoryScreen({ route, navigation }) {
                         <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:10 }}>
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex:1 }}>
                                 <View style={{ flexDirection:'row', gap:3 }}>
-                                    {/* Kullanıcı isteği: "Hakemlik" sekmesi sadece admin tarafından onaylanmış
-                                        hakemlere görünsün — onaysız/hiç hakemlik yapmamış kullanıcıda hiç çıkmaz. */}
-                                    {['rivals','tournaments','equipment', ...(refereeApproved ? ['referee'] : [])].map(st => (
+                                    {/* Fitness: Etkinlikler | Salonlar | Ekipmanlar (+ Filtre aynı satırda).
+                                        Diğer dallar: Bireysel Maçlar | Turnuvalar | Ekipmanlar | (Hakemlik).
+                                        Hakemlik sadece admin onaylı hakemde görünür. */}
+                                    {(sub === 'fitness_gym'
+                                        ? ['rivals', 'salons', 'equipment']
+                                        : ['rivals', 'tournaments', 'equipment', ...(refereeApproved ? ['referee'] : [])]
+                                    ).map(st => (
                                         <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
                                             style={{ paddingVertical:4, paddingHorizontal:8, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
                                             <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
-                                                {st === 'rivals' ? t.sc_1106 : st === 'tournaments' ? t.sc_1107 : st === 'equipment' ? t.sc_1108 : t.sc_0998}
+                                                {st === 'rivals'
+                                                    ? (sub === 'fitness_gym' ? (t.eventsTab || 'Etkinlikler') : t.sc_1106)
+                                                    : st === 'salons' ? (t.archiveGymsTab || 'Salonlar')
+                                                    : st === 'tournaments' ? t.sc_1107
+                                                    : st === 'equipment' ? t.sc_1108
+                                                    : t.sc_0998}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
@@ -33337,7 +33404,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             olduğu için diğer alt-sekmelerde (Turnuvalar/Ekipmanlar)
                                             gösterilmiyor. Kayıtlı gerçek kullanıcı seçiliyor (otomatik
                                             tamamlama), serbest metin değil. */}
-                                        {archiveSubTab === 'rivals' && (
+                                        {archiveSubTab === 'rivals' && sub !== 'fitness_gym' && (
                                             <>
                                                 <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
                                                     <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>🔍 {lang==='tr' ? 'Oyuncu' : lang === 'ru' ? 'Игрок' : lang === 'de' ? 'Spieler' : 'Player'}</Text>
@@ -33417,7 +33484,7 @@ function SubCategoryScreen({ route, navigation }) {
                             loadingArchive ? (
                                 <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
                             ) : archiveRivals.length === 0 ? (
-                                <EmptyState emoji="🗃️" text={t.emptyArchive} />
+                                <EmptyState emoji="🗃️" text={sub === 'fitness_gym' ? (t.emptyArchiveEvents || t.emptyArchive) : t.emptyArchive} />
                             ) : (
                                 <View style={[s.listGrid, { paddingVertical: 5 }]}>
                                     {archiveRivals.map(m => (
@@ -35847,6 +35914,7 @@ function SubCategoryScreen({ route, navigation }) {
         <TennisSpotlightModal visible={showSpotlight} onClose={() => setShowSpotlight(false)} cfg={cfg} sub={sub} />
         <RatingInfoModal visible={showRatingInfo} onClose={() => setShowRatingInfo(false)} cfg={cfg} sub={sub} />
         <SportGuideModal visible={showSportGuide} onClose={() => setShowSportGuide(false)} cfg={cfg} sub={sub} />
+        <FitnessGymInfoModal visible={showFitnessGymInfo} onClose={() => setShowFitnessGymInfo(false)} cfg={cfg} />
         <LeaderboardModal visible={showLeaderboard} onClose={() => setShowLeaderboard(false)} cfg={cfg} sub={sub} onUserPress={setProfileUserId} />
 
         {/* Kalbe uzun basınca beğenenler listesi (bkz. openLikersModal) — medya feed kartı ve

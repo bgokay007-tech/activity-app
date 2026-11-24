@@ -1,12 +1,12 @@
 import { sanitizeDefiSettings } from './defiLadder.js';
 
 // Mobildeki mobile/src/utils/tournamentFormats.js ile aynı sözleşme.
-// preset → engine type '1'..'7'; formatConfig JSON Tournament.formatConfig'e yazılır.
+// preset → engine type; formatConfig JSON Tournament.formatConfig'e yazılır.
 
-export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9', '10'];
+export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14'];
 
-/** Sabit takım id'leri maç tarafı (p1Id/p2Id) — type 2/4/10 sabit çift; 7 Americano tur takımı. */
-export const TEAM_ENGINE_TYPES = ['2', '4', '7', '10'];
+/** Sabit takım id'leri maç tarafı (p1Id/p2Id) — type 2/4/10/12/14 sabit çift; 7 Americano tur takımı. */
+export const TEAM_ENGINE_TYPES = ['2', '4', '7', '10', '12', '14'];
 
 export function isTeamEngineType(type) {
     return TEAM_ENGINE_TYPES.includes(String(type));
@@ -18,12 +18,14 @@ export const TOURNAMENT_PRESETS = [
     { id: 'singles_practice', engineType: '3', entry: 'SINGLES', intensity: 'PRACTICE', phase1: 'RANDOM_ROUNDS', phase2: 'SINGLE_ELIM', seeding: 'RANDOM', accent: '#a78bfa' },
     { id: 'doubles_practice', engineType: '4', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'RANDOM_ROUNDS', phase2: 'SINGLE_ELIM', seeding: 'RANDOM', accent: '#f472b6' },
     { id: 'swiss', engineType: '5', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'SWISS', phase2: 'NONE', seeding: 'ELO', accent: '#fbbf24' },
-    { id: 'double_elim', engineType: '6', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'DOUBLE_ELIM', seeding: 'SEEDED', accent: '#fb7185' },
-    { id: 'americano', engineType: '7', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'AMERICANO', phase2: 'NONE', seeding: 'RANDOM', accent: '#2dd4bf' },
-    // Defi ligi (meydan okuma merdiveni) — '8' eski kayıtlarda kullanılmış olabileceği için '9'. Kurallar: utils/defiLadder.js
+    { id: 'swiss_doubles', engineType: '12', entry: 'DOUBLES', intensity: 'COMPETITIVE', phase1: 'SWISS', phase2: 'NONE', seeding: 'ELO', accent: '#fbbf24' },
     { id: 'defi_ladder', engineType: '9', entry: 'LADDER', intensity: 'COMPETITIVE', phase1: 'DEFI_LADDER', phase2: 'NONE', seeding: 'ELO', accent: '#f97316' },
-    // Saf eleme (grup yok) — sabit çiftler, Son 32 → … → Final ağacı (Çiftler sekmesi)
+    { id: 'singles_elim', engineType: '11', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'SINGLE_ELIM', seeding: 'SEEDED', accent: '#fb7185' },
+    { id: 'singles_elim_practice', engineType: '13', entry: 'SINGLES', intensity: 'PRACTICE', phase1: 'NONE', phase2: 'SINGLE_ELIM', seeding: 'RANDOM', accent: '#c084fc' },
     { id: 'single_elim', engineType: '10', entry: 'DOUBLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'SINGLE_ELIM', seeding: 'SEEDED', accent: '#38bdf8' },
+    { id: 'single_elim_practice', engineType: '14', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'NONE', phase2: 'SINGLE_ELIM', seeding: 'RANDOM', accent: '#818cf8' },
+    { id: 'americano', engineType: '7', entry: 'DOUBLES', intensity: 'PRACTICE', phase1: 'AMERICANO', phase2: 'NONE', seeding: 'RANDOM', accent: '#2dd4bf' },
+    { id: 'double_elim', engineType: '6', entry: 'SINGLES', intensity: 'COMPETITIVE', phase1: 'NONE', phase2: 'DOUBLE_ELIM', seeding: 'SEEDED', accent: '#fb7185', comingSoon: true },
 ];
 
 export function getPresetById(id) {
@@ -31,11 +33,11 @@ export function getPresetById(id) {
 }
 
 export function getPresetByEngineType(type) {
-    return TOURNAMENT_PRESETS.find(p => p.engineType === String(type)) || null;
+    return TOURNAMENT_PRESETS.find(p => !p.comingSoon && p.engineType === String(type)) || null;
 }
 
 export function buildFormatConfig(preset, extras = {}) {
-    if (!preset?.engineType) return null;
+    if (!preset?.engineType || preset.comingSoon) return null;
     const defi = preset.id === 'defi_ladder' ? { defi: sanitizeDefiSettings(extras.defi, extras.subCategory) } : {};
     return {
         ...defi,
@@ -57,8 +59,8 @@ export function resolveFormatOnCreate({ type, formatConfig, matchmakingType, sub
 
     if (formatConfig && typeof formatConfig === 'object') {
         if (formatConfig.presetId) preset = getPresetById(formatConfig.presetId);
-        if (!preset && formatConfig.engineType) preset = getPresetByEngineType(formatConfig.engineType);
     }
+    if (!preset && formatConfig?.engineType) preset = getPresetByEngineType(formatConfig.engineType);
     if (!preset && engineType) preset = getPresetByEngineType(engineType);
     if (!preset) preset = getPresetByEngineType('1');
 

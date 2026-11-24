@@ -125,7 +125,10 @@ function sanitizeWhatsappGroupUrl(raw) {
 
 // Defi ligi çift girişi (padel/tenis çiftler merdiveni) çiftler puanı + partner akışı kullanır.
 const tIsDoubles = (t) => isDoublesFormat({ tournamentType: t.type }) || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
-const tAllowsPartner = (t) => t.type === '2' || t.type === '4' || t.type === '10' || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
+const tAllowsPartner = (t) => t.type === '2' || t.type === '4' || t.type === '10' || t.type === '12' || t.type === '14' || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
+const tIsPracticeIntensity = (t) => t?.type === '13' || t?.type === '14'
+    || String(t?.formatConfig?.intensity || '').toUpperCase() === 'PRACTICE'
+    || String(t?.formatConfig?.seeding || '').toUpperCase() === 'RANDOM';
 export { ACTIVE_ENGINE_TYPES };
 
 // Turnuva başlangıç tarihini Turkey local time (UTC+3) olarak döner
@@ -302,12 +305,21 @@ function eloBasedMatches(players, tournamentId, matchesPerPlayer) {
     return result;
 }
 
-/** Single-elimination bracket â€” all rounds pre-created with TBD slots */
-function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYOFF') {
-    const sorted = [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
-    const size = nextPow2(sorted.length);
+/** Single-elimination bracket — all rounds pre-created with TBD slots.
+ *  random:true → antrenman eleme (ELO sırası yok, kura). */
+function singleElimMatches(players, tournamentId, startRound = 1, phase = 'PLAYOFF', { random = false } = {}) {
+    const pool = [...players];
+    if (random) {
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+    } else {
+        pool.sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
+    }
+    const size = nextPow2(pool.length);
     const totalRounds = Math.log2(size);
-    const seeded = [...sorted, ...Array(size - sorted.length).fill(null)];
+    const seeded = [...pool, ...Array(size - pool.length).fill(null)];
     const all = [];
 
     // Round 1: seeded matches
@@ -940,7 +952,7 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         if (m.p2Id) originalIds.add(m.p2Id);
     });
 
-    const players = (tournament.type === '2' || tournament.type === '4' || tournament.type === '10')
+    const players = (tournament.type === '2' || tournament.type === '4' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14')
         ? await getCurrentTeamRatings(tournament, [...originalIds])
         : await getCurrentPlayerRatings(tournament, [...originalIds]);
 
@@ -2438,9 +2450,9 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
         let sides;
         let excludedFromTeamsAvail = [];
-        if (tournament.type === '2' || tournament.type === '4' || tournament.type === '10') {
+        if (tournament.type === '2' || tournament.type === '4' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14') {
             const { teamsData, excluded } = await formTeamsForTournament(
-                tournament, rawParticipants, tournament.type === '4',
+                tournament, rawParticipants, tournament.type === '4' || tournament.type === '14' || tIsPracticeIntensity(tournament),
             );
             excludedFromTeamsAvail = excluded;
             if (teamsData.length < 2) {
@@ -2603,9 +2615,10 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             where: { id },
             data: { bracketData: { engine: 'double_elim', wbRounds: built.wbRounds, size: built.size } },
         });
-    } else if (tournament.type === '10') {
-        // Çiftler eleme usulü: sabit çiftler oluştur, sonra power-of-2 bracket (BYE), phase=PLAYOFF.
-        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants);
+    } else if (tournament.type === '10' || tournament.type === '14') {
+        // Çiftler eleme usulü: sabit çiftler + power-of-2 bracket. 14 / antrenman = rastgele takım/kura.
+        const practice = tournament.type === '14' || tIsPracticeIntensity(tournament);
+        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants, practice);
         excludedFromTeams = excluded;
         if (teamsData.length < 2) {
             throw Object.assign(new Error('Eleme usulü için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });
@@ -2626,7 +2639,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
             username: `${t.player1Name} & ${t.player2Name}`,
             skillRating: t.avgRating,
         }));
-        matches = singleElimMatches(teamPlayers, id, 1, 'PLAYOFF');
+        matches = singleElimMatches(teamPlayers, id, 1, 'PLAYOFF', { random: practice });
         const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, teamPlayers.length))));
         const totalRounds = Math.log2(size);
         const baseDl = new Date(baseDate);
@@ -2639,6 +2652,59 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         await prisma.tournament.update({
             where: { id },
             data: { bracketData: { engine: 'single_elim', totalRounds, size } },
+        });
+    } else if (tournament.type === '11' || tournament.type === '13') {
+        // Tekler eleme usulü: bireysel power-of-2 bracket (grup yok). 13 / antrenman = rastgele kura.
+        const practice = tournament.type === '13' || tIsPracticeIntensity(tournament);
+        if (players.length < 2) {
+            throw Object.assign(new Error('Eleme usulü için en az 2 oyuncu gerekli.'), { status: 400 });
+        }
+        matches = singleElimMatches(players, id, 1, 'PLAYOFF', { random: practice });
+        const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, players.length))));
+        const totalRounds = Math.log2(size);
+        const baseDl = new Date(baseDate);
+        baseDl.setDate(baseDl.getDate() + 7);
+        matches = matches.map(m => (
+            m.round === 1 && m.status === 'PENDING' && m.p1Id && m.p2Id
+                ? { ...m, deadline: baseDl, readyAt: new Date() }
+                : m
+        ));
+        await prisma.tournament.update({
+            where: { id },
+            data: { bracketData: { engine: 'single_elim', totalRounds, size } },
+        });
+    } else if (tournament.type === '12') {
+        // Çiftler İsviçre: sabit çiftler oluştur, sonra swiss eşleşme (tip 5 ile aynı motor, takım id'leri).
+        const { teamsData, excluded } = await formTeamsForTournament(tournament, rawParticipants);
+        excludedFromTeams = excluded;
+        if (teamsData.length < 2) {
+            throw Object.assign(new Error('İsviçre sistemi (çiftler) için en az 2 takım (4 oyuncu) gerekli.'), { status: 400 });
+        }
+        for (const ex of excluded) {
+            const body = ex.reason === 'capacity'
+                ? `"${tournament.name}" turnuvasında kontenjan dolduğu için bu turda yer alamadınız.`
+                : `"${tournament.name}" turnuvasında size eşleşecek bir partner bulunamadığı için bu turda yer alamadınız.`;
+            createNotification(
+                ex.userId, 'TOURNAMENT_REMOVED', '⚠️ Takım Eşleşmesi Bulunamadı', body,
+                { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
+        const createdTeams = await prisma.$transaction(teamsData.map(td => prisma.tournamentTeam.create({ data: td })));
+        const teamPlayers = createdTeams.map(t => ({
+            id: t.id,
+            fullName: `${t.player1Name} & ${t.player2Name}`,
+            username: `${t.player1Name} & ${t.player2Name}`,
+            skillRating: t.avgRating,
+        }));
+        const round1Players = teamPlayers.map(p => ({ ...p, points: 0, gamesWon: 0, gamesLost: 0, hadBye: false }));
+        const pairing = pairSwissRound(round1Players, []);
+        const deadline = new Date(baseDate);
+        deadline.setDate(deadline.getDate() + 7);
+        matches = swissMatchesFromPairing(id, 1, pairing, deadline);
+        const totalRounds = swissRoundCount(teamPlayers.length, tournament.matchesBeforePlayoff);
+        await prisma.tournament.update({
+            where: { id },
+            data: { bracketData: { engine: 'swiss', totalRounds } },
         });
     } else if (tournament.type === '7') {
         // Americano: bireysel kayıt, her tur geçici çiftler; min 4 oyuncu.
@@ -2673,9 +2739,9 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
     }
 
-    // type 5/6/7/10'da bracketData yukarıda yazıldıysa status güncellemesi createMany ile birleşsin —
+    // type 5/6/7/10/11/12'da bracketData yukarıda yazıldıysa status güncellemesi createMany ile birleşsin —
     // tekrar overwrite etmemek için mevcut bracketData'yı koru.
-    const existingBracket = tournament.type === '5' || tournament.type === '6' || tournament.type === '7' || tournament.type === '10'
+    const existingBracket = ['5', '6', '7', '10', '11', '12', '13', '14'].includes(String(tournament.type))
         ? (await prisma.tournament.findUnique({ where: { id }, select: { bracketData: true } }))?.bracketData
         : tournament.bracketData;
 
@@ -2721,7 +2787,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     // Çiftler Rekabetçi'de yedekten takıma çekilen oyuncular da bildirim almalı, bu yüzden
     // type '2' için mainList değil tüm kabul edilenler (rawParticipants) taranır.
     const excludedIds = new Set(excludedFromTeams.map(ex => ex.userId));
-    const notifyList = (tournament.type === '2' || tournament.type === '4' || tournament.type === '10') ? rawParticipants : mainList;
+    const notifyList = (tournament.type === '2' || tournament.type === '4' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14') ? rawParticipants : mainList;
     for (const p of notifyList) {
         if (p.userId && p.userId !== actorUserId && !excludedIds.has(p.userId)) {
             emitToUser(p.userId, 'tournament:started', { tournamentId: id });
@@ -3280,8 +3346,8 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
     const id = tournament.id;
 
     // Bireysel Rekabetçi (type '1'), Çiftler Rekabetçi (type '2'), Antrenman (3/4),
-    // Swiss (5) ve Americano (7): dinamik tur yönetimi.
-    if (!isCorrection && (tournament.type === '1' || tournament.type === '2' || tournament.type === '3' || tournament.type === '4' || tournament.type === '5' || tournament.type === '7') && match.phase === 'GROUP') {
+    // Swiss (5/12) ve Americano (7): dinamik tur yönetimi.
+    if (!isCorrection && (tournament.type === '1' || tournament.type === '2' || tournament.type === '3' || tournament.type === '4' || tournament.type === '5' || tournament.type === '12' || tournament.type === '7') && match.phase === 'GROUP') {
         // Tip '1': prematüre / eski-Elo tur 2+ (hepsi PENDING) varsa sil — aşağıda güncel Elo ile kurulur
         if (tournament.type === '1') {
             await healType1PendingFutureEloRounds(tournament);
@@ -3318,7 +3384,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
             const bracketMeta = (tournament.bracketData && typeof tournament.bracketData === 'object') ? tournament.bracketData : {};
             const matchesPerPlayer = tournament.type === '2'
                 ? sideCount - 1
-                : tournament.type === '5'
+                : (tournament.type === '5' || tournament.type === '12')
                     ? (bracketMeta.totalRounds || swissRoundCount(sideCount, tournament.matchesBeforePlayoff))
                     : tournament.type === '7'
                         ? (bracketMeta.totalRounds || americanoRoundCount(tournament.participants.length, tournament.matchesBeforePlayoff))
@@ -3333,9 +3399,10 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
 
             if (!preGenerated && maxRound < matchesPerPlayer && !existingPlayoff && !nextRoundAlreadyExists) {
                 let nextCreated = [];
-                if (tournament.type === '5') {
-                    const playerIds = tournament.participants.map(p => p.userId).filter(Boolean);
-                    const players = await getCurrentPlayerRatings(tournament, playerIds);
+                if (tournament.type === '5' || tournament.type === '12') {
+                    const players = tournament.type === '12'
+                        ? await getCurrentTeamRatings(tournament, [...new Set(allGroupMatches.flatMap(m => [m.p1Id, m.p2Id]).filter(Boolean))])
+                        : await getCurrentPlayerRatings(tournament, tournament.participants.map(p => p.userId).filter(Boolean));
                     const nextRoundMatches = await generateNextSwissRound(tournament, players, maxRound + 1, allGroupMatches);
                     if (nextRoundMatches.length > 0) {
                         await prisma.tournamentMatch.createMany({ data: nextRoundMatches });
@@ -3390,7 +3457,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                 }
             } else if (currentRoundDone && groupPhaseFullyDone && !existingPlayoff && !nextRoundAlreadyExists) {
                 // Swiss / Americano: play-off yok — turlar bitince turnuva tamamlanır (PENDING kalmazsa aşağıda).
-                if (tournament.type === '5' || tournament.type === '7') {
+                if (tournament.type === '5' || tournament.type === '12' || tournament.type === '7') {
                     // no-op: auto-complete bloğu PENDING=0 iken COMPLETED yapar
                 } else {
                 // Play-off'a geçiş joker gevşemesinden ETKİLENMEZ — son tur her zaman tam
@@ -6941,7 +7008,7 @@ export const reserveMatchShare = async (req, res, next) => {
             }),
         ).catch(() => {});
 
-        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7' || tournament.type === '10';
+        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14';
         const notifyIds = new Set([tournament.creatorId]);
         for (const sideId of [match.p1Id, match.p2Id].filter(Boolean)) {
             if (isTeamEngine) {
@@ -6978,7 +7045,7 @@ export async function applyTournamentMatchAutoDraw(match, tournament, { source =
     if (!tournament || tournament.status !== 'IN_PROGRESS') return null;
 
     const now = new Date();
-    const isTeamTournament = tournament.type === '2' || tournament.type === '4' || tournament.type === '10';
+    const isTeamTournament = tournament.type === '2' || tournament.type === '4' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14';
     let p1Members = [match.p1Id].filter(Boolean);
     let p2Members = [match.p2Id].filter(Boolean);
     if (isTeamTournament) {

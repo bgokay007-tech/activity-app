@@ -1,7 +1,7 @@
-// Turnuva formatı: kullanıcıya anlamlı paketler; motor tarafında type '1'..'7'.
+// Turnuva formatı: kullanıcıya anlamlı paketler; motor tarafında type '1'..'12'.
 // formatConfig JSON olarak Tournament.formatConfig'e yazılır.
 
-export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9', '10'];
+export const ACTIVE_ENGINE_TYPES = ['1', '2', '3', '4', '5', '6', '7', '9', '10', '11', '12', '13', '14'];
 
 // Defi ligi (meydan okuma merdiveni) — kurallar backend/src/utils/defiLadder.js ile aynı.
 export const DEFI_SUBS = ['tennis', 'padel', 'volleyball', 'basketball', 'football'];
@@ -22,8 +22,8 @@ export function defiEntryOf(tourn) {
     return defiEntryFor(tourn?.subCategory, tourn?.formatConfig?.defi?.entry);
 }
 
-/** Sabit/tur takım id'leri maç tarafı — 2/4/10 sabit çift, 7 Americano tur takımı. */
-export const TEAM_ENGINE_TYPES = ['2', '4', '7', '10'];
+/** Sabit/tur takım id'leri maç tarafı — 2/4/10/12/14 sabit çift, 7 Americano tur takımı. */
+export const TEAM_ENGINE_TYPES = ['2', '4', '7', '10', '12', '14'];
 
 export function isTeamEngineType(type) {
     return TEAM_ENGINE_TYPES.includes(String(type));
@@ -32,17 +32,19 @@ export function isTeamEngineType(type) {
 /** @typedef {{
  *   id: string,
  *   engineType: string,
- *   entry: 'SINGLES'|'DOUBLES',
+ *   entry: 'SINGLES'|'DOUBLES'|'LADDER',
  *   intensity: 'COMPETITIVE'|'PRACTICE',
  *   phase1: string,
  *   phase2: string,
  *   seeding: string,
  *   accent: string,
  *   comingSoon?: boolean,
+ *   subs?: string[],
  * }} TournamentPreset */
 
 /** @type {TournamentPreset[]} */
 export const TOURNAMENT_PRESETS = [
+    // —— Tekler / Çiftler ortak sıralama: Lig rekabetçi → Lig antrenman → İsviçre → Defi → Eleme rekabetçi → Eleme antrenman (+ Americano sadece çiftler)
     {
         id: 'singles_elo_playoff',
         engineType: '1',
@@ -94,24 +96,15 @@ export const TOURNAMENT_PRESETS = [
         accent: '#fbbf24',
     },
     {
-        id: 'double_elim',
-        engineType: '6',
-        entry: 'SINGLES',
-        intensity: 'COMPETITIVE',
-        phase1: 'NONE',
-        phase2: 'DOUBLE_ELIM',
-        seeding: 'SEEDED',
-        accent: '#fb7185',
-    },
-    {
-        id: 'americano',
-        engineType: '7',
+        // Çiftler İsviçre — sabit çiftler + swiss eşleşme (engine 12).
+        id: 'swiss_doubles',
+        engineType: '12',
         entry: 'DOUBLES',
-        intensity: 'PRACTICE',
-        phase1: 'AMERICANO',
+        intensity: 'COMPETITIVE',
+        phase1: 'SWISS',
         phase2: 'NONE',
-        seeding: 'RANDOM',
-        accent: '#2dd4bf',
+        seeding: 'ELO',
+        accent: '#fbbf24',
     },
     {
         id: 'defi_ladder',
@@ -125,7 +118,28 @@ export const TOURNAMENT_PRESETS = [
         subs: DEFI_SUBS,
     },
     {
-        // Kullanıcı isteği: eleme usulü Çiftler sekmesinde olsun (sabit çiftler + bracket).
+        // Tekler saf eleme (grup yok) — bireysel bracket.
+        id: 'singles_elim',
+        engineType: '11',
+        entry: 'SINGLES',
+        intensity: 'COMPETITIVE',
+        phase1: 'NONE',
+        phase2: 'SINGLE_ELIM',
+        seeding: 'SEEDED',
+        accent: '#fb7185',
+    },
+    {
+        id: 'singles_elim_practice',
+        engineType: '13',
+        entry: 'SINGLES',
+        intensity: 'PRACTICE',
+        phase1: 'NONE',
+        phase2: 'SINGLE_ELIM',
+        seeding: 'RANDOM',
+        accent: '#c084fc',
+    },
+    {
+        // Çiftler saf eleme — sabit çiftler + bracket.
         id: 'single_elim',
         engineType: '10',
         entry: 'DOUBLES',
@@ -134,6 +148,38 @@ export const TOURNAMENT_PRESETS = [
         phase2: 'SINGLE_ELIM',
         seeding: 'SEEDED',
         accent: '#38bdf8',
+    },
+    {
+        id: 'single_elim_practice',
+        engineType: '14',
+        entry: 'DOUBLES',
+        intensity: 'PRACTICE',
+        phase1: 'NONE',
+        phase2: 'SINGLE_ELIM',
+        seeding: 'RANDOM',
+        accent: '#818cf8',
+    },
+    {
+        id: 'americano',
+        engineType: '7',
+        entry: 'DOUBLES',
+        intensity: 'PRACTICE',
+        phase1: 'AMERICANO',
+        phase2: 'NONE',
+        seeding: 'RANDOM',
+        accent: '#2dd4bf',
+    },
+    {
+        // Eski "çift eleme" — listede gösterilmez; eski turnuva etiketleri için tutulur.
+        id: 'double_elim',
+        engineType: '6',
+        entry: 'SINGLES',
+        intensity: 'COMPETITIVE',
+        phase1: 'NONE',
+        phase2: 'DOUBLE_ELIM',
+        seeding: 'SEEDED',
+        accent: '#fb7185',
+        comingSoon: true,
     },
 ];
 
@@ -179,6 +225,10 @@ export function tournFormatLabel(tourn, t) {
         '7': t.tournPreset_americano || t.tournType7,
         '9': t.tournPreset_defi_ladder,
         '10': t.tournPreset_single_elim,
+        '11': t.tournPreset_singles_elim,
+        '12': t.tournPreset_swiss_doubles || t.tournPreset_swiss,
+        '13': t.tournPreset_singles_elim_practice,
+        '14': t.tournPreset_single_elim_practice,
     };
     return legacy[type] || type || '—';
 }
