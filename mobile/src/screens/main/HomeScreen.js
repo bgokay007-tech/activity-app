@@ -1,5 +1,5 @@
-﻿import { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert } from 'react-native';
+﻿import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert, Animated } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -212,6 +212,44 @@ function listingMeta(item) {
     if (item?.matchType === 'DOUBLE') return '2v2';
     if (item?.teamSize > 1) return `${item.teamSize}v${item.teamSize}`;
     return '';
+}
+
+/** Açık ilan / kendi OPEN-POLL turnuvası → sol sütun. */
+function isMineOpenListing(item, userId) {
+    if (!isOwnListing(item, userId)) return false;
+    if (item?.kind === 'tournament') return ['OPEN', 'POLL'].includes(String(item.status || ''));
+    return String(item.status || '') === 'OPEN';
+}
+
+/** Devam eden turnuva veya şu an oynanan maç → kırmızı yanıp sönen kicker. */
+function isLiveUrgent(item, now) {
+    if (!item) return false;
+    if (item.kind === 'tournament') return String(item.status || '') === 'IN_PROGRESS';
+    return matchHasStarted(item, now) && !matchHasEnded(item, now);
+}
+
+function BlinkRedKicker({ children, style }) {
+    const opacity = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(opacity, { toValue: 0.22, duration: 480, useNativeDriver: true }),
+                Animated.timing(opacity, { toValue: 1, duration: 480, useNativeDriver: true }),
+            ]),
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [opacity]);
+    return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 }}>
+            <Animated.View style={{
+                width: 7, height: 7, borderRadius: 4, backgroundColor: '#ef4444', opacity,
+            }} />
+            <Animated.Text style={[style, { color: '#f87171', marginBottom: 0, opacity }]} numberOfLines={1}>
+                {children}
+            </Animated.Text>
+        </View>
+    );
 }
 
 export default function HomeScreen({ navigation }) {
@@ -465,9 +503,66 @@ export default function HomeScreen({ navigation }) {
         }
         return out;
     })();
+    // Sol: kendi açık ilanların · Sağ: katıldığın aktiviteler / devam eden turnuvalar
+    const myListingsCol = joinedLive.filter(item => isMineOpenListing(item, user?.id)).slice(0, 8);
+    const joinedActsCol = joinedLive.filter(item => !isMineOpenListing(item, user?.id)).slice(0, 8);
     const joinedIds = new Set(joinedLive.map(m => m.id));
     // Açık ilanlar zaten sadece başkaları; yine de katıldığınla çakışmasın.
     const openOnly = (openListings || []).filter(item => !joinedIds.has(item.id) && !isOwnListing(item, user?.id));
+
+    const renderJoinedCard = (item, compact) => {
+        const isTourn = item.kind === 'tournament';
+        const mineOpen = isMineOpenListing(item, user?.id);
+        const playing = !isTourn && matchHasStarted(item, now) && !matchHasEnded(item, now);
+        const urgent = isLiveUrgent(item, now);
+        const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
+        const meta = isTourn ? null : listingMeta(item);
+        const kicker = isTourn
+            ? (mineOpen
+                ? (t.yourTournament || t.yourListing)
+                : (t.homeOngoingTournamentKicker || t.homeJoinedKicker))
+            : (playing
+                ? t.featuredNowPlaying
+                : (mineOpen ? t.yourListing : t.homeJoinedKicker));
+        const title = isTourn
+            ? (item.name || getSubCategoryLabel(item.subCategory, lang))
+            : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
+        return (
+            <TouchableOpacity
+                key={`joined-${isTourn ? 't' : 'r'}-${item.id}`}
+                style={compact ? nv.colCard : nv.row}
+                onPress={() => openListing(item)}
+                activeOpacity={0.85}
+            >
+                <Image source={photo} style={compact ? nv.colImg : nv.rowImg} resizeMode="cover" />
+                <View style={compact ? nv.colBody : nv.rowBody}>
+                    {urgent ? (
+                        <BlinkRedKicker style={compact ? nv.colKicker : nv.rowKicker}>{kicker}</BlinkRedKicker>
+                    ) : (
+                        <Text style={[compact ? nv.colKicker : nv.rowKicker, { color: colors.purple }]}>
+                            {kicker}
+                        </Text>
+                    )}
+                    <Text style={compact ? nv.colTitle : nv.rowTitle} numberOfLines={compact ? 2 : 1}>{title}</Text>
+                    {isTourn ? (
+                        <Text style={compact ? nv.colMeta : nv.rowMeta} numberOfLines={1}>
+                            {getSubCategoryLabel(item.subCategory, lang)}
+                            {formatWhen(item, t) ? ` · ${formatWhen(item, t)}` : ''}
+                        </Text>
+                    ) : (
+                        <Text style={compact ? nv.colMeta : nv.rowMeta} numberOfLines={1}>
+                            {formatWhen(item, t) || item.location || ''}
+                        </Text>
+                    )}
+                    {(item.courtName || item.location || item.city) ? (
+                        <Text style={compact ? nv.colPlace : nv.rowPlace} numberOfLines={1}>
+                            {item.courtName || item.location || item.city}
+                        </Text>
+                    ) : null}
+                </View>
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <View style={s.container}>
@@ -512,55 +607,30 @@ export default function HomeScreen({ navigation }) {
                     ))}
                 </View>
 
-                {joinedLive.length > 0 ? (
+                {(myListingsCol.length > 0 || joinedActsCol.length > 0) ? (
                     <>
                         <Text style={[nv.section, { marginBottom: 10 }]}>
                             {t.homeJoinedActivities}
-                            {joinedLive.length ? ` (${joinedLive.length})` : ''}
+                            {` (${myListingsCol.length + joinedActsCol.length})`}
                         </Text>
-                        {joinedLive.slice(0, 12).map(item => {
-                            const isTourn = item.kind === 'tournament';
-                            const mineOpen = isOwnListing(item, user?.id) && (
-                                isTourn
-                                    ? ['OPEN', 'POLL'].includes(String(item.status || ''))
-                                    : String(item.status || '') === 'OPEN'
-                            );
-                            const playing = !isTourn && matchHasStarted(item, now) && !matchHasEnded(item, now);
-                            const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
-                            const meta = isTourn ? null : listingMeta(item);
-                            const kicker = isTourn
-                                ? (mineOpen
-                                    ? (t.yourTournament || t.yourListing)
-                                    : (t.homeOngoingTournamentKicker || t.homeJoinedKicker))
-                                : (playing
-                                    ? t.featuredNowPlaying
-                                    : (mineOpen ? t.yourListing : t.homeJoinedKicker));
-                            const title = isTourn
-                                ? (item.name || getSubCategoryLabel(item.subCategory, lang))
-                                : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
-                            return (
-                                <TouchableOpacity key={`joined-${isTourn ? 't' : 'r'}-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
-                                    <Image source={photo} style={nv.rowImg} resizeMode="cover" />
-                                    <View style={nv.rowBody}>
-                                        <Text style={[nv.rowKicker, { color: (isTourn || playing) ? '#4ade80' : colors.purple }]}>
-                                            {kicker}
-                                        </Text>
-                                        <Text style={nv.rowTitle} numberOfLines={1}>{title}</Text>
-                                        {isTourn ? (
-                                            <Text style={nv.rowMeta} numberOfLines={1}>
-                                                {getSubCategoryLabel(item.subCategory, lang)}
-                                                {formatWhen(item, t) ? ` · ${formatWhen(item, t)}` : ''}
-                                            </Text>
-                                        ) : (
-                                            <Text style={nv.rowMeta} numberOfLines={1}>{formatWhen(item, t) || item.location || ''}</Text>
-                                        )}
-                                        {(item.courtName || item.location || item.city) ? (
-                                            <Text style={nv.rowPlace} numberOfLines={1}>{item.courtName || item.location || item.city}</Text>
-                                        ) : null}
-                                    </View>
-                                </TouchableOpacity>
-                            );
-                        })}
+                        <View style={nv.splitRow}>
+                            <View style={nv.splitCol}>
+                                <Text style={nv.splitHead}>{t.homeListingsCol}</Text>
+                                {myListingsCol.length === 0 ? (
+                                    <Text style={nv.splitEmpty}>—</Text>
+                                ) : (
+                                    myListingsCol.map(item => renderJoinedCard(item, true))
+                                )}
+                            </View>
+                            <View style={nv.splitCol}>
+                                <Text style={nv.splitHead}>{t.homeJoinedCol}</Text>
+                                {joinedActsCol.length === 0 ? (
+                                    <Text style={nv.splitEmpty}>—</Text>
+                                ) : (
+                                    joinedActsCol.map(item => renderJoinedCard(item, true))
+                                )}
+                            </View>
+                        </View>
                     </>
                 ) : null}
 
@@ -686,4 +756,21 @@ const nv = StyleSheet.create({
     rowTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
     rowMeta: { color: colors.textSecondary, fontSize: 12, fontWeight: '500', marginTop: 3 },
     rowPlace: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    splitRow: { flexDirection: 'row', gap: 10, marginBottom: 8, alignItems: 'flex-start' },
+    splitCol: { flex: 1, minWidth: 0 },
+    splitHead: {
+        color: colors.textSecondary, fontSize: 11, fontWeight: '800', marginBottom: 8,
+        textTransform: 'uppercase', letterSpacing: 0.4,
+    },
+    splitEmpty: { color: colors.textMuted, fontSize: 13, fontWeight: '600', paddingVertical: 12, textAlign: 'center' },
+    colCard: {
+        backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden',
+        marginBottom: 8, borderWidth: 1, borderColor: colors.border,
+    },
+    colImg: { width: '100%', height: 72 },
+    colBody: { paddingHorizontal: 8, paddingVertical: 8 },
+    colKicker: { color: colors.purple, fontSize: 10, fontWeight: '700', marginBottom: 2 },
+    colTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
+    colMeta: { color: colors.textSecondary, fontSize: 11, fontWeight: '500', marginTop: 2 },
+    colPlace: { color: colors.textMuted, fontSize: 11, marginTop: 1 },
 });
