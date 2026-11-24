@@ -22,6 +22,7 @@ import {
     removePendingRead,
     flushPendingReads,
 } from '../../services/pendingNotificationReads';
+import { prefetchRival } from '../../services/rivalPrefetch';
 
 const TYPE_ICON = {
     RIVAL_REQUEST: '⚔️',
@@ -384,6 +385,8 @@ export default function NotificationsScreen({ navigation }) {
         if (!item.read) markRead(item.id);
         const data = item.data || {};
         const type = item.type;
+        // SubCategory açılmadan /rivals/:id başlasın — 7 liste API beklemeden detay açılsın.
+        if (data.rivalId) prefetchRival(data.rivalId);
         const goToSub = (tab = 'rivals', tournSubTab = null, openChatTournamentId = null, archiveTournamentId = null) => {
             if (!data.category || !data.subCategory) return;
             // Eski bir sunucu hatası yüzünden bazı geçmiş bildirimlerde category küçük harfle

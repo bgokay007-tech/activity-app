@@ -33,6 +33,7 @@ import { estimateCalories } from '../../utils/calorieEstimate';
 import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, syncDecidingSet, formatSetScore, racketAlertText, encodeSetsFormat, decodeSetsFormat, decidingTiebreakAllowed } from '../../utils/racketScore';
 import api from '../../services/api';
 import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache, hydrateBranch } from '../../services/branchCache';
+import { prefetchRival, takePrefetchedRival } from '../../services/rivalPrefetch';
 import { onSocket, onSocketReconnect } from '../../services/socket';
 import colors from '../../theme/colors';
 import { NEW_VISUAL } from '../../theme/visual';
@@ -27445,8 +27446,58 @@ function SubCategoryScreen({ route, navigation }) {
     }, []);
     const load = useCallback(async (opts = {}) => {
         const gen = ++loadGenRef.current;
+        // Bildirim/deep-link: tek /rivals/:id ile detayı 7 liste API + 250ms beklemeden aç.
+        const openHighlightSoon = (found) => {
+            if (!found?.id || !highlightRivalId || found.id !== highlightRivalId) return false;
+            if (autoOpenHandledRef.current === highlightRivalId) return false;
+            const isRefereeAd = Array.isArray(found.positions) &&
+                (found.positions.includes('REFEREE') || found.positions.includes('REFEREE_OFFER'));
+            if (found.status === 'MATCHED') {
+                setMatchedUpcoming((prev) => {
+                    const exists = prev.some((m) => m.id === found.id);
+                    const next = exists
+                        ? prev.map((m) => (m.id === found.id ? { ...m, ...found } : m))
+                        : [found, ...prev];
+                    matchedUpcomingIdsRef.current = new Set(next.filter((m) => m?.status === 'MATCHED').map((m) => m.id));
+                    return next;
+                });
+            } else if (found.matchType === 'PLAYER_WANTED' && isRefereeAd) {
+                setRefereeMatches((prev) => (prev.some((r) => r.id === found.id) ? prev.map((r) => (r.id === found.id ? { ...r, ...found } : r)) : [found, ...prev]));
+                setCoachSubTab('referees');
+                setActiveTab('coaches');
+            } else if (found.matchType === 'PLAYER_WANTED') {
+                setPlayerWanted((prev) => (prev.some((r) => r.id === found.id) ? prev.map((r) => (r.id === found.id ? { ...r, ...found } : r)) : [found, ...prev]));
+            } else if (found.scoreStatus === 'PENDING' || found.scoreStatus === 'PROPOSED' || found.needsScore) {
+                setPendingScore((prev) => (prev.some((r) => r.id === found.id) ? prev.map((r) => (r.id === found.id ? { ...r, ...found } : r)) : [found, ...prev]));
+                if (found.scoreStatus === 'PENDING') setScoreConfirmExpanded(true);
+                else setPendingScoreExpanded(true);
+            } else {
+                setRivals((prev) => {
+                    if (prev.some((r) => r.id === found.id)) {
+                        return prev.map((r) => (r.id === found.id ? { ...r, ...found } : r));
+                    }
+                    return [found, ...prev.filter((r) => r.id !== found.id)];
+                });
+            }
+            autoOpenHandledRef.current = highlightRivalId;
+            setListsReady(true);
+            setLoading(false);
+            // Eski 250ms bilinçli gecikme kaldırıldı — kart bir frame'de mount olsun yeter.
+            requestAnimationFrame(() => setAutoOpenId(highlightRivalId));
+            return true;
+        };
         try {
             let freshApplied = false;
+            // Navigasyon anında başlatılan prefetch (OS push / uygulama-içi bildirim listesi)
+            if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
+                const pre = takePrefetchedRival(highlightRivalId) || prefetchRival(highlightRivalId);
+                if (pre) {
+                    Promise.resolve(pre).then((data) => {
+                        if (gen !== loadGenRef.current || !data?.id) return;
+                        openHighlightSoon(data);
+                    }).catch(() => {});
+                }
+            }
             if (!opts.fresh) {
                 hydrateBranch(category, sub).then((disk) => {
                     if (gen !== loadGenRef.current || freshApplied || !disk) return;
@@ -27468,6 +27519,14 @@ function SubCategoryScreen({ route, navigation }) {
                     setMediaPosts(disk.mediaPosts || []);
                     setMediaStories(disk.mediaStories || []);
                     setListsReady(true);
+                    if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
+                        const fromDisk = (disk.rivals || []).find((r) => r.id === highlightRivalId)
+                            || (disk.matchedUpcoming || []).find((r) => r.id === highlightRivalId)
+                            || (disk.pendingScore || []).find((r) => r.id === highlightRivalId)
+                            || (disk.playerWanted || []).find((r) => r.id === highlightRivalId)
+                            || (disk.refereeMatches || []).find((r) => r.id === highlightRivalId);
+                        if (fromDisk) openHighlightSoon(fromDisk);
+                    }
                 }).catch(() => {});
             }
             const packPromise = prefetchBranchLists(category, sub, { fresh: !!opts.fresh });
@@ -27485,6 +27544,10 @@ function SubCategoryScreen({ route, navigation }) {
                     });
                     setListsReady(true);
                     setLoading(false);
+                    if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
+                        const hit = earlyOpen.find((r) => r.id === highlightRivalId);
+                        if (hit) openHighlightSoon(hit);
+                    }
                 }).catch(() => {});
             }
             const [rvRes, pwRes, postsRes, mediaRes, storiesRes, upcomingRes, pendingRes] = await packPromise;
@@ -27547,6 +27610,7 @@ function SubCategoryScreen({ route, navigation }) {
                 mediaStories: storyGroups,
             });
 
+            // Erken açıkma (prefetch / disk / rivalsPromise) kaçırdıysa yedek — 7 API sonrası.
             if (highlightRivalId && autoOpenHandledRef.current !== highlightRivalId) {
                 const pendingList = Array.isArray(pendingRes.data) ? pendingRes.data : [];
                 const found = openRivals.find(r => r.id === highlightRivalId)
@@ -27554,28 +27618,9 @@ function SubCategoryScreen({ route, navigation }) {
                     // SCORE_ENTRY_REQUIRED / skor onayı bildirimleri — maç autoComplete sonrası
                     // sadece "Skor Bekleyen" / "Skor Onay Bekleyen" listesinde; openRivals ve
                     // upcoming'de yok. Burada aranmazsa tenis ekranı açılıp maç hiç gelmiyordu.
-                    || pendingList.find(r => r.id === highlightRivalId);
-                if (found) {
-                    autoOpenHandledRef.current = highlightRivalId;
-                    if (pendingList.some(r => r.id === highlightRivalId)) {
-                        if (found.scoreStatus === 'PENDING') setScoreConfirmExpanded(true);
-                        else setPendingScoreExpanded(true);
-                    }
-                    // Kullanıcı raporu: bildirimden gelip otomatik açılan ilan detayında üstteki
-                    // bilgi rozetleri (cinsiyet/derece/iptal cezası vb.) bazen bir anda "kayıyordu"
-                    // — sadece bildirimden gelince, direkt karta dokununca hiç olmuyordu. Ekran
-                    // ilk kez (soğuk) monte olurken ScrollView/adjustsFontSizeToFit ölçümü henüz
-                    // oturmadan Modal'ın hemen açılması, ilk çizimde bir yeniden düzenlemeye
-                    // (reflow) yol açıyordu. Kısa bir gecikme, kullanıcı hiçbir şey görmeden bu
-                    // ilk ölçüm turunun oturmasına zaman tanıyor.
-                    setTimeout(() => setAutoOpenId(highlightRivalId), 250);
-                } else if (pwRes.data.some(r => r.id === highlightRivalId)) {
-                    // Hakem ilanı (PLAYER_WANTED) — Hakemler alt-sekmesinde yaşıyor
-                    autoOpenHandledRef.current = highlightRivalId;
-                    setCoachSubTab('referees');
-                    setActiveTab('coaches');
-                    setTimeout(() => setAutoOpenId(highlightRivalId), 250);
-                }
+                    || pendingList.find(r => r.id === highlightRivalId)
+                    || (Array.isArray(pwRes.data) ? pwRes.data.find(r => r.id === highlightRivalId) : null);
+                if (found) openHighlightSoon(found);
             }
         } catch(e) { console.warn(e?.message); }
         finally { setLoading(false); setListsReady(true); setRefreshing(false); }
@@ -27950,13 +27995,9 @@ function SubCategoryScreen({ route, navigation }) {
         if (clubForm.cities.length === 0 && !clubForm.facilityCity.trim()) {
             return Alert.alert('', t.clubCitiesRequired || t.sc_0831);
         }
-        if (!clubForm.courtId && !clubForm.facilityManual) {
-            return Alert.alert('', t.clubFacilityRequired || t.sc_0836);
-        }
-        if (clubForm.facilityManual && !clubForm.facilityName.trim()) {
-            return Alert.alert('', t.clubFacilityRequired || t.sc_0836);
-        }
-        if (clubForm.facilityManual && !clubForm.facilityCity.trim()) {
+        // Tesis opsiyonel — serbest kulüp (tesis yok) de açılabilir. Yeni tesis yazıldıysa il şart.
+        const wantsNewFacility = clubForm.facilityManual && !!clubForm.facilityName.trim();
+        if (wantsNewFacility && !clubForm.facilityCity.trim()) {
             return Alert.alert('', t.clubFacilityCityRequired || t.sc_0837);
         }
         setSubmittingClub(true);
@@ -27976,7 +28017,7 @@ function SubCategoryScreen({ route, navigation }) {
                 membershipFee: clubForm.membershipFee ? parseInt(clubForm.membershipFee, 10) : undefined,
                 photoUrl: clubForm.photoUrl || undefined,
                 courtId: clubForm.courtId || undefined,
-                ...(clubForm.facilityManual ? {
+                ...(wantsNewFacility ? {
                     facilityName: clubForm.facilityName.trim(),
                     facilityCity: clubForm.facilityCity.trim(),
                     facilityDistrict: clubForm.facilityDistrict.trim() || undefined,
@@ -32105,14 +32146,15 @@ function SubCategoryScreen({ route, navigation }) {
                     </Modal>
 
                     {/* ── Kulüp İlanı Oluştur ── */}
+                    {/* Uzun form: KeyboardSafeModal (KAV) + KeyboardAwareForm — klavye açıkken de kaydırılsın. */}
                     <KeyboardSafeModal visible={showCreateClub} onClose={() => { setShowCreateClub(false); resetClubForm(); }}>
-                        {/* maxHeight yüzde ScrollView'u boş şişiriyordu; sayısal üst sınır + flexGrow
-                            ile açıklama/butonlar modalın altındaki boşluğu doldurur, gereksiz kaydırma azalır. */}
-                        <ScrollView
+                        <KeyboardAwareForm
+                            adjustWindow={false}
                             keyboardShouldPersistTaps="handled"
                             showsVerticalScrollIndicator={false}
+                            bottomOffset={48}
                             style={{ maxHeight: Math.round(winH * 0.82) }}
-                            contentContainerStyle={{ flexGrow: 1, paddingBottom: 4 }}
+                            contentContainerStyle={{ paddingBottom: 28 }}
                         >
                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.createClubTitle}</Text>
                             <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubNameLabel} *</Text>
@@ -32147,7 +32189,10 @@ function SubCategoryScreen({ route, navigation }) {
                                 ) : null}
                             </TouchableOpacity>
 
-                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4 }}>{t.clubFacilityLabel || t.sc_0277} *</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:2 }}>{t.clubFacilityLabel || t.sc_0277}</Text>
+                            <Text style={{ color:colors.textMuted, fontSize:10, marginBottom:4, lineHeight:14 }}>
+                                {t.clubFacilityOptionalHint || t.sc_0992}
+                            </Text>
                             <View style={{ marginBottom: clubForm.facilityManual ? 4 : 8, zIndex: 50 }}>
                                 <VenueNameAutocomplete
                                     value={clubForm.facilityName}
@@ -32245,7 +32290,6 @@ function SubCategoryScreen({ route, navigation }) {
                                 keyboardType="numeric"
                                 style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
                             />
-                            {/* Modal altındaki boşluğu açıklama alanı doldursun — kaydırmadan görünsün */}
                             <TextInput
                                 placeholder={t.clubDescPh}
                                 placeholderTextColor={colors.textMuted}
@@ -32253,12 +32297,12 @@ function SubCategoryScreen({ route, navigation }) {
                                 onChangeText={v => setClubForm(f => ({ ...f, description: v }))}
                                 multiline
                                 numberOfLines={4}
-                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, color:'#fff', marginBottom:10, borderWidth:1, borderColor:colors.border, minHeight:120, flexGrow:1, textAlignVertical:'top' }}
+                                style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:8, color:'#fff', marginBottom:10, borderWidth:1, borderColor:colors.border, minHeight:100, textAlignVertical:'top' }}
                             />
                             <Text style={{ color:colors.textMuted, fontSize:11, marginBottom:10, lineHeight:16 }}>
                                 {t.clubAdminApprovalHint || t.sc_0989}
                             </Text>
-                            <View style={{ flexDirection:'row', gap:3, marginTop:'auto' }}>
+                            <View style={{ flexDirection:'row', gap:3 }}>
                                 <TouchableOpacity onPress={() => { setShowCreateClub(false); resetClubForm(); }} style={{ flex:1, paddingVertical:10, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                     <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.cancelBtn || t.sc_0065}</Text>
                                 </TouchableOpacity>
@@ -32268,7 +32312,7 @@ function SubCategoryScreen({ route, navigation }) {
                                     </Text>
                                 </TouchableOpacity>
                             </View>
-                        </ScrollView>
+                        </KeyboardAwareForm>
                     </KeyboardSafeModal>
 
                     {/* ── Kulüp Üyelik Başvurusu ── */}

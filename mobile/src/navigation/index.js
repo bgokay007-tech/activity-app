@@ -21,6 +21,7 @@ import { connectSocket, disconnectSocket, onSocket, onSocketReconnect } from '..
 import { handleNotificationAction } from '../services/notificationActions';
 import { flushPendingReads, markNotificationReadDurable } from '../services/pendingNotificationReads';
 import { adminPortalParamsForNotif } from '../utils/adminNotifNav';
+import { prefetchRival } from '../services/rivalPrefetch';
 
 const isExpoGo = Constants.appOwnership === 'expo' || Constants.executionEnvironment === 'storeClient';
 
@@ -42,6 +43,9 @@ function navigateFromNotif(data, isBusiness) {
     const type = data.type;
     // Aynı SubCategory zaten açıksa params bazen “değişmedi” sayılıyor — her tap'te benzersiz anahtar.
     const notifNavKey = String(Date.now());
+    // Tenis NEW_LISTING vb.: SubCategory 7 liste API'sini bitirmeden detay açılsın diye
+    // /rivals/:id navigasyondan hemen önce başlar (bkz. rivalPrefetch + load erken açma).
+    if (data.rivalId) prefetchRival(data.rivalId);
     if (type === 'MESSAGE') {
         if (data.senderId) {
             goToAppScreen(isBusiness, 'MessagesTab', {
@@ -225,11 +229,12 @@ async function resolveDeepLinkAndNavigate(url, isBusiness) {
         const [kind, id] = segments.slice(-2);
         if (!id) return;
         if (kind === 'rival') {
-            const { data } = await api.get(`/rivals/${id}`);
-            if (!navigationRef.isReady()) return;
+            // Prefetch ile aynı isteği paylaş — SubCategory tekrar /rivals/:id beklemesin.
+            const data = await (prefetchRival(id) || api.get(`/rivals/${id}`).then((r) => r.data));
+            if (!data || !navigationRef.isReady()) return;
             goToAppScreen(isBusiness, 'HomeTab', {
                 screen: 'SubCategory',
-                params: { category: data.category, sub: data.subCategory, initialTab: 'rivals', highlightRivalId: id },
+                params: { category: data.category, sub: data.subCategory, initialTab: 'rivals', highlightRivalId: id, notifNavKey: String(Date.now()) },
             });
         } else if (kind === 'tournament') {
             const { data } = await api.get(`/tournaments/${id}`);
