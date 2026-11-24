@@ -6571,6 +6571,404 @@ export const reserveMatchSchedule = async (req, res, next) => {
 };
 
 /**
+ * Anlaşılan Pro+ maç aralığını saatlik paylara böler (p1 ilk yarı, p2 ikinci yarı,
+ * orta saat ortak). Oyuncu takvimde kendi payına tıklayıp ödeme seçsin diye.
+ */
+export const getMatchFeeShares = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+
+        const side = await resolveUserMatchSide(tournament, match, req.userId);
+        if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar payları görebilir' });
+
+        const schedule = normalizeSchedule(match.scheduleData);
+        const agreed = schedule.agreed;
+        if (!agreed?.date || !agreed?.timeFrom || !agreed?.timeTo) {
+            return res.status(400).json({ message: 'Önce gün ve saat üzerinde anlaşın' });
+        }
+
+        const venueId = agreed.venueId || tournament.venueId || null;
+        if (!venueId || agreed.isProVenue !== true) {
+            return res.status(400).json({ message: 'Pay seçimi yalnızca Pro+ tesislerde' });
+        }
+
+        const { isProVenueOwner, getSlotPrice } = await import('./venue.controller.js');
+        const venue = await prisma.businessVenue.findUnique({
+            where: { id: venueId },
+            select: {
+                id: true, name: true, status: true, userId: true,
+                pricePerSlot: true, pricingWindows: true, discountCampaigns: true,
+                acceptedPayments: true,
+            },
+        });
+        if (!venue || venue.status !== 'APPROVED' || !(await isProVenueOwner(venue.userId))) {
+            return res.status(400).json({ message: 'Pro+ tesis bulunamadı' });
+        }
+
+        const venueCourtId = agreed.venueCourtId || tournament.venueCourtId || null;
+        const court = venueCourtId
+            ? await prisma.venueCourt.findUnique({
+                where: { id: venueCourtId },
+                select: { id: true, name: true, venueId: true, pricePerSlot: true, pricingWindows: true },
+            })
+            : null;
+
+        // Paylar sabit: p1 ilk yarı, p2 ikinci — kim önce tıklarsa tıklasın aynı kalsın
+        const sideAUserId = await resolveSidePayerUserId(tournament, match, 'p1');
+        const sideBUserId = await resolveSidePayerUserId(tournament, match, 'p2');
+        const myPayerId = await resolveSidePayerUserId(tournament, match, side) || req.userId;
+
+        const segments = buildMatchFeeSegments({
+            startTime: String(agreed.timeFrom).slice(0, 5),
+            endTime: String(agreed.timeTo).slice(0, 5),
+            sideAUserId,
+            sideBUserId,
+            venue,
+            court,
+            getSlotPriceFn: getSlotPrice,
+        });
+
+        const existing = await prisma.courtReservation.findMany({
+            where: {
+                tournamentMatchId: matchId,
+                status: { not: 'CANCELLED' },
+            },
+            orderBy: [{ startTime: 'asc' }],
+        });
+
+        const findExisting = (st, et) => existing.find(r =>
+            r.startTime === st && r.endTime === et,
+        );
+
+        const shares = segments.map(seg => {
+            const resRow = findExisting(seg.startTime, seg.endTime);
+            const isMine = seg.userId === myPayerId
+                || (seg.splitPay && (seg.userId === myPayerId || seg.coPayerUserId === myPayerId));
+            const isOpp = !isMine;
+            let role = 'mine';
+            if (seg.splitPay) role = 'shared';
+            else if (isOpp) role = 'opponent';
+            return {
+                startTime: seg.startTime,
+                endTime: seg.endTime,
+                role,
+                splitPay: !!seg.splitPay,
+                fullPrice: seg.fullPrice,
+                amountDue: isMine
+                    ? (seg.splitPay && seg.userId !== myPayerId
+                        ? Math.max(0, (seg.fullPrice || 0) - (seg.amountDue || 0))
+                        : seg.amountDue)
+                    : seg.amountDue,
+                payerUserId: seg.userId,
+                coPayerUserId: seg.coPayerUserId,
+                canSelect: isMine && (!resRow || resRow.status === 'HOLD'
+                    || (resRow.userId === myPayerId || resRow.coPayerUserId === myPayerId)),
+                reservationId: resRow?.id || null,
+                reservationStatus: resRow?.status || null,
+                paymentMethod: resRow?.paymentMethod || null,
+                paymentConfirmStatus: resRow?.paymentConfirmStatus || null,
+            };
+        });
+
+        res.json({
+            date: String(agreed.date).slice(0, 10),
+            timeFrom: String(agreed.timeFrom).slice(0, 5),
+            timeTo: String(agreed.timeTo).slice(0, 5),
+            venueId,
+            venueName: agreed.venueName || venue.name,
+            venueCourtId: court?.id || venueCourtId,
+            courtName: court?.name || null,
+            acceptedPayments: Array.isArray(venue.acceptedPayments) ? venue.acceptedPayments : ['CASH', 'EFT'],
+            mySide: side,
+            shares,
+            isProVenue: true,
+        });
+    } catch (e) { next(e); }
+};
+
+/**
+ * Oyuncu anlaşılan Pro+ takvimde KENDİ pay saatine tıklayıp ödeme yöntemini seçer /
+ * rezervasyonu oluşturur. Rakibin payına dokunulamaz.
+ * Body: { startTime, endTime, paymentMethod?, venueCourtId? }
+ */
+export const reserveMatchShare = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const startTime = String(req.body?.startTime || '').slice(0, 5);
+        const endTime = String(req.body?.endTime || '').slice(0, 5);
+        if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) {
+            return res.status(400).json({ message: 'startTime ve endTime gerekli (HH:MM)' });
+        }
+        const paymentMethod = ['CASH', 'EFT', 'CREDIT_CARD', 'ONLINE'].includes(req.body?.paymentMethod)
+            ? req.body.paymentMethod
+            : 'CASH';
+
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        const match = await prisma.tournamentMatch.findUnique({ where: { id: matchId } });
+        if (!match || match.tournamentId !== id) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status !== 'PENDING' || !match.p1Id || !match.p2Id) {
+            return res.status(400).json({ message: 'Bu maç için pay seçilemez' });
+        }
+
+        const side = await resolveUserMatchSide(tournament, match, req.userId);
+        if (!side) return res.status(403).json({ message: 'Sadece eşleşen taraflar pay seçebilir' });
+
+        const schedule = normalizeSchedule(match.scheduleData);
+        const agreed = schedule.agreed;
+        if (!agreed?.date || !agreed?.timeFrom || !agreed?.timeTo) {
+            return res.status(400).json({ message: 'Önce gün ve saat üzerinde anlaşın' });
+        }
+
+        const venueId = agreed.venueId || tournament.venueId || null;
+        if (!venueId || agreed.isProVenue !== true) {
+            return res.status(400).json({ message: 'Pay seçimi yalnızca Pro+ tesislerde' });
+        }
+
+        const {
+            isProVenueOwner,
+            validateReservationSlot,
+            computeReservationStatus,
+            assertNotVenuePolicyBlocked,
+            getReservationOpensAt,
+            isPastDateTime,
+            getSlotPrice,
+        } = await import('./venue.controller.js');
+
+        const venue = await prisma.businessVenue.findUnique({ where: { id: venueId } });
+        if (!venue || venue.status !== 'APPROVED') {
+            return res.status(404).json({ message: 'Tesis bulunamadı' });
+        }
+        if (!await isProVenueOwner(venue.userId)) {
+            return res.status(403).json({ message: 'Bu tesis uygulama içinden rezervasyon almıyor.' });
+        }
+
+        const venueCourtId = req.body?.venueCourtId
+            || agreed.venueCourtId
+            || tournament.venueCourtId
+            || null;
+        if (!venueCourtId) {
+            return res.status(400).json({ message: 'Kort / saha seçin' });
+        }
+        const court = await prisma.venueCourt.findUnique({ where: { id: venueCourtId } });
+        if (!court || court.venueId !== venueId) {
+            return res.status(404).json({ message: 'Kort bulunamadı' });
+        }
+
+        const isBlocked = await prisma.venueBlock.findUnique({
+            where: { venueId_userId: { venueId, userId: req.userId } },
+        });
+        if (isBlocked) return res.status(403).json({ message: 'Bu tesiste rezervasyon yapamazsınız' });
+        const policyBlock = await assertNotVenuePolicyBlocked(venue, req.userId);
+        if (policyBlock) return res.status(policyBlock.status).json({ message: policyBlock.message });
+
+        const date = String(agreed.date).slice(0, 10);
+        const agreedFrom = String(agreed.timeFrom).slice(0, 5);
+        const agreedTo = String(agreed.timeTo).slice(0, 5);
+        const a0 = toMinsHHMM(agreedFrom);
+        let a1 = toMinsHHMM(agreedTo);
+        if (a1 <= a0) a1 += 1440;
+        const s0 = toMinsHHMM(startTime);
+        let s1 = toMinsHHMM(endTime);
+        if (s1 <= s0) s1 += 1440;
+        if (s0 < a0 || s1 > a1) {
+            return res.status(400).json({ message: 'Seçilen saat anlaşılan aralık dışında' });
+        }
+        if (isPastDateTime(date, startTime)) {
+            return res.status(400).json({ message: 'Geçmiş bir saate rezervasyon yapılamaz' });
+        }
+        const opensAt = getReservationOpensAt(venue, date);
+        if (opensAt && new Date() < opensAt) {
+            return res.status(403).json({
+                message: `Bu tarih için rezervasyonlar henüz açılmadı. Açılış: ${opensAt.toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}`,
+            });
+        }
+
+        const sideAUserId = await resolveSidePayerUserId(tournament, match, 'p1');
+        const sideBUserId = await resolveSidePayerUserId(tournament, match, 'p2');
+        const myPayerId = await resolveSidePayerUserId(tournament, match, side) || req.userId;
+
+        const segments = buildMatchFeeSegments({
+            startTime: agreedFrom,
+            endTime: agreedTo,
+            sideAUserId,
+            sideBUserId,
+            venue,
+            court,
+            getSlotPriceFn: getSlotPrice,
+        });
+        const target = segments.find(seg => seg.startTime === startTime && seg.endTime === endTime);
+        if (!target) {
+            return res.status(400).json({ message: 'Bu saat dilimi pay takviminde yok — tam saat dilimi seçin' });
+        }
+        const isMine = target.userId === myPayerId
+            || (target.splitPay && (target.userId === myPayerId || target.coPayerUserId === myPayerId));
+        if (!isMine) {
+            return res.status(403).json({ message: 'Bu saat rakibin payı — yalnızca kendi payınıza tıklayabilirsiniz' });
+        }
+
+        const amountDue = target.splitPay && target.userId !== myPayerId
+            ? Math.max(0, (target.fullPrice || 0) - (target.amountDue || 0))
+            : target.amountDue;
+
+        let existing = await prisma.courtReservation.findFirst({
+            where: {
+                tournamentMatchId: matchId,
+                startTime,
+                endTime,
+                status: { not: 'CANCELLED' },
+            },
+        });
+
+        if (existing && existing.userId && existing.userId !== myPayerId
+            && existing.coPayerUserId !== myPayerId && !target.splitPay) {
+            return res.status(409).json({ message: 'Bu saat dilimi zaten rezerve' });
+        }
+
+        if (existing && existing.status === 'HOLD') {
+            const initialStatus = computeReservationStatus(court, venue, paymentMethod);
+            existing = await prisma.courtReservation.update({
+                where: { id: existing.id },
+                data: {
+                    status: initialStatus,
+                    holdUntil: null,
+                    paymentMethod,
+                    userId: target.userId || myPayerId,
+                    coPayerUserId: target.coPayerUserId || null,
+                    splitPay: !!target.splitPay,
+                    fullPrice: target.fullPrice,
+                    amountDue: target.amountDue,
+                    courtId: venueCourtId,
+                    notes: `Turnuva payı: ${tournament.name}. ${target.splitPay ? `Ortak ${amountDue}/${target.fullPrice} TL` : `Ücret ${amountDue} TL`}.`,
+                    tournamentMatchId: matchId,
+                },
+            });
+        } else if (existing && (existing.userId === myPayerId || existing.coPayerUserId === myPayerId || target.splitPay)) {
+            if (existing.paymentConfirmStatus === 'CONFIRMED') {
+                return res.status(400).json({ message: 'Bu payın ödemesi işletme tarafından onaylanmış' });
+            }
+            existing = await prisma.courtReservation.update({
+                where: { id: existing.id },
+                data: { paymentMethod },
+            });
+        } else if (!existing) {
+            const slotErr = await validateReservationSlot(
+                venue, venueCourtId, date, startTime, endTime, paymentMethod, req.userId, null,
+            );
+            if (slotErr) return res.status(slotErr.status).json({ message: slotErr.message });
+
+            const initialStatus = computeReservationStatus(court, venue, paymentMethod);
+            existing = await prisma.courtReservation.create({
+                data: {
+                    venueId,
+                    courtId: venueCourtId,
+                    userId: target.userId || myPayerId,
+                    date,
+                    startTime,
+                    endTime,
+                    paymentMethod,
+                    notes: `Turnuva payı: ${tournament.name}. ${target.splitPay ? `Ortak ${amountDue}/${target.fullPrice} TL` : `Ücret ${amountDue} TL`}.`,
+                    status: initialStatus,
+                    splitPay: !!target.splitPay,
+                    fullPrice: target.fullPrice,
+                    amountDue: target.amountDue,
+                    coPayerUserId: target.coPayerUserId || null,
+                    tournamentMatchId: matchId,
+                },
+            });
+        } else {
+            return res.status(409).json({ message: 'Bu saat dilimi zaten rezerve' });
+        }
+
+        const allRes = await prisma.courtReservation.findMany({
+            where: { tournamentMatchId: matchId, status: { not: 'CANCELLED' } },
+            orderBy: [{ startTime: 'asc' }],
+        });
+        const myDue = allRes
+            .filter(r => r.userId === myPayerId || r.coPayerUserId === myPayerId)
+            .reduce((s, r) => {
+                if (r.userId === myPayerId) return s + (Number(r.amountDue) || 0);
+                if (r.splitPay && r.coPayerUserId === myPayerId) {
+                    return s + Math.max(0, (Number(r.fullPrice) || 0) - (Number(r.amountDue) || 0));
+                }
+                return s;
+            }, 0);
+        const fullPrice = allRes.reduce((s, r) => s + (Number(r.fullPrice) || 0), 0);
+
+        schedule.agreed = {
+            ...agreed,
+            venueId,
+            venueCourtId,
+            venueName: agreed.venueName || venue.name,
+            isProVenue: true,
+            reservationId: allRes[0]?.id || existing.id,
+            reservationIds: allRes.map(r => r.id),
+            reservationStatus: allRes[0]?.status || existing.status,
+            holdUntil: null,
+            splitPay: true,
+            fullPrice,
+            amountDue: myDue,
+            coPayerUserId: side === 'p1' ? sideBUserId : sideAUserId,
+        };
+        await prisma.tournamentMatch.update({
+            where: { id: matchId },
+            data: { scheduleData: schedule },
+        });
+
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { username: true },
+        });
+        createNotification(
+            venue.userId,
+            'RESERVATION',
+            '✅ Turnuva maç payı seçildi',
+            `${user?.username || 'Oyuncu'}, ${venue.name} — ${court.name || 'Kort'} ${date} ${startTime}–${endTime} (turnuva: ${tournament.name}, pay ~${amountDue} TL).`,
+            bizReservationNotifData({
+                reservationId: existing.id,
+                venueId,
+                courtId: venueCourtId,
+                date,
+                startTime,
+                endTime,
+                courtName: court.name,
+                tournament,
+                matchId,
+            }),
+        ).catch(() => {});
+
+        const isTeamEngine = tournament.type === '2' || tournament.type === '4' || tournament.type === '7' || tournament.type === '10';
+        const notifyIds = new Set([tournament.creatorId]);
+        for (const sideId of [match.p1Id, match.p2Id].filter(Boolean)) {
+            if (isTeamEngine) {
+                const team = await prisma.tournamentTeam.findUnique({ where: { id: sideId } }).catch(() => null);
+                if (team?.player1Id) notifyIds.add(team.player1Id);
+                if (team?.player2Id) notifyIds.add(team.player2Id);
+            } else {
+                notifyIds.add(sideId);
+            }
+        }
+        for (const uid of notifyIds) {
+            if (!uid) continue;
+            emitToUser(uid, 'tournament:schedule_updated', { tournamentId: id, matchId, scheduleData: schedule });
+        }
+
+        res.status(201).json({
+            scheduleData: schedule,
+            reservation: existing,
+            share: {
+                startTime, endTime, amountDue, paymentMethod,
+                reservationStatus: existing.status,
+            },
+        });
+    } catch (e) { next(e); }
+};
+
+/**
  * Deadline sonrası 0-0 beraberlik (puan/ELO yok). Job (grace sonrası) ve turnuva sahibi
  * "skor girilmeyenlere beraberlik" aksiyonu ortak kullanır.
  * `tournament` ACCEPTED participants (user) içermeli — advanceTournamentAfterMatch için.

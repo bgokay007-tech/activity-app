@@ -2658,7 +2658,7 @@ export const getVenueMenu = async (req, res, next) => {
 export const placeOrder = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { items, notes, rivalId } = req.body; // items: [{menuItemId, quantity}]
+        const { items, notes, rivalId, tournamentMatchId } = req.body; // items: [{menuItemId, quantity}]
         if (!items?.length) return res.status(400).json({ message: 'En az bir ürün seçin' });
 
         const venue = await prisma.businessVenue.findUnique({ where: { id } });
@@ -2699,18 +2699,73 @@ export const placeOrder = async (req, res, next) => {
         // doğrulanıyor. rivalId gönderilmezse (eski istemci sürümü ihtimaline karşı) eski
         // "tahmin et" mantığına geri dönülür.
         let myMatch = null;
-        if (rivalId) {
-            const specific = await prisma.activityRequest.findUnique({ where: { id: rivalId }, select: matchSelect });
-            if (specific && specific.venueId === id && isInMatch(specific)) myMatch = specific;
-        }
-        if (!myMatch) {
-            const venueMatches = await prisma.activityRequest.findMany({
-                where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
-                select: matchSelect,
+        let tournamentMatchMeta = null;
+        // Turnuva eşleşmesi: yer/zaman anlaşıldı + Pro+ tesis — maç detayından Sipariş Ver
+        if (tournamentMatchId) {
+            const tMatch = await prisma.tournamentMatch.findUnique({
+                where: { id: tournamentMatchId },
+                include: {
+                    tournament: {
+                        select: {
+                            id: true, name: true, venueId: true, type: true,
+                            category: true, subCategory: true,
+                        },
+                    },
+                },
             });
-            myMatch = venueMatches.find(isInMatch);
+            if (!tMatch) return res.status(404).json({ message: 'Turnuva maçı bulunamadı' });
+            const sched = tMatch.scheduleData && typeof tMatch.scheduleData === 'object'
+                ? tMatch.scheduleData
+                : {};
+            const agreed = sched.agreed && typeof sched.agreed === 'object' ? sched.agreed : null;
+            const agreedVenueId = agreed?.venueId || tMatch.tournament?.venueId || null;
+            if (!agreed || agreedVenueId !== id) {
+                return res.status(403).json({
+                    message: 'Bu tesisten sipariş için turnuva maçında yer/zaman anlaşılmış olmalı.',
+                });
+            }
+            if (agreed.isProVenue !== true) {
+                return res.status(403).json({ message: 'Sipariş yalnızca Pro+ tesislerde' });
+            }
+            const isTeam = ['2', '4', '7'].includes(String(tMatch.tournament?.type || ''));
+            let onMatch = false;
+            if (!isTeam) {
+                onMatch = tMatch.p1Id === req.userId || tMatch.p2Id === req.userId;
+            } else {
+                const teams = await prisma.tournamentTeam.findMany({
+                    where: {
+                        tournamentId: tMatch.tournamentId,
+                        OR: [{ player1Id: req.userId }, { player2Id: req.userId }],
+                    },
+                    select: { id: true },
+                });
+                const ids = new Set(teams.map(t => t.id));
+                onMatch = ids.has(tMatch.p1Id) || ids.has(tMatch.p2Id);
+            }
+            if (!onMatch) {
+                return res.status(403).json({ message: 'Sadece eşleşen oyuncular sipariş verebilir' });
+            }
+            tournamentMatchMeta = {
+                id: tMatch.id,
+                courtName: agreed.venueName || tMatch.tournament?.name || null,
+                matchDate: agreed.date || null,
+                matchTime: agreed.timeFrom || null,
+            };
         }
-        if (!myMatch) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste bir maçınız/ilanınız olmalı.' });
+        if (!tournamentMatchMeta) {
+            if (rivalId) {
+                const specific = await prisma.activityRequest.findUnique({ where: { id: rivalId }, select: matchSelect });
+                if (specific && specific.venueId === id && isInMatch(specific)) myMatch = specific;
+            }
+            if (!myMatch) {
+                const venueMatches = await prisma.activityRequest.findMany({
+                    where: { venueId: id, status: { in: ['OPEN', 'MATCHED', 'COMPLETED'] } },
+                    select: matchSelect,
+                });
+                myMatch = venueMatches.find(isInMatch);
+            }
+            if (!myMatch) return res.status(403).json({ message: 'Bu tesisten sipariş verebilmek için bu tesiste bir maçınız/ilanınız olmalı.' });
+        }
 
         // Menu item fiyatlarını çek
         const menuItems = await prisma.venueMenuItem.findMany({
@@ -2738,7 +2793,8 @@ export const placeOrder = async (req, res, next) => {
             data: {
                 venueId: id, userId: req.userId,
                 totalPrice, notes: notes || null,
-                activityId: myMatch.id || null,
+                activityId: myMatch?.id || null,
+                tournamentMatchId: tournamentMatchMeta?.id || null,
                 items: {
                     create: items.flatMap(i => {
                         const mi = menuItems.find(m => m.id === i.menuItemId);
@@ -2750,15 +2806,26 @@ export const placeOrder = async (req, res, next) => {
             include: { items: { include: { menuItem: true } }, user: { select: { id: true, username: true, avatar: true } } },
         });
 
+        const activityForNotif = tournamentMatchMeta || {
+            id: myMatch.id,
+            courtName: myMatch.courtName,
+            matchDate: myMatch.matchDate,
+            matchTime: myMatch.matchTime,
+        };
         await createNotification(venue.userId, 'VENUE_ORDER', '🛒 Yeni Sipariş',
             `${user?.username} tesisinden sipariş verdi. Toplam: ${totalPrice}₺`,
-            { orderId: order.id, venueId: id, rivalId: myMatch.id }
+            {
+                orderId: order.id,
+                venueId: id,
+                rivalId: myMatch?.id || null,
+                tournamentMatchId: tournamentMatchMeta?.id || null,
+            }
         );
         emitToUser(venue.userId, 'notification', {});
         // Kullanıcı isteği: işletme sahibi Siparişler sekmesindeyken sayfayı yenilemeden de
         // yeni siparişi anında görsün — bildirim rozetinden ayrı, doğrudan listeye eklenecek
         // canlı bir olay (bkz. BusinessHomeScreen'deki venueOrderCreated dinleyicisi).
-        emitToUser(venue.userId, 'venueOrderCreated', { ...order, activity: { id: myMatch.id, courtName: myMatch.courtName, matchDate: myMatch.matchDate, matchTime: myMatch.matchTime } });
+        emitToUser(venue.userId, 'venueOrderCreated', { ...order, activity: activityForNotif });
 
         res.status(201).json({ order });
     } catch (error) { next(error); }
@@ -2788,7 +2855,37 @@ export const getVenueOrders = async (req, res, next) => {
             })
             : [];
         const activityById = Object.fromEntries(activities.map(a => [a.id, a]));
-        const ordersWithActivity = orders.map(o => ({ ...o, activity: o.activityId ? (activityById[o.activityId] || null) : null }));
+        // Turnuva maçı siparişleri — scheduleData.agreed üzerinden yer/zaman
+        const tMatchIds = [...new Set(orders.map(o => o.tournamentMatchId).filter(Boolean))];
+        const tMatches = tMatchIds.length > 0
+            ? await prisma.tournamentMatch.findMany({
+                where: { id: { in: tMatchIds } },
+                select: {
+                    id: true, p1Name: true, p2Name: true, scheduleData: true,
+                    tournament: { select: { name: true, category: true, subCategory: true } },
+                },
+            })
+            : [];
+        const tMatchById = Object.fromEntries(tMatches.map(m => {
+            const agreed = m.scheduleData?.agreed && typeof m.scheduleData.agreed === 'object'
+                ? m.scheduleData.agreed
+                : null;
+            return [m.id, {
+                id: m.id,
+                courtName: agreed?.venueName || m.tournament?.name || null,
+                matchDate: agreed?.date || null,
+                matchTime: agreed?.timeFrom || null,
+                category: m.tournament?.category || null,
+                subCategory: m.tournament?.subCategory || null,
+                label: [m.p1Name, m.p2Name].filter(Boolean).join(' vs '),
+            }];
+        }));
+        const ordersWithActivity = orders.map(o => ({
+            ...o,
+            activity: o.activityId
+                ? (activityById[o.activityId] || null)
+                : (o.tournamentMatchId ? (tMatchById[o.tournamentMatchId] || null) : null),
+        }));
         res.json(ordersWithActivity);
     } catch (error) { next(error); }
 };

@@ -3314,7 +3314,7 @@ function VenueCard({
                 // (bkz. backend updateOrderStatus'taki CONFIRMED tetiklemesi), ödeme/adisyon takibi
                 // de Adisyon sekmesine taşındı (bkz. aşağıdaki "bills" sekmesi, billsSubTab).
                 const visibleOrders = highlightActivityId
-                    ? orders.filter(o => o.activityId === highlightActivityId)
+                    ? orders.filter(o => o.activityId === highlightActivityId || o.tournamentMatchId === highlightActivityId)
                     : orders.filter(o => o.status === 'PENDING').slice(0, 30);
                 return (
                 <View style={vc.panel}>

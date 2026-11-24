@@ -11,6 +11,7 @@ import colors from '../theme/colors';
 import { moderateScale } from '../theme/scale';
 import KeyboardAwareForm from './KeyboardAwareForm';
 import MatchResultShareModal from './MatchResultShareModal';
+import VenueMenuOrderModal from './VenueMenuOrderModal';
 import {
     getMatchAvailWindow,
     weekdaysInYmdRange,
@@ -282,6 +283,12 @@ export default function TournamentMatchDetailModal({
     const [reserveCourtId, setReserveCourtId] = useState(null);
     const [reserveLoading, setReserveLoading] = useState(false);
     const [reserveSplitPay, setReserveSplitPay] = useState(true);
+    // Anlaşılan Pro+ aralık → saatlik pay takvimi (kendi payına tıkla → öde/seç)
+    const [feeShares, setFeeShares] = useState(null);
+    const [feeSharesLoading, setFeeSharesLoading] = useState(false);
+    const [sharePayTarget, setSharePayTarget] = useState(null); // { startTime, endTime, amountDue }
+    const [sharePayMethod, setSharePayMethod] = useState('CASH');
+    const [orderModalOpen, setOrderModalOpen] = useState(false);
     // Ortak uygunluk → hızlı teklif (gün + kısaltılmış saat + ortak kort)
     const [quickWindow, setQuickWindow] = useState(null);
     const [quickFrom, setQuickFrom] = useState('');
@@ -425,7 +432,12 @@ export default function TournamentMatchDetailModal({
     const canReservePro = !!(
         canAct
         && agreed
-        && !hasActiveReservation
+        && agreed.isProVenue === true
+        && (agreed.venueId || tournament?.venueId)
+    );
+    const canOrderPro = !!(
+        canAct
+        && agreed
         && agreed.isProVenue === true
         && (agreed.venueId || tournament?.venueId)
     );
@@ -436,6 +448,25 @@ export default function TournamentMatchDetailModal({
     const quickIsPro = !!(quickCourt?.isProVenue && quickCourt?.venueId);
     // Yalnızca ilk teklifte Pro+ askı (HOLD); sonraki teklifler bilgi (gün/saat/kort)
     const canCreateHold = quickIsPro && proposals.length === 0;
+
+    const loadFeeShares = async () => {
+        if (!tournament?.id || !match?.id || !canReservePro) {
+            setFeeShares(null);
+            return;
+        }
+        setFeeSharesLoading(true);
+        try {
+            const { data } = await api.get(
+                `/tournaments/${tournament.id}/matches/${match.id}/fee-shares`,
+            );
+            setFeeShares(data);
+            if (data?.venueCourtId && !reserveCourtId) setReserveCourtId(data.venueCourtId);
+        } catch {
+            setFeeShares(null);
+        } finally {
+            setFeeSharesLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!visible || !playersArrangeCourts) {
@@ -494,6 +525,7 @@ export default function TournamentMatchDetailModal({
     useEffect(() => {
         if (!visible || !canReservePro) {
             setReserveCourts([]);
+            setFeeShares(null);
             return undefined;
         }
         const venueId = agreed?.venueId || tournament?.venueId;
@@ -515,6 +547,41 @@ export default function TournamentMatchDetailModal({
         })();
         return () => { cancelled = true; };
     }, [visible, canReservePro, agreed?.venueId, tournament?.venueId]);
+
+    useEffect(() => {
+        if (!visible || !canReservePro) {
+            setFeeShares(null);
+            return undefined;
+        }
+        let cancelled = false;
+        (async () => {
+            setFeeSharesLoading(true);
+            try {
+                const { data } = await api.get(
+                    `/tournaments/${tournament.id}/matches/${match.id}/fee-shares`,
+                );
+                if (!cancelled) {
+                    setFeeShares(data);
+                    if (data?.venueCourtId) setReserveCourtId(prev => prev || data.venueCourtId);
+                }
+            } catch {
+                if (!cancelled) setFeeShares(null);
+            } finally {
+                if (!cancelled) setFeeSharesLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [
+        visible,
+        canReservePro,
+        tournament?.id,
+        match?.id,
+        agreed?.date,
+        agreed?.timeFrom,
+        agreed?.timeTo,
+        agreed?.reservationId,
+        agreed?.reservationIds,
+    ]);
 
     const toggleWeekday = (weekday) => {
         if (!allowedWeekdays.includes(weekday)) {
@@ -984,7 +1051,54 @@ export default function TournamentMatchDetailModal({
             );
             setSchedule(data.scheduleData);
             onRefresh?.();
+            await loadFeeShares();
             Alert.alert('', t.tournSchedReservedOk || 'Rezervasyon oluşturuldu');
+        } catch (e) {
+            Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const openSharePay = (share) => {
+        if (!share?.canSelect) {
+            if (share?.role === 'opponent') {
+                Alert.alert('', t.tournShareOppOnly || 'Bu saat rakibin payı — yalnızca kendi payınıza tıklayabilirsiniz.');
+            }
+            return;
+        }
+        const accepted = Array.isArray(feeShares?.acceptedPayments) ? feeShares.acceptedPayments : ['CASH', 'EFT'];
+        const initial = accepted.includes('CASH') ? 'CASH' : (accepted[0] || 'CASH');
+        setSharePayMethod(share.paymentMethod && accepted.includes(share.paymentMethod)
+            ? share.paymentMethod
+            : initial);
+        setSharePayTarget(share);
+    };
+
+    const confirmSharePay = async () => {
+        if (!sharePayTarget) return;
+        const venueCourtId = reserveCourtId || feeShares?.venueCourtId
+            || agreed?.venueCourtId || tournament?.venueCourtId;
+        if (!venueCourtId) {
+            Alert.alert('', t.tournSchedPickVenueCourt || 'Kort / saha seçin');
+            return;
+        }
+        setSaving(true);
+        try {
+            const { data } = await api.post(
+                `/tournaments/${tournament.id}/matches/${match.id}/reserve-share`,
+                {
+                    startTime: sharePayTarget.startTime,
+                    endTime: sharePayTarget.endTime,
+                    paymentMethod: sharePayMethod,
+                    venueCourtId,
+                },
+            );
+            if (data?.scheduleData) setSchedule(data.scheduleData);
+            setSharePayTarget(null);
+            onRefresh?.();
+            await loadFeeShares();
+            Alert.alert('', t.tournShareSelectedOk || 'Payınız kaydedildi');
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.actionFailed || 'Hata');
         } finally {
@@ -1222,6 +1336,32 @@ export default function TournamentMatchDetailModal({
                                     {(t.tournSchedFixedVenue || 'Turnuva kortu')}: {tournament.location}
                                 </Text>
                             ) : null}
+                            {(agreed?.venueName || feeShares?.venueName || feeShares?.courtName) ? (
+                                <Text style={{ color: '#60a5fa', fontSize: 12, marginTop: 6, fontWeight: '700' }}>
+                                    🏟️ {feeShares?.courtName
+                                        ? `${feeShares.venueName || agreed?.venueName || ''} · ${feeShares.courtName}`.replace(/^ · /, '')
+                                        : (agreed?.venueName || feeShares?.venueName)}
+                                </Text>
+                            ) : null}
+                            {canOrderPro ? (
+                                <TouchableOpacity
+                                    onPress={() => setOrderModalOpen(true)}
+                                    style={{
+                                        marginTop: 8,
+                                        alignSelf: 'flex-start',
+                                        backgroundColor: '#22c55e22',
+                                        borderRadius: 8,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 7,
+                                        borderWidth: 1,
+                                        borderColor: '#22c55e55',
+                                    }}
+                                >
+                                    <Text style={{ color: '#22c55e', fontSize: 12, fontWeight: '800' }}>
+                                        {t.sc_0085 || '📋 Sipariş Ver'}
+                                    </Text>
+                                </TouchableOpacity>
+                            ) : null}
                             {agreed?.reservationId ? (
                                 <Text style={{
                                     color: isHoldReservation ? '#fbbf24' : '#4ade80',
@@ -1249,12 +1389,10 @@ export default function TournamentMatchDetailModal({
                                 borderColor: '#0ea5e950',
                             }}>
                                 <Text style={{ color: '#38bdf8', fontSize: 12, fontWeight: '800', marginBottom: 6 }}>
-                                    {t.tournSchedReserveTitle || 'Pro+ rezervasyon'}
+                                    {t.tournShareCalendarTitle || 'Pro+ rezervasyon takvimi'}
                                 </Text>
                                 <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
-                                    {isHoldReservation
-                                        ? (t.tournSchedHoldToReserveHint || 'Slot 4 saat askıda. Rezervasyonu onaylayın; ortaklaşa ödenecekse yarı fiyat seçin.')
-                                        : (t.tournSchedReserveHint || 'Anlaşılan gün ve saatte Pro+ tesiste rezervasyon oluşturun.')}
+                                    {t.tournShareCalendarHint || 'Anlaşılan aralık saatlere bölündü. Kendi payınıza tıklayıp ödeme yöntemini seçin; rakibin payına dokunulamaz.'}
                                 </Text>
                                 {reserveLoading ? (
                                     <ActivityIndicator color="#38bdf8" style={{ marginBottom: 8 }} />
@@ -1281,48 +1419,138 @@ export default function TournamentMatchDetailModal({
                                         })}
                                     </View>
                                 )}
-                                <TouchableOpacity
-                                    onPress={() => setReserveSplitPay(v => !v)}
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        marginBottom: 10,
-                                        paddingVertical: 8,
-                                        paddingHorizontal: 10,
-                                        borderRadius: 8,
-                                        backgroundColor: reserveSplitPay ? '#0ea5e922' : '#1e293b',
-                                        borderWidth: 1,
-                                        borderColor: reserveSplitPay ? '#0ea5e960' : '#334155',
-                                    }}
-                                >
-                                    <Text style={{ color: reserveSplitPay ? '#38bdf8' : '#64748b', fontWeight: '900', fontSize: 14 }}>
-                                        {reserveSplitPay ? '☑' : '☐'}
+                                {feeSharesLoading ? (
+                                    <ActivityIndicator color="#38bdf8" style={{ marginVertical: 10 }} />
+                                ) : Array.isArray(feeShares?.shares) && feeShares.shares.length > 0 ? (
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                                        {feeShares.shares.map((sh) => {
+                                            const mine = sh.role === 'mine';
+                                            const shared = sh.role === 'shared';
+                                            const done = !!sh.reservationId && sh.reservationStatus !== 'HOLD';
+                                            const hold = sh.reservationStatus === 'HOLD';
+                                            const bg = done
+                                                ? '#16a34a33'
+                                                : hold
+                                                    ? '#f59e0b28'
+                                                    : mine || shared
+                                                        ? '#0ea5e928'
+                                                        : '#1e293b';
+                                            const border = done
+                                                ? '#16a34a80'
+                                                : hold
+                                                    ? '#f59e0b70'
+                                                    : mine || shared
+                                                        ? '#0ea5e970'
+                                                        : '#334155';
+                                            const labelColor = done
+                                                ? '#4ade80'
+                                                : hold
+                                                    ? '#fbbf24'
+                                                    : mine || shared
+                                                        ? '#38bdf8'
+                                                        : '#64748b';
+                                            const roleLabel = shared
+                                                ? (t.tournShareRoleShared || 'Ortak ½')
+                                                : mine
+                                                    ? (t.tournShareRoleMine || 'Senin payın')
+                                                    : (t.tournShareRoleOpp || 'Rakip');
+                                            return (
+                                                <TouchableOpacity
+                                                    key={`${sh.startTime}-${sh.endTime}`}
+                                                    onPress={() => openSharePay(sh)}
+                                                    activeOpacity={sh.canSelect ? 0.7 : 1}
+                                                    style={{
+                                                        minWidth: '30%',
+                                                        flexGrow: 1,
+                                                        paddingHorizontal: 8,
+                                                        paddingVertical: 8,
+                                                        borderRadius: 8,
+                                                        backgroundColor: bg,
+                                                        borderWidth: 1.5,
+                                                        borderColor: border,
+                                                        opacity: sh.canSelect || done ? 1 : 0.55,
+                                                    }}
+                                                >
+                                                    <Text style={{ color: labelColor, fontSize: 11, fontWeight: '900' }}>
+                                                        {sh.startTime}–{sh.endTime}
+                                                    </Text>
+                                                    <Text style={{ color: '#e2e8f0', fontSize: 10, fontWeight: '700', marginTop: 2 }}>
+                                                        {roleLabel}
+                                                    </Text>
+                                                    {sh.amountDue != null ? (
+                                                        <Text style={{ color: '#94a3b8', fontSize: 10, marginTop: 2 }}>
+                                                            {sh.amountDue} TL
+                                                            {sh.splitPay ? ' · ½' : ''}
+                                                        </Text>
+                                                    ) : null}
+                                                    {done ? (
+                                                        <Text style={{ color: '#4ade80', fontSize: 9, fontWeight: '800', marginTop: 2 }}>
+                                                            ✓ {sh.paymentMethod || 'OK'}
+                                                        </Text>
+                                                    ) : hold ? (
+                                                        <Text style={{ color: '#fbbf24', fontSize: 9, fontWeight: '800', marginTop: 2 }}>
+                                                            {t.tournSchedHoldBadge || 'Askıda'}
+                                                        </Text>
+                                                    ) : sh.canSelect ? (
+                                                        <Text style={{ color: '#38bdf8', fontSize: 9, fontWeight: '800', marginTop: 2 }}>
+                                                            {t.tournShareTapHint || 'Seç / Öde →'}
+                                                        </Text>
+                                                    ) : null}
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                ) : (
+                                    <Text style={{ color: '#64748b', fontSize: 11, marginBottom: 8 }}>
+                                        {t.tournShareEmpty || 'Pay dilimleri yüklenemedi — aşağıdan toplu rezervasyon deneyin.'}
                                     </Text>
-                                    <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '700', flex: 1 }}>
-                                        {t.tournSchedSplitPay || 'Ortaklaşa öde'}
-                                        {` (1/${feeShareParts})`}
-                                    </Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    disabled={saving || reserveLoading}
-                                    onPress={reserveAgreed}
-                                    style={{
-                                        backgroundColor: '#0ea5e930',
-                                        borderRadius: 8,
-                                        paddingVertical: 10,
-                                        alignItems: 'center',
-                                        borderWidth: 1,
-                                        borderColor: '#0ea5e960',
-                                        opacity: saving ? 0.6 : 1,
-                                    }}
-                                >
-                                    <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 13 }}>
-                                        {isHoldReservation
-                                            ? (t.tournSchedConfirmHoldBtn || 'Askıyı rezervasyona çevir')
-                                            : (t.tournSchedReserveBtn || 'Rezerve et')}
-                                    </Text>
-                                </TouchableOpacity>
+                                )}
+                                {!hasActiveReservation ? (
+                                    <>
+                                        <TouchableOpacity
+                                            onPress={() => setReserveSplitPay(v => !v)}
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                marginBottom: 10,
+                                                paddingVertical: 8,
+                                                paddingHorizontal: 10,
+                                                borderRadius: 8,
+                                                backgroundColor: reserveSplitPay ? '#0ea5e922' : '#1e293b',
+                                                borderWidth: 1,
+                                                borderColor: reserveSplitPay ? '#0ea5e960' : '#334155',
+                                            }}
+                                        >
+                                            <Text style={{ color: reserveSplitPay ? '#38bdf8' : '#64748b', fontWeight: '900', fontSize: 14 }}>
+                                                {reserveSplitPay ? '☑' : '☐'}
+                                            </Text>
+                                            <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '700', flex: 1 }}>
+                                                {t.tournSchedSplitPay || 'Ortaklaşa öde'}
+                                                {` (1/${feeShareParts})`}
+                                            </Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            disabled={saving || reserveLoading}
+                                            onPress={reserveAgreed}
+                                            style={{
+                                                backgroundColor: '#0ea5e930',
+                                                borderRadius: 8,
+                                                paddingVertical: 10,
+                                                alignItems: 'center',
+                                                borderWidth: 1,
+                                                borderColor: '#0ea5e960',
+                                                opacity: saving ? 0.6 : 1,
+                                            }}
+                                        >
+                                            <Text style={{ color: '#38bdf8', fontWeight: '800', fontSize: 13 }}>
+                                                {isHoldReservation
+                                                    ? (t.tournSchedConfirmHoldBtn || 'Askıyı rezervasyona çevir')
+                                                    : (t.tournSchedReserveAllBtn || 'Tüm aralığı rezerve et')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : null}
                             </View>
                         ) : null}
 
@@ -2420,6 +2648,101 @@ export default function TournamentMatchDetailModal({
             standings={standings}
             onClose={() => setShareOpen(false)}
         />
+
+        <VenueMenuOrderModal
+            visible={orderModalOpen}
+            venueId={agreed?.venueId || tournament?.venueId || feeShares?.venueId || null}
+            tournamentMatchId={match?.id || null}
+            onClose={() => setOrderModalOpen(false)}
+        />
+
+        <Modal
+            visible={!!sharePayTarget}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSharePayTarget(null)}
+        >
+            <View style={{ flex: 1, backgroundColor: '#000a', justifyContent: 'center', padding: 24 }}>
+                <View style={{
+                    backgroundColor: '#0f172a', borderRadius: 14, padding: 16,
+                    borderWidth: 1, borderColor: '#334155',
+                }}>
+                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', marginBottom: 6 }}>
+                        {t.tournSharePayTitle || 'Payını seç / öde'}
+                    </Text>
+                    {sharePayTarget ? (
+                        <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
+                            {sharePayTarget.startTime}–{sharePayTarget.endTime}
+                            {sharePayTarget.amountDue != null ? ` · ${sharePayTarget.amountDue} TL` : ''}
+                            {sharePayTarget.splitPay ? ` · ${t.tournShareRoleShared || 'Ortak ½'}` : ''}
+                        </Text>
+                    ) : null}
+                    <Text style={{ color: '#e2e8f0', fontSize: 12, fontWeight: '700', marginBottom: 8 }}>
+                        {t.tournSharePayMethod || 'Ödeme yöntemi'}
+                    </Text>
+                    {(Array.isArray(feeShares?.acceptedPayments) ? feeShares.acceptedPayments : ['CASH', 'EFT'])
+                        .filter(k => ['CASH', 'EFT', 'CREDIT_CARD'].includes(k))
+                        .map((k) => {
+                            const labels = {
+                                CASH: t.resPayCash || 'Kortta nakit',
+                                EFT: t.resPayEft || 'EFT / Havale',
+                                CREDIT_CARD: t.resPayCard || 'Kortta kart',
+                            };
+                            const active = sharePayMethod === k;
+                            return (
+                                <TouchableOpacity
+                                    key={k}
+                                    onPress={() => setSharePayMethod(k)}
+                                    style={{
+                                        flexDirection: 'row',
+                                        justifyContent: 'space-between',
+                                        paddingVertical: 10,
+                                        paddingHorizontal: 12,
+                                        borderRadius: 8,
+                                        marginBottom: 6,
+                                        backgroundColor: active ? '#0ea5e928' : '#1e293b',
+                                        borderWidth: 1,
+                                        borderColor: active ? '#0ea5e970' : '#334155',
+                                    }}
+                                >
+                                    <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>
+                                        {labels[k] || k}
+                                    </Text>
+                                    {active ? <Text style={{ color: '#38bdf8', fontWeight: '900' }}>✓</Text> : null}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                        <TouchableOpacity
+                            onPress={() => setSharePayTarget(null)}
+                            style={{
+                                flex: 1, paddingVertical: 11, borderRadius: 8, alignItems: 'center',
+                                backgroundColor: '#1e293b', borderWidth: 1, borderColor: '#334155',
+                            }}
+                        >
+                            <Text style={{ color: '#94a3b8', fontWeight: '800' }}>{t.cancel || 'Vazgeç'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            disabled={saving}
+                            onPress={confirmSharePay}
+                            style={{
+                                flex: 1, paddingVertical: 11, borderRadius: 8, alignItems: 'center',
+                                backgroundColor: '#0ea5e930', borderWidth: 1, borderColor: '#0ea5e960',
+                                opacity: saving ? 0.6 : 1,
+                            }}
+                        >
+                            {saving
+                                ? <ActivityIndicator color="#38bdf8" />
+                                : (
+                                    <Text style={{ color: '#38bdf8', fontWeight: '800' }}>
+                                        {t.tournShareConfirmBtn || 'Onayla'}
+                                    </Text>
+                                )}
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
         </>
     );
 }
