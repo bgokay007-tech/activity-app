@@ -2709,13 +2709,13 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
             göstermesiyle çözüldü — bkz. o bileşendeki showDropdown yorumu.) */}
         <Modal visible={visible} animationType="slide" onRequestClose={onClose} android_keyboardInputMode="adjustNothing">
             <View style={{ flex:1, backgroundColor: colors.bg }}>
-                {/* Header: geri + sol (foto / isim+elo / fiyat / kort rez.) + sağ (tarih / konum / mod+format / derece+cinsiyet). */}
+                {/* Header: geri + sol (foto / isim+elo) + sağ (tarih / konum / mod+format / derece+cinsiyet / fiyat▶ / kort rez.). */}
                 <View style={{ flexDirection:'row', alignItems:'flex-start', paddingHorizontal:5, paddingTop: insets.top + (Platform.OS==='ios' ? 8 : 14), paddingBottom:moderateScale(10), borderBottomWidth:1, borderBottomColor: colors.border, gap: moderateScale(8) }}>
                     <ScreenBackButton onPress={onClose} style={{ padding:1, marginTop: moderateScale(4) }}>
                         <Text style={{ color:'#fff', fontSize:moderateScale(22), fontWeight:'300' }}>←</Text>
                     </ScreenBackButton>
-                    {/* Sol sütun: foto → altında isim+elo → fiyat (ok ile ödeme yöntemleri) → kort rezerve */}
-                    <View style={{ width: moderateScale(88), alignItems:'center', gap:2 }}>
+                    {/* Sol sütun: foto → altında isim + elo */}
+                    <View style={{ width: moderateScale(72), alignItems:'center', gap:2 }}>
                         <Avatar
                             name={item.sender?.username}
                             avatar={item.sender?.avatar}
@@ -2731,44 +2731,8 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {ratingBadgeText(sub, isDoublesFmt, t.lang, item.sender.interests[0].skillRating)}
                             </Text>
                         )}
-                        {item.courtFeePerPerson > 0 && (() => {
-                            const methodEntries = feeByMethodEntries(item.courtFeePerPersonByMethod);
-                            const hasMethods = methodEntries.length > 0;
-                            const feeLabel = `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}`;
-                            return (
-                                <View style={{ alignItems:'center', width:'100%' }}>
-                                    <TouchableOpacity
-                                        onPress={hasMethods ? () => setFeeMethodsExpanded(v => !v) : undefined}
-                                        disabled={!hasMethods}
-                                        activeOpacity={hasMethods ? 0.7 : 1}
-                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, maxWidth:'100%' }}
-                                    >
-                                        <Text style={{ color:'#4ade80', fontSize:moderateScale(10), fontWeight:'700', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                                            {feeLabel}
-                                        </Text>
-                                        {hasMethods && (
-                                            <Text style={{ color:'#86efac', fontSize:moderateScale(10), fontWeight:'700' }}>
-                                                {feeMethodsExpanded ? '▼' : '▶'}
-                                            </Text>
-                                        )}
-                                    </TouchableOpacity>
-                                    {hasMethods && feeMethodsExpanded && methodEntries.map(([k, v]) => (
-                                        <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(9), textAlign:'center' }} numberOfLines={1}>
-                                            {feeMethodLabel(k, t) || k}: {v}₺
-                                        </Text>
-                                    ))}
-                                </View>
-                            );
-                        })()}
-                        <Text style={{ fontSize:moderateScale(9), fontWeight:'700', textAlign:'center', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={2}>
-                            {item.isCourtReserved
-                                ? sportFacilityLabels(sub, t).reserved
-                                : item.location === 'Ortaklaşa Kararlaştırılır'
-                                    ? (t.courtMutualBtn || t.sc_0046)
-                                    : sportFacilityLabels(sub, t).notReserved}
-                        </Text>
                     </View>
-                    {/* Sağ sütun: tarih/gün/zaman → konum → mod+format → derece + cinsiyet kısıtı */}
+                    {/* Sağ sütun: tarih/gün/zaman → konum → mod+format → derece + cinsiyet → fiyat (ok) → kort rezerve */}
                     <View style={{ flex:1, minWidth:0, gap:2 }}>
                         {item.matchDate && (
                             <Text style={{ color:'#fff', fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={2}>
@@ -2857,6 +2821,42 @@ function RivalDetailModal({ visible, item, myId, sub, cfg, t, onClose, navigatio
                                 {t.cancelPenaltyBadge(item.cancelPenaltyHours)}
                             </Text>
                         )}
+                        {item.courtFeePerPerson > 0 && (() => {
+                            const methodEntries = feeByMethodEntries(item.courtFeePerPersonByMethod);
+                            const hasMethods = methodEntries.length > 0;
+                            const feeLabel = `${item.courtFeePerPerson}${item.refereeFeePerPerson > 0 ? `+${item.refereeFeePerPerson}` : ''}₺${item.refereeRequested && !item.refereeFeePerPerson && !item.refereeFeeIncluded ? ` +${t.refereeFeeHint}` : ''} / ${t.perPerson}`;
+                            return (
+                                <View style={{ gap:1 }}>
+                                    <TouchableOpacity
+                                        onPress={hasMethods ? () => setFeeMethodsExpanded(v => !v) : undefined}
+                                        disabled={!hasMethods}
+                                        activeOpacity={hasMethods ? 0.7 : 1}
+                                        style={{ flexDirection:'row', alignItems:'center', gap:4, alignSelf:'flex-start', maxWidth:'100%' }}
+                                    >
+                                        <Text style={{ color:'#4ade80', fontSize:moderateScale(11), fontWeight:'700', flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                            {feeLabel}
+                                        </Text>
+                                        {hasMethods && (
+                                            <Text style={{ color:'#86efac', fontSize:moderateScale(11), fontWeight:'700' }}>
+                                                {feeMethodsExpanded ? '▼' : '▶'}
+                                            </Text>
+                                        )}
+                                    </TouchableOpacity>
+                                    {hasMethods && feeMethodsExpanded && methodEntries.map(([k, v]) => (
+                                        <Text key={k} style={{ color:'#86efac', fontSize:moderateScale(10) }} numberOfLines={1}>
+                                            {feeMethodLabel(k, t) || k}: {v}₺
+                                        </Text>
+                                    ))}
+                                </View>
+                            );
+                        })()}
+                        <Text style={{ fontSize:moderateScale(10), fontWeight:'700', color: item.isCourtReserved ? '#4ade80' : item.location === 'Ortaklaşa Kararlaştırılır' ? '#94a3b8' : '#f87171' }} numberOfLines={1}>
+                            {item.isCourtReserved
+                                ? sportFacilityLabels(sub, t).reserved
+                                : item.location === 'Ortaklaşa Kararlaştırılır'
+                                    ? (t.courtMutualBtn || t.sc_0046)
+                                    : sportFacilityLabels(sub, t).notReserved}
+                        </Text>
                     </View>
                 </View>
 
