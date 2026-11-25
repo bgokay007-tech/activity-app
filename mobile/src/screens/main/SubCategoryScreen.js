@@ -13014,7 +13014,7 @@ const vb = StyleSheet.create({
 // kaldırıldı — zaten karta dokununca açılan ArchiveMatchDetailModal'da mevcut.
 // Hooks (useState/useRef) kullandığı için kendi bileşeni olmak ZORUNDA — bir .map()
 // callback'i içine konulamaz (rules of hooks).
-function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
+function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge = false, twoCol = false }) {
     const t = useT();
     const parts = Array.isArray(m.participants) ? m.participants : [];
     // Çiftler (DOUBLE) maçlarda kurucunun partneri senderTeam'de tutulur — iki taraf
@@ -13023,9 +13023,7 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const founderSide = [m.sender, ...senderTeamArr].filter(Boolean);
     const opponentSide = parts.filter(Boolean);
     const sets = m.score?.sets;
-    // Format: teamSize>1 → NvN, DOUBLE → 2v2 (teamSize=1 olsa bile). Eskiden kadro 2+
-    // iken teamSize ile "1v1" basılıyordu.
-    // Kullanıcı isteği (arşiv skor tabelası): ⚔️ / 🏃 / 👥 emojileri kalksın — sadece metin.
+    // Format: teamSize>1 → NvN, DOUBLE → 2v2. 1v1/2v2 grup başlığında zaten var → hideFormatBadge.
     const sizeTxt = (() => {
         const teamSize = m.teamSize || 1;
         if (teamSize > 1) return `${teamSize}v${teamSize}`;
@@ -13041,21 +13039,31 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
 
     const [cardFlipped, setCardFlipped] = useState(false);
     const cardFlipAnim = useRef(new Animated.Value(0)).current;
+    // Digimon kartlarla aynı flip: 0→90 içerik değişir → 0. Stale closure / anında geri dönme yok.
     const flipCard = () => {
-        Animated.timing(cardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
-            setCardFlipped(b => !b);
-            Animated.timing(cardFlipAnim, { toValue: cardFlipped ? 0 : 1, duration: 150, useNativeDriver: true }).start();
+        const next = !cardFlipped;
+        Animated.timing(cardFlipAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start(() => {
+            setCardFlipped(next);
+            Animated.timing(cardFlipAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start();
         });
     };
-    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
 
     return (
-        // Kullanıcı isteği: arşiv skor tabelaları arası gap = 3 (eski paddingBottom ~10).
-        <View style={[s.listGridCell, s.listGridCellThird, { paddingBottom: 3 }]} collapsable={false}>
+        // Gruplu arşiv: satırda 2 kart, gap=1. Diğer: eski 3'lü ızgara.
+        <View
+            style={twoCol
+                ? { width: '50%', paddingHorizontal: 0.5, paddingBottom: 1 }
+                : [s.listGridCell, s.listGridCellThird, { paddingBottom: 1 }]}
+            collapsable={false}
+        >
         <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
-            <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}>
+            <TouchableOpacity
+                onPress={flipCard}
+                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
+                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}
+            >
                 <Text style={{ fontSize:12 }}>🔄</Text>
             </TouchableOpacity>
             {/* Kullanıcı isteği: canlı takiple (saat/telefon) girilmiş, detaylı istatistikleri olan
@@ -13088,11 +13096,17 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
                 </TouchableOpacity>
             ) : (
                 <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:9 }}>
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap', paddingRight:22 }}>
-                        <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
-                        {modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
-                        {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
-                    </View>
+                    {(!hideFormatBadge || modeTxt) ? (
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap', paddingRight:22 }}>
+                            {!hideFormatBadge ? (
+                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
+                            ) : null}
+                            {!hideFormatBadge && modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
+                            {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
+                        </View>
+                    ) : (
+                        <View style={{ height: 4, paddingRight: 22 }} />
+                    )}
                     <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:2 }}>
                         <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{founderLabel}</Text>
                         {sets && <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{founderSetWins} - {opponentSetWins}</Text>}
@@ -33855,7 +33869,7 @@ function SubCategoryScreen({ route, navigation }) {
                                     if (tb !== ta) return tb - ta;
                                     return String(b?.id || '').localeCompare(String(a?.id || ''));
                                 };
-                                const renderCard = (m) => (
+                                const renderCard = (m, opts = {}) => (
                                     <ArchiveRivalCard
                                         key={m.id}
                                         m={m}
@@ -33863,19 +33877,23 @@ function SubCategoryScreen({ route, navigation }) {
                                         cfg={cfg}
                                         highlighted={m.id === highlightRivalId}
                                         onPress={() => setArchiveDetailMatch(m)}
+                                        hideFormatBadge={!!opts.hideFormatBadge}
+                                        twoCol={!!opts.twoCol}
                                     />
                                 );
                                 if (!useFormatGroups) {
                                     return (
-                                        <View style={[s.listGrid, { paddingVertical: 5, gap: 3 }]}>
-                                            {[...archiveRivals].sort(byRecent).map(renderCard)}
+                                        <View style={[s.listGrid, { paddingVertical: 5, gap: 1 }]}>
+                                            {[...archiveRivals].sort(byRecent).map(m => renderCard(m))}
                                         </View>
                                     );
                                 }
                                 const singles = archiveRivals.filter(m => !isDoublesMatch(m)).sort(byRecent);
                                 const doubles = archiveRivals.filter(m => isDoublesMatch(m)).sort(byRecent);
+                                // 1v1 | 2v2 yan yana; sağa kaydır; her kategoride satırda 2 kart; gap=1
+                                const panelW = Math.max(280, winW - 24);
                                 const Section = ({ title, count, open, onToggle, list }) => (
-                                    <View style={{ marginBottom: 8 }}>
+                                    <View style={{ width: panelW, marginRight: 10 }}>
                                         <TouchableOpacity
                                             onPress={onToggle}
                                             activeOpacity={0.75}
@@ -33887,8 +33905,8 @@ function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                         </TouchableOpacity>
                                         {open && list.length > 0 ? (
-                                            <View style={[s.listGrid, { gap: 3 }]}>
-                                                {list.map(renderCard)}
+                                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -0.5 }}>
+                                                {list.map(m => renderCard(m, { hideFormatBadge: true, twoCol: true }))}
                                             </View>
                                         ) : null}
                                         {open && list.length === 0 ? (
@@ -33897,7 +33915,13 @@ function SubCategoryScreen({ route, navigation }) {
                                     </View>
                                 );
                                 return (
-                                    <View style={{ paddingVertical: 5 }}>
+                                    <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        nestedScrollEnabled
+                                        keyboardShouldPersistTaps="handled"
+                                        contentContainerStyle={{ paddingVertical: 5, paddingRight: 8 }}
+                                    >
                                         <Section
                                             title="1v1"
                                             count={singles.length}
@@ -33912,7 +33936,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             onToggle={() => setArchiveDoublesExpanded(v => !v)}
                                             list={doubles}
                                         />
-                                    </View>
+                                    </ScrollView>
                                 );
                             })()
                         )}
