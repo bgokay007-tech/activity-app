@@ -6147,14 +6147,25 @@ function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, aut
 
 // ─── Text Post Card ────────────────────────────────────────────────────────────
 
-function TextPostCard({ post, cfg }) {
+function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = false, highlighted = false }) {
     const t = useT();
+    // Beğenilmemiş: boş kalp (♡); beğenince içi kırmızı dolu (♥) — tıklayıp tıklamadığı belli olsun.
     const [liked, setLiked] = useState(Array.isArray(post.likes) && post.likes.length > 0);
     const [likesCount, setLikesCount] = useState(post._count?.likes || 0);
-    const [showComments, setShowComments] = useState(false);
+    // Yorumlar varsayılan gizli; etiket bildiriminden gelince autoOpenComments ile açık.
+    const [showComments, setShowComments] = useState(!!autoOpenComments);
     const [comments, setComments] = useState(post.comments || []);
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    const commentsLoadedRef = useRef(false);
+
+    useEffect(() => {
+        if (!autoOpenComments) return;
+        setShowComments(true);
+        if (commentsLoadedRef.current || comments.length > 0) return;
+        commentsLoadedRef.current = true;
+        api.get(`/posts/${post.id}/comments`).then(({ data }) => setComments(data)).catch(() => {});
+    }, [autoOpenComments, post.id]);
 
     const toggleLike = async () => {
         const next = !liked;
@@ -6165,8 +6176,10 @@ function TextPostCard({ post, cfg }) {
     };
 
     const openComments = async () => {
-        setShowComments(v => !v);
-        if (!showComments && comments.length === 0) {
+        const next = !showComments;
+        setShowComments(next);
+        if (next && !commentsLoadedRef.current && comments.length === 0) {
+            commentsLoadedRef.current = true;
             try {
                 const { data } = await api.get(`/posts/${post.id}/comments`);
                 setComments(data);
@@ -6196,8 +6209,10 @@ function TextPostCard({ post, cfg }) {
         return `${Math.floor(h / 24)}${t.timeDaySuffix}`;
     };
 
+    const commentCount = comments.length || post._count?.comments || 0;
+
     return (
-        <View style={s.card}>
+        <View style={[s.card, highlighted && { borderColor: cfg.color, borderWidth: 1.5 }]}>
             <View style={s.cardHeader}>
                 <Avatar name={post.user?.username} size={38} color={cfg.color} />
                 <View style={{ flex: 1 }}>
@@ -6206,35 +6221,42 @@ function TextPostCard({ post, cfg }) {
                 </View>
             </View>
             <Text style={[s.cardMsg, { marginBottom: 12, lineHeight: 20 }]}>{renderMentionText(post.content)}</Text>
-            <View style={{ flexDirection: 'row', gap: 3, marginBottom: showComments ? 10 : 0 }}>
-                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Text style={{ color: liked ? '#f43f5e' : colors.textMuted, fontSize: 16 }}>♥</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{likesCount}</Text>
+            <View style={{ flexDirection: 'row', gap: 14, marginBottom: 4, alignItems: 'center' }}>
+                <TouchableOpacity onPress={toggleLike} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Text style={{ color: liked ? '#f43f5e' : colors.textMuted, fontSize: 18 }}>{liked ? '♥' : '♡'}</Text>
+                    <Text style={{ color: liked ? '#f43f5e' : colors.textMuted, fontSize: 12, fontWeight: '700' }}>{likesCount}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={openComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <TouchableOpacity onPress={openComments} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1 }} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
                     <Text style={{ color: showComments ? cfg.color : colors.textMuted, fontSize: 14 }}>💬</Text>
-                    <Text style={{ color: colors.textMuted, fontSize: 12, fontWeight: '700' }}>{comments.length || post._count?.comments || 0}</Text>
+                    <Text style={{ color: showComments ? cfg.color : colors.textMuted, fontSize: 12, fontWeight: '700' }}>
+                        {t.postCommentsToggle || 'Yorumlar'}{commentCount > 0 ? ` (${commentCount})` : ''}
+                    </Text>
+                    <Text style={{ color: colors.textMuted, fontSize: 12, transform: [{ rotate: showComments ? '0deg' : '-90deg' }] }}>▼</Text>
                 </TouchableOpacity>
             </View>
             {showComments && (
-                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 5 }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 6 }}>
                     {comments.map((c, i) => (
-                        <View key={c.id || i} style={{ flexDirection: 'row', gap: 3, marginBottom: 5 }}>
+                        <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
                             <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
-                            <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{c.content}</Text>
+                            <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{renderMentionText(c.content)}</Text>
                         </View>
                     ))}
-                    <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
-                        <TextInput
-                            style={{ flex: 1, backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border }}
-                            placeholder={t.sc_0132}
+                    <View style={{ marginTop: 6 }}>
+                        <MentionCaptionInput
+                            style={{ backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border, minHeight: 36, textAlignVertical: 'top' }}
+                            placeholder={t.matchCommentPlaceholder || t.sc_0132}
                             placeholderTextColor={colors.textMuted}
                             value={commentText}
                             onChangeText={setCommentText}
+                            multiline
+                            maxLength={500}
+                            category={category}
+                            subCategory={subCategory}
                         />
                         <TouchableOpacity onPress={sendComment} disabled={sendingComment || !commentText.trim()}
-                            style={{ backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 11, justifyContent: 'center', opacity: !commentText.trim() ? 0.4 : 1 }}>
-                            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 14 }}>{sendingComment ? '…' : '↑'}</Text>
+                            style={{ alignSelf: 'flex-end', marginTop: 6, backgroundColor: cfg.color, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 6, opacity: !commentText.trim() ? 0.4 : 1 }}>
+                            <Text style={{ color: '#fff', fontWeight: '900', fontSize: 13 }}>{sendingComment ? '…' : (t.sendBtn || 'Gönder')}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -12991,13 +13013,15 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const sets = m.score?.sets;
     // Format: teamSize>1 → NvN, DOUBLE → 2v2 (teamSize=1 olsa bile). Eskiden kadro 2+
     // iken teamSize ile "1v1" basılıyordu.
+    // Kullanıcı isteği (arşiv skor tabelası): ⚔️ / 🏃 / 👥 emojileri kalksın — sadece metin.
     const sizeTxt = (() => {
         const teamSize = m.teamSize || 1;
-        if (teamSize > 1) return `👥 ${teamSize}v${teamSize}`;
-        if (isDoublesMatch(m)) return '👥 2v2';
-        return '⚔️ 1v1';
+        if (teamSize > 1) return `${teamSize}v${teamSize}`;
+        if (isDoublesMatch(m)) return '2v2';
+        return '1v1';
     })();
-    const modeTxt = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
+    const modeRaw = m.matchMode?.toUpperCase() === 'COMPETITIVE' ? t.modeCompetitive : m.matchMode?.toUpperCase() === 'PRACTICE' ? t.modePractice : '';
+    const modeTxt = modeRaw ? noEmojiStr(modeRaw) : '';
     const founderLabel = m.founderTeamName || (founderSide.length > 1 ? t.sc_team_host : (founderSide[0] ? senderAlias(founderSide[0]) : t.sc_0053));
     const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? t.sc_team_opp : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
     const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
@@ -13014,7 +13038,8 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
     const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
 
     return (
-        <View style={[s.listGridCell, s.listGridCellThird]} collapsable={false}>
+        // Kullanıcı isteği: arşiv skor tabelaları arası gap = 3 (eski paddingBottom ~10).
+        <View style={[s.listGridCell, s.listGridCellThird, { paddingBottom: 3 }]} collapsable={false}>
         <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
             <TouchableOpacity onPress={flipCard} hitSlop={{ top:8, bottom:8, left:8, right:8 }}
@@ -13030,7 +13055,7 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress }) {
             )}
             {cardFlipped ? (
                 <TouchableOpacity activeOpacity={0.85} style={{ padding:9, flex:1 }} onPress={onPress}>
-                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6, paddingRight:22 }}>👥 {t.rosterPoolLabel}</Text>
+                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6, paddingRight:22 }}>{t.rosterPoolLabel}</Text>
                     {/* Kullanıcı raporu: 1v1 maçlarda oyuncu ismi iki kere yazıyordu — tek kişilik
                         bir tarafta founderLabel/opponentLabel zaten senderAlias(founderSide[0])'a
                         (takım adı yokken kişinin kendi adına) düşüyor, altındaki .map de AYNI tek
@@ -26762,6 +26787,9 @@ function SubCategoryScreen({ route, navigation }) {
         if (archiveSubTab === 'tournaments' || archiveSubTab === 'referee') setArchiveSubTab('rivals');
     }, [sub, archiveSubTab]);
     const [archiveDetailMatch, setArchiveDetailMatch] = useState(null);
+    // Kullanıcı isteği (tenis arşiv): 1v1 / 2v2 kategorileri — ok sola ◀ = gizli, aşağı ▼ = açık; default gizli.
+    const [archiveSinglesExpanded, setArchiveSinglesExpanded] = useState(false);
+    const [archiveDoublesExpanded, setArchiveDoublesExpanded] = useState(false);
     const [ratingSubject, setRatingSubject] = useState(null); // { userId, subCategory } — Voleybol oyuncu değerlendirme anketi (VolleyballRatingModal) hedefi
     const [tournSubTab, setTournSubTab] = useState(['open','inprogress'].includes(initialTournSubTab) ? initialTournSubTab : 'open');
     // Kullanıcı isteği: "Derecelendirme Anketini Tekrar Doldurun" bildirimine dokununca sadece
@@ -33725,20 +33753,76 @@ function SubCategoryScreen({ route, navigation }) {
                                 <ActivityIndicator color={cfg.color} style={{ marginTop: 40 }} />
                             ) : archiveRivals.length === 0 ? (
                                 <EmptyState emoji="🗃️" text={sub === 'fitness_gym' ? (t.emptyArchiveEvents || t.emptyArchive) : t.emptyArchive} />
-                            ) : (
-                                <View style={[s.listGrid, { paddingVertical: 5 }]}>
-                                    {archiveRivals.map(m => (
-                                        <ArchiveRivalCard
-                                            key={m.id}
-                                            m={m}
-                                            myId={myId}
-                                            cfg={cfg}
-                                            highlighted={m.id === highlightRivalId}
-                                            onPress={() => setArchiveDetailMatch(m)}
+                            ) : (() => {
+                                // Tenis/padel vb. (takım sporu değil): 1v1 / 2v2 grupları, sayaç, açılır kapanır.
+                                // Yakın tarih → uzak tarih. Takım sporları / fitness düz liste kalır.
+                                const useFormatGroups = !TEAM_SPORTS.has(sub) && sub !== 'fitness_gym';
+                                const byRecent = (a, b) => {
+                                    const ta = a?.matchDate ? new Date(a.matchDate).getTime() : 0;
+                                    const tb = b?.matchDate ? new Date(b.matchDate).getTime() : 0;
+                                    if (tb !== ta) return tb - ta;
+                                    return String(b?.id || '').localeCompare(String(a?.id || ''));
+                                };
+                                const renderCard = (m) => (
+                                    <ArchiveRivalCard
+                                        key={m.id}
+                                        m={m}
+                                        myId={myId}
+                                        cfg={cfg}
+                                        highlighted={m.id === highlightRivalId}
+                                        onPress={() => setArchiveDetailMatch(m)}
+                                    />
+                                );
+                                if (!useFormatGroups) {
+                                    return (
+                                        <View style={[s.listGrid, { paddingVertical: 5, gap: 3 }]}>
+                                            {[...archiveRivals].sort(byRecent).map(renderCard)}
+                                        </View>
+                                    );
+                                }
+                                const singles = archiveRivals.filter(m => !isDoublesMatch(m)).sort(byRecent);
+                                const doubles = archiveRivals.filter(m => isDoublesMatch(m)).sort(byRecent);
+                                const Section = ({ title, count, open, onToggle, list }) => (
+                                    <View style={{ marginBottom: 8 }}>
+                                        <TouchableOpacity
+                                            onPress={onToggle}
+                                            activeOpacity={0.75}
+                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 4 }}
+                                        >
+                                            <Text style={{ color: '#fff', fontSize: 14, width: 16 }}>{open ? '▼' : '◀'}</Text>
+                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', flex: 1 }}>
+                                                {title} ({count})
+                                            </Text>
+                                        </TouchableOpacity>
+                                        {open && list.length > 0 ? (
+                                            <View style={[s.listGrid, { gap: 3 }]}>
+                                                {list.map(renderCard)}
+                                            </View>
+                                        ) : null}
+                                        {open && list.length === 0 ? (
+                                            <Text style={{ color: colors.textMuted, fontSize: 12, paddingHorizontal: 8, paddingBottom: 6 }}>—</Text>
+                                        ) : null}
+                                    </View>
+                                );
+                                return (
+                                    <View style={{ paddingVertical: 5 }}>
+                                        <Section
+                                            title="1v1"
+                                            count={singles.length}
+                                            open={archiveSinglesExpanded}
+                                            onToggle={() => setArchiveSinglesExpanded(v => !v)}
+                                            list={singles}
                                         />
-                                    ))}
-                                </View>
-                            )
+                                        <Section
+                                            title="2v2"
+                                            count={doubles.length}
+                                            open={archiveDoublesExpanded}
+                                            onToggle={() => setArchiveDoublesExpanded(v => !v)}
+                                            list={doubles}
+                                        />
+                                    </View>
+                                );
+                            })()
                         )}
 
                         {/* Fitness Arşiv > Salonlar — geçmişte üye olunan salonlar (REVOKED) */}
