@@ -65,8 +65,13 @@ export function getMatchAvailWindow(tournament, match, { now = new Date() } = {}
 export function getRoundAvailWindow(round, { now = new Date() } = {}) {
     if (!round?.startDate || !round?.endDate) return null;
     const today = toLocalYmd(now);
-    const startYmd = toLocalYmd(round.startDate);
+    let startYmd = toLocalYmd(round.startDate);
     const endYmd = toLocalYmd(round.endDate);
+    // Tenis 24s dilim: müsaitlik açılışı daha erkense pencerede maç da seçilebilsin
+    if (round.availabilityOpenAt) {
+        const openYmd = toLocalYmd(round.availabilityOpenAt);
+        if (openYmd && (!startYmd || openYmd < startYmd)) startYmd = openYmd;
+    }
     if (!startYmd || !endYmd) return null;
     const fromYmd = startYmd < today ? today : startYmd;
     return {

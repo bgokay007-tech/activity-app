@@ -148,7 +148,7 @@ export async function bootstrapAvailabilityRounds(tournament, { sides, actorUser
                 'TOURNAMENT_STARTED',
                 '🏆 Turnuva Başladı',
                 tennis
-                    ? `"${tournament.name}" başladı — ilk 24 saat müsaitlik bildirimi; ardından 7 günlük 1. tur başlar.`
+                    ? `"${tournament.name}" başladı — ilk 24 saatte müsaitlik bildirin; anlaşabilirseniz bu 24 saat içinde de maç yapabilirsiniz. Sonra 7 günlük tur devam eder.`
                     : `"${tournament.name}" başladı — 1. tur için müsait gün/saatlerinizi girin.`,
                 { tournamentId: tournament.id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
@@ -249,7 +249,9 @@ export const upsertRoundAvailability = async (req, res, next) => {
 
         const cap = Math.max(1, Math.min(5, parseInt(maxMatches) || 1));
         const win = getRoundAvailWindow(round);
-        const cleanSlots = normalizeSlots(slots, round.startDate, round.endDate);
+        const cleanSlots = normalizeSlots(slots, round.startDate, round.endDate, {
+            availabilityOpenAt: round.availabilityOpenAt,
+        });
         if (!cleanSlots.length) {
             return res.status(400).json({
                 message: win?.empty

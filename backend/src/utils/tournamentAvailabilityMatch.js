@@ -56,7 +56,10 @@ export function isTennisTournament(tournamentOrSub) {
     return String(sub || '').toLowerCase() === 'tennis';
 }
 
-/** Tenis tur döngüsü: 24s müsaitlik + 7 gün oyun = 8 gün. */
+/**
+ * Tenis tur döngüsü: 24s (müsaitlik + isteyenler maç da yapabilir) + 7 gün resmi tur = 8 gün.
+ * Klasik maç penceresi / deadline de bu 8 günü kapsar — ilk 24s oyun dışı değil.
+ */
 export function groupRoundCycleDays(tournamentOrSub) {
     if (isTennisTournament(tournamentOrSub)) {
         return TENNIS_AVAIL_LEAD_DAYS + ROUND_PLAY_DAYS;
@@ -119,12 +122,21 @@ export function getMatchAvailWindow(tournament, match, { now = new Date() } = {}
     };
 }
 
-/** Tur kaydı (availability engine) için aynı clamp */
+/**
+ * Tur kaydı (availability engine) için aynı clamp.
+ * Tenis: müsaitlik açılışı (availabilityOpenAt) startDate'ten erkense —
+ * 24s dilimde de slot/maç seçilebilsin diye pencere oradan başlar.
+ */
 export function getRoundAvailWindow(round, { now = new Date() } = {}) {
     if (!round?.startDate || !round?.endDate) return null;
     const today = toYmd(now);
-    const startYmd = toYmd(round.startDate);
+    let startYmd = toYmd(round.startDate);
     const endYmd = toYmd(round.endDate);
+    if (round.availabilityOpenAt) {
+        const openYmd = toYmd(round.availabilityOpenAt);
+        if (openYmd && (!startYmd || openYmd < startYmd)) startYmd = openYmd;
+    }
+    if (!startYmd || !endYmd) return null;
     const fromYmd = startYmd < today ? today : startYmd;
     return {
         roundStartYmd: startYmd,
@@ -202,8 +214,9 @@ export function isYmdInWindow(ymd, fromYmd, toYmd) {
  * Turnuva başlangıcından itibaren turlar.
  * Varsayılan: ilk 3 gün müsaitlik, sonra 7 gün oyun; sonraki turlar oyun öncesi 3 gün
  *   (oyun haftaları bitişik — eski davranış).
- * Tenis (sequentialCycles + availLeadDays=1): her tur/grup arası 24s müsaitlik,
- *   sonra 7 gün oyun; turlar ardışık (T0→24s→7g→24s→7g…).
+ * Tenis (sequentialCycles + availLeadDays=1): her tur/grup arası 24s müsaitlik dilimi,
+ *   ardından 7 gün resmi tur — toplam 8 gün. 24s içinde de anlaşılıp maç oynanabilir;
+ *   startDate=cycleStart (oyun açık), availabilityCloseAt=cycleStart+24s (odaklı müsaitlik).
  */
 export function buildWeeklyRounds(baseDate, weekCount, opts = {}) {
     const n = Math.max(1, Math.min(52, parseInt(weekCount) || 4));
@@ -220,14 +233,15 @@ export function buildWeeklyRounds(baseDate, weekCount, opts = {}) {
         const cycle = lead + play;
         for (let i = 0; i < n; i++) {
             const cycleStart = addDays(baseDate, i * cycle);
-            const playStart = addDays(cycleStart, lead);
-            const playEnd = addDays(playStart, play);
+            const focusedAvailEnd = addDays(cycleStart, lead);
+            const cycleEnd = addDays(cycleStart, cycle);
             rounds.push({
                 roundIndex: i + 1,
-                startDate: playStart,
-                endDate: playEnd,
+                // 24s müsaitlik diliminde de maç anlaşılıp oynanabilir
+                startDate: new Date(cycleStart),
+                endDate: cycleEnd,
                 availabilityOpenAt: new Date(cycleStart),
-                availabilityCloseAt: new Date(playStart),
+                availabilityCloseAt: new Date(focusedAvailEnd),
                 status: i === 0 ? 'AVAIL_OPEN' : 'UPCOMING',
             });
         }
@@ -254,10 +268,14 @@ export function buildWeeklyRounds(baseDate, weekCount, opts = {}) {
 
 /** Slot normalize: date zorunlu tercih; weekday varsa tur penceresindeki o güne çevirilebilir.
  *  Geçmiş günler ve tur dışı tarihler elenir (bugün = TR toYmd). */
-export function normalizeSlots(slots, roundStart, roundEnd, { now = new Date() } = {}) {
+export function normalizeSlots(slots, roundStart, roundEnd, { now = new Date(), availabilityOpenAt = null } = {}) {
     if (!Array.isArray(slots)) return [];
     if (!roundStart || !roundEnd) return [];
-    const win = getRoundAvailWindow({ startDate: roundStart, endDate: roundEnd }, { now });
+    const win = getRoundAvailWindow({
+        startDate: roundStart,
+        endDate: roundEnd,
+        availabilityOpenAt,
+    }, { now });
     if (!win || win.empty) return [];
     // weekday → penceredeki TÜM eşleşen günler (eskiden sadece ilk gün yazılıyordu;
     // tur 7+ gün / joker uzatmasında ikinci hafta kayboluyordu)

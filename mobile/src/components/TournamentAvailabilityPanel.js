@@ -468,10 +468,20 @@ export default function TournamentAvailabilityPanel({
                     <Text style={{ color: '#cbd5e1', fontSize: 11, marginBottom: 4 }}>
                         {(t.tournAvailPlayWindow || 'Oyun')}: {fmtDate(active.startDate)} – {fmtDate(active.endDate)}
                     </Text>
-                    <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 10 }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 11, marginBottom: 4 }}>
                         {(t.tournAvailWindow || 'Müsaitlik')}: {fmtDate(active.availabilityOpenAt)} – {fmtDate(active.availabilityCloseAt)}
                         {new Date(active.endDate) > new Date() ? ` · ${t.tournAvailMidWeekOk || 'Hafta içinde de güncelleyebilirsiniz'}` : ''}
                     </Text>
+                    {active.availabilityOpenAt && active.availabilityCloseAt
+                        && new Date(active.availabilityCloseAt) > new Date(active.availabilityOpenAt)
+                        && new Date(active.availabilityCloseAt) < new Date(active.endDate) ? (
+                        <Text style={{ color: '#86efac', fontSize: 10, marginBottom: 10, lineHeight: 14 }}>
+                            {t.tournAvailLeadPlayOk
+                                || 'Bu ilk dilimde anlaşabilirseniz maçı hemen de oynayabilirsiniz.'}
+                        </Text>
+                    ) : (
+                        <View style={{ marginBottom: 6 }} />
+                    )}
                     {canAdmin && (
                         <AdminRoundDatesEditor
                             tournamentId={tournament.id}
