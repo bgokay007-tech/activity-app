@@ -455,6 +455,10 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
     else if (leftSets !== rightSets) {
         winnerSide = leftSets > rightSets ? 'left' : 'right';
         resultLabel = winnerSide === 'left' ? leftLabel : rightLabel;
+    } else if (sets.length > 0 && leftSets === rightSets) {
+        // Beraberlik — paylaşımda KAZANDI yazılmasın
+        winnerSide = 'draw';
+        resultLabel = t?.drawResult || 'Draw';
     }
 
     const placeName = match.courtName || match.location || '';
