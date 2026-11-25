@@ -3662,7 +3662,11 @@ async function assertTrainingEarlyPlayAllowed(tournament, match, { isCreatorOrAd
 export const enterTournamentMatchScore = async (req, res, next) => {
     try {
         const { id, matchId } = req.params;
-        let { sets, winner } = req.body; // sets=[{p1:6,p2:3,tb1?,tb2?,matchTiebreak?},...], winner='p1'|'p2'
+        let { sets, winner, stats } = req.body; // sets=[{p1:6,p2:3,tb1?,tb2?,matchTiebreak?},...], winner='p1'|'p2'
+        // stats: canlı takip / sağlık senkronu özeti (rival enterScore ile aynı) — opsiyonel
+        if (stats !== undefined && (typeof stats !== 'object' || stats === null || Array.isArray(stats) || JSON.stringify(stats).length > 20000)) {
+            return res.status(400).json({ message: 'Geçersiz stats verisi' });
+        }
 
         const tournament = await prisma.tournament.findUnique({
             where: { id },
@@ -4006,7 +4010,12 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         }
         } // else (UTR_SUBCATEGORIES dışındaki dallar) sonu
 
-        const score = { sets, winner, p1Sets, p2Sets, p1Games, p2Games, p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter, p1MemberRatings, p2MemberRatings };
+        const score = {
+            sets, winner, p1Sets, p2Sets, p1Games, p2Games,
+            p1EloDelta, p2EloDelta, p1RatingBefore, p1RatingAfter, p2RatingBefore, p2RatingAfter,
+            p1MemberRatings, p2MemberRatings,
+            ...(stats && typeof stats === 'object' ? { stats } : {}),
+        };
 
         // Admin override / kabul edilen düzeltme: skor hemen kilitli kalır, açık itiraz temizlenir.
         const lockBothSides = adminOverride || acceptCorrection;

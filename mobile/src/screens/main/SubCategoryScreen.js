@@ -20126,6 +20126,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         try {
             const body = { sets, winner };
             if (scoreEntry.adminOverride) body.adminOverride = true;
+            try {
+                const tm = (tournMatches || []).find(m => m.id === scoreEntry.matchId);
+                let startAt = null;
+                const agreed = tm?.scheduleData?.agreed;
+                if (agreed?.date && agreed?.time) {
+                    const [hh, mm] = String(agreed.time).split(':').map(Number);
+                    startAt = new Date(agreed.date);
+                    if (!Number.isNaN(startAt.getTime())) startAt.setHours(hh || 0, mm || 0, 0, 0);
+                }
+                const synced = await fetchMatchWorkoutStats({
+                    startAt,
+                    endAt: new Date(),
+                    sport: item.subCategory,
+                    matchMode: 'COMPETITIVE',
+                });
+                if (synced) body.stats = synced;
+            } catch { /* sağlık senkronu opsiyonel */ }
             const { data } = await api.patch(`/tournaments/${item.id}/matches/${scoreEntry.matchId}/score`, body);
             setTournMatches(Array.isArray(data) ? data : []);
             setScoreEntry(null);
