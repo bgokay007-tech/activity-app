@@ -1871,6 +1871,7 @@ export default function ProfileScreen({ route, navigation }) {
     const [loadingMediaComments, setLoadingMediaComments] = useState(false);
     const [mediaCommentText, setMediaCommentText] = useState('');
     const [sendingMediaComment, setSendingMediaComment] = useState(false);
+    const [mediaCommentReplyingTo, setMediaCommentReplyingTo] = useState(null);
     const [mediaHeartFlash, setMediaHeartFlash] = useState(false);
     const mediaLastTap = useRef(0);
     const [likersModalOpen, setLikersModalOpen] = useState(false);
@@ -2962,6 +2963,7 @@ export default function ProfileScreen({ route, navigation }) {
         setMediaViewerComments([]);
         setMediaCommentsHidden(false);
         setMediaCommentText('');
+        setMediaCommentReplyingTo(null);
         setLoadingMediaComments(true);
         api.get(`/posts/${p.id}/comments`)
             .then(({ data }) => setMediaViewerComments(Array.isArray(data) ? data : []))
@@ -3012,13 +3014,63 @@ export default function ProfileScreen({ route, navigation }) {
         if (!mediaViewerPost || !mediaCommentText.trim() || sendingMediaComment) return;
         setSendingMediaComment(true);
         try {
-            const { data } = await api.post(`/posts/${mediaViewerPost.id}/comment`, { content: mediaCommentText.trim() });
-            setMediaViewerComments(prev => [...prev, data]);
+            const { data } = await api.post(`/posts/${mediaViewerPost.id}/comment`, {
+                content: mediaCommentText.trim(),
+                parentId: mediaCommentReplyingTo || undefined,
+            });
+            setMediaViewerComments(prev => [...prev, { ...data, isLiked: false, likeCount: 0 }]);
             setMediaCommentText('');
+            setMediaCommentReplyingTo(null);
             patchPostEverywhere(mediaViewerPost.id, p => ({ _count: { ...p._count, comments: (p._count?.comments || 0) + 1 } }));
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally { setSendingMediaComment(false); }
+    };
+
+    const toggleMediaViewerCommentLike = async (commentId) => {
+        setMediaViewerComments(prev => prev.map(c => c.id === commentId
+            ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) }
+            : c));
+        try {
+            await api.post(`/posts/comments/${commentId}/like`);
+        } catch {
+            setMediaViewerComments(prev => prev.map(c => c.id === commentId
+                ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) }
+                : c));
+        }
+    };
+
+    const doDeleteMediaViewerComment = async (commentId) => {
+        try {
+            const removed = mediaViewerComments.filter(c => c.id === commentId || c.parentId === commentId);
+            await api.delete(`/posts/comments/${commentId}`);
+            setMediaViewerComments(prev => prev.filter(c => c.id !== commentId && c.parentId !== commentId));
+            if (mediaCommentReplyingTo === commentId) setMediaCommentReplyingTo(null);
+            if (mediaViewerPost) {
+                patchPostEverywhere(mediaViewerPost.id, p => ({
+                    _count: { ...p._count, comments: Math.max(0, (p._count?.comments || 0) - Math.max(1, removed.length)) },
+                }));
+            }
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        }
+    };
+
+    const deleteMediaViewerComment = (comment) => {
+        const myId = myUser?.id;
+        const seenByOthers = Array.isArray(comment.viewedBy) ? comment.viewedBy.filter(uid => uid !== myId).length : 0;
+        if (seenByOthers > 0) {
+            Alert.alert(
+                t.sc_0043 || t.deleteCommentTitle || 'Bu yorum görüldü',
+                typeof t.sc_0044 === 'function' ? t.sc_0044(seenByOthers) : String(seenByOthers),
+                [
+                    { text: t.cancel || t.sc_0004, style: 'cancel' },
+                    { text: t.sc_0045 || t.delete || 'Sil', style: 'destructive', onPress: () => doDeleteMediaViewerComment(comment.id) },
+                ]
+            );
+            return;
+        }
+        doDeleteMediaViewerComment(comment.id);
     };
 
     const openLikers = () => {
@@ -4280,31 +4332,65 @@ export default function ProfileScreen({ route, navigation }) {
                                     <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.commentsHiddenText}</Text>
                                 ) : mediaViewerComments.length === 0 ? (
                                     <Text style={{ color: colors.textMuted, fontSize:12 }}>{t.noCommentsYetText}</Text>
-                                ) : (
-                                    mediaViewerComments.map(c => (
-                                        <View key={c.id} style={{ flexDirection:'row', gap:8, marginBottom:12 }}>
-                                            <View style={{ width:28, height:28, borderRadius:14, backgroundColor: colors.surface2, justifyContent:'center', alignItems:'center', overflow:'hidden' }}>
-                                                {c.user?.avatar
-                                                    ? <Image source={{ uri: c.user.avatar }} style={{ width:28, height:28 }} />
-                                                    : <Text style={{ color:'#fff', fontWeight:'800', fontSize:11 }}>{c.user?.username?.[0]?.toUpperCase()}</Text>}
+                                ) : (() => {
+                                    const myId = myUser?.id;
+                                    const topLevel = mediaViewerComments.filter(c => !c.parentId);
+                                    const repliesOf = (id) => mediaViewerComments.filter(c => c.parentId === id);
+                                    const canDelete = (c) => c.userId === myId || mediaViewerPost?.userId === myId || mediaViewerPost?.user?.id === myId;
+                                    const renderRow = (c, isReply) => (
+                                        <View key={c.id} style={{ marginBottom: 12, marginLeft: isReply ? 18 : 0 }}>
+                                            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                                                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.surface2, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                                                    {c.user?.avatar
+                                                        ? <Image source={{ uri: c.user.avatar }} style={{ width: 28, height: 28 }} />
+                                                        : <Text style={{ color: '#fff', fontWeight: '800', fontSize: 11 }}>{c.user?.username?.[0]?.toUpperCase()}</Text>}
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 12 }}>
+                                                        <Text style={{ fontWeight: '800' }}>{c.user?.username}</Text> {c.content}
+                                                    </Text>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                                                        <TouchableOpacity onPress={() => toggleMediaViewerCommentLike(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                                            <Text style={{ color: c.isLiked ? '#f43f5e' : colors.textMuted, fontSize: 13 }}>{c.isLiked ? '♥' : '♡'}</Text>
+                                                            {(c.likeCount || 0) > 0 ? <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{c.likeCount}</Text> : null}
+                                                        </TouchableOpacity>
+                                                        {!isReply ? (
+                                                            <TouchableOpacity onPress={() => setMediaCommentReplyingTo(c.id)}>
+                                                                <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{t.matchCommentReplyBtn || 'Yanıtla'}</Text>
+                                                            </TouchableOpacity>
+                                                        ) : null}
+                                                    </View>
+                                                </View>
+                                                {canDelete(c) ? (
+                                                    <TouchableOpacity onPress={() => deleteMediaViewerComment(c)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                                        <Text style={{ color: '#f87171', fontSize: 14 }}>✕</Text>
+                                                    </TouchableOpacity>
+                                                ) : null}
                                             </View>
-                                            <View style={{ flex:1 }}>
-                                                <Text style={{ color:'#fff', fontSize:12 }}>
-                                                    <Text style={{ fontWeight:'800' }}>{c.user?.username}</Text> {c.content}
-                                                </Text>
-                                            </View>
+                                            {repliesOf(c.id).map(r => renderRow(r, true))}
                                         </View>
-                                    ))
-                                )}
+                                    );
+                                    return topLevel.map(c => renderRow(c, false));
+                                })()}
                             </View>
                         </ScrollView>
                     )}
                     {mediaViewerPost && !mediaCommentsHidden && (
                         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+                            {mediaCommentReplyingTo ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 13, paddingTop: 6 }}>
+                                    <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+                                        {t.sc_0095 || 'Yanıt:'} {mediaViewerComments.find(c => c.id === mediaCommentReplyingTo)?.user?.username}
+                                    </Text>
+                                    <TouchableOpacity onPress={() => setMediaCommentReplyingTo(null)}>
+                                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{t.cancel || t.sc_0096}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : null}
                             <View style={{ flexDirection:'row', gap:8, alignItems:'center', paddingHorizontal:13, paddingTop:8, paddingBottom: insets.bottom + (Platform.OS==='ios' ? 8 : 10), borderTopWidth:1, borderTopColor:'#ffffff20' }}>
                                 <TextInput
                                     style={{ flex:1, height:40, borderRadius:20, backgroundColor:'#ffffff14', color:'#fff', paddingHorizontal:14, fontSize:13 }}
-                                    placeholder={t.addCommentPlaceholder}
+                                    placeholder={mediaCommentReplyingTo ? (t.sc_1125 || t.addCommentPlaceholder) : t.addCommentPlaceholder}
                                     placeholderTextColor="#888"
                                     value={mediaCommentText}
                                     onChangeText={setMediaCommentText}

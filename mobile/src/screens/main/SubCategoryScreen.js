@@ -6151,6 +6151,8 @@ function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, aut
 
 function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = false, highlighted = false }) {
     const t = useT();
+    const navigation = useNavigation();
+    const myId = useSelector(s => s.auth.user?.id);
     // Beğenilmemiş: boş kalp (♡); beğenince içi kırmızı dolu (♥) — tıklayıp tıklamadığı belli olsun.
     const [liked, setLiked] = useState(Array.isArray(post.likes) && post.likes.length > 0);
     const [likesCount, setLikesCount] = useState(post._count?.likes || 0);
@@ -6159,6 +6161,8 @@ function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = fal
     const [comments, setComments] = useState(post.comments || []);
     const [commentText, setCommentText] = useState('');
     const [sendingComment, setSendingComment] = useState(false);
+    // Medya/maç yorumlarıyla aynı: sil / beğen / tek seviye yanıt (parentId).
+    const [replyingTo, setReplyingTo] = useState(null);
     const commentsLoadedRef = useRef(false);
 
     useEffect(() => {
@@ -6180,7 +6184,7 @@ function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = fal
     const openComments = async () => {
         const next = !showComments;
         setShowComments(next);
-        if (next && !commentsLoadedRef.current && comments.length === 0) {
+        if (next && !commentsLoadedRef.current) {
             commentsLoadedRef.current = true;
             try {
                 const { data } = await api.get(`/posts/${post.id}/comments`);
@@ -6189,15 +6193,60 @@ function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = fal
         }
     };
 
+    const toggleCommentLike = async (commentId) => {
+        setComments(prev => prev.map(c => c.id === commentId
+            ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) }
+            : c));
+        try {
+            await api.post(`/posts/comments/${commentId}/like`);
+        } catch {
+            setComments(prev => prev.map(c => c.id === commentId
+                ? { ...c, isLiked: !c.isLiked, likeCount: (c.likeCount || 0) + (c.isLiked ? -1 : 1) }
+                : c));
+        }
+    };
+
+    const doDeleteComment = async (commentId) => {
+        try {
+            await api.delete(`/posts/comments/${commentId}`);
+            setComments(prev => prev.filter(c => c.id !== commentId && c.parentId !== commentId));
+            if (replyingTo === commentId) setReplyingTo(null);
+        } catch (e) {
+            Alert.alert(t.error || t.sc_0014, e?.response?.data?.message || t.actionFailed || t.sc_0042);
+        }
+    };
+
+    const deleteComment = (comment) => {
+        const seenByOthers = Array.isArray(comment.viewedBy) ? comment.viewedBy.filter(uid => uid !== myId).length : 0;
+        if (seenByOthers > 0) {
+            Alert.alert(
+                t.sc_0043,
+                typeof t.sc_0044 === 'function' ? t.sc_0044(seenByOthers) : t.sc_0043,
+                [
+                    { text: t.sc_0004 || t.cancel, style: 'cancel' },
+                    { text: t.sc_0045 || t.sc_delete, style: 'destructive', onPress: () => doDeleteComment(comment.id) },
+                ]
+            );
+            return;
+        }
+        doDeleteComment(comment.id);
+    };
+
     const sendComment = async () => {
         const text = commentText.trim();
         if (!text) return;
         setSendingComment(true);
         try {
-            const { data } = await api.post(`/posts/${post.id}/comment`, { content: text });
+            const { data } = await api.post(`/posts/${post.id}/comment`, {
+                content: text,
+                parentId: replyingTo || undefined,
+            });
             setCommentText('');
-            setComments(prev => [...prev, data]);
-        } catch {}
+            setReplyingTo(null);
+            setComments(prev => [...prev, { ...data, isLiked: false, likeCount: 0 }]);
+        } catch (e) {
+            Alert.alert(t.error || t.sc_0014, e?.response?.data?.message || t.actionFailed || t.sc_0042);
+        }
         finally { setSendingComment(false); }
     };
 
@@ -6212,6 +6261,43 @@ function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = fal
     };
 
     const commentCount = comments.length || post._count?.comments || 0;
+    const canDeleteComment = (c) => c.userId === myId || post.userId === myId || post.user?.id === myId;
+    const topLevel = comments.filter(c => !c.parentId);
+    const repliesOf = (id) => comments.filter(c => c.parentId === id);
+    const replyTarget = replyingTo ? comments.find(c => c.id === replyingTo) : null;
+
+    const renderCommentRow = (c, isReply) => (
+        <View key={c.id} style={{ marginBottom: 8, marginLeft: isReply ? 16 : 0, paddingBottom: 6, borderBottomWidth: isReply ? 0 : 1, borderBottomColor: colors.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+                <TouchableOpacity
+                    onPress={() => c.user?.id && navigation.push('Profile', { userId: c.user.id })}
+                    style={{ flexShrink: 0 }}
+                >
+                    <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username || '…'}</Text>
+                </TouchableOpacity>
+                <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{renderMentionText(c.content)}</Text>
+                {canDeleteComment(c) ? (
+                    <TouchableOpacity onPress={() => deleteComment(c)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Text style={{ color: '#f87171', fontSize: 13 }}>✕</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 3 }}>
+                <TouchableOpacity onPress={() => toggleCommentLike(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                    <Text style={{ color: c.isLiked ? '#f43f5e' : colors.textMuted, fontSize: 13 }}>{c.isLiked ? '♥' : '♡'}</Text>
+                    {(c.likeCount || 0) > 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{c.likeCount}</Text>
+                    ) : null}
+                </TouchableOpacity>
+                {!isReply ? (
+                    <TouchableOpacity onPress={() => setReplyingTo(c.id)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                        <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{t.matchCommentReplyBtn || t.sc_0098 || 'Yanıtla'}</Text>
+                    </TouchableOpacity>
+                ) : null}
+            </View>
+            {repliesOf(c.id).map(r => renderCommentRow(r, true))}
+        </View>
+    );
 
     return (
         <View style={[s.card, highlighted && { borderColor: cfg.color, borderWidth: 1.5 }]}>
@@ -6238,16 +6324,23 @@ function TextPostCard({ post, cfg, category, subCategory, autoOpenComments = fal
             </View>
             {showComments && (
                 <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 6 }}>
-                    {comments.map((c, i) => (
-                        <View key={c.id || i} style={{ flexDirection: 'row', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
-                            <Text style={{ color: cfg.color, fontSize: 12, fontWeight: '800' }}>{c.user?.username}</Text>
-                            <Text style={{ color: colors.textSecondary, fontSize: 12, flex: 1 }}>{renderMentionText(c.content)}</Text>
+                    {topLevel.length === 0 ? (
+                        <Text style={{ color: colors.textMuted, fontSize: 12, marginBottom: 6 }}>{t.emptyComments || t.noCommentsYetText || t.sc_1124 || '—'}</Text>
+                    ) : topLevel.map(c => renderCommentRow(c, false))}
+                    {replyTarget ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                            <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+                                {t.sc_0095 || 'Yanıt:'} {replyTarget.user?.username}
+                            </Text>
+                            <TouchableOpacity onPress={() => setReplyingTo(null)}>
+                                <Text style={{ color: colors.textMuted, fontSize: 11, fontWeight: '700' }}>{t.sc_0096 || t.cancel}</Text>
+                            </TouchableOpacity>
                         </View>
-                    ))}
+                    ) : null}
                     <View style={{ marginTop: 6 }}>
                         <MentionCaptionInput
                             style={{ backgroundColor: colors.surface, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, color: '#fff', fontSize: 12, borderWidth: 1, borderColor: colors.border, minHeight: 36, textAlignVertical: 'top' }}
-                            placeholder={t.matchCommentPlaceholder || t.sc_0132}
+                            placeholder={replyingTo ? (t.sc_1125 || t.matchCommentPlaceholder || t.addCommentPlaceholder) : (t.matchCommentPlaceholder || t.addCommentPlaceholder || t.sc_0132)}
                             placeholderTextColor={colors.textMuted}
                             value={commentText}
                             onChangeText={setCommentText}
