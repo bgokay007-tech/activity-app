@@ -385,103 +385,109 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         }
       }
 
-      // Skor tablosu — alt boşluk yok, sıkı yükseklik (pad L/R=5, bottom=3)
+      // Skor (dar) + isteğe bağlı sağlık — aynı satır
       var pairs=${JSON.stringify(setPairs)};
       var leftRoster=${JSON.stringify(Array.isArray(p.leftRoster) && p.leftRoster.length ? p.leftRoster : [{ name: p.leftLabel || '', elo: p.leftElo || '', rank: p.leftRank || null }])};
       var rightRoster=${JSON.stringify(Array.isArray(p.rightRoster) && p.rightRoster.length ? p.rightRoster : [{ name: p.rightLabel || '', elo: p.rightElo || '', rank: p.rightRank || null }])};
       var leftElo=${JSON.stringify(p.leftElo||'')};
       var rightElo=${JSON.stringify(p.rightElo||'')};
+      var includeHealth=${JSON.stringify(!!p.includeHealth)};
+      var healthTiles=${JSON.stringify((p.shareStats && p.shareStats.healthTiles) || [])};
+      var healthTitle=${JSON.stringify(p.healthTitle || 'HEALTH')};
+      var healthSrc=${JSON.stringify((p.shareStats && p.shareStats.workoutSource) || '')};
+      var showHealth=includeHealth && healthTiles.length>0;
       var scorePadX=5, scorePadBottom=3;
-      var scorePanelX=56, scorePanelW=W-112;
+      var rowGap=12, marginX=56, fullInner=W-112;
+      var scorePanelW=showHealth ? Math.floor(fullInner*0.62) : Math.min(700, fullInner);
+      var scorePanelX=showHealth ? marginX : Math.floor((W-scorePanelW)/2);
       var scoreInnerX=scorePanelX+scorePadX;
       var scoreNameX=scoreInnerX+8;
+      var nameColMax=showHealth ? Math.floor(scorePanelW*0.42) : Math.floor(scorePanelW*0.48);
       function rosterHeight(roster, teamElo){
         var h=8;
-        (roster||[]).forEach(function(r){ h+=34; if(r&&r.elo) h+=24; if(r&&r.rank) h+=24; });
-        if(!(roster&&roster.length) && teamElo) h+=24;
-        return Math.max(72, h);
+        (roster||[]).forEach(function(r){ h+=30; if(r&&r.elo) h+=20; if(r&&r.rank) h+=20; });
+        if(!(roster&&roster.length) && teamElo) h+=20;
+        return Math.max(64, h);
       }
       var rowH=rosterHeight(leftRoster, leftElo);
       var rowH2=rosterHeight(rightRoster, rightElo);
-      var scoreHdrH=36;
+      var scoreHdrH=32;
       var panelH=scoreHdrH+rowH+6+rowH2+scorePadBottom;
-      panel(scorePanelX, ny, scorePanelW, panelH);
+      var healthW=showHealth ? (fullInner-scorePanelW-rowGap) : 0;
+      var healthX=showHealth ? (scorePanelX+scorePanelW+rowGap) : 0;
+      var hPad=10;
+      var hTileCount=showHealth?healthTiles.length:0;
+      var hHeader=showHealth?(26+(healthSrc?14:0)):0;
+      var hTileH=showHealth?Math.max(36, Math.floor((panelH-hPad*2-hHeader-Math.max(0,hTileCount-1)*6)/Math.max(1,hTileCount))):0;
+      var hBoxH=showHealth?Math.max(panelH, hPad*2+hHeader+hTileCount*hTileH+Math.max(0,hTileCount-1)*6):0;
+      var rowHReal=Math.max(panelH, hBoxH);
+      var rowTop=ny;
 
-      text(${JSON.stringify(p.colPlayer||'PLAYER')}, scoreNameX, ny+26, 18, '#78716C', 'left', '800');
+      panel(scorePanelX, rowTop, scorePanelW, panelH);
+      text(${JSON.stringify(p.colPlayer||'PLAYER')}, scoreNameX, rowTop+24, 16, '#78716C', 'left', '800');
       var setXs=[];
       var showSets=!isUpcoming && pairs.length>0;
+      var setsEndX=scorePanelX+scorePanelW-scorePadX-28;
+      var setCount=Math.max(pairs.length,1);
+      var setSpan=Math.max(48, Math.min(72, Math.floor((scorePanelW-nameColMax-70)/setCount)));
+      var setStartX=setsEndX-28-setCount*setSpan;
       if(showSets){
-        for(var s=0;s<Math.max(pairs.length,1);s++){
-          var sx=580+s*120;
+        for(var s=0;s<setCount;s++){
+          var sx=setStartX+s*setSpan;
           setXs.push(sx);
-          text('S'+(s+1), sx, ny+26, 18, '#78716C', 'center', '800');
+          text('S'+(s+1), sx, rowTop+24, 15, '#78716C', 'center', '800');
         }
-        text(${JSON.stringify(p.colSets||'SETS')}, scorePanelX+scorePanelW-scorePadX-40, ny+26, 18, '#78716C', 'center', '800');
+        text(${JSON.stringify(p.colSets||'SETS')}, setsEndX, rowTop+24, 15, '#78716C', 'center', '800');
       } else if(isUpcoming){
-        text('VS', 780, ny+26, 20, '#78716C', 'center', '800');
+        text('VS', scorePanelX+scorePanelW*0.72, rowTop+24, 18, '#78716C', 'center', '800');
       }
 
       function drawPlayerRow(y, roster, teamElo, scores, setsWon, highlight, h){
         if(highlight){
-          roundRect(scoreInnerX, y-28, scorePanelW-scorePadX*2, h, 12);
+          roundRect(scoreInnerX, y-24, scorePanelW-scorePadX*2, h, 10);
           ctx.fillStyle='rgba(200,245,74,0.12)'; ctx.fill();
         }
         var ty=y;
+        var nameFs=showHealth?22:26;
         (roster||[]).forEach(function(r){
-          var nm=nameLines((r&&r.name)||'', 440, 28);
-          nm.forEach(function(ln){ text(ln, scoreNameX, ty, 28, '#F4F1EA', 'left', '900'); ty+=32; });
-          if(r&&r.rank){ text('#'+String(r.rank), scoreNameX, ty+1, 20, '#FACC15', 'left', '900'); ty+=22; }
-          if(r&&r.elo){ text(r.elo, scoreNameX, ty+1, 20, '#C8F54A', 'left', '800'); ty+=22; }
+          var nm=nameLines((r&&r.name)||'', nameColMax, nameFs);
+          nm.forEach(function(ln){ text(ln, scoreNameX, ty, nameFs, '#F4F1EA', 'left', '900'); ty+=nameFs+4; });
+          if(r&&r.rank){ text('#'+String(r.rank), scoreNameX, ty+1, 16, '#FACC15', 'left', '900'); ty+=18; }
+          if(r&&r.elo){ text(r.elo, scoreNameX, ty+1, 16, '#C8F54A', 'left', '800'); ty+=18; }
         });
-        if((!roster||!roster.length) && teamElo) text(teamElo, scoreNameX, ty+1, 22, '#C8F54A', 'left', '800');
-        var midY=y+Math.min(14, (h/2)-6);
+        if((!roster||!roster.length) && teamElo) text(teamElo, scoreNameX, ty+1, 18, '#C8F54A', 'left', '800');
+        var midY=y+Math.min(12, (h/2)-6);
         if(showSets){
           for(var i=0;i<scores.length;i++){
-            text(String(scores[i]), setXs[i]||(580+i*120), midY, 34, '#F4F1EA', 'center', '900');
+            text(String(scores[i]), setXs[i]||(setStartX+i*setSpan), midY, showHealth?26:30, '#F4F1EA', 'center', '900');
           }
-          text(String(setsWon), scorePanelX+scorePanelW-scorePadX-40, midY, 34, '#C8F54A', 'center', '900');
+          text(String(setsWon), setsEndX, midY, showHealth?26:30, '#C8F54A', 'center', '900');
         }
       }
 
       var L=pairs.map(function(pr){return pr[0];});
       var R=pairs.map(function(pr){return pr[1];});
-      var y1=ny+scoreHdrH+24;
+      var y1=rowTop+scoreHdrH+22;
       drawPlayerRow(y1, leftRoster, leftElo, L, ${JSON.stringify(p.leftSets)}, ${p.winnerSide==='left'}, rowH);
       var y2=y1+rowH+6;
       drawPlayerRow(y2, rightRoster, rightElo, R, ${JSON.stringify(p.rightSets)}, ${p.winnerSide==='right'}, rowH2);
 
-      ny = ny + panelH + 12;
-
-      // Sağlık verileri — skor tabelesinin altında (toggle açıksa)
-      var includeHealth=${JSON.stringify(!!p.includeHealth)};
-      var healthTiles=${JSON.stringify((p.shareStats && p.shareStats.healthTiles) || [])};
-      var healthTitle=${JSON.stringify(p.healthTitle || 'HEALTH')};
-      var healthSrc=${JSON.stringify((p.shareStats && p.shareStats.workoutSource) || '')};
-      if(includeHealth && healthTiles.length){
-        var hCols=Math.min(4, healthTiles.length);
-        var hGap=8;
-        var hPad=14;
-        var hTileW=(W-112-hPad*2-(hCols-1)*hGap)/hCols;
-        var hTileH=78;
-        var hRows=Math.ceil(healthTiles.length/hCols);
-        var hBoxH=hPad+28+(healthSrc?18:0)+hRows*(hTileH+hGap)+hPad;
-        panel(56, ny, W-112, hBoxH);
-        text(healthTitle, 540, ny+24, 20, '#FB7185', 'center', '900');
-        if(healthSrc) text(healthSrc, 540, ny+44, 14, '#A8A29A', 'center', '700');
-        var hTop=ny+hPad+(healthSrc?48:32);
+      if(showHealth){
+        panel(healthX, rowTop, healthW, rowHReal);
+        text(healthTitle, healthX+healthW/2, rowTop+hPad+16, 16, '#FB7185', 'center', '900');
+        if(healthSrc) text(healthSrc, healthX+healthW/2, rowTop+hPad+30, 11, '#A8A29A', 'center', '700');
+        var hTop=rowTop+hPad+hHeader+4;
         healthTiles.forEach(function(tile,i){
-          var col=i%hCols;
-          var row=Math.floor(i/hCols);
-          var tx=56+hPad+col*(hTileW+hGap);
-          var ty=hTop+row*(hTileH+hGap);
-          roundRect(tx,ty,hTileW,hTileH,12);
+          var ty=hTop+i*(hTileH+6);
+          roundRect(healthX+hPad, ty, healthW-hPad*2, hTileH, 10);
           ctx.fillStyle='rgba(251,113,133,0.10)'; ctx.fill();
-          ctx.strokeStyle='rgba(251,113,133,0.35)'; ctx.lineWidth=1.5; ctx.stroke();
-          text(tile.value||'', tx+hTileW/2, ty+34, 22, '#F4F1EA', 'center', '900');
-          text(tile.label||'', tx+hTileW/2, ty+hTileH-16, 13, '#A8A29A', 'center', '700');
+          ctx.strokeStyle='rgba(251,113,133,0.35)'; ctx.lineWidth=1.2; ctx.stroke();
+          text(tile.value||'', healthX+healthW/2, ty+Math.round(hTileH*0.42), Math.min(20, Math.max(14, Math.floor(hTileH*0.38))), '#F4F1EA', 'center', '900');
+          text(tile.label||'', healthX+healthW/2, ty+hTileH-8, 11, '#A8A29A', 'center', '700');
         });
-        ny += hBoxH + 12;
       }
+
+      ny = rowTop + rowHReal + 12;
 
       // Turnuva skor paylaşımı: skor tablosu altında küçültülmüş puan tablosu
       var standingsTable=${JSON.stringify(p.standingsTable || null)};
@@ -694,10 +700,15 @@ export default function MatchResultShareModal({
     const [needCapture, setNeedCapture] = useState(false);
     const [captureHtml, setCaptureHtml] = useState(null);
     const [photoPreviewUri, setPhotoPreviewUri] = useState(null);
+    const [captureKey, setCaptureKey] = useState(0);
     const pendingAction = useRef(null);
     const bgDataRef = useRef(null);
     const avatarDataRef = useRef(null);
+    const payloadRef = useRef(null);
+    const previewOpenRef = useRef(false);
     const { width: winW, height: winH } = useWindowDimensions();
+    payloadRef.current = payload;
+    previewOpenRef.current = !!photoPreviewUri;
 
     useEffect(() => {
         if (!visible) {
@@ -848,7 +859,9 @@ export default function MatchResultShareModal({
         pendingAction.current = null;
         try {
             const b64 = dataUrl.replace(/^data:image\/png;base64,/, '');
-            const path = `${FileSystem.cacheDirectory}activity-match-${payload.id}.png`;
+            // Cache bust — Digimon/sağlık toggle sonrası eski önizleme kalmasın
+            const stamp = `${Date.now()}-${payload.includeDigimon ? 'd' : 'n'}-${payload.includeHealth ? 'h' : 'x'}`;
+            const path = `${FileSystem.cacheDirectory}activity-match-${payload.id}-${stamp}.png`;
             await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
             if (action === 'preview') {
                 setPhotoPreviewUri(path);
@@ -895,23 +908,42 @@ export default function MatchResultShareModal({
     };
 
     const start = async (action) => {
-        if (!payload || busy) return;
+        const p = payloadRef.current || payload;
+        if (!p || busy) return;
         pendingAction.current = action;
         setBusy(true);
         try {
             if (!bgDataRef.current) {
-                bgDataRef.current = await shareBackgroundToDataUrl(payload.subCategory, payload.surfaceRaw);
+                bgDataRef.current = await shareBackgroundToDataUrl(p.subCategory, p.surfaceRaw);
             }
-            if (!avatarDataRef.current && payload.sharerCard?.avatarUrl) {
-                avatarDataRef.current = await avatarToDataUrl(payload.sharerCard.avatarUrl);
+            // Digimon açıldıysa avatarı her seferinde güncel tut
+            if (p.includeDigimon && p.sharerCard?.avatarUrl) {
+                if (!avatarDataRef.current) {
+                    avatarDataRef.current = await avatarToDataUrl(p.sharerCard.avatarUrl);
+                }
             }
-            setCaptureHtml(cardHtml(payload, bgDataRef.current, avatarDataRef.current || avatarDataUrl));
-            setNeedCapture(true);
+            const html = cardHtml(p, bgDataRef.current, (p.includeDigimon ? (avatarDataRef.current || avatarDataUrl) : null));
+            // WebView'ı zorla yeniden mount et — eski HTML/önizleme kalmasın
+            setNeedCapture(false);
+            setCaptureHtml(null);
+            setCaptureKey((k) => k + 1);
+            setTimeout(() => {
+                setCaptureHtml(html);
+                setNeedCapture(true);
+            }, 30);
         } catch {
             setBusy(false);
             Alert.alert(t.error, t.shareMatchFail);
         }
     };
+
+    // Digimon / sağlık toggle değişince açık önizlemeyi aşamalı yenile
+    useEffect(() => {
+        if (!visible || !previewOpenRef.current || !payload || busy) return undefined;
+        const tmr = setTimeout(() => { start('preview'); }, 80);
+        return () => clearTimeout(tmr);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [includeDigimon, includeHealth]);
 
     const targets = [
         { id: 'preview', emoji: '👁', label: t.shareMatchPreviewBtn || 'Önizleme' },
@@ -1033,6 +1065,7 @@ export default function MatchResultShareModal({
                     </TouchableOpacity>
                     {photoPreviewUri ? (
                         <Image
+                            key={photoPreviewUri}
                             source={{ uri: photoPreviewUri }}
                             style={{ width: winW - 32, height: previewImgH, borderRadius: 12 }}
                             resizeMode="contain"
@@ -1044,6 +1077,7 @@ export default function MatchResultShareModal({
             {needCapture && captureHtml && (
                 <View style={s.hidden} pointerEvents="none">
                     <WebView
+                        key={`cap-${captureKey}`}
                         originWhitelist={['*']}
                         source={{ html: captureHtml }}
                         onMessage={(e) => onPng(e.nativeEvent?.data)}
