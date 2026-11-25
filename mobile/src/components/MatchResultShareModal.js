@@ -9,12 +9,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import useT from '../hooks/useT';
 import { useSelector } from 'react-redux';
 import colors from '../theme/colors';
-import { buildMatchSharePayload, buildSharerDigimonPayload, matchShareMessage, BRAND_LETTER_COLORS, UTR_SHARE_SUBS } from '../utils/matchShareCard';
+import {
+    buildMatchSharePayload, buildSharerDigimonPayload, matchShareMessage,
+    buildShareHealthFromWorkout, BRAND_LETTER_COLORS, UTR_SHARE_SUBS,
+} from '../utils/matchShareCard';
 import {
     buildTournamentMatchSharePayload,
     tournamentMatchShareMessage,
     tournamentMatchToShareMatch,
 } from '../utils/tournamentMatchShareCard';
+import { fetchMatchWorkoutStats, rivalMatchTimeWindow } from '../utils/matchHealthSync';
 import { shareBackgroundToDataUrl } from '../utils/matchShareBackground';
 import {
     shareToWhatsApp,
@@ -188,7 +192,8 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       var digSideGap=5;
       var approxDigW=sharer?Math.min(228, Math.max(140, brandLeft-digSideGap-12)):0;
       var centerMaxW=sharer?Math.max(280, W-2*(approxDigW+digSideGap+10)):940;
-      var ny=TOP+118;
+      // Rozet (MAÇ SONUCU) ile kazanan isimleri çakışmasın — blok biraz aşağı
+      var ny=TOP+158;
       if(tournName){
         var tLines=nameLines(tournName, centerMaxW, 36);
         tLines.forEach(function(ln){ text(ln, 540, ny, 36, '#F4F1EA', 'center', '900'); ny+=42; });
@@ -443,6 +448,37 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 
       ny = ny + panelH + 12;
 
+      // Sağlık verileri — skor tabelesinin altında (toggle açıksa)
+      var includeHealth=${JSON.stringify(!!p.includeHealth)};
+      var healthTiles=${JSON.stringify((p.shareStats && p.shareStats.healthTiles) || [])};
+      var healthTitle=${JSON.stringify(p.healthTitle || 'HEALTH')};
+      var healthSrc=${JSON.stringify((p.shareStats && p.shareStats.workoutSource) || '')};
+      if(includeHealth && healthTiles.length){
+        var hCols=Math.min(4, healthTiles.length);
+        var hGap=8;
+        var hPad=14;
+        var hTileW=(W-112-hPad*2-(hCols-1)*hGap)/hCols;
+        var hTileH=78;
+        var hRows=Math.ceil(healthTiles.length/hCols);
+        var hBoxH=hPad+28+(healthSrc?18:0)+hRows*(hTileH+hGap)+hPad;
+        panel(56, ny, W-112, hBoxH);
+        text(healthTitle, 540, ny+24, 20, '#FB7185', 'center', '900');
+        if(healthSrc) text(healthSrc, 540, ny+44, 14, '#A8A29A', 'center', '700');
+        var hTop=ny+hPad+(healthSrc?48:32);
+        healthTiles.forEach(function(tile,i){
+          var col=i%hCols;
+          var row=Math.floor(i/hCols);
+          var tx=56+hPad+col*(hTileW+hGap);
+          var ty=hTop+row*(hTileH+hGap);
+          roundRect(tx,ty,hTileW,hTileH,12);
+          ctx.fillStyle='rgba(251,113,133,0.10)'; ctx.fill();
+          ctx.strokeStyle='rgba(251,113,133,0.35)'; ctx.lineWidth=1.5; ctx.stroke();
+          text(tile.value||'', tx+hTileW/2, ty+34, 22, '#F4F1EA', 'center', '900');
+          text(tile.label||'', tx+hTileW/2, ty+hTileH-16, 13, '#A8A29A', 'center', '700');
+        });
+        ny += hBoxH + 12;
+      }
+
       // Turnuva skor paylaşımı: skor tablosu altında küçültülmüş puan tablosu
       var standingsTable=${JSON.stringify(p.standingsTable || null)};
       var hasStandings=!!(standingsTable && standingsTable.rows && standingsTable.rows.length);
@@ -549,9 +585,6 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         ny+=56;
       }
 
-      var src=${JSON.stringify((stats && stats.workoutSource) || '')};
-      if(src) text(src, 540, 1688, 22, '#A8A29A', 'center', '700');
-
       roundRect(180, CTA_Y, 720, 92, 46);
       ctx.fillStyle='#C8F54A'; ctx.fill();
       text(${JSON.stringify(p.ctaLabel||'AcTiViTy · Download')}, 540, 1776, 30, '#0B0C10', 'center', '900');
@@ -604,6 +637,8 @@ export default function MatchResultShareModal({
         doubles: { local: null, national: null, international: null },
     });
     const [includeDigimon, setIncludeDigimon] = useState(false);
+    const [includeHealth, setIncludeHealth] = useState(false);
+    const [liveHealth, setLiveHealth] = useState(null); // { healthTiles, workoutSource, hasWorkout }
     const [avatarDataUrl, setAvatarDataUrl] = useState(null);
     const shareMatch = useMemo(() => {
         if (!match) return null;
@@ -620,10 +655,22 @@ export default function MatchResultShareModal({
         const sharerCard = buildSharerDigimonPayload(myUser, sub, tournamentWins, t, lang, ranks);
         const isTourn = !!base.isTournament;
         const isUpcoming = !!base.isUpcoming;
+        const shareStats = {
+            ...(base.shareStats || {}),
+            ...(liveHealth?.hasWorkout ? liveHealth : {}),
+            healthTiles: (liveHealth?.healthTiles?.length
+                ? liveHealth.healthTiles
+                : (base.shareStats?.healthTiles || [])),
+            hasWorkout: !!(liveHealth?.hasWorkout || base.shareStats?.hasWorkout),
+            workoutSource: liveHealth?.workoutSource || base.shareStats?.workoutSource || '',
+        };
         return {
             ...base,
+            shareStats,
             sharerCard,
             includeDigimon,
+            includeHealth: includeHealth && !!shareStats.hasWorkout,
+            healthTitle: t.shareMatchHealthTitle || t.statWorkout || 'HEALTH',
             ctaLabel: t.shareMatchStoreCta || 'AcTiViTy · Uygulamayı indir',
             wonWord: isUpcoming
                 ? (t.shareTournMatchVsWord || 'VS')
@@ -638,7 +685,7 @@ export default function MatchResultShareModal({
             colPlayer: t.shareMatchColPlayer || (lang === 'tr' ? 'OYUNCU' : lang === 'ru' ? 'ИГРОК' : lang === 'de' ? 'SPIELER' : 'PLAYER'),
             colSets: t.shareMatchColSets || 'SETS',
         };
-    }, [visible, match, tournament, standings, shareMatch, t, lang, myUser, tournamentWins, ranks, includeDigimon]);
+    }, [visible, match, tournament, standings, shareMatch, t, lang, myUser, tournamentWins, ranks, includeDigimon, includeHealth, liveHealth]);
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const [captureHtml, setCaptureHtml] = useState(null);
@@ -661,8 +708,45 @@ export default function MatchResultShareModal({
                 doubles: { local: null, national: null, international: null },
             });
             setIncludeDigimon(false);
+            setIncludeHealth(false);
+            setLiveHealth(null);
         }
     }, [visible]);
+
+    // Maç için sağlık verisi: kayıtlı workout varsa onu kullan; yoksa saat/telefondan senkron dene
+    useEffect(() => {
+        if (!visible || !shareMatch) {
+            setLiveHealth(null);
+            return undefined;
+        }
+        let cancelled = false;
+        const existing = shareMatch?.score?.stats?.workout;
+        if (existing && (existing.avgHeartRate != null || existing.activeCalories != null || existing.maxHeartRate != null)) {
+            setLiveHealth(buildShareHealthFromWorkout(existing, shareMatch, t));
+            return undefined;
+        }
+        (async () => {
+            try {
+                const { startAt, endAt } = rivalMatchTimeWindow(shareMatch);
+                const res = await fetchMatchWorkoutStats({
+                    startAt,
+                    endAt,
+                    sport: shareMatch.subCategory,
+                    matchMode: shareMatch.matchType || shareMatch.matchMode,
+                    gender: myUser?.gender,
+                });
+                if (cancelled) return;
+                if (res?.workout) {
+                    setLiveHealth(buildShareHealthFromWorkout(res.workout, shareMatch, t));
+                } else {
+                    setLiveHealth(null);
+                }
+            } catch {
+                if (!cancelled) setLiveHealth(null);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [visible, shareMatch?.id, shareMatch?.score?.stats?.workout, myUser?.gender, t]);
 
     // Şampiyonluk + yerel/ulusal/uluslararası sıralama — UTR'de tekli ve çiftler ayrı
     useEffect(() => {
@@ -939,6 +1023,32 @@ export default function MatchResultShareModal({
                         </TouchableOpacity>
                     )}
 
+                    {/* Sağlık verileri — senkron/tahmin varsa; skor tabelesinin altına çizilir */}
+                    {!!payload.shareStats?.hasWorkout && (
+                        <TouchableOpacity
+                            style={[s.digimonToggle, includeHealth && s.healthToggleOn]}
+                            activeOpacity={0.8}
+                            onPress={() => setIncludeHealth((v) => !v)}
+                            disabled={busy}
+                        >
+                            <View style={[s.digimonCheckBox, includeHealth && s.healthCheckBoxOn]}>
+                                {includeHealth ? <Text style={s.digimonCheckMark}>✓</Text> : null}
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={s.digimonToggleTitle}>
+                                    {t.shareMatchHealthToggle || 'Sağlık verilerini de ekle'}
+                                </Text>
+                                <Text style={s.digimonToggleHint}>
+                                    {t.shareMatchHealthToggleHint
+                                        || 'Kalori, nabız ve süre skor tabelasının altında görünür'}
+                                    {payload.shareStats?.workoutSource
+                                        ? ` · ${payload.shareStats.workoutSource}`
+                                        : ''}
+                                </Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
+
                     {busy ? (
                         <ActivityIndicator color="#C8F54A" style={{ marginVertical: 28 }} />
                     ) : (
@@ -1012,6 +1122,8 @@ const s = StyleSheet.create({
         marginBottom: 12, borderWidth: 1, borderColor: '#2A2D36',
     },
     digimonToggleOn: { borderColor: '#C8F54A66', backgroundColor: '#C8F54A12' },
+    healthToggleOn: { borderColor: '#FB718566', backgroundColor: '#FB718512' },
+    healthCheckBoxOn: { borderColor: '#FB7185', backgroundColor: '#FB7185' },
     digimonCheckBox: {
         width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: '#78716C',
         alignItems: 'center', justifyContent: 'center',

@@ -254,27 +254,8 @@ function buildShareStats(match, t) {
     }
 
     const workout = raw.workout;
-    if (workout && (workout.avgHeartRate != null || workout.maxHeartRate != null || workout.activeCalories != null)) {
-        const tiles = [];
-        if (workout.avgHeartRate != null) {
-            tiles.push({ label: t?.statAvgHeartRate || 'Avg HR', value: `${Math.round(workout.avgHeartRate)} bpm` });
-        }
-        if (workout.maxHeartRate != null) {
-            tiles.push({ label: t?.statMaxHeartRate || 'Max HR', value: `${Math.round(workout.maxHeartRate)} bpm` });
-        }
-        if (workout.activeCalories != null) {
-            const approx = workout.source === 'estimated' ? ' ≈' : '';
-            tiles.push({
-                label: t?.statCalories || 'Active energy',
-                value: `${Math.round(workout.activeCalories)} kcal${approx}`,
-            });
-        }
-        panels.push({
-            title: t?.statWorkout || 'Workout',
-            accent: '#ef4444',
-            tiles,
-        });
-    }
+    // Sağlık paneli paylaşımda ayrı toggle ile çizilir (Digimon gibi) — genel panels'a karıştırma
+    const healthTiles = buildHealthTiles(workout, durationLabel, t);
 
     const highlights = [];
     if (raw.serve && (raw.serve[`returnGamesWon${myKey}`] || 0) >= 3) {
@@ -290,18 +271,71 @@ function buildShareStats(match, t) {
         highlights.push(t?.shareMatchHighlightHeart || 'High intensity');
     }
 
-    let workoutSource = '';
-    if (workout?.source === 'synced') workoutSource = t?.statWorkoutSourceSynced || 'WATCH + PHONE';
-    else if (workout?.source === 'estimated') workoutSource = t?.statWorkoutSourceEstimated || 'ESTIMATED';
-    else if (workout?.source === 'watch') workoutSource = t?.statWorkoutSourceWatch || 'WATCH';
-    else if (workout?.source === 'phone') workoutSource = t?.statWorkoutSourcePhone || 'PHONE';
-
     return {
         panels: panels.slice(0, 5),
         highlights: highlights.slice(0, 3),
-        workoutSource,
+        workoutSource: workoutSourceLabel(workout?.source, t),
         durationLabel,
-        hasWorkout: !!(workout && (workout.avgHeartRate != null || workout.activeCalories != null)),
+        healthTiles,
+        hasWorkout: healthTiles.length > 0,
+    };
+}
+
+/** Saat/sağlık özeti → paylaşım kartı karoları (kalori, nabız, süre…). Workout yoksa boş. */
+export function buildHealthTiles(workout, durationLabel, t) {
+    if (!workout || typeof workout !== 'object') return [];
+    const hasCore = workout.activeCalories != null
+        || workout.avgHeartRate != null
+        || workout.maxHeartRate != null;
+    if (!hasCore) return [];
+    const tiles = [];
+    if (workout.activeCalories != null) {
+        const approx = workout.source === 'estimated' ? ' ≈' : '';
+        tiles.push({
+            label: t?.statCalories || 'Active energy',
+            value: `${Math.round(workout.activeCalories)} kcal${approx}`,
+        });
+    }
+    if (workout.avgHeartRate != null) {
+        tiles.push({
+            label: t?.statAvgHeartRate || 'Avg HR',
+            value: `${Math.round(workout.avgHeartRate)} bpm`,
+        });
+    }
+    if (workout.maxHeartRate != null) {
+        tiles.push({
+            label: t?.statMaxHeartRate || 'Max HR',
+            value: `${Math.round(workout.maxHeartRate)} bpm`,
+        });
+    }
+    if (durationLabel) {
+        tiles.push({
+            label: t?.statMatchDuration || 'Duration',
+            value: String(durationLabel),
+        });
+    }
+    return tiles;
+}
+
+export function workoutSourceLabel(source, t) {
+    if (source === 'synced') return t?.statWorkoutSourceSynced || 'WATCH + PHONE';
+    if (source === 'estimated') return t?.statWorkoutSourceEstimated || 'ESTIMATED';
+    if (source === 'watch') return t?.statWorkoutSourceWatch || 'WATCH';
+    if (source === 'phone') return t?.statWorkoutSourcePhone || 'PHONE';
+    return '';
+}
+
+/** Maçtaki workout + isteğe bağlı taze senkron özetini healthTiles'e çevir. */
+export function buildShareHealthFromWorkout(workout, match, t) {
+    if (!workout) return null;
+    const durationLabel = formatDurationFromStats(match?.score?.stats, match?.duration, t);
+    const tiles = buildHealthTiles(workout, durationLabel, t);
+    if (!tiles.length) return null;
+    return {
+        healthTiles: tiles,
+        workoutSource: workoutSourceLabel(workout.source, t),
+        hasWorkout: true,
+        durationLabel,
     };
 }
 
