@@ -60,6 +60,7 @@ import VolleyballRatingModal from '../../components/VolleyballRatingModal';
 import AssessmentModal from '../../components/AssessmentModal';
 import ExtraServicesEditor from '../../components/ExtraServicesEditor';
 import GymSupportSection from '../../components/gym/GymSupportSection';
+import WorkoutSection from '../../components/workout/WorkoutSection';
 import TrailsTab from './TrailsTab';
 import { RUN_ACTIVITY_TYPES, RUN_TRAIL_SUBS } from '../../constants/runActivityTypes';
 import { shareRival, shareTournament, shareEquipment, shareCoach, shareClub } from '../../utils/share';
@@ -27303,7 +27304,10 @@ function SubCategoryScreen({ route, navigation }) {
     const [gymListCount, setGymListCount] = useState(0);
     const [gymCreateTick, setGymCreateTick] = useState(0);
     const [showFitnessGymsSheet, setShowFitnessGymsSheet] = useState(false);
-    // 'all' | 'events' | 'gyms'
+    const [openWorkoutsExpanded, setOpenWorkoutsExpanded] = useState(true);
+    const [workoutListCount, setWorkoutListCount] = useState(0);
+    const [workoutCreateTick, setWorkoutCreateTick] = useState(0);
+    // 'all' | 'events' | 'workouts' | 'gyms' — Antremanım, Salonlar'ın solunda
     const [fitnessListFilter, setFitnessListFilter] = useState('all');
     const [showCreatePW, setShowCreatePW] = useState(false);
     // Voleybol "Resmi Takım Adı" — kullanıcı isteği: Rakip Bul'daki "Rakip Aranıyor" ilanının
@@ -30382,6 +30386,7 @@ function SubCategoryScreen({ route, navigation }) {
                                     {[
                                         { key:'all', label: t.fitnessFilterAll },
                                         { key:'events', label: t.fitnessFilterEvents },
+                                        { key:'workouts', label: t.fitnessFilterWorkouts },
                                         { key:'gyms', label: t.fitnessFilterGyms },
                                     ].map(opt => (
                                         <TouchableOpacity key={opt.key}
@@ -30683,10 +30688,16 @@ function SubCategoryScreen({ route, navigation }) {
                             </TouchableOpacity>
                         ) : null}
                         {sub === 'fitness_gym' ? (
-                            <TouchableOpacity onPress={() => setShowFitnessGymsSheet(true)}
-                                style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#f9731620', borderWidth:1, borderColor:'#f9731650' }}>
-                                <Text style={{ color:'#fb923c', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{t.gymsSubTab}</Text>
-                            </TouchableOpacity>
+                            <>
+                                <TouchableOpacity onPress={() => { setFitnessListFilter('workouts'); setOpenWorkoutsExpanded(true); }}
+                                    style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#22c55e20', borderWidth:1, borderColor:'#22c55e50' }}>
+                                    <Text style={{ color:'#4ade80', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{t.workoutsSubTab}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={() => setShowFitnessGymsSheet(true)}
+                                    style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#f9731620', borderWidth:1, borderColor:'#f9731650' }}>
+                                    <Text style={{ color:'#fb923c', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{t.gymsSubTab}</Text>
+                                </TouchableOpacity>
+                            </>
                         ) : null}
                         <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
@@ -30734,6 +30745,13 @@ function SubCategoryScreen({ route, navigation }) {
                                 )}
                                 {sub === 'fitness_gym' && (
                                     <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, flex:1, borderColor: '#22c55e60' }]}
+                                        onPress={() => { setFitnessListFilter('workouts'); setOpenWorkoutsExpanded(true); setWorkoutCreateTick(n => n + 1); }}>
+                                        <Text style={[s.createBtnText, { color: '#4ade80' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.woCreatePlan}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                {sub === 'fitness_gym' && (
+                                    <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, flex:1, borderColor: '#f9731660' }]}
                                         onPress={() => setGymCreateTick(n => n + 1)}>
                                         <Text style={[s.createBtnText, { color: '#fb923c' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.addGymBtn}</Text>
@@ -30749,6 +30767,7 @@ function SubCategoryScreen({ route, navigation }) {
                                     {[
                                         { key:'all', label: t.fitnessFilterAll },
                                         { key:'events', label: t.fitnessFilterEvents },
+                                        { key:'workouts', label: t.fitnessFilterWorkouts },
                                         { key:'gyms', label: t.fitnessFilterGyms },
                                     ].map(opt => (
                                         <TouchableOpacity key={opt.key} onPress={() => setFitnessListFilter(opt.key)}
@@ -30759,7 +30778,7 @@ function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             )}
 
-                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && (
+                            {(sub !== 'fitness_gym' || (fitnessListFilter !== 'gyms' && fitnessListFilter !== 'workouts')) && (
                             <TouchableOpacity
                                 onPress={() => setOpenRivalsExpanded(v => !v)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: openRivalsExpanded ? 2 : 1 }}
@@ -30770,7 +30789,7 @@ function SubCategoryScreen({ route, navigation }) {
                                 </Text>
                             </TouchableOpacity>
                             )}
-                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && openRivalsExpanded && (
+                            {(sub !== 'fitness_gym' || (fitnessListFilter !== 'gyms' && fitnessListFilter !== 'workouts')) && openRivalsExpanded && (
                                 (filteredRivals.length === 0 && upcomingNeedingSubs.length === 0)
                                     ? (!listsReady ? null : <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />)
                                     : (
@@ -30804,6 +30823,29 @@ function SubCategoryScreen({ route, navigation }) {
                             
                             {sub === 'fitness_gym' && (
                                 <>
+                                    {/* Antremanım — Salonlar'ın solunda / üstünde */}
+                                    {(fitnessListFilter === 'all' || fitnessListFilter === 'workouts') && (
+                                    <TouchableOpacity
+                                        onPress={() => setOpenWorkoutsExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop: 8, marginBottom: openWorkoutsExpanded ? 2 : 1 }}
+                                    >
+                                        <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.workoutsSubTab} ({workoutListCount})</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                            {openWorkoutsExpanded ? '▼' : '›'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    )}
+                                    <View style={(fitnessListFilter === 'all' || fitnessListFilter === 'workouts') && openWorkoutsExpanded
+                                        ? undefined
+                                        : { height: 0, overflow: 'hidden', opacity: 0 }}>
+                                        <WorkoutSection
+                                            cfg={cfg}
+                                            hideCreateButton
+                                            createOpenTick={workoutCreateTick}
+                                            onCountChange={setWorkoutListCount}
+                                        />
+                                    </View>
+
                                     {(fitnessListFilter === 'all' || fitnessListFilter === 'gyms') && (
                                     <TouchableOpacity
                                         onPress={() => setOpenGymsExpanded(v => !v)}
@@ -30833,7 +30875,7 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
-                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && upcomingSubsFull.length > 0 && (
+                            {(sub !== 'fitness_gym' || (fitnessListFilter !== 'gyms' && fitnessListFilter !== 'workouts')) && upcomingSubsFull.length > 0 && (
                                 <>
                                     <TouchableOpacity
                                         onPress={() => setUpcomingExpanded(v => !v)}
@@ -30857,7 +30899,7 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             {/* Oynanan Maçlar — maç saati gelmiş ama süresi henüz dolmamış maçlar */}
-                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && playingMatches.length > 0 && (
+                            {(sub !== 'fitness_gym' || (fitnessListFilter !== 'gyms' && fitnessListFilter !== 'workouts')) && playingMatches.length > 0 && (
                                 <>
                                     <TouchableOpacity
                                         onPress={() => setPlayingExpanded(v => !v)}
