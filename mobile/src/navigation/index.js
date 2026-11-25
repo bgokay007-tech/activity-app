@@ -130,6 +130,21 @@ function navigateFromNotif(data, isBusiness) {
         });
     } else if (type === 'SCORE_DISPUTED' && data.scoreAppeal) {
         goToAppScreen(isBusiness, 'ProfileTab', { screen: 'AdminPortal', params: { tab: 'disputes' } });
+    } else if ((type === 'POST_MENTION' || type === 'REEL_MENTION' || type === 'STORY_MENTION') && data.category && data.subCategory) {
+        // OS push tıklaması — Yazılar/Medya + yorumlar açık (NotificationsScreen ile aynı).
+        const isMedia = data.postType === 'STORY' || data.postType === 'REEL'
+            || type === 'STORY_MENTION' || type === 'REEL_MENTION';
+        goToAppScreen(isBusiness, 'HomeTab', {
+            screen: 'SubCategory',
+            params: {
+                category: data.category,
+                sub: data.subCategory,
+                initialTab: isMedia ? 'media' : 'posts',
+                openPostId: data.postId || null,
+                autoOpenComments: true,
+                notifNavKey,
+            },
+        });
     } else if (adminPortalParamsForNotif(type, data)) {
         // Kullanıcı talebi / onay kuyruğu — AdminPortal ilgili sekme (uygulama-içi
         // NotificationsScreen ile aynı harita; OS push tıklaması için AYRI yol).

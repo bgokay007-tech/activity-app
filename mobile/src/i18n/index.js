@@ -1820,6 +1820,7 @@ const en = {
     gymDeleteTitle: 'Delete gym?',
     gymDeleteMsg: 'This gym listing will be removed.',
     emptyPosts: 'No text posts yet',
+    postCommentsToggle: 'Comments',
 
     // Duration & surface labels
     minuteSuffix: 'min',
@@ -5173,6 +5174,7 @@ const tr = {
     gymDeleteTitle: 'Salon silinsin mi?',
     gymDeleteMsg: 'Salon ilanı kaldırılacak.',
     emptyPosts: 'Henüz yazılı gönderi yok',
+    postCommentsToggle: 'Yorumlar',
 
     // Duration & surface labels
     minuteSuffix: 'dk',
@@ -8523,6 +8525,7 @@ const ru = {
     gymDeleteTitle: 'Удалить зал?',
     gymDeleteMsg: 'Объявление зала будет удалено.',
     emptyPosts: 'Пока нет текстовых постов',
+    postCommentsToggle: 'Комментарии',
 
     // Duration & surface labels
     minuteSuffix: 'мин',
@@ -11872,6 +11875,7 @@ const de = {
     gymDeleteTitle: 'Studio löschen?',
     gymDeleteMsg: 'Das Studio-Inserat wird entfernt.',
     emptyPosts: 'Noch keine Textbeiträge',
+    postCommentsToggle: 'Kommentare',
 
     // Duration & surface labels
     minuteSuffix: 'Min',

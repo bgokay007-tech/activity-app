@@ -26,10 +26,19 @@ export function getMentionQuery(text) {
     return m ? m[1] : null;
 }
 
+/** Dal alias'ı varsa o; yoksa gerçek isim (boşluk→_); yoksa username. */
+export function mentionTagForUser(u) {
+    if (u?.alias) return String(u.alias).trim();
+    const name = String(u?.fullName || '').trim();
+    if (name) return name.replace(/\s+/g, '_');
+    return u?.username || '';
+}
+
 /**
  * Instagram tarzı yazı alanı: @ yazınca kullanıcı önerisi çıkar.
  * value/onChangeText dışarıda tutulur (caption state).
- * category/subCategory verilirse o dalın spor alias'ı aranır ve etiketlenir.
+ * category/subCategory verilirse o dalın spor alias'ı aranır ve etiketlenir;
+ * alias yoksa gerçek isimle etiketler.
  */
 export default function MentionCaptionInput({
     value,
@@ -62,12 +71,17 @@ export default function MentionCaptionInput({
                     subCategory ? `subCategory=${encodeURIComponent(subCategory)}` : '',
                     category ? `category=${encodeURIComponent(category)}` : '',
                 ].filter(Boolean).join('&');
-                const mapUser = (u) => ({
-                    id: u.id,
-                    username: u.username,
-                    fullName: u.fullName,
-                    alias: u.interests?.[0]?.alias || null,
-                });
+                const mapUser = (u) => {
+                    const sportInterest = Array.isArray(u.interests)
+                        ? (u.interests.find(i => !subCategory || i.subCategory === subCategory) || u.interests[0])
+                        : null;
+                    return {
+                        id: u.id,
+                        username: u.username,
+                        fullName: u.fullName,
+                        alias: sportInterest?.alias || null,
+                    };
+                };
                 if (query.length === 0) {
                     const { data } = await api.get('/friends');
                     const rows = Array.isArray(data) ? data : [];
@@ -102,7 +116,9 @@ export default function MentionCaptionInput({
     }, [query, category, subCategory]);
 
     const pick = (user) => {
-        onChangeText(insertMention(value, user.alias || user.username));
+        const tag = mentionTagForUser(user);
+        if (!tag) return;
+        onChangeText(insertMention(value, tag));
         setSuggestions([]);
     };
 
@@ -127,19 +143,22 @@ export default function MentionCaptionInput({
                     nestedScrollEnabled>
                     {loading && suggestions.length === 0 ? (
                         <ActivityIndicator color="#a78bfa" style={{ marginVertical: 12 }} />
-                    ) : suggestions.map(u => (
-                        <TouchableOpacity
-                            key={u.id}
-                            onPress={() => pick(u)}
-                            style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
-                            <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800' }}>@{u.alias || u.username}</Text>
-                            {!!(u.fullName || (u.alias && u.username)) && (
-                                <Text style={{ color: colors.textMuted, fontSize: 10 }}>
-                                    {u.alias ? (u.fullName || u.username) : u.fullName}
-                                </Text>
-                            )}
-                        </TouchableOpacity>
-                    ))}
+                    ) : suggestions.map(u => {
+                        const tag = mentionTagForUser(u);
+                        return (
+                            <TouchableOpacity
+                                key={u.id}
+                                onPress={() => pick(u)}
+                                style={{ paddingHorizontal: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#334155' }}>
+                                <Text style={{ color: '#a78bfa', fontSize: 12, fontWeight: '800' }}>@{tag}</Text>
+                                {!!(u.fullName || u.username) && tag !== u.username && (
+                                    <Text style={{ color: colors.textMuted, fontSize: 10 }}>
+                                        {u.alias ? (u.fullName || u.username) : `@${u.username}`}
+                                    </Text>
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
                 </ScrollView>
             )}
         </View>

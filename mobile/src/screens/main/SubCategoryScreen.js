@@ -30,6 +30,7 @@ import { addMatchUpdateListener, addWatchPointListener, isWatchConnected, hasWea
 import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
+import { fetchMatchWorkoutStats, rivalMatchTimeWindow } from '../../utils/matchHealthSync';
 import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, syncDecidingSet, formatSetScore, racketAlertText, encodeSetsFormat, decodeSetsFormat, decidingTiebreakAllowed } from '../../utils/racketScore';
 import api from '../../services/api';
 import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache, hydrateBranch } from '../../services/branchCache';
@@ -7867,10 +7868,21 @@ function UpcomingCard({ match, myId, onRefresh, isMatched, onOpenComments, onUse
                 opponent: iAmFounderSide ? (parseInt(r.opp) || 0) : (parseInt(r.my) || 0),
             }));
             const scoreWinner = racketPayload ? racketPayload.winner : autoWinner;
-            // stats içindeki A/B etiketleri her zaman "canlı takibi başlatan taraf = A" anlamına
-            // gelir (bkz. liveMatchEngine.js) — sender/opponent'a hangisinin karşılık geldiğini
-            // arşiv gösteriminin çözebilmesi için perspective alanı eklenir.
-            const statsToSend = pendingLiveStats ? { ...pendingLiveStats, perspective: iAmFounderSide ? 'sender' : 'opponent' } : null;
+            // stats: canlı takip varsa onu kullan; yoksa telefon/saat Sağlık uygulamasından
+            // (Health Connect / HealthKit) senkron dene — canlı→arşiv yolu zaten finishAndReport'ta.
+            let statsToSend = pendingLiveStats
+                ? { ...pendingLiveStats, perspective: iAmFounderSide ? 'sender' : 'opponent' }
+                : null;
+            if (!statsToSend) {
+                try {
+                    const { startAt, endAt } = rivalMatchTimeWindow(match);
+                    const synced = await fetchMatchWorkoutStats({
+                        startAt, endAt,
+                        sport: match.subCategory, matchMode: match.matchMode, gender: myGender,
+                    });
+                    if (synced) statsToSend = { ...synced, perspective: iAmFounderSide ? 'sender' : 'opponent' };
+                } catch { /* sağlık senkronu başarısızsa skoru yine gönder */ }
+            }
             const doRequest = () => api.patch(`/rivals/${match.id}/score`, { sets: apiSets, winner: scoreWinner, ...(statsToSend && { stats: statsToSend }) });
             try {
                 await doRequest();
@@ -26026,7 +26038,8 @@ function SubCategoryScreen({ route, navigation }) {
     const { category, sub, initialTab, highlightRivalId, inviteSide, inviteSlotIndex, inviteDoubleSlot, initialTournSubTab, openChatTournamentId, highlightTournamentId, openMatchId, openMatchTournamentId,
             openExpiredResolve,
             openCreateRival, prefillDate, prefillTime, prefillDuration, prefillCourtName, prefillCity, prefillVenueId, prefillVenueCourtId, prefillCourtFee, prefillReservationId, prefillSurface, prefillIndoor,
-            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter, notifNavKey } = route.params;
+            openEquipmentId, initialCoachSubTab, openCoachId, initialArchiveSubTab, openArchiveTournamentId, autoOpenOrder, initialDateFilter, notifNavKey,
+            openPostId, autoOpenComments } = route.params;
     const dispatch = useDispatch();
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
@@ -26764,6 +26777,9 @@ function SubCategoryScreen({ route, navigation }) {
     const [archivePlayerQuery, setArchivePlayerQuery] = useState('');
     const [archivePlayerSuggestions, setArchivePlayerSuggestions] = useState([]);
     const [archivePlayerSearching, setArchivePlayerSearching] = useState(false);
+    // Kullanıcı isteği (tenis+): arşivde "Kendi yaptığım maçlar" — sadece benim maçlarım /
+    // katıldığım turnuvalar (ve turnuva detayında sadece benim maçlarım).
+    const [archiveMyMatchesOnly, setArchiveMyMatchesOnly] = useState(false);
     useEffect(() => {
         const q = archivePlayerQuery.trim();
         if (q.length < 2) { setArchivePlayerSuggestions([]); return; }
@@ -26812,6 +26828,24 @@ function SubCategoryScreen({ route, navigation }) {
         }
     }, [route.params?.openPeerReviewRivalId, archiveRivals]);
 
+    // Etiket bildiriminden gelen yazı listede yoksa tekil çekip Yazılar'a ekle.
+    const openPostFetchedRef = useRef(null);
+    useEffect(() => {
+        if (!openPostId) return;
+        const key = `${openPostId}:${notifNavKey || ''}`;
+        if (openPostFetchedRef.current === key) return;
+        openPostFetchedRef.current = key;
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+            try {
+                const { data } = await api.get(`/posts/${openPostId}`);
+                if (cancelled || !data?.id) return;
+                setTextPosts(prev => (prev.some(p => p.id === data.id) ? prev : [data, ...prev]));
+            } catch { /* yoksa sessiz */ }
+        }, 600);
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [openPostId, notifNavKey]);
+
     useEffect(() => {
         if (['open','inprogress'].includes(route.params?.initialTournSubTab)) {
             setTournSubTab(route.params.initialTournSubTab);
@@ -26851,9 +26885,10 @@ function SubCategoryScreen({ route, navigation }) {
     }, [archiveSubTab]);
     const archiveFilterSummaryLabel = () => {
         const parts = [];
+        if (archiveMyMatchesOnly) parts.push(t.archiveFilterMyMatches || (lang === 'tr' ? 'Maçlarım' : 'My matches'));
         if (archiveCity) parts.push(archiveDistrict ? `${archiveCity} / ${archiveDistrict}` : archiveCity);
         if (archiveDateFrom || archiveDateTo) parts.push(`${archiveDateFrom || '…'}–${archiveDateTo || '…'}`);
-        if (archivePlayer) parts.push(archivePlayer.fullName || archivePlayer.username);
+        if (archivePlayer && !archiveMyMatchesOnly) parts.push(archivePlayer.fullName || archivePlayer.username);
         return parts.length ? parts.join(' · ') : (lang==='tr' ? 'Filtrele' : lang === 'ru' ? 'Фильтр' : lang === 'de' ? 'Filter' : 'Filter');
     };
     const archiveLocFilterActive = !!(archiveCity || archiveDistrict);
@@ -26887,6 +26922,7 @@ function SubCategoryScreen({ route, navigation }) {
     const [submittingRefereeReview, setSubmittingRefereeReview] = useState(false);
     const [selectedArchiveTournament, setSelectedArchiveTournament] = useState(null);
     const [archiveModalMatches, setArchiveModalMatches] = useState([]);
+    const [archiveModalMySideIds, setArchiveModalMySideIds] = useState([]); // userId + team id'ler
     const [archiveModalLoading, setArchiveModalLoading] = useState(false);
     const [archiveModalTab, setArchiveModalTab] = useState('details');
 
@@ -27885,13 +27921,14 @@ function SubCategoryScreen({ route, navigation }) {
         if (activeTab !== 'archive') return;
         setLoadingArchive(true);
         // Fitness: geçmişte katıldığı etkinlikler — sadece kullanıcının katıldıkları.
+        // "Kendi yaptığım maçlar": scope=all gönderme → backend sadece benim maçlarımı döner.
         const params = new URLSearchParams({ category, subCategory: sub });
-        if (sub !== 'fitness_gym') params.set('scope', 'all');
+        if (sub !== 'fitness_gym' && !archiveMyMatchesOnly) params.set('scope', 'all');
         if (archiveCity) params.set('city', archiveCity);
         if (archiveDistrict) params.set('district', archiveDistrict);
         if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
         if (archiveDateTo) params.set('dateTo', archiveDateTo);
-        if (archivePlayer && sub !== 'fitness_gym') params.set('player', archivePlayer.id);
+        if (archivePlayer && sub !== 'fitness_gym' && !archiveMyMatchesOnly) params.set('player', archivePlayer.id);
         api.get(`/archive?${params.toString()}`)
             .then(res => {
                 setArchiveRivals(res.data?.rivals || []);
@@ -27902,7 +27939,7 @@ function SubCategoryScreen({ route, navigation }) {
             })
             .catch(() => {})
             .finally(() => setLoadingArchive(false));
-    }, [activeTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo, archivePlayer]);
+    }, [activeTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo, archivePlayer, archiveMyMatchesOnly]);
 
     const loadArchiveGyms = useCallback(async () => {
         if (activeTab !== 'archive' || archiveSubTab !== 'salons' || sub !== 'fitness_gym') return;
@@ -27959,11 +27996,13 @@ function SubCategoryScreen({ route, navigation }) {
             if (archiveDistrict) params.set('district', archiveDistrict);
             if (archiveDateFrom) params.set('dateFrom', archiveDateFrom);
             if (archiveDateTo) params.set('dateTo', archiveDateTo);
+            // Kendi yaptığım: sadece katıldığım / oluşturduğum turnuvalar
+            if (archiveMyMatchesOnly && myId) params.set('participantId', myId);
             const { data } = await api.get(`/tournaments/archived?${params.toString()}`);
             setArchiveTournaments(Array.isArray(data) ? data : []);
         } catch { /* silent */ }
         finally { setLoadingArchiveTournaments(false); }
-    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo]);
+    }, [activeTab, archiveSubTab, category, sub, archiveCity, archiveDistrict, archiveDateFrom, archiveDateTo, archiveMyMatchesOnly, myId]);
 
     useEffect(() => {
         const task = InteractionManager.runAfterInteractions(() => { loadArchiveTournaments(); });
@@ -27971,12 +28010,23 @@ function SubCategoryScreen({ route, navigation }) {
     }, [loadArchiveTournaments]);
 
     useEffect(() => {
-        if (!selectedArchiveTournament) { setArchiveModalMatches([]); return; }
+        if (!selectedArchiveTournament) {
+            setArchiveModalMatches([]);
+            setArchiveModalMySideIds([]);
+            return;
+        }
         setArchiveModalTab('details');
         setArchiveModalLoading(true);
         api.get(`/tournaments/${selectedArchiveTournament.id}/matches`)
-            .then(res => setArchiveModalMatches(Array.isArray(res.data?.matches) ? res.data.matches : []))
-            .catch(() => setArchiveModalMatches([]))
+            .then(res => {
+                setArchiveModalMatches(Array.isArray(res.data?.matches) ? res.data.matches : []);
+                const sides = [];
+                if (myId) sides.push(myId);
+                if (res.data?.myTeamId) sides.push(res.data.myTeamId);
+                if (Array.isArray(res.data?.myTeamIds)) sides.push(...res.data.myTeamIds);
+                setArchiveModalMySideIds([...new Set(sides.filter(Boolean))]);
+            })
+            .catch(() => { setArchiveModalMatches([]); setArchiveModalMySideIds([]); })
             .finally(() => setArchiveModalLoading(false));
     }, [selectedArchiveTournament?.id]);
 
@@ -33565,9 +33615,9 @@ function SubCategoryScreen({ route, navigation }) {
                                 (bkz. showArchiveFilterModal). */}
                             <TouchableOpacity
                                 onPress={() => setShowArchiveFilterModal(true)}
-                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.border }}
+                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color : colors.border }}
                             >
-                                <Text style={{ color: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                <Text style={{ color: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                                     🔍 {archiveFilterSummaryLabel()}
                                 </Text>
                                 <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
@@ -33583,6 +33633,31 @@ function SubCategoryScreen({ route, navigation }) {
                                         <TouchableOpacity onPress={() => setShowArchiveFilterModal(false)}><Text style={{ color:colors.textMuted, fontSize:22 }}>✕</Text></TouchableOpacity>
                                     </View>
                                     <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always">
+                                        {sub !== 'fitness_gym' && (archiveSubTab === 'rivals' || archiveSubTab === 'tournaments') && (
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    setArchiveMyMatchesOnly(v => {
+                                                        const next = !v;
+                                                        if (next) { setArchivePlayer(null); setArchivePlayerQuery(''); }
+                                                        return next;
+                                                    });
+                                                }}
+                                                style={{
+                                                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                                    backgroundColor: archiveMyMatchesOnly ? cfg.color + '25' : colors.surface2,
+                                                    borderRadius: 12, borderWidth: 1,
+                                                    borderColor: archiveMyMatchesOnly ? cfg.color + '80' : colors.border,
+                                                    paddingVertical: 12, paddingHorizontal: 13, marginBottom: 16,
+                                                }}
+                                            >
+                                                <Text style={{ color: archiveMyMatchesOnly ? '#fff' : colors.textSecondary, fontSize: 14, fontWeight: '800', flex: 1 }}>
+                                                    {t.archiveFilterMyMatches || 'Kendi yaptığım maçlar'}
+                                                </Text>
+                                                <Text style={{ color: archiveMyMatchesOnly ? cfg.color : colors.textMuted, fontSize: 16, fontWeight: '900' }}>
+                                                    {archiveMyMatchesOnly ? '✓' : '○'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
                                         {/* Kullanıcı isteği: Konum değil İl + altında İlçe; harf yazdıkça öneri. */}
                                         <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
                                             <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700' }}>📍 {t.archiveFilterProvince}</Text>
@@ -34922,7 +34997,9 @@ function SubCategoryScreen({ route, navigation }) {
                             return (POSTS_DATE_OPTS.find(([v]) => v === postsTimeFilter) || POSTS_DATE_OPTS[0])[1];
                         };
                         const postsFilterActive = !!(postsCity || postsUsername || postsTimeFilter !== 'ALL');
-                        const filteredPosts = textPosts.filter(p => {
+                        let filteredPosts = textPosts.filter(p => {
+                            // Etiket bildiriminden gelen yazı filtrede olsa bile listede kalsın.
+                            if (openPostId && p.id === openPostId) return true;
                             if (postsCity) {
                                 const c = (p.user?.city || '').toLowerCase();
                                 if (!c.includes(postsCity.toLowerCase())) return false;
@@ -34945,6 +35022,10 @@ function SubCategoryScreen({ route, navigation }) {
                             }
                             return true;
                         });
+                        if (openPostId) {
+                            const pinned = filteredPosts.find(p => p.id === openPostId);
+                            if (pinned) filteredPosts = [pinned, ...filteredPosts.filter(p => p.id !== openPostId)];
+                        }
                         return (
                         <>
                             <View style={{ backgroundColor: colors.surface2, borderRadius: 12, padding: 9, marginBottom: 12, borderWidth: 1, borderColor: colors.border }}>
@@ -35026,7 +35107,15 @@ function SubCategoryScreen({ route, navigation }) {
                             {filteredPosts.length === 0
                                 ? <EmptyState emoji="✏️" text={t.emptyPosts} />
                                 : filteredPosts.map(post => (
-                                    <TextPostCard key={post.id} post={post} cfg={cfg} />
+                                    <TextPostCard
+                                        key={post.id}
+                                        post={post}
+                                        cfg={cfg}
+                                        category={category}
+                                        subCategory={sub}
+                                        autoOpenComments={!!autoOpenComments && post.id === openPostId}
+                                        highlighted={post.id === openPostId}
+                                    />
                                 ))
                             }
                         </>
@@ -35942,12 +36031,24 @@ function SubCategoryScreen({ route, navigation }) {
                                                 : archiveModalMatches.length === 0
                                                     ? <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>{t.sc_1193}</Text>
                                                     : (() => {
+                                                        // "Kendi yaptığım maçlar" filtresi açıksa sadece benim taraf olduğum maçlar
+                                                        const matchesToShow = archiveMyMatchesOnly && archiveModalMySideIds.length
+                                                            ? archiveModalMatches.filter(m =>
+                                                                archiveModalMySideIds.includes(m.p1Id) || archiveModalMySideIds.includes(m.p2Id))
+                                                            : archiveModalMatches;
+                                                        if (matchesToShow.length === 0) {
+                                                            return (
+                                                                <Text style={{ color:colors.textMuted, textAlign:'center', marginTop:20, fontSize:13 }}>
+                                                                    {t.archiveFilterMyMatchesEmpty || t.sc_1193}
+                                                                </Text>
+                                                            );
+                                                        }
                                                         const seen = new Set();
-                                                        const roundKeys = archiveModalMatches
+                                                        const roundKeys = matchesToShow
                                                             .filter(m => { const k=`${m.phase}|${m.round}`; if (seen.has(k)) return false; seen.add(k); return true; })
                                                             .map(m => ({ phase:m.phase, round:m.round }));
                                                         return roundKeys.map(({ phase, round }) => {
-                                                            const rMatches = archiveModalMatches.filter(m => m.phase === phase && m.round === round);
+                                                            const rMatches = matchesToShow.filter(m => m.phase === phase && m.round === round);
                                                             return (
                                                                 <View key={`${phase}|${round}`} style={{ marginBottom:10 }}>
                                                                     <Text style={{ color:'#c084fc', fontSize:11, fontWeight:'800', marginBottom:6 }}>{getRoundLabel(round, phase)}</Text>

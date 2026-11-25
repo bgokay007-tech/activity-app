@@ -12,7 +12,6 @@ import { setUser } from '../../store/slices/authSlice';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import NotificationModePickerModal from '../../components/NotificationModePickerModal';
 import NotificationSettingsModal from '../../components/NotificationSettingsModal';
-import { sharePost } from '../../utils/share';
 import { adminPortalParamsForNotif } from '../../utils/adminNotifNav';
 import { STATIC_CATS as NOTIF_ALERT_CATS } from '../../constants/activityStaticCats';
 import {
@@ -558,39 +557,21 @@ export default function NotificationsScreen({ navigation }) {
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE' || type === 'TOURNAMENT_CHAT_MENTION') {
             goToSub('tournaments', null, data.tournamentId || null);
         } else if (type === 'POST_MENTION' || type === 'REEL_MENTION' || type === 'STORY_MENTION') {
-            // Etiketlenen kişi Instagram gibi hem görüntüleyip hem paylaşabilsin.
-            (async () => {
-                let post = {
-                    id: data.postId,
-                    type: data.postType || (type === 'REEL_MENTION' ? 'REEL' : type === 'STORY_MENTION' ? 'STORY' : 'POST'),
-                    content: item.body,
-                    user: { username: data.authorUsername, id: data.authorId },
-                };
-                try {
-                    if (data.postId) {
-                        const { data: p } = await api.get(`/posts/${data.postId}`);
-                        post = p;
-                    }
-                } catch { /* paylaşım yine de denenebilir */ }
-                Alert.alert(
-                    t.mentionTaggedTitle || 'Etiketlendin',
-                    t.mentionTaggedBody || 'Bu paylaşımı görüntüleyebilir veya paylaşabilirsin.',
-                    [
-                        { text: t.cancelBtn || 'Vazgeç', style: 'cancel' },
-                        { text: t.shareBtn || 'Paylaş', onPress: () => sharePost(post, t) },
-                        {
-                            text: t.viewBtn || 'Görüntüle',
-                            onPress: () => {
-                                if (data.authorId) {
-                                    navigation.push('UserPosts', { userId: data.authorId });
-                                } else if (data.category && data.subCategory) {
-                                    goToSub(data.postType === 'STORY' || type === 'STORY_MENTION' ? 'media' : 'posts');
-                                }
-                            },
-                        },
-                    ],
-                );
-            })();
+            // Etiket bildirimi → o dalın Yazılar/Medya sekmesi, yazı vurgulu + yorumlar açık.
+            if (data.category && data.subCategory) {
+                const isMedia = data.postType === 'STORY' || data.postType === 'REEL'
+                    || type === 'STORY_MENTION' || type === 'REEL_MENTION';
+                navigation.push('SubCategory', {
+                    category: String(data.category).toUpperCase(),
+                    sub: data.subCategory,
+                    initialTab: isMedia ? 'media' : 'posts',
+                    openPostId: data.postId || null,
+                    autoOpenComments: true,
+                    notifNavKey: String(Date.now()),
+                });
+            } else if (data.authorId) {
+                navigation.push('UserPosts', { userId: data.authorId });
+            }
         } else if (type === 'TOURNAMENT_MATCH_DEADLINE_WARNING' || type === 'TOURNAMENT_MATCH_AUTO_DRAW') {
             if (data.tournamentId) {
                 navigation.push('SubCategory', {

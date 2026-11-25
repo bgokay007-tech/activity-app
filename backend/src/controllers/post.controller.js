@@ -18,11 +18,14 @@ async function resolveMentionsFromContent(content, excludeUserId, { category, su
         [...String(content || '').matchAll(/@([\p{L}\p{N}._]+)/gu)].map(m => m[1].toLowerCase()),
     )];
     if (tags.length === 0) return [];
+    // Alias yoksa gerçek isim etiketlenir — boşluklar @_ ile yazılır (ör. @Burak_Yılmaz).
+    const fullNameEquals = [...new Set(tags.map(t => t.replace(/_/g, ' ')))];
     const users = await prisma.user.findMany({
         where: {
             id: { not: excludeUserId },
             OR: [
                 ...tags.map(u => ({ username: { equals: u, mode: 'insensitive' } })),
+                ...fullNameEquals.map(n => ({ fullName: { equals: n, mode: 'insensitive' } })),
                 ...(subCategory ? [{
                     interests: {
                         some: {
@@ -40,26 +43,30 @@ async function resolveMentionsFromContent(content, excludeUserId, { category, su
     return users.map(u => ({ userId: u.id, username: u.username }));
 }
 
-async function notifyPostMentions(post, mentions, author) {
+async function notifyPostMentions(post, mentions, author, { snippet: snippetOverride, fromComment = false } = {}) {
     if (!mentions?.length) return;
     const kind = post.type === 'REEL' ? 'reel' : post.type === 'STORY' ? 'hikaye' : 'gönderi';
     const notifType = post.type === 'REEL' ? 'REEL_MENTION' : post.type === 'STORY' ? 'STORY_MENTION' : 'POST_MENTION';
     const authorName = author?.fullName || author?.username || 'Birisi';
-    const snippet = String(post.content || '').trim().slice(0, 120);
+    const snippet = String(snippetOverride ?? post.content ?? '').trim().slice(0, 120);
+    const place = fromComment ? `${kind} yorumunda` : `${kind}de`;
     for (const m of mentions) {
-        if (!m.userId || m.userId === post.userId) continue;
+        if (!m.userId || m.userId === author?.id) continue;
         createNotification(
             m.userId,
             notifType,
-            `📣 ${kind.charAt(0).toUpperCase() + kind.slice(1)}de etiketlendin`,
-            snippet ? `${authorName}: ${snippet}` : `${authorName} seni bir ${kind}de etiketledi`,
+            `📣 ${place.charAt(0).toUpperCase() + place.slice(1)} etiketlendin`,
+            snippet ? `${authorName}: ${snippet}` : `${authorName} seni bir ${place} etiketledi`,
             {
                 postId: post.id,
-                postType: post.type,
+                postType: post.type || 'POST',
                 category: post.category,
                 subCategory: post.subCategory,
-                authorId: post.userId,
+                authorId: author?.id || post.userId,
                 authorUsername: author?.username,
+                // Etiket bildirimine tıklayınca yazı + yorumlar açık gelsin.
+                openComments: true,
+                fromComment: !!fromComment,
             },
         ).catch(() => {});
     }
@@ -598,11 +605,28 @@ export const addComment = async (req, res, next) => {
             const parent = await prisma.comment.findUnique({ where: { id: parentId }, select: { postId: true } });
             if (!parent || parent.postId !== id) return res.status(400).json({ message: 'Geçersiz yanıt' });
         }
+        const post = await prisma.post.findUnique({
+            where: { id },
+            select: { id: true, userId: true, type: true, category: true, subCategory: true },
+        });
+        if (!post) return res.status(404).json({ message: 'Not found' });
         const comment = await prisma.comment.create({
             data: { userId: req.userId, postId: id, content, parentId: parentId || null },
-            include: { user: { select: { id: true, username: true, avatar: true } } },
+            include: { user: { select: { id: true, username: true, avatar: true, fullName: true } } },
         });
         res.status(201).json(comment);
+
+        // Yorumdaki @etiket — yazıdaki gibi bildirim; tıklanınca yorumlar açık açılsın.
+        const mentions = await resolveMentionsFromContent(content, req.userId, {
+            category: post.category,
+            subCategory: post.subCategory,
+        });
+        if (mentions.length > 0) {
+            notifyPostMentions(post, mentions, comment.user, {
+                snippet: content,
+                fromComment: true,
+            }).catch(() => {});
+        }
     } catch (error) {
         next(error);
     }
