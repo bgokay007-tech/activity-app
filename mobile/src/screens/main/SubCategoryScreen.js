@@ -13051,70 +13051,79 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
 
     return (
         // Gruplu arşiv: satırda 2 kart, gap=1. Diğer: eski 3'lü ızgara.
+        // Kompakt: padding 3; isimler altlı üstlü, skorlar yanında → kart dar → 2v2 sola kayar.
         <View
             style={twoCol
                 ? { width: '50%', paddingHorizontal: 0.5, paddingBottom: 1 }
                 : [s.listGridCell, s.listGridCellThird, { paddingBottom: 1 }]}
             collapsable={false}
         >
-        <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:92 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
+        <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:0 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
             {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
             <TouchableOpacity
                 onPress={flipCard}
                 hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top:6, right:6, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:22, height:22, alignItems:'center', justifyContent:'center' }}
+                style={{ position:'absolute', top:3, right:3, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:20, height:20, alignItems:'center', justifyContent:'center' }}
             >
-                <Text style={{ fontSize:12 }}>🔄</Text>
+                <Text style={{ fontSize:11 }}>🔄</Text>
             </TouchableOpacity>
             {/* Kullanıcı isteği: canlı takiple (saat/telefon) girilmiş, detaylı istatistikleri olan
                 maçlar küçük bir rozetle işaretlensin — detaya girmeden ayırt edilebilsin. */}
             {m.score?.stats && (
-                <View style={{ position:'absolute', top:6, left:6, zIndex:10, backgroundColor:'#00000060', borderRadius:10, paddingHorizontal:5, paddingVertical:2 }}>
-                    <Text style={{ fontSize:10 }}>📊</Text>
+                <View style={{ position:'absolute', top:3, left:3, zIndex:10, backgroundColor:'#00000060', borderRadius:8, paddingHorizontal:3, paddingVertical:1 }}>
+                    <Text style={{ fontSize:9 }}>📊</Text>
                 </View>
             )}
             {cardFlipped ? (
-                <TouchableOpacity activeOpacity={0.85} style={{ padding:9, flex:1 }} onPress={onPress}>
-                    <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', marginBottom:6, paddingRight:22 }}>{t.rosterPoolLabel}</Text>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding:3, flex:1 }} onPress={onPress}>
+                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', marginBottom:3, paddingRight:20 }}>{t.rosterPoolLabel}</Text>
                     {/* Kullanıcı raporu: 1v1 maçlarda oyuncu ismi iki kere yazıyordu — tek kişilik
                         bir tarafta founderLabel/opponentLabel zaten senderAlias(founderSide[0])'a
                         (takım adı yokken kişinin kendi adına) düşüyor, altındaki .map de AYNI tek
                         kişiyi tekrar listeliyordu. Etiket satırı sadece gerçek bir takım (2+ kişi)
                         varken gösterilir; tek kişilik tarafta isim sadece roster satırında bir kez geçer. */}
                     {founderSide.length > 1 && (
-                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800', marginBottom:2 }} numberOfLines={1}>{founderLabel}</Text>
+                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800', marginBottom:1 }} numberOfLines={1}>{founderLabel}</Text>
                     )}
                     {founderSide.map(p => (
                         <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
                     ))}
                     {opponentSide.length > 1 && (
-                        <Text style={{ color:'#fca5a5', fontSize:10, fontWeight:'800', marginTop:6, marginBottom:2 }} numberOfLines={1}>{opponentLabel}</Text>
+                        <Text style={{ color:'#fca5a5', fontSize:10, fontWeight:'800', marginTop:3, marginBottom:1 }} numberOfLines={1}>{opponentLabel}</Text>
                     )}
                     {opponentSide.map(p => (
-                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11, marginTop: opponentSide.length > 1 ? 0 : 6 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
+                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11, marginTop: opponentSide.length > 1 ? 0 : 3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
                     ))}
                 </TouchableOpacity>
             ) : (
-                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:9 }}>
+                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:3 }}>
                     {(!hideFormatBadge || modeTxt) ? (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:3, flexWrap:'wrap', paddingRight:22 }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2, flexWrap:'wrap', paddingRight:20 }}>
                             {!hideFormatBadge ? (
-                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'800' }}>{sizeTxt}</Text>
+                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'800' }}>{sizeTxt}</Text>
                             ) : null}
-                            {!hideFormatBadge && modeTxt ? <Text style={{ color: colors.textMuted, fontSize:11 }}>·</Text> : null}
-                            {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:11, fontWeight:'700' }}>{modeTxt}</Text> : null}
+                            {!hideFormatBadge && modeTxt ? <Text style={{ color: colors.textMuted, fontSize:10 }}>·</Text> : null}
+                            {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:10, fontWeight:'700' }}>{modeTxt}</Text> : null}
                         </View>
                     ) : (
-                        <View style={{ height: 4, paddingRight: 22 }} />
+                        <View style={{ height: 2, paddingRight: 20 }} />
                     )}
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:2 }}>
-                        <Text style={{ color:'#93c5fd', fontSize:12, fontWeight:'700', flex:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{founderLabel}</Text>
-                        {sets && <Text style={{ color:'#fff', fontSize:14, fontWeight:'900' }}>{founderSetWins} - {opponentSetWins}</Text>}
-                        <Text style={{ color:'#fca5a5', fontSize:12, fontWeight:'700', flex:1, textAlign:'right' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{opponentLabel}</Text>
+                    {/* İsimler altlı üstlü; her ismin yanında kendi set skoru */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2, paddingRight: 18 }}>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{founderLabel}</Text>
+                            <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{opponentLabel}</Text>
+                        </View>
+                        {sets ? (
+                            <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 15 }}>{founderSetWins}</Text>
+                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 15 }}>{opponentSetWins}</Text>
+                            </View>
+                        ) : null}
                     </View>
-                    <Text style={{ color: colors.textMuted, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                    <Text style={{ color: colors.textMuted, fontSize: 10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                         {m.flexibleSchedule ? t.sc_0162 : m.matchDate ? new Date(m.matchDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' }) : ''}
-                        {!m.flexibleSchedule && m.matchTime ? ` · 🕐 ${m.matchTime}` : ''}
+                        {!m.flexibleSchedule && m.matchTime ? ` · ${m.matchTime}` : ''}
                         {m.duration != null ? t.sc_0304(m.duration) : ''}
                     </Text>
                 </TouchableOpacity>
@@ -33890,11 +33899,11 @@ function SubCategoryScreen({ route, navigation }) {
                                 }
                                 const singles = archiveRivals.filter(m => !isDoublesMatch(m)).sort(byRecent);
                                 const doubles = archiveRivals.filter(m => isDoublesMatch(m)).sort(byRecent);
-                                // Sol: 1v1 (eski ▼/◀ + ızgara), sağ: 2v2 aynı.
-                                // Panel ~ekran−56 → sağ kenarda 2v2 başlığı peek; sağa kaydırınca tam 2v2.
-                                // Her kategoride satırda 2 kart, gap=1 (önceki bölüm UI, 3’lü değil).
-                                const panelGap = 10;
-                                const panelW = Math.max(280, winW - 56);
+                                // Sol: 1v1, sağ: 2v2. Kompakt kartlar → panel ~yarı ekran,
+                                // 2v2 sola kayar (ikisi birden görünür); yine sağa kaydırılabilir.
+                                // Her kategoride satırda 2 kart, gap=1.
+                                const panelGap = 6;
+                                const panelW = Math.max(168, Math.floor((winW - moderateScale(8) - panelGap) / 2));
                                 const Section = ({ title, count, open, onToggle, list }) => (
                                     <View style={{ width: panelW, marginRight: panelGap }}>
                                         <TouchableOpacity
