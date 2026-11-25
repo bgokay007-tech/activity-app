@@ -7,7 +7,8 @@ const COL_W = 132;
 const COL_GAP = 28;
 const LINE = '#3b82f6';
 
-/** Tur etiketi: Final / Yarı / Çeyrek / Son 16 / Son 32 … */
+/** Tur etiketi: Final / Yarı / Çeyrek / Son 16 / Son 32 / 64 / 128 / 256 …
+ *  Bracket boyutu katılımcıya göre (nextPow2) — sabit “Son 32” yok. */
 export function elimRoundLabel(round, maxRound, t) {
     const fromEnd = maxRound - round;
     if (fromEnd === 0) return t.sc_0436 || t.tournElimFinal || 'Final';
@@ -17,8 +18,11 @@ export function elimRoundLabel(round, maxRound, t) {
     if (playersInRound === 16) return t.tournElimR16 || 'Son 16';
     if (playersInRound === 32) return t.tournElimR32 || 'Son 32';
     if (playersInRound === 64) return t.tournElimR64 || 'Son 64';
+    if (playersInRound === 128) return t.tournElimR128 || 'Son 128';
+    if (playersInRound === 256) return t.tournElimR256 || 'Son 256';
+    if (typeof t.tournElimRoundOf === 'function') return t.tournElimRoundOf(playersInRound);
     if (typeof t.sc_0439 === 'function') return t.sc_0439(round);
-    return `R${round}`;
+    return `Son ${playersInRound}`;
 }
 
 function sideWon(match, side) {
