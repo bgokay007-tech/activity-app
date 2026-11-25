@@ -33890,10 +33890,13 @@ function SubCategoryScreen({ route, navigation }) {
                                 }
                                 const singles = archiveRivals.filter(m => !isDoublesMatch(m)).sort(byRecent);
                                 const doubles = archiveRivals.filter(m => isDoublesMatch(m)).sort(byRecent);
-                                // 1v1 | 2v2 yan yana; sağa kaydır; her kategoride satırda 2 kart; gap=1
-                                const panelW = Math.max(280, winW - 24);
+                                // Sol: 1v1 (eski ▼/◀ + ızgara), sağ: 2v2 aynı.
+                                // Panel ~ekran−56 → sağ kenarda 2v2 başlığı peek; sağa kaydırınca tam 2v2.
+                                // Her kategoride satırda 2 kart, gap=1 (önceki bölüm UI, 3’lü değil).
+                                const panelGap = 10;
+                                const panelW = Math.max(280, winW - 56);
                                 const Section = ({ title, count, open, onToggle, list }) => (
-                                    <View style={{ width: panelW, marginRight: 10 }}>
+                                    <View style={{ width: panelW, marginRight: panelGap }}>
                                         <TouchableOpacity
                                             onPress={onToggle}
                                             activeOpacity={0.75}
@@ -33905,6 +33908,7 @@ function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                         </TouchableOpacity>
                                         {open && list.length > 0 ? (
+                                            // %50 hücre + gap Android'de taşar → gap yok, padding hücrede (gap≈1)
                                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -0.5 }}>
                                                 {list.map(m => renderCard(m, { hideFormatBadge: true, twoCol: true }))}
                                             </View>
@@ -33917,10 +33921,17 @@ function SubCategoryScreen({ route, navigation }) {
                                 return (
                                     <ScrollView
                                         horizontal
-                                        showsHorizontalScrollIndicator={false}
                                         nestedScrollEnabled
+                                        directionalLockEnabled
+                                        showsHorizontalScrollIndicator
+                                        decelerationRate="fast"
+                                        snapToInterval={panelW + panelGap}
+                                        snapToAlignment="start"
+                                        disableIntervalMomentum
                                         keyboardShouldPersistTaps="handled"
-                                        contentContainerStyle={{ paddingVertical: 5, paddingRight: 8 }}
+                                        overScrollMode="always"
+                                        bounces
+                                        contentContainerStyle={{ paddingVertical: 5, paddingRight: 24 }}
                                     >
                                         <Section
                                             title="1v1"
