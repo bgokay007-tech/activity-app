@@ -20,6 +20,14 @@ export function isoWeekdayFromYmd(ymd) {
     return js === 0 ? 7 : js;
 }
 
+/** Tenis: 24s müsaitlik + 7 gün oyun = 8; diğer sporlar 7. Backend ile aynı. */
+export function groupRoundCycleDays(tournamentOrSub) {
+    const sub = typeof tournamentOrSub === 'string'
+        ? tournamentOrSub
+        : tournamentOrSub?.subCategory;
+    return String(sub || '').toLowerCase() === 'tennis' ? 8 : 7;
+}
+
 /**
  * Maç müsaitlik penceresi — backend getMatchAvailWindow ile aynı mantık.
  * from/to: seçilebilir (geçmiş kırpılmış); roundStart/roundEnd: turun gerçek aralığı.
@@ -29,6 +37,7 @@ export function getMatchAvailWindow(tournament, match, { now = new Date() } = {}
     const today = toLocalYmd(now);
     let startYmd = null;
     let endYmd = match.deadline ? toLocalYmd(match.deadline) : null;
+    const cycle = groupRoundCycleDays(tournament);
 
     if (match.phase === 'PLAYOFF' && match.readyAt) {
         startYmd = toLocalYmd(match.readyAt);
@@ -36,10 +45,10 @@ export function getMatchAvailWindow(tournament, match, { now = new Date() } = {}
     } else if (tournament?.eventDate) {
         const baseYmd = toLocalYmd(tournament.eventDate);
         const round = Math.max(1, parseInt(match.round, 10) || 1);
-        startYmd = addDaysYmd(baseYmd, (round - 1) * 7);
-        if (!endYmd) endYmd = addDaysYmd(baseYmd, round * 7);
+        startYmd = addDaysYmd(baseYmd, (round - 1) * cycle);
+        if (!endYmd) endYmd = addDaysYmd(baseYmd, round * cycle);
     } else if (endYmd) {
-        startYmd = addDaysYmd(endYmd, -7);
+        startYmd = addDaysYmd(endYmd, -cycle);
     }
 
     if (!startYmd || !endYmd) return null;

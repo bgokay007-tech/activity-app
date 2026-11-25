@@ -42,9 +42,50 @@ export function isoWeekdayFromYmd(ymd) {
     return js === 0 ? 7 : js;
 }
 
+/** Grup turu oyun süresi (gün). */
+export const ROUND_PLAY_DAYS = 7;
+/** Tenis: her tur/grup öncesi müsaitlik bekleme (24 saat). */
+export const TENNIS_AVAIL_LEAD_DAYS = 1;
+/** Diğer sporlar (availability engine): tur öncesi müsaitlik (eski davranış). */
+export const DEFAULT_AVAIL_LEAD_DAYS = 3;
+
+export function isTennisTournament(tournamentOrSub) {
+    const sub = typeof tournamentOrSub === 'string'
+        ? tournamentOrSub
+        : tournamentOrSub?.subCategory;
+    return String(sub || '').toLowerCase() === 'tennis';
+}
+
+/** Tenis tur döngüsü: 24s müsaitlik + 7 gün oyun = 8 gün. */
+export function groupRoundCycleDays(tournamentOrSub) {
+    if (isTennisTournament(tournamentOrSub)) {
+        return TENNIS_AVAIL_LEAD_DAYS + ROUND_PLAY_DAYS;
+    }
+    return ROUND_PLAY_DAYS;
+}
+
+/** Grup maçı deadline = base + bu kadar gün (tur 1 → tenis 8, diğer 7). */
+export function groupRoundDeadlineOffsetDays(round, tournamentOrSub) {
+    const r = Math.max(1, parseInt(round, 10) || 1);
+    return r * groupRoundCycleDays(tournamentOrSub);
+}
+
+/** Müsaitlik penceresi başlangıcı: base'den kaç gün sonra (tur arasi 24s dahil). */
+export function groupRoundWindowStartOffsetDays(round, tournamentOrSub) {
+    const r = Math.max(1, parseInt(round, 10) || 1);
+    return (r - 1) * groupRoundCycleDays(tournamentOrSub);
+}
+
+export function groupMatchDeadlineFromBase(baseDate, round, tournamentOrSub) {
+    const d = new Date(baseDate);
+    d.setDate(d.getDate() + groupRoundDeadlineOffsetDays(round, tournamentOrSub));
+    return d;
+}
+
 /**
  * Maç / tur oynama penceresi (YYYY-MM-DD).
- * Grup: [eventDate+(round-1)*7 , deadline]
+ * Grup: [eventDate+(round-1)*cycle , deadline]
+ *   Tenis cycle=8 (24s müsaitlik + 7 gün oyun); diğer cycle=7
  * Play-off: [readyAt , deadline] (deadline yoksa readyAt+7)
  * Joker uzatması deadline'ı uzatır; başlangıç aynı kalır.
  */
@@ -60,10 +101,10 @@ export function getMatchAvailWindow(tournament, match, { now = new Date() } = {}
     } else if (tournament?.eventDate) {
         const baseYmd = toYmd(tournament.eventDate);
         const round = Math.max(1, parseInt(match.round, 10) || 1);
-        startYmd = addDaysYmd(baseYmd, (round - 1) * 7);
-        if (!endYmd) endYmd = addDaysYmd(baseYmd, round * 7);
+        startYmd = addDaysYmd(baseYmd, groupRoundWindowStartOffsetDays(round, tournament));
+        if (!endYmd) endYmd = addDaysYmd(baseYmd, groupRoundDeadlineOffsetDays(round, tournament));
     } else if (endYmd) {
-        startYmd = addDaysYmd(endYmd, -7);
+        startYmd = addDaysYmd(endYmd, -groupRoundCycleDays(tournament));
     }
 
     if (!startYmd || !endYmd) return null;
@@ -158,18 +199,46 @@ export function isYmdInWindow(ymd, fromYmd, toYmd) {
 }
 
 /**
- * Turnuva başlangıcından itibaren haftalık turlar.
- * Tur 1: ilk 3 gün müsaitlik, oyun T0+3 → T0+10
- * Sonraki turlar: oyun haftası başlamadan 3 gün müsaitlik
+ * Turnuva başlangıcından itibaren turlar.
+ * Varsayılan: ilk 3 gün müsaitlik, sonra 7 gün oyun; sonraki turlar oyun öncesi 3 gün
+ *   (oyun haftaları bitişik — eski davranış).
+ * Tenis (sequentialCycles + availLeadDays=1): her tur/grup arası 24s müsaitlik,
+ *   sonra 7 gün oyun; turlar ardışık (T0→24s→7g→24s→7g…).
  */
-export function buildWeeklyRounds(baseDate, weekCount) {
+export function buildWeeklyRounds(baseDate, weekCount, opts = {}) {
     const n = Math.max(1, Math.min(52, parseInt(weekCount) || 4));
+    const lead = opts.availLeadDays != null
+        ? Math.max(0, Number(opts.availLeadDays))
+        : DEFAULT_AVAIL_LEAD_DAYS;
+    const play = opts.playDays != null
+        ? Math.max(1, Number(opts.playDays))
+        : ROUND_PLAY_DAYS;
+    const sequential = !!opts.sequentialCycles;
     const rounds = [];
-    const week1PlayStart = addDays(baseDate, 3);
+
+    if (sequential) {
+        const cycle = lead + play;
+        for (let i = 0; i < n; i++) {
+            const cycleStart = addDays(baseDate, i * cycle);
+            const playStart = addDays(cycleStart, lead);
+            const playEnd = addDays(playStart, play);
+            rounds.push({
+                roundIndex: i + 1,
+                startDate: playStart,
+                endDate: playEnd,
+                availabilityOpenAt: new Date(cycleStart),
+                availabilityCloseAt: new Date(playStart),
+                status: i === 0 ? 'AVAIL_OPEN' : 'UPCOMING',
+            });
+        }
+        return rounds;
+    }
+
+    const week1PlayStart = addDays(baseDate, lead);
     for (let i = 0; i < n; i++) {
-        const playStart = addDays(week1PlayStart, i * 7);
-        const playEnd = addDays(playStart, 7);
-        const availabilityOpenAt = i === 0 ? new Date(baseDate) : addDays(playStart, -3);
+        const playStart = addDays(week1PlayStart, i * play);
+        const playEnd = addDays(playStart, play);
+        const availabilityOpenAt = i === 0 ? new Date(baseDate) : addDays(playStart, -lead);
         const availabilityCloseAt = new Date(playStart);
         rounds.push({
             roundIndex: i + 1,

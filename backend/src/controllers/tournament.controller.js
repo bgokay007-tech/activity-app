@@ -20,6 +20,7 @@ import {
     getMatchAvailWindow,
     constrainSlotsToWindow,
     isYmdInWindow,
+    groupMatchDeadlineFromBase,
 } from '../utils/tournamentAvailabilityMatch.js';
 import {
     swissRoundCount,
@@ -573,7 +574,7 @@ function pairByClosestElo(players, playedPairKeys) {
  *   2. Sort the generated rounds by average ELO diff (ascending) so round 1
  *      always contains the globally closest-rated pairings.
  */
-function fullRoundRobinByElo(teams, tournamentId, baseDate) {
+function fullRoundRobinByElo(teams, tournamentId, baseDate, subCategory = null) {
     const n = teams.length;
     if (n < 2) return [];
 
@@ -612,13 +613,12 @@ function fullRoundRobinByElo(teams, tournamentId, baseDate) {
         return avg(ra) - avg(rb);
     });
 
-    // Convert to match records with per-round deadlines (7 days per round)
+    // Convert to match records with per-round deadlines (tenis: 24s+7g = 8; diğer: 7)
     const matches = [];
     for (let r = 0; r < roundSets.length; r++) {
         const pairs = roundSets[r];
         if (pairs.length === 0) continue;
-        const deadline = new Date(baseDate);
-        deadline.setDate(deadline.getDate() + (r + 1) * 7);
+        const deadline = groupMatchDeadlineFromBase(baseDate, r + 1, subCategory);
         pairs.forEach((pair, idx) => {
             matches.push({
                 tournamentId,
@@ -644,8 +644,7 @@ async function createAmericanoRoundMatches(tournament, players, round, history, 
 
     const teamCreates = [];
     const matchRows = [];
-    const deadline = new Date(baseDate);
-    deadline.setDate(deadline.getDate() + round * 7);
+    const deadline = groupMatchDeadlineFromBase(baseDate, round, tournament);
 
     for (let idx = 0; idx < pairing.courts.length; idx++) {
         const { a, b } = pairing.courts[idx];
@@ -720,8 +719,7 @@ async function generateNextSwissRound(tournament, players, nextRound, groupMatch
         .map(m => [m.p1Id, m.p2Id].sort().join('|'));
     const pairing = pairSwissRound(enriched, playedPairKeys);
     const baseDate = tournamentBaseDate(tournament);
-    const deadline = new Date(baseDate);
-    deadline.setDate(deadline.getDate() + nextRound * 7);
+    const deadline = groupMatchDeadlineFromBase(baseDate, nextRound, tournament);
     return swissMatchesFromPairing(tournament.id, nextRound, pairing, deadline);
 }
 
@@ -782,8 +780,11 @@ function matchExtendedByJoker(tournament, match, roundNum, jokerUserIds = null) 
         }
     }
     if (!match.deadline) return false;
-    const nominal = new Date(tournamentBaseDate(tournament));
-    nominal.setDate(nominal.getDate() + (roundNum || match.round || 1) * 7);
+    const nominal = groupMatchDeadlineFromBase(
+        tournamentBaseDate(tournament),
+        roundNum || match.round || 1,
+        tournament,
+    );
     // +1 saat tolerans — saat dilimi / yuvarlama kayması joker sanılmasın
     return new Date(match.deadline).getTime() > nominal.getTime() + 60 * 60 * 1000;
 }
@@ -938,7 +939,8 @@ async function healType1PendingFutureEloRounds(tournament) {
 /** Bireysel Rekabetçi (type '1') ve Çiftler Rekabetçi (type '2'): DB'den o anki ELO
  *  alarak sonraki GROUP turunu oluşturur.
  *  Skoru girilmiş oyuncu → yeni Elo; jokerli henüz oynamamış → o anki (eski) Elo.
- *  Aynı çift tekrar eşleşmez. Deadline = eventDate + round*7 gün (kurulum anı; tur bitişini beklemez).
+ *  Aynı çift tekrar eşleşmez. Deadline = eventDate + round*cycle gün
+ *  (tenis cycle=8 = 24s+7g; diğer 7 — kurulum anı; tur bitişini beklemez).
  */
 async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     // 1. turdaki taraf ID'lerini al — sonradan eklenen katılımcılar/takımlar dahil edilmez
@@ -959,8 +961,7 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
     const roundPairs = pairByClosestElo(players, playedPairKeys);
 
     const baseDate = tournamentBaseDate(tournament);
-    const deadline = new Date(baseDate);
-    deadline.setDate(deadline.getDate() + nextRound * 7);
+    const deadline = groupMatchDeadlineFromBase(baseDate, nextRound, tournament);
 
     return roundPairs.map((pair, idx) => ({
         tournamentId: tournament.id,
@@ -1088,8 +1089,7 @@ export const fixGroupDeadlines = async (req, res, next) => {
         const updates = groupMatches
             .filter(m => m.round)
             .map(m => {
-                const deadline = new Date(base);
-                deadline.setDate(deadline.getDate() + m.round * 7);
+                const deadline = groupMatchDeadlineFromBase(base, m.round, tournament);
                 return prisma.tournamentMatch.update({ where: { id: m.id }, data: { deadline } });
             });
 
@@ -2512,8 +2512,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
     if (tournament.type === '1') {
         // Bireysel Rekabetçi: sadece round 1 oluştur, sonraki turlar dinamik
         matches = eloBasedMatches(players, id, 1);
-        const deadline = new Date(baseDate);
-        deadline.setDate(deadline.getDate() + 7);
+        const deadline = groupMatchDeadlineFromBase(baseDate, 1, tournament);
         matches = matches.map(m => ({ ...m, deadline }));
     } else if (tournament.type === '3') {
         // Bireysel Antrenman: kura rastgele çekilir ve TÜM GROUP turları baştan oluşturulur —
@@ -2521,11 +2520,10 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         // maç yapacağı play-off'a kadar en baştan bellidir (Rule 2).
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(players.length - 1, 3);
         matches = randomMatches(players, id, matchesPerPlayer);
-        matches = matches.map(m => {
-            const d = new Date(baseDate);
-            d.setDate(d.getDate() + (m.round || 1) * 7);
-            return { ...m, deadline: d };
-        });
+        matches = matches.map(m => ({
+            ...m,
+            deadline: groupMatchDeadlineFromBase(baseDate, m.round || 1, tournament),
+        }));
     } else if (tournament.type === '2') {
         // Çiftler Rekabetçi: önce takımları oluştur (partner eşleşenler + ELO'ya göre
         // otomatik eşleşen bireysel başvurular), sonra takımlar arası sadece round 1
@@ -2557,7 +2555,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }));
         // Full round-robin: all N-1 rounds pre-generated, sorted by ELO closeness so
         // round 1 always contains the globally closest pairings.
-        matches = fullRoundRobinByElo(teamPlayers, id, baseDate);
+        matches = fullRoundRobinByElo(teamPlayers, id, baseDate, tournament.subCategory);
     } else if (tournament.type === '4') {
         // Çiftler Antrenman: takım oluşturma Çiftler Rekabetçi ile aynı adımları izler
         // (önce karşılıklı partner seçenler eşlenir), ama ELO kullanılmaz — eşi olmayan
@@ -2587,17 +2585,15 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }));
         const matchesPerPlayer = tournament.matchesBeforePlayoff || Math.min(teamPlayers.length - 1, 3);
         matches = randomMatches(teamPlayers, id, matchesPerPlayer);
-        matches = matches.map(m => {
-            const d = new Date(baseDate);
-            d.setDate(d.getDate() + (m.round || 1) * 7);
-            return { ...m, deadline: d };
-        });
+        matches = matches.map(m => ({
+            ...m,
+            deadline: groupMatchDeadlineFromBase(baseDate, m.round || 1, tournament),
+        }));
     } else if (tournament.type === '5') {
         // Swiss: round 1 puan/ELO ile; sonraki turlar skor sonrası dinamik.
         const round1Players = players.map(p => ({ ...p, points: 0, gamesWon: 0, gamesLost: 0, hadBye: false }));
         const pairing = pairSwissRound(round1Players, []);
-        const deadline = new Date(baseDate);
-        deadline.setDate(deadline.getDate() + 7);
+        const deadline = groupMatchDeadlineFromBase(baseDate, 1, tournament);
         matches = swissMatchesFromPairing(id, 1, pairing, deadline);
         const totalRounds = swissRoundCount(players.length, tournament.matchesBeforePlayoff);
         await prisma.tournament.update({
@@ -2642,8 +2638,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         matches = singleElimMatches(teamPlayers, id, 1, 'PLAYOFF', { random: practice });
         const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, teamPlayers.length))));
         const totalRounds = Math.log2(size);
-        const baseDl = new Date(baseDate);
-        baseDl.setDate(baseDl.getDate() + 7);
+        const baseDl = groupMatchDeadlineFromBase(baseDate, 1, tournament);
         matches = matches.map(m => (
             m.round === 1 && m.status === 'PENDING' && m.p1Id && m.p2Id
                 ? { ...m, deadline: baseDl, readyAt: new Date() }
@@ -2662,8 +2657,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         matches = singleElimMatches(players, id, 1, 'PLAYOFF', { random: practice });
         const size = Math.pow(2, Math.ceil(Math.log2(Math.max(2, players.length))));
         const totalRounds = Math.log2(size);
-        const baseDl = new Date(baseDate);
-        baseDl.setDate(baseDl.getDate() + 7);
+        const baseDl = groupMatchDeadlineFromBase(baseDate, 1, tournament);
         matches = matches.map(m => (
             m.round === 1 && m.status === 'PENDING' && m.p1Id && m.p2Id
                 ? { ...m, deadline: baseDl, readyAt: new Date() }
@@ -2698,8 +2692,7 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }));
         const round1Players = teamPlayers.map(p => ({ ...p, points: 0, gamesWon: 0, gamesLost: 0, hadBye: false }));
         const pairing = pairSwissRound(round1Players, []);
-        const deadline = new Date(baseDate);
-        deadline.setDate(deadline.getDate() + 7);
+        const deadline = groupMatchDeadlineFromBase(baseDate, 1, tournament);
         matches = swissMatchesFromPairing(id, 1, pairing, deadline);
         const totalRounds = swissRoundCount(teamPlayers.length, tournament.matchesBeforePlayoff);
         await prisma.tournament.update({
@@ -2732,6 +2725,10 @@ export async function runStartTournament(tournament, { actorUserId = null } = {}
         }
         if (daysPerRound) {
             matches = matches.map(m => {
+                // Tenis: frekans haftalık olsa bile tur döngüsü 24s+7g
+                if (String(tournament.subCategory || '').toLowerCase() === 'tennis') {
+                    return { ...m, deadline: groupMatchDeadlineFromBase(baseDate, m.round || 1, tournament) };
+                }
                 const d = new Date(baseDate);
                 d.setDate(d.getDate() + (m.round || 1) * daysPerRound);
                 return { ...m, deadline: d };
@@ -2964,8 +2961,7 @@ export const rematchTournament = async (req, res, next) => {
 
         let newMatches = [];
         const baseDate = tournamentBaseDate(tournament);
-        const deadline = new Date(baseDate);
-        deadline.setDate(deadline.getDate() + maxRound * 7);
+        const deadline = groupMatchDeadlineFromBase(baseDate, maxRound, tournament);
 
         if (maxRound <= 1) {
             // 1. tur: bu turdaki (veya tüm kabul) oyuncularla sıfırdan ELO eşleşmesi

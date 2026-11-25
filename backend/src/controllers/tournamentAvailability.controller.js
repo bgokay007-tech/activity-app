@@ -93,14 +93,20 @@ async function roundUsedCounts(roundId) {
 /** Turnuva başlarken çağrılır — klasik kura yerine turları açar */
 export async function bootstrapAvailabilityRounds(tournament, { sides, actorUserId = null } = {}) {
     const base = tournamentBaseDate(tournament);
+    // Tenis: tur/grup aralarında 24s müsaitlik, sonra 7 gün oyun (ardışık döngü).
+    // Diğer sporlar: eski 3 gün müsaitlik + 7 gün oyun (bitişik haftalar).
+    const tennis = String(tournament.subCategory || '').toLowerCase() === 'tennis';
+    const cycleDays = tennis ? 8 : 7;
     let weekCount = tournament.matchesBeforePlayoff || 4;
     if (tournament.eventEndDate) {
         const end = new Date(tournament.eventEndDate);
         const ms = end.getTime() - base.getTime();
-        const weeks = Math.ceil(ms / (7 * 24 * 60 * 60 * 1000));
+        const weeks = Math.ceil(ms / (cycleDays * 24 * 60 * 60 * 1000));
         if (weeks > 0) weekCount = Math.max(weekCount, weeks);
     }
-    const defs = buildWeeklyRounds(base, weekCount);
+    const defs = buildWeeklyRounds(base, weekCount, tennis
+        ? { availLeadDays: 1, playDays: 7, sequentialCycles: true }
+        : { availLeadDays: 3, playDays: 7 });
     await prisma.tournamentRound.createMany({
         data: defs.map(d => ({
             tournamentId: tournament.id,
@@ -141,7 +147,9 @@ export async function bootstrapAvailabilityRounds(tournament, { sides, actorUser
                 p.userId,
                 'TOURNAMENT_STARTED',
                 '🏆 Turnuva Başladı',
-                `"${tournament.name}" başladı — 1. tur için müsait gün/saatlerinizi girin.`,
+                tennis
+                    ? `"${tournament.name}" başladı — ilk 24 saat müsaitlik bildirimi; ardından 7 günlük 1. tur başlar.`
+                    : `"${tournament.name}" başladı — 1. tur için müsait gün/saatlerinizi girin.`,
                 { tournamentId: tournament.id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});
         }
