@@ -33758,45 +33758,64 @@ function SubCategoryScreen({ route, navigation }) {
 
                     {/* ── ARCHIVE ── */}
                     {activeTab === 'archive' && (
-                        <>
-                        {/* Sub-tabs + filtre — kullanıcı isteği: Filtrele butonu alt satıra kaymasın,
-                            gerekirse sekme butonları daralarak aynı satıra sığsın. */}
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:5, marginBottom:10 }}>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex:1 }}>
-                                <View style={{ flexDirection:'row', gap:3 }}>
-                                    {/* Fitness: Etkinlikler | Salonlar | Ekipmanlar (+ Filtre aynı satırda).
-                                        Diğer dallar: Bireysel Maçlar | Turnuvalar | Ekipmanlar | (Hakemlik).
-                                        Hakemlik sadece admin onaylı hakemde görünür. */}
-                                    {(sub === 'fitness_gym'
-                                        ? ['rivals', 'salons', 'equipment']
-                                        : ['rivals', 'tournaments', 'equipment', ...(refereeApproved ? ['referee'] : [])]
-                                    ).map(st => (
-                                        <TouchableOpacity key={st} onPress={() => setArchiveSubTab(st)}
-                                            style={{ paddingVertical:4, paddingHorizontal:8, borderRadius:8, alignItems:'center', backgroundColor: archiveSubTab===st ? cfg.color : colors.surface2, borderWidth:1, borderColor: archiveSubTab===st ? cfg.color : colors.border }}>
-                                            <Text style={{ color: archiveSubTab===st ? '#fff' : colors.textSecondary, fontSize:11, fontWeight:'700' }}>
-                                                {st === 'rivals'
-                                                    ? (sub === 'fitness_gym' ? (t.eventsTab || 'Etkinlikler') : t.sc_1106)
-                                                    : st === 'salons' ? (t.archiveGymsTab || 'Salonlar')
-                                                    : st === 'tournaments' ? t.sc_1107
-                                                    : st === 'equipment' ? t.sc_1108
-                                                    : t.sc_0998}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
+                        <View style={{ gap: 3 }}>
+                        {/* Sub-tabs + filtre: aynı satır, aynı yükseklik (30), aralarında gap:3.
+                            1v1/2v2 ile üst formlar arası da bu View'ın gap:3'ü. */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                                {/* Fitness: Etkinlikler | Salonlar | Ekipmanlar (+ Filtre aynı satırda).
+                                    Diğer dallar: Bireysel Maçlar | Turnuvalar | Ekipmanlar | (Hakemlik). */}
+                                {(sub === 'fitness_gym'
+                                    ? ['rivals', 'salons', 'equipment']
+                                    : ['rivals', 'tournaments', 'equipment', ...(refereeApproved ? ['referee'] : [])]
+                                ).map(st => (
+                                    <TouchableOpacity
+                                        key={st}
+                                        onPress={() => setArchiveSubTab(st)}
+                                        style={{
+                                            height: 30,
+                                            paddingHorizontal: 8,
+                                            borderRadius: 8,
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            backgroundColor: archiveSubTab === st ? cfg.color : colors.surface2,
+                                            borderWidth: 1,
+                                            borderColor: archiveSubTab === st ? cfg.color : colors.border,
+                                        }}
+                                    >
+                                        <Text style={{ color: archiveSubTab === st ? '#fff' : colors.textSecondary, fontSize: 11, fontWeight: '700' }} numberOfLines={1}>
+                                            {st === 'rivals'
+                                                ? (sub === 'fitness_gym' ? (t.eventsTab || 'Etkinlikler') : t.sc_1106)
+                                                : st === 'salons' ? (t.archiveGymsTab || 'Salonlar')
+                                                : st === 'tournaments' ? t.sc_1107
+                                                : st === 'equipment' ? t.sc_1108
+                                                : t.sc_0998}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                                {/* Filtre — sekmelerle aynı yükseklik / aynı satır / gap:3 */}
+                                <TouchableOpacity
+                                    onPress={() => setShowArchiveFilterModal(true)}
+                                    style={{
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 3,
+                                        height: 30,
+                                        flexShrink: 0,
+                                        backgroundColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color + '25' : colors.surface2,
+                                        borderRadius: 8,
+                                        paddingHorizontal: 8,
+                                        borderWidth: 1,
+                                        borderColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color : colors.border,
+                                    }}
+                                >
+                                    <Text style={{ color: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color : colors.textMuted, fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+                                        🔍 {archiveFilterSummaryLabel()}
+                                    </Text>
+                                    <Text style={{ color: colors.textMuted, fontSize: 10 }}>▾</Text>
+                                </TouchableOpacity>
                             </ScrollView>
-                            {/* Kullanıcı isteği: Rakip Bul'daki gibi konum+tarih filtresi artık ayrı ayrı
-                                görünen alanlar değil, sağda tek bir butonla açılan tek bir form
-                                (bkz. showArchiveFilterModal). */}
-                            <TouchableOpacity
-                                onPress={() => setShowArchiveFilterModal(true)}
-                                style={{ flexDirection:'row', alignItems:'center', gap:3, height:30, flexShrink:0, backgroundColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color+'25' : colors.surface2, borderRadius:7, paddingHorizontal:7, borderWidth:1, borderColor: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color : colors.border }}
-                            >
-                                <Text style={{ color: (archiveLocFilterActive || archiveDateFrom || archiveDateTo || archivePlayer || archiveMyMatchesOnly) ? cfg.color : colors.textMuted, fontSize:11, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-                                    🔍 {archiveFilterSummaryLabel()}
-                                </Text>
-                                <Text style={{ color: colors.textMuted, fontSize:10 }}>▾</Text>
-                            </TouchableOpacity>
                         </View>
 
                         <Modal visible={showArchiveFilterModal} transparent animationType="slide" onRequestClose={() => setShowArchiveFilterModal(false)} android_keyboardInputMode="adjustNothing">
@@ -34046,7 +34065,7 @@ function SubCategoryScreen({ route, navigation }) {
                                         <TouchableOpacity
                                             onPress={onToggle}
                                             activeOpacity={0.75}
-                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 4 }}
+                                            style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 2, paddingHorizontal: 2 }}
                                         >
                                             <Text style={{ color: '#fff', fontSize: 14, width: 16 }}>{open ? '▼' : '◀'}</Text>
                                             <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800', flex: 1 }}>
@@ -34076,7 +34095,7 @@ function SubCategoryScreen({ route, navigation }) {
                                         keyboardShouldPersistTaps="always"
                                         overScrollMode="always"
                                         bounces
-                                        contentContainerStyle={{ paddingVertical: 5, paddingRight: 24 }}
+                                        contentContainerStyle={{ paddingVertical: 0, paddingRight: 24 }}
                                     >
                                         {renderFormatPanel('1v1', singles.length, archiveSinglesExpanded, () => setArchiveSinglesExpanded(v => !v), singles)}
                                         {renderFormatPanel('2v2', doubles.length, archiveDoublesExpanded, () => setArchiveDoublesExpanded(v => !v), doubles)}
@@ -34323,7 +34342,7 @@ function SubCategoryScreen({ route, navigation }) {
                                 </View>
                             )
                         )}
-                        </>
+                        </View>
                     )}
 
                     {/* ── REFEREE ── */}
