@@ -110,6 +110,7 @@ export function tournamentMatchToShareMatch(tournament, match) {
         location: agreed?.venueName || tournament.location || tournament.city || '',
         courtName: agreed?.venueName || tournament.location || '',
         city: tournament.city || '',
+        district: tournament.district || '',
         duration: rawScore?.stats?.durationMs
             ? rawScore.stats.durationMs / 60000
             : null,

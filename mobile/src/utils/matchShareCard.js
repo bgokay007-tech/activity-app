@@ -457,19 +457,31 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
         resultLabel = winnerSide === 'left' ? leftLabel : rightLabel;
     }
 
-    const place = match.courtName || match.location || match.city || '';
+    const placeName = match.courtName || match.location || '';
+    const regionBits = [match.city, match.district].filter(Boolean);
+    const placeRegion = regionBits.length ? `(${regionBits.join('/')})` : '';
+    // Geriye dönük: tek satır yer (mesaj metni)
+    const place = [placeName, placeRegion].filter(Boolean).join(' ')
+        || match.city
+        || '';
+    const localeTag = lang === 'tr' ? 'tr-TR' : lang === 'ru' ? 'ru-RU' : lang === 'de' ? 'de-DE' : 'en-GB';
     let dateStr = '';
+    let timeStr = match.matchTime ? String(match.matchTime) : '';
     if (match.matchDate) {
         try {
-            dateStr = new Date(match.matchDate).toLocaleDateString(
-                lang === 'tr' ? 'tr-TR' : lang === 'ru' ? 'ru-RU' : lang === 'de' ? 'de-DE' : 'en-GB',
-                { day: 'numeric', month: 'short', year: 'numeric' },
-            );
+            const d = new Date(match.matchDate);
+            dateStr = d.toLocaleDateString(localeTag, {
+                day: 'numeric', month: 'short', year: 'numeric',
+            });
+            // matchTime yoksa Date içinden saat çıkar (ISO gelirse)
+            if (!timeStr && !Number.isNaN(d.getTime()) && String(match.matchDate).includes('T')) {
+                timeStr = d.toLocaleTimeString(localeTag, { hour: '2-digit', minute: '2-digit' });
+            }
         } catch { /* */ }
     }
-    if (match.matchTime) dateStr = dateStr ? `${dateStr} · ${match.matchTime}` : match.matchTime;
 
     const sport = getSubCategoryLabel(match.subCategory, lang) || match.subCategory || '';
+    const sportUpper = String(sport || '').toLocaleUpperCase(localeTag);
     const emoji = SUB_EMOJI[match.subCategory] || '🏅';
     const url = `${SHARE_HOST}/share/match/${match.id}`;
     const brand = lang === 'tr' ? 'AkTiViTe' : 'AcTiViTy';
@@ -492,6 +504,7 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
         surfaceRaw: match.surface || null,
         emoji,
         sport,
+        sportUpper,
         isDoubles: doubles,
         teamsKnown,
         leftRoster,
@@ -510,7 +523,10 @@ export function buildMatchSharePayload(match, t, lang = 'tr') {
         resultLabel,
         winnerSide,
         place,
+        placeName,
+        placeRegion,
         dateStr,
+        timeStr,
         surface,
         durationLabel,
         formatLine: formatBits.join(' · '),

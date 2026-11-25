@@ -139,8 +139,8 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 
       var brand=${JSON.stringify(brand)};
       var cols=${JSON.stringify(colorsArr)};
-      // Uygulama adı — hikâyede ilk okunan marka
-      ctx.font='900 68px sans-serif'; ctx.textAlign='left';
+      // Uygulama adı — biraz daha büyük
+      ctx.font='900 82px sans-serif'; ctx.textAlign='left';
       var totalW=0;
       for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+3;
       var bx=(W-totalW)/2;
@@ -150,18 +150,21 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         bx+=ctx.measureText(brand[i]).width+3;
       }
 
-      var badge=${JSON.stringify(p.resultBadge||'MATCH RESULT')};
-      ctx.font='900 22px sans-serif';
-      var bw=Math.max(260, ctx.measureText(badge).width+48);
-      roundRect((W-bw)/2, TOP+22, bw, 46, 23);
-      ctx.fillStyle='#C8F54A'; ctx.fill();
-      text(badge, W/2, TOP+52, 22, '#0B0C10', 'center', '900');
+      // Spor dalı — uygulama bilgisinin altında, BÜYÜK HARF
+      var sportUp=${JSON.stringify(p.sportUpper || String(p.sport || '').toUpperCase())};
+      text(sportUp, 540, TOP+56, 44, '#C8F54A', 'center', '900');
 
-      // Spor satırı — turnuvada isim + tur eklenir
+      var badge=${JSON.stringify(p.resultBadge||'MATCH RESULT')};
+      ctx.font='900 24px sans-serif';
+      var bw=Math.max(280, ctx.measureText(badge).width+52);
+      roundRect((W-bw)/2, TOP+78, bw, 48, 24);
+      ctx.fillStyle='#C8F54A'; ctx.fill();
+      text(badge, W/2, TOP+110, 24, '#0B0C10', 'center', '900');
+
+      // Turnuva adı / tur (varsa) — maç sonucu rozetinin altında
       var isUpcoming=${JSON.stringify(!!p.isUpcoming)};
       var tournName=${JSON.stringify(p.tournamentName||'')};
       var tournRound=${JSON.stringify(p.tournamentRound||'')};
-      text(${JSON.stringify((p.emoji||'')+' '+(p.sport||''))}, 540, TOP+110, 32, '#C8F54A', 'center', '800');
       var ny=TOP+168;
       if(tournName){
         var tLines=nameLines(tournName, 940, 40);
@@ -173,21 +176,25 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       var name=${JSON.stringify(p.isUpcoming ? '' : (p.resultLabel||''))};
       var won=${JSON.stringify(p.isUpcoming ? (p.wonWord||'VS') : (p.wonWord||'WON'))};
       if(!isUpcoming && name){
-        var nLines=nameLines(name, 940, 52);
-        nLines.forEach(function(ln){ text(ln, 540, ny, 52, '#F4F1EA', 'center', '900'); ny+=58; });
-        text(won, 540, ny+6, 44, '#C8F54A', 'center', '900');
-        ny+=62;
+        var nLines=nameLines(name, 940, 60);
+        nLines.forEach(function(ln){ text(ln, 540, ny, 60, '#F4F1EA', 'center', '900'); ny+=66; });
+        text(won, 540, ny+8, 52, '#C8F54A', 'center', '900');
+        ny+=70;
       } else if(isUpcoming){
-        text(won, 540, ny+6, 48, '#C8F54A', 'center', '900');
-        ny+=62;
+        text(won, 540, ny+6, 52, '#C8F54A', 'center', '900');
+        ny+=66;
       }
 
-      // Skor tablosu — takımlar belliyse her oyuncu adı + format ELO'su (tekli/çiftler)
+      // Skor tablosu — iç padding L/R=5, bottom=3
       var pairs=${JSON.stringify(setPairs)};
       var leftRoster=${JSON.stringify(Array.isArray(p.leftRoster) && p.leftRoster.length ? p.leftRoster : [{ name: p.leftLabel || '', elo: p.leftElo || '', rank: p.leftRank || null }])};
       var rightRoster=${JSON.stringify(Array.isArray(p.rightRoster) && p.rightRoster.length ? p.rightRoster : [{ name: p.rightLabel || '', elo: p.rightElo || '', rank: p.rightRank || null }])};
       var leftElo=${JSON.stringify(p.leftElo||'')};
       var rightElo=${JSON.stringify(p.rightElo||'')};
+      var scorePadX=5, scorePadBottom=3;
+      var scorePanelX=56, scorePanelW=W-112;
+      var scoreInnerX=scorePanelX+scorePadX;
+      var scoreNameX=scoreInnerX+8;
       function rosterHeight(roster, teamElo){
         var h=28;
         (roster||[]).forEach(function(r){ h+=36; if(r&&r.elo) h+=26; if(r&&r.rank) h+=26; });
@@ -196,10 +203,10 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       }
       var rowH=rosterHeight(leftRoster, leftElo);
       var rowH2=rosterHeight(rightRoster, rightElo);
-      var panelH=68+rowH+rowH2+70;
-      panel(56, ny, W-112, panelH);
+      var panelH=68+rowH+rowH2+70+scorePadBottom;
+      panel(scorePanelX, ny, scorePanelW, panelH);
 
-      text(${JSON.stringify(p.colPlayer||'PLAYER')}, 180, ny+38, 20, '#78716C', 'left', '800');
+      text(${JSON.stringify(p.colPlayer||'PLAYER')}, scoreNameX, ny+38, 20, '#78716C', 'left', '800');
       var setXs=[];
       var showSets=!isUpcoming && pairs.length>0;
       if(showSets){
@@ -208,30 +215,30 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           setXs.push(sx);
           text('S'+(s+1), sx, ny+38, 20, '#78716C', 'center', '800');
         }
-        text(${JSON.stringify(p.colSets||'SETS')}, 960, ny+38, 20, '#78716C', 'center', '800');
+        text(${JSON.stringify(p.colSets||'SETS')}, scorePanelX+scorePanelW-scorePadX-40, ny+38, 20, '#78716C', 'center', '800');
       } else if(isUpcoming){
         text('VS', 780, ny+38, 22, '#78716C', 'center', '800');
       }
 
       function drawPlayerRow(y, roster, teamElo, scores, setsWon, highlight, h){
         if(highlight){
-          roundRect(72, y-34, W-144, h, 16);
+          roundRect(scoreInnerX, y-34, scorePanelW-scorePadX*2, h, 16);
           ctx.fillStyle='rgba(200,245,74,0.12)'; ctx.fill();
         }
         var ty=y;
         (roster||[]).forEach(function(r){
-          var nm=nameLines((r&&r.name)||'', 420, 30);
-          nm.forEach(function(ln){ text(ln, 180, ty, 30, '#F4F1EA', 'left', '900'); ty+=34; });
-          if(r&&r.rank){ text('#'+String(r.rank), 180, ty+2, 22, '#FACC15', 'left', '900'); ty+=26; }
-          if(r&&r.elo){ text(r.elo, 180, ty+2, 22, '#C8F54A', 'left', '800'); ty+=26; }
+          var nm=nameLines((r&&r.name)||'', 440, 30);
+          nm.forEach(function(ln){ text(ln, scoreNameX, ty, 30, '#F4F1EA', 'left', '900'); ty+=34; });
+          if(r&&r.rank){ text('#'+String(r.rank), scoreNameX, ty+2, 22, '#FACC15', 'left', '900'); ty+=26; }
+          if(r&&r.elo){ text(r.elo, scoreNameX, ty+2, 22, '#C8F54A', 'left', '800'); ty+=26; }
         });
-        if((!roster||!roster.length) && teamElo) text(teamElo, 180, ty+2, 24, '#C8F54A', 'left', '800');
+        if((!roster||!roster.length) && teamElo) text(teamElo, scoreNameX, ty+2, 24, '#C8F54A', 'left', '800');
         var midY=y+Math.min(18, (h/2)-8);
         if(showSets){
           for(var i=0;i<scores.length;i++){
             text(String(scores[i]), setXs[i]||(580+i*120), midY, 38, '#F4F1EA', 'center', '900');
           }
-          text(String(setsWon), 960, midY, 38, '#C8F54A', 'center', '900');
+          text(String(setsWon), scorePanelX+scorePanelW-scorePadX-40, midY, 38, '#C8F54A', 'center', '900');
         }
       }
 
@@ -244,23 +251,44 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 
       ny = ny + panelH + 28;
 
-      // Meta: tarih / süre / zemin / yer
-      var metaBits=[];
-      if(${JSON.stringify(!!p.dateStr)}) metaBits.push(${JSON.stringify('📅 '+(p.dateStr||''))});
-      if(${JSON.stringify(!!p.durationLabel)}) metaBits.push(${JSON.stringify('⏱ '+(p.durationLabel||''))});
-      if(${JSON.stringify(!!p.surface)}) metaBits.push(${JSON.stringify('🏟 '+(p.surface||''))});
-      if(${JSON.stringify(!!p.place)}) metaBits.push(${JSON.stringify('📍 '+(p.place||''))});
-      if(metaBits.length){
-        panel(56, ny, W-112, 60 + Math.ceil(metaBits.length/2)*44);
-        var mx=80, my=ny+44;
-        metaBits.forEach(function(m,idx){
-          text(m, mx, my, 28, '#E7E5E4', 'left', '700');
-          if(idx%2===1){ mx=80; my+=44; } else { mx=560; }
+      // Meta: tarih + saat + süre + zemin aynı satır (gap 5); konum alt satır + (il/ilçe)
+      var metaLine=[];
+      if(${JSON.stringify(!!p.dateStr)}) metaLine.push(${JSON.stringify(p.dateStr||'')});
+      if(${JSON.stringify(!!p.timeStr)}) metaLine.push(${JSON.stringify(p.timeStr||'')});
+      if(${JSON.stringify(!!p.durationLabel)}) metaLine.push(${JSON.stringify(p.durationLabel||'')});
+      if(${JSON.stringify(!!p.surface)}) metaLine.push(${JSON.stringify(p.surface||'')});
+      var placeName=${JSON.stringify(p.placeName||'')};
+      var placeRegion=${JSON.stringify(p.placeRegion||'')};
+      var hasMeta=metaLine.length>0 || placeName || placeRegion || ${JSON.stringify(!!p.place)};
+      if(hasMeta){
+        var metaH=56;
+        if(placeName || placeRegion || ${JSON.stringify(!!p.place)}) metaH+=36;
+        panel(56, ny, W-112, metaH);
+        var metaGap=5;
+        var metaFs=26;
+        ctx.font='700 '+metaFs+'px sans-serif';
+        var metaTotal=0;
+        metaLine.forEach(function(m,idx){
+          metaTotal+=ctx.measureText(m).width;
+          if(idx) metaTotal+=metaGap;
         });
-        ny += 60 + Math.ceil(metaBits.length/2)*44 + 20;
+        var mx=(W-metaTotal)/2;
+        var my=ny+36;
+        metaLine.forEach(function(m){
+          text(m, mx, my, metaFs, '#E7E5E4', 'left', '700');
+          mx+=ctx.measureText(m).width+metaGap;
+        });
+        var locLine='';
+        if(placeName) locLine=placeName;
+        else if(${JSON.stringify(!!p.place)} && !placeRegion) locLine=${JSON.stringify(p.place||'')};
+        if(placeRegion) locLine=locLine ? (locLine+' '+placeRegion) : placeRegion;
+        if(locLine){
+          text(locLine, 540, my+(metaLine.length?34:0), 24, '#E7E5E4', 'center', '700');
+        }
+        ny += metaH + 20;
       }
 
-      // Paylaşanın digimon kartı — sol dar (kimlik), sağ geniş (istatistik + sıra)
+      // Paylaşanın digimon kartı — ön yüz sol üst, iç padding L/R=5
       var sharer=${JSON.stringify((p.includeDigimon && p.sharerCard) ? p.sharerCard : null)};
       var CTA_Y=1715;
       if(sharer){
@@ -269,24 +297,29 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         var cardH=hasRanks?(isUtrRank?300:278):240;
         var gap=16;
         var totalDigW=W-112;
-        // Ön yüz dar (~36%), arka yüz geniş (~64%) — boşluk arka yüze
-        var frontW=Math.round(totalDigW*0.36);
+        // Ön yüz dar (~34%), arka yüz geniş — sol üste sığsın
+        var frontW=Math.round(totalDigW*0.34);
         var backW=totalDigW-frontW-gap;
         var digTop=ny;
+        var digPad=5;
 
         function digimonShell(x,y,w,h,accent){
           roundRect(x,y,w,h,18);
           ctx.fillStyle='rgba(18,20,28,0.92)'; ctx.fill();
           ctx.strokeStyle=accent||'rgba(200,245,74,0.55)'; ctx.lineWidth=3; ctx.stroke();
-          roundRect(x+8,y+8,w-16,h-16,12);
+          roundRect(x+digPad,y+digPad,w-digPad*2,h-digPad*2,12);
           ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.5; ctx.stroke();
         }
 
-        // Sol = ön yüz (kimlik + tekli/çiftler ELO) — dar
+        // Sol = ön yüz (kimlik + tekli/çiftler ELO) — dar, padding 5
         var fx=56, fy=digTop;
         digimonShell(fx,fy,frontW,cardH,'#C8F54A');
-        text(sharer.labels.front||'PLAYER', fx+frontW/2, fy+32, 15, '#C8F54A', 'center', '900');
-        var ax=fx+frontW/2, ay=fy+88, ar=36;
+        var frontCx=fx+frontW/2;
+        var frontInnerL=fx+digPad;
+        var frontInnerR=fx+frontW-digPad;
+        var frontMaxW=frontInnerR-frontInnerL;
+        text(sharer.labels.front||'PLAYER', frontCx, fy+28, 14, '#C8F54A', 'center', '900');
+        var ax=frontCx, ay=fy+78, ar=30;
         ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
         ctx.fillStyle='#1C1F2A'; ctx.fill();
         ctx.strokeStyle='#C8F54A'; ctx.lineWidth=2.5; ctx.stroke();
@@ -299,59 +332,62 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           ctx.restore();
         } else {
           var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
-          text(ini, ax, ay+12, 30, '#F4F1EA', 'center', '900');
+          text(ini, ax, ay+10, 26, '#F4F1EA', 'center', '900');
         }
         var dispName=sharer.alias||sharer.name||sharer.username||'';
-        text(dispName, fx+frontW/2, fy+142, 20, '#F4F1EA', 'center', '900');
-        text((sharer.emoji||'')+' '+(sharer.sport||''), fx+frontW/2, fy+166, 15, '#A8A29A', 'center', '700');
+        var nameFs=18;
+        ctx.font='900 '+nameFs+'px sans-serif';
+        while(nameFs>12 && ctx.measureText(dispName).width>frontMaxW){
+          nameFs-=1; ctx.font='900 '+nameFs+'px sans-serif';
+        }
+        text(dispName, frontCx, fy+128, nameFs, '#F4F1EA', 'center', '900');
+        text((sharer.emoji||'')+' '+(sharer.sport||''), frontCx, fy+150, 13, '#A8A29A', 'center', '700');
         if(sharer.isUtr){
-          var eloY=fy+196;
+          var eloY=fy+176;
           if(sharer.showSinglesLine){
-            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), fx+frontW/2, eloY, 17, '#C8F54A', 'center', '900');
-            eloY+=24;
+            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), frontCx, eloY, 15, '#C8F54A', 'center', '900');
+            eloY+=22;
           }
           if(sharer.showDoublesLine){
-            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), fx+frontW/2, eloY, 17, '#C8F54A', 'center', '900');
+            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), frontCx, eloY, 15, '#C8F54A', 'center', '900');
           }
         } else if(sharer.elo){
-          text(sharer.elo, fx+frontW/2, fy+196, 18, '#C8F54A', 'center', '900');
+          text(sharer.elo, frontCx, fy+176, 16, '#C8F54A', 'center', '900');
         }
 
         // Sağ = arka yüz — geniş; maç/G/M tek satır + sıralama (tekli/çiftler ayrı)
-        var bx=56+frontW+gap;
-        digimonShell(bx,fy,backW,cardH,'#A855F7');
-        text(sharer.labels.back||'STATS', bx+backW/2, fy+30, 15, '#C084FC', 'center', '900');
+        var bx2=56+frontW+gap;
+        digimonShell(bx2,fy,backW,cardH,'#A855F7');
+        text(sharer.labels.back||'STATS', bx2+backW/2, fy+28, 14, '#C084FC', 'center', '900');
         var digTiles=[
           { label:sharer.labels.matches||'Matches', value:String(sharer.totalMatches||0), color:'#38BDF8' },
           { label:sharer.labels.wins||'Wins', value:String(sharer.wins||0), color:'#4ADE80' },
           { label:sharer.labels.losses||'Losses', value:String(sharer.losses||0), color:'#F87171' },
         ];
         var digCols=3;
-        var digPad=14;
         var digGap=8;
         var digTw=(backW-digPad*2-(digCols-1)*digGap)/digCols;
         var digTh=64;
         digTiles.forEach(function(tile,i){
-          var tx=bx+digPad+i*(digTw+digGap);
-          var ty=fy+44;
+          var tx=bx2+digPad+i*(digTw+digGap);
+          var ty=fy+42;
           roundRect(tx,ty,digTw,digTh,10);
           ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
           text(tile.value, tx+digTw/2, ty+30, 26, tile.color, 'center', '900');
           text(tile.label, tx+digTw/2, ty+digTh-12, 13, '#A8A29A', 'center', '700');
         });
-        var afterStatsY=fy+44+digTh+10;
+        var afterStatsY=fy+42+digTh+10;
         if((sharer.titles||0)>0){
-          roundRect(bx+digPad, afterStatsY, backW-digPad*2, 28, 8);
+          roundRect(bx2+digPad, afterStatsY, backW-digPad*2, 28, 8);
           ctx.fillStyle='rgba(250,204,21,0.12)'; ctx.fill();
-          text('🏆 '+(sharer.labels.titles||'Titles')+'  '+String(sharer.titles), bx+backW/2, afterStatsY+20, 15, '#FACC15', 'center', '800');
+          text('🏆 '+(sharer.labels.titles||'Titles')+'  '+String(sharer.titles), bx2+backW/2, afterStatsY+20, 15, '#FACC15', 'center', '800');
           afterStatsY+=36;
         }
         if(hasRanks){
           var sShort=sharer.labels.singlesShort||'S';
           var dShort=sharer.labels.doublesShort||'D';
-          var colS=bx+backW-digPad-(isUtrRank?120:70);
-          var colD=bx+backW-digPad;
-          // Başlık: Tekli / Çiftler
+          var colS=bx2+backW-digPad-(isUtrRank?120:70);
+          var colD=bx2+backW-digPad;
           if(isUtrRank){
             text(sShort, colS, afterStatsY+14, 14, '#C8F54A', 'right', '900');
             text(dShort, colD, afterStatsY+14, 14, '#C084FC', 'right', '900');
@@ -364,7 +400,7 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           ];
           rankRows.forEach(function(r,i){
             var ry=afterStatsY+18+i*26;
-            text(r.lbl, bx+digPad, ry, 15, '#A8A29A', 'left', '700');
+            text(r.lbl, bx2+digPad, ry, 15, '#A8A29A', 'left', '700');
             text(r.s, colS, ry, 16, '#FACC15', 'right', '900');
             if(isUtrRank) text(r.d, colD, ry, 16, '#FACC15', 'right', '900');
           });
