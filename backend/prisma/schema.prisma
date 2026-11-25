@@ -1045,6 +1045,10 @@ model EquipmentListing {
   description String?
   location    String?
   city        String?
+  // Reklam: satış sitesi linki + arka arkaya dönen tanıtım görselleri
+  isAd        Boolean  @default(false)
+  adUrl       String?
+  adImages    Json     @default("[]")
   status      String   @default("ACTIVE")  // ACTIVE | RESERVED | SOLD | FLAGGED | REMOVED
   reportCount Int      @default(0)
 

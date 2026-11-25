@@ -3,6 +3,7 @@ import { createNotification } from './notification.controller.js';
 import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
+import { validateEquipmentRelevance } from '../utils/equipmentRelevance.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -99,7 +100,10 @@ export const getListing = async (req, res, next) => {
 
 export const createListing = async (req, res, next) => {
     try {
-        const { category, subCategory, condition, title, price, images, description, location, city } = req.body;
+        const {
+            category, subCategory, condition, title, price, images, description, location, city,
+            isAd, adUrl, adImages,
+        } = req.body;
 
         if (!condition || !title || !category || !subCategory)
             return res.status(400).json({ message: 'Zorunlu alanlar eksik' });
@@ -114,6 +118,32 @@ export const createListing = async (req, res, next) => {
         if (!Array.isArray(images) || images.length === 0)
             return res.status(400).json({ message: 'En az 1 fotoğraf eklemelisiniz' });
 
+        const wantAd = !!isAd;
+        const cleanAdUrl = wantAd && typeof adUrl === 'string' ? adUrl.trim() : '';
+        const cleanAdImages = wantAd && Array.isArray(adImages)
+            ? adImages.filter((u) => typeof u === 'string' && u.trim()).slice(0, 8)
+            : [];
+        if (wantAd) {
+            if (!cleanAdUrl || !/^https?:\/\//i.test(cleanAdUrl)) {
+                return res.status(400).json({ message: 'Reklam için geçerli bir https:// site linki gerekli' });
+            }
+            if (cleanAdImages.length === 0) {
+                return res.status(400).json({ message: 'Reklam için en az 1 dönen görsel ekleyin' });
+            }
+        }
+
+        // Dal ile tutarsız ekipman (ör. tenis dalında menemen) — AI + sezgisel engel
+        const relevance = await validateEquipmentRelevance({
+            category,
+            subCategory,
+            title: title.trim(),
+            description: description.trim(),
+            imageUrls: images,
+        });
+        if (!relevance.ok) {
+            return res.status(400).json({ message: relevance.reason || 'İlan spor dalıyla uyumlu değil' });
+        }
+
         const listing = await prisma.equipmentListing.create({
             data: {
                 userId: req.userId,
@@ -126,6 +156,9 @@ export const createListing = async (req, res, next) => {
                 description: description.trim(),
                 location: location.trim(),
                 city: city || null,
+                isAd: wantAd,
+                adUrl: wantAd ? cleanAdUrl : null,
+                adImages: wantAd ? cleanAdImages : [],
             },
             include: { user: { select: USER_SELECT } },
         });

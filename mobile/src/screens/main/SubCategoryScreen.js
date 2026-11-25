@@ -67,6 +67,7 @@ import { RUN_ACTIVITY_TYPES, RUN_TRAIL_SUBS } from '../../constants/runActivityT
 import { shareRival, shareTournament, shareEquipment, shareCoach, shareClub } from '../../utils/share';
 import { registerEntityShareOpener } from '../../utils/entityShareBridge';
 import EntityShareModal from '../../components/EntityShareModal';
+import EquipmentCardThumb from '../../components/EquipmentCardThumb';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import { sportFacilityLabels, sportEquipmentTabLabel } from '../../utils/sportFacilityLabels';
@@ -26701,9 +26702,13 @@ function SubCategoryScreen({ route, navigation }) {
     const [equipmentCondition, setEquipmentCondition] = useState('ALL');
     const [loadingEquipment, setLoadingEquipment] = useState(false);
     const [showEquipmentForm, setShowEquipmentForm] = useState(false);
-    const [equipmentForm, setEquipmentForm] = useState({ title:'', price:'', condition:'NEW', description:'', location:'', images:[] });
+    const [equipmentForm, setEquipmentForm] = useState({
+        title: '', price: '', condition: 'NEW', description: '', location: '', images: [],
+        isAd: false, adUrl: '',
+    });
     const [submittingEquipment, setSubmittingEquipment] = useState(false);
     const [equipmentMedia, setEquipmentMedia] = useState([]);
+    const [equipmentAdMedia, setEquipmentAdMedia] = useState([]);
     const [uploadingEquipmentMedia, setUploadingEquipmentMedia] = useState(false);
     const [equipmentSearch, setEquipmentSearch] = useState('');
     const [equipmentMinPrice, setEquipmentMinPrice] = useState('');
@@ -28780,30 +28785,76 @@ function SubCategoryScreen({ route, navigation }) {
         }
     };
 
+    const pickEquipmentAdMedia = async () => {
+        if (equipmentAdMedia.length >= 8) return Alert.alert('', t.equipAdMediaMax || 'En fazla 8 reklam görseli');
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsMultipleSelection: true,
+            quality: 0.85,
+            selectionLimit: 8 - equipmentAdMedia.length,
+        });
+        if (!result.canceled) {
+            const picked = result.assets.map(a => ({ uri: a.uri, type: 'image' }));
+            setEquipmentAdMedia(prev => [...prev, ...picked].slice(0, 8));
+        }
+    };
+
+    const resetEquipmentForm = () => {
+        setEquipmentForm({ title: '', price: '', condition: 'NEW', description: '', location: '', images: [], isAd: false, adUrl: '' });
+        setEquipmentMedia([]);
+        setEquipmentAdMedia([]);
+    };
+
     const submitEquipment = async () => {
         if (!equipmentForm.title.trim()) return Alert.alert('', t.sc_0863);
         if (!parseInt(equipmentForm.price) || parseInt(equipmentForm.price) <= 0) return Alert.alert('', t.sc_0864);
         if (!equipmentForm.location.trim()) return Alert.alert('', t.sc_0865);
         if (equipmentForm.description.trim().length < 5) return Alert.alert('', t.sc_0866);
         if (equipmentMedia.length === 0) return Alert.alert('', t.sc_0867);
+        const wantAd = !!equipmentForm.isAd;
+        const adUrl = (equipmentForm.adUrl || '').trim();
+        if (wantAd) {
+            if (!/^https?:\/\//i.test(adUrl)) return Alert.alert('', t.equipAdUrlRequired || 'Reklam için geçerli bir https:// site linki gerekli');
+            if (equipmentAdMedia.length === 0) return Alert.alert('', t.equipAdMediaRequired || 'Reklam için en az 1 dönen görsel ekleyin');
+        }
         setSubmittingEquipment(true);
         try {
             let uploadedUrls = [];
-            if (equipmentMedia.length > 0) {
-                setUploadingEquipmentMedia(true);
-                for (const media of equipmentMedia) {
-                    const form = new FormData();
-                    const isVideo = media.type === 'video';
-                    form.append('file', { uri: media.uri, name: isVideo ? 'eq.mp4' : 'eq.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
-                    const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-                    uploadedUrls.push(data.url);
-                }
-                setUploadingEquipmentMedia(false);
+            let uploadedAdUrls = [];
+            setUploadingEquipmentMedia(true);
+            for (const media of equipmentMedia) {
+                const form = new FormData();
+                const isVideo = media.type === 'video';
+                form.append('file', { uri: media.uri, name: isVideo ? 'eq.mp4' : 'eq.jpg', type: isVideo ? 'video/mp4' : 'image/jpeg' });
+                const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+                uploadedUrls.push(data.url);
             }
-            await api.post('/equipment', { ...equipmentForm, category, subCategory: sub, price: parseInt(equipmentForm.price) || 0, images: uploadedUrls });
+            if (wantAd) {
+                for (const media of equipmentAdMedia) {
+                    const form = new FormData();
+                    form.append('file', { uri: media.uri, name: 'eq-ad.jpg', type: 'image/jpeg' });
+                    const { data } = await api.post('/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+                    uploadedAdUrls.push(data.url);
+                }
+            }
+            setUploadingEquipmentMedia(false);
+            await api.post('/equipment', {
+                title: equipmentForm.title,
+                price: parseInt(equipmentForm.price) || 0,
+                condition: equipmentForm.condition,
+                description: equipmentForm.description,
+                location: equipmentForm.location,
+                category,
+                subCategory: sub,
+                images: uploadedUrls,
+                isAd: wantAd,
+                adUrl: wantAd ? adUrl : undefined,
+                adImages: wantAd ? uploadedAdUrls : [],
+            });
             setShowEquipmentForm(false);
-            setEquipmentForm({ title:'', price:'', condition:'NEW', description:'', location:'', images:[] });
-            setEquipmentMedia([]);
+            resetEquipmentForm();
             loadEquipment();
         } catch (e) { Alert.alert('', e?.response?.data?.message || t.actionFailed); }
         finally { setSubmittingEquipment(false); setUploadingEquipmentMedia(false); }
@@ -31413,50 +31464,50 @@ function SubCategoryScreen({ route, navigation }) {
                             ) : (
                                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:3 }}>
                                     {filteredEquipment.map(eq => (
-                                        <TouchableOpacity key={eq.id} onPress={() => { setEqGalleryIdx(0); setEqFullscreen(false); setSelectedEquipment(eq); }}
+                                        <View key={eq.id}
                                             style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
-                                            {eq.images?.[0] ? (
-                                                <Image source={{ uri: eq.images[0] }} style={{ width:'100%', height:120 }} resizeMode="cover" />
-                                            ) : (
-                                                <View style={{ width:'100%', height:120, alignItems:'center', justifyContent:'center', backgroundColor: colors.surface }}>
-                                                    <Text style={{ fontSize:36 }}>📦</Text>
-                                                </View>
-                                            )}
-                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0 }}>
+                                            {/* Foto kaydırma detayı açmasın — sadece alt metin alanı detaya gider */}
+                                            <EquipmentCardThumb
+                                                images={eq.images}
+                                                adImages={eq.adImages}
+                                                isAd={!!eq.isAd}
+                                                height={120}
+                                                adBadgeLabel={t.equipAdBadge || 'Reklam'}
+                                            />
+                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0, zIndex: 2 }}>
                                                 <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? t.sc_0901 : t.sc_0902}</Text>
                                             </View>
-                                            {Array.isArray(eq.images) && eq.images.length > 1 && (
-                                                <View style={{ position:'absolute', bottom:52, right:6, backgroundColor:'#000000aa', borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
-                                                    <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>📷 {eq.images.length}</Text>
-                                                </View>
-                                            )}
                                             {eq.status === 'RESERVED' && (
-                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#f59e0b', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
+                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#f59e0b', borderRadius:6, paddingHorizontal:4, paddingVertical:1, zIndex: 2 }}>
                                                     <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>⏳</Text>
                                                 </View>
                                             )}
                                             {eq.status === 'SOLD' && (
-                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1 }}>
+                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1, zIndex: 2 }}>
                                                     <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>✅</Text>
                                                 </View>
                                             )}
-                                            <View style={{ padding:5 }}>
+                                            <TouchableOpacity
+                                                onPress={() => { setEqGalleryIdx(0); setEqFullscreen(false); setSelectedEquipment(eq); }}
+                                                activeOpacity={0.85}
+                                                style={{ padding:5 }}
+                                            >
                                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{eq.title}</Text>
                                                 <Text style={{ color: cfg.color, fontSize:13, fontWeight:'900', marginTop:2 }}>{eq.price > 0 ? eq.price + ' ₺' : t.sc_0903}</Text>
                                                 <Text style={{ color: colors.textMuted, fontSize:10, marginTop:1 }}>{eq.user?.username}</Text>
                                                 {eq.offerCount > 0 && eq.userId === myId && (
                                                     <Text style={{ color:'#a78bfa', fontSize:10, marginTop:1, fontWeight:'700' }}>💰 {eq.offerCount} {t.equipOffersTitle}</Text>
                                                 )}
-                                            </View>
-                                        </TouchableOpacity>
+                                            </TouchableOpacity>
+                                        </View>
                                     ))}
                                 </View>
                             )}
                             {/* İlan ver formu Modal */}
-                            <Modal visible={showEquipmentForm} animationType="slide" onRequestClose={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }}>
+                            <Modal visible={showEquipmentForm} animationType="slide" onRequestClose={() => { setShowEquipmentForm(false); resetEquipmentForm(); }}>
                                 <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
                                     <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
-                                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding:17 }}>
+                                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding:17 }}>
                                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.sc_0904}</Text>
                                             <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                                 {['NEW','USED'].map(c => (
@@ -31515,8 +31566,74 @@ function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                             )}
 
+                                            {/* Reklam ver — site linki + kartta dönen görseller */}
+                                            <TouchableOpacity
+                                                onPress={() => setEquipmentForm(f => ({ ...f, isAd: !f.isAd }))}
+                                                style={{
+                                                    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                                    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 10,
+                                                    backgroundColor: equipmentForm.isAd ? '#a855f725' : colors.surface2,
+                                                    borderWidth: 1, borderColor: equipmentForm.isAd ? '#a855f7' : colors.border,
+                                                }}
+                                            >
+                                                <View style={{ flex: 1, paddingRight: 10 }}>
+                                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.equipAdToggle || 'Reklam ver'}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                                                        {t.equipAdToggleHint || 'Satış sayfanızın linki + kartta sırayla dönen görseller'}
+                                                    </Text>
+                                                </View>
+                                                <Switch
+                                                    value={!!equipmentForm.isAd}
+                                                    onValueChange={(v) => setEquipmentForm(f => ({ ...f, isAd: v }))}
+                                                    trackColor={{ false: '#334155', true: '#a855f7' }}
+                                                    thumbColor="#fff"
+                                                />
+                                            </TouchableOpacity>
+                                            {equipmentForm.isAd ? (
+                                                <View style={{ marginBottom: 14, padding: 10, borderRadius: 10, backgroundColor: '#a855f715', borderWidth: 1, borderColor: '#a855f740' }}>
+                                                    <TextInput
+                                                        placeholder={t.equipAdUrlPlaceholder || 'https://magazaniz.com/urun'}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        value={equipmentForm.adUrl || ''}
+                                                        onChangeText={v => setEquipmentForm(f => ({ ...f, adUrl: v }))}
+                                                        autoCapitalize="none"
+                                                        autoCorrect={false}
+                                                        keyboardType="url"
+                                                        style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', marginBottom: 8, borderWidth: 1, borderColor: colors.border }}
+                                                    />
+                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
+                                                        {t.equipAdMediaHint || 'Kartta arka arkaya dönen reklam görselleri (en fazla 8)'}
+                                                    </Text>
+                                                    {equipmentAdMedia.length > 0 && (
+                                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                                                            {equipmentAdMedia.map((m, idx) => (
+                                                                <View key={idx} style={{ marginRight: 8, position: 'relative' }}>
+                                                                    <Image source={{ uri: m.uri }} style={{ width: 90, height: 90, borderRadius: 8 }} resizeMode="cover" />
+                                                                    <View style={{ position: 'absolute', left: 4, bottom: 4, backgroundColor: '#000000aa', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                                                        <Text style={{ color: '#c084fc', fontSize: 9, fontWeight: '900' }}>{idx + 1}</Text>
+                                                                    </View>
+                                                                    <TouchableOpacity
+                                                                        onPress={() => setEquipmentAdMedia(prev => prev.filter((_, i) => i !== idx))}
+                                                                        style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#ef4444', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
+                                                                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>✕</Text>
+                                                                    </TouchableOpacity>
+                                                                </View>
+                                                            ))}
+                                                        </ScrollView>
+                                                    )}
+                                                    {equipmentAdMedia.length < 8 && (
+                                                        <TouchableOpacity onPress={pickEquipmentAdMedia}
+                                                            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: '#a855f760', borderStyle: 'dashed', backgroundColor: colors.surface2 }}>
+                                                            <Text style={{ color: '#c084fc', fontSize: 13, fontWeight: '700' }}>
+                                                                {t.equipAdMediaAdd || 'Reklam görseli ekle'} {equipmentAdMedia.length > 0 ? `(${equipmentAdMedia.length}/8)` : ''}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    )}
+                                                </View>
+                                            ) : null}
+
                                             <View style={{ flexDirection:'row', gap:3 }}>
-                                                <TouchableOpacity onPress={() => { setShowEquipmentForm(false); setEquipmentMedia([]); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
+                                                <TouchableOpacity onPress={() => { setShowEquipmentForm(false); resetEquipmentForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
                                                     <Text style={{ color:colors.textMuted, fontWeight:'700' }}>{t.sc_0065}</Text>
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment || uploadingEquipmentMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
@@ -31602,6 +31719,14 @@ function SubCategoryScreen({ route, navigation }) {
                                             {selectedEquipment?.description ? <Text style={{ color:colors.textSecondary, fontSize:13, marginBottom:8 }}>{selectedEquipment.description}</Text> : null}
                                             {selectedEquipment?.location ? <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:4 }}>📍 {selectedEquipment.location}</Text> : null}
                                             <Text style={{ color:colors.textMuted, fontSize:12, marginBottom:8 }}>👤 {selectedEquipment?.user?.fullName || selectedEquipment?.user?.username}</Text>
+                                            {selectedEquipment?.isAd && selectedEquipment?.adUrl ? (
+                                                <TouchableOpacity
+                                                    onPress={() => Linking.openURL(selectedEquipment.adUrl).catch(() => Alert.alert('', t.actionFailed))}
+                                                    style={{ alignSelf: 'stretch', marginBottom: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, backgroundColor: '#a855f725', borderWidth: 1, borderColor: '#a855f780', alignItems: 'center' }}>
+                                                    <Text style={{ color: '#c084fc', fontSize: 13, fontWeight: '900' }}>{t.equipAdOpenSite || 'Siteye git'}</Text>
+                                                    <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 2 }} numberOfLines={1}>{selectedEquipment.adUrl}</Text>
+                                                </TouchableOpacity>
+                                            ) : null}
                                             <TouchableOpacity
                                                 onPress={() => shareEquipment(selectedEquipment, t)}
                                                 style={{ alignSelf:'flex-start', marginBottom:10, paddingHorizontal:12, paddingVertical:7, borderRadius:8, backgroundColor:'#c084fc25', borderWidth:1, borderColor:'#c084fc60' }}>
