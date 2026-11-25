@@ -13010,11 +13010,9 @@ const vb = StyleSheet.create({
 // ─── Arşiv — Bireysel Maç Kartı (digimon kart) ───────────────────────────────────
 // Kullanıcı isteği: kart artık diğer digimon kartlarla (RivalCard/UpcomingCard'daki
 // kadro kartı) AYNI önlü-arkalı desende — ön yüzde özet (tarih/saat/süre/format/mod/
-// takımlar/skor), arka yüzde katılan oyuncular. Sağ üstteki eski sonuç emojisi (✅/❌/🤝)
-// yerine 🔄 çevirme butonu var; kart üstündeki "Önce/Sonra" ortalama derece satırları
-// kaldırıldı — zaten karta dokununca açılan ArchiveMatchDetailModal'da mevcut.
-// Hooks (useState/useRef) kullandığı için kendi bileşeni olmak ZORUNDA — bir .map()
-// callback'i içine konulamaz (rules of hooks).
+// takımlar/skor), arka yüzde katılan oyuncular. 🔄 format/mod ile aynı satırda sağ üst.
+// Parent her render'da inline Section ile remount edebildiği için flip Map'te tutulur.
+const ARCHIVE_CARD_FLIPPED = new Map();
 function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge = false, twoCol = false }) {
     const t = useT();
     const parts = Array.isArray(m.participants) ? m.participants : [];
@@ -13037,83 +13035,90 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
     const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? t.sc_team_opp : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
     const founderSetWins = sets ? sets.filter(s2 => s2.sender > s2.opponent).length : null;
     const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
+    const isDoubles = isDoublesMatch(m);
+    const matchKey = String(m?.id || '');
 
-    const [cardFlipped, setCardFlipped] = useState(false);
-    const flippingRef = useRef(false);
-    const cardFlipAnim = useRef(new Animated.Value(0)).current;
-    // Digimon ile birebir: 0 → 0.5 (90°) → içerik değişir → 0 veya 1 (ikisi de 0°).
-    // Flip butonu Animated.View DIŞINDA (kardeş) — skor/detay TouchableOpacity basışı yutmasın.
+    // Remount olsa bile Map'ten geri yükle — "çevirip hemen ön yüze dönüyor" bug'ı.
+    const [cardFlipped, setCardFlipped] = useState(() => !!ARCHIVE_CARD_FLIPPED.get(matchKey));
     const flipCard = () => {
-        if (flippingRef.current) return;
-        flippingRef.current = true;
-        const toBack = !cardFlipped;
-        Animated.timing(cardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
-            setCardFlipped(toBack);
-            Animated.timing(cardFlipAnim, { toValue: toBack ? 1 : 0, duration: 150, useNativeDriver: true }).start(() => {
-                flippingRef.current = false;
-            });
+        setCardFlipped((prev) => {
+            const next = !prev;
+            if (matchKey) ARCHIVE_CARD_FLIPPED.set(matchKey, next);
+            return next;
         });
     };
-    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
-    const isDoubles = isDoublesMatch(m);
+
+    // Format/mod satırı + 🔄 sağ üst — 🔄 detay TouchableOpacity DIŞINDA (basış yutulmasın).
+    const topRow = (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 3, paddingTop: 3, minHeight: 22 }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 3, flexWrap: 'wrap', minWidth: 0 }}>
+                {!hideFormatBadge ? (
+                    <Text style={{ color: cfg.color, fontSize: 10, fontWeight: '800' }}>{sizeTxt}</Text>
+                ) : null}
+                {!hideFormatBadge && modeTxt ? <Text style={{ color: colors.textMuted, fontSize: 10 }}>·</Text> : null}
+                {modeTxt ? (
+                    <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize: 10, fontWeight: '700' }}>{modeTxt}</Text>
+                ) : null}
+                {cardFlipped ? (
+                    <Text style={{ color: colors.textMuted, fontSize: 10, fontWeight: '700' }} numberOfLines={1}>
+                        {(hideFormatBadge && !modeTxt) ? '' : '· '}{t.rosterPoolLabel}
+                    </Text>
+                ) : null}
+            </View>
+            <TouchableOpacity
+                onPress={flipCard}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{ paddingHorizontal: 4, paddingVertical: 2 }}
+            >
+                <Text style={{ fontSize: 13, lineHeight: 15 }}>🔄</Text>
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         // Gruplu arşiv: satırda 2 kart, gap=1. Diğer: eski 3'lü ızgara.
-        // Kompakt: padding 3; isimler altlı üstlü, skorlar yanında → kart dar → 2v2 sola kayar.
         <View
             style={twoCol
                 ? { width: '50%', paddingHorizontal: 0.5, paddingBottom: 1 }
                 : [s.listGridCell, s.listGridCellThird, { paddingBottom: 1 }]}
             collapsable={false}
         >
-        <View style={{ position: 'relative', width: '100%' }}>
-        <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:0 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
-            {/* Kullanıcı isteği: canlı takiple (saat/telefon) girilmiş, detaylı istatistikleri olan
-                maçlar küçük bir rozetle işaretlensin — detaya girmeden ayırt edilebilsin. */}
-            {m.score?.stats && (
-                <View pointerEvents="none" style={{ position:'absolute', top:3, left:3, zIndex:5, backgroundColor:'#00000060', borderRadius:8, paddingHorizontal:3, paddingVertical:1 }}>
-                    <Text style={{ fontSize:9 }}>📊</Text>
+        <View style={[s.card, { width: '100%', paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, minHeight: 0 }, highlighted && { borderColor: '#f97316', borderWidth: 2 }]}>
+            {m.score?.stats && !cardFlipped ? (
+                <View pointerEvents="none" style={{ position: 'absolute', top: 3, left: 3, zIndex: 5, backgroundColor: '#00000060', borderRadius: 8, paddingHorizontal: 3, paddingVertical: 1 }}>
+                    <Text style={{ fontSize: 9 }}>📊</Text>
                 </View>
-            )}
+            ) : null}
+            {topRow}
             {cardFlipped ? (
-                <TouchableOpacity activeOpacity={0.85} style={{ padding:3, paddingBottom: 22, minHeight: 64 }} onPress={onPress}>
-                    {/* 2v2: arka yüzde iki takımın tüm oyuncuları net görünsün */}
+                <TouchableOpacity activeOpacity={0.85} style={{ paddingHorizontal: 3, paddingBottom: 3, minHeight: 52 }} onPress={onPress}>
+                    {/* 2v2: iki takımın tüm oyuncuları; 1v1: iki isim + roster başlığı üst satırda */}
                     {isDoubles ? (
                         <>
                             <Text style={{ color: '#93c5fd', fontSize: 10, fontWeight: '800', marginBottom: 1 }} numberOfLines={1}>{founderLabel}</Text>
                             {founderSide.map((p, i) => (
                                 <Text key={p.id || `f-${i}`} style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
                             ))}
+                            {founderSide.length === 0 ? <Text style={{ color: colors.textMuted, fontSize: 10 }}>—</Text> : null}
                             <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800', marginTop: 4, marginBottom: 1 }} numberOfLines={1}>{opponentLabel}</Text>
                             {opponentSide.map((p, i) => (
                                 <Text key={p.id || `o-${i}`} style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
                             ))}
+                            {opponentSide.length === 0 ? <Text style={{ color: colors.textMuted, fontSize: 10 }}>—</Text> : null}
                         </>
                     ) : (
                         <>
-                            {/* 1v1: etiket tekrarını önle — sadece roster satırları */}
-                            {founderSide.map((p, i) => (
-                                <Text key={p.id || `f-${i}`} style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
-                            ))}
-                            {opponentSide.map((p, i) => (
-                                <Text key={p.id || `o-${i}`} style={{ color: '#fca5a5', fontSize: 11, fontWeight: '700', marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
-                            ))}
+                            <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                                {founderSide[0] ? senderAlias(founderSide[0]) : founderLabel}
+                            </Text>
+                            <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '700', marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                                {opponentSide[0] ? senderAlias(opponentSide[0]) : opponentLabel}
+                            </Text>
                         </>
                     )}
                 </TouchableOpacity>
             ) : (
-                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:3, paddingBottom: 22 }}>
-                    {(!hideFormatBadge || modeTxt) ? (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2, flexWrap:'wrap', paddingRight:4 }}>
-                            {!hideFormatBadge ? (
-                                <Text style={{ color: cfg.color, fontSize:10, fontWeight:'800' }}>{sizeTxt}</Text>
-                            ) : null}
-                            {!hideFormatBadge && modeTxt ? <Text style={{ color: colors.textMuted, fontSize:10 }}>·</Text> : null}
-                            {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:10, fontWeight:'700' }}>{modeTxt}</Text> : null}
-                        </View>
-                    ) : (
-                        <View style={{ height: 2 }} />
-                    )}
+                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ paddingHorizontal: 3, paddingBottom: 3 }}>
                     {/* İsimler altlı üstlü; her ismin yanında kendi set skoru */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                         <View style={{ flex: 1, minWidth: 0 }}>
@@ -13128,34 +13133,12 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
                         ) : null}
                     </View>
                     <Text style={{ color: colors.textMuted, fontSize: 10 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                        {m.flexibleSchedule ? t.sc_0162 : m.matchDate ? new Date(m.matchDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' }) : ''}
+                        {m.flexibleSchedule ? t.sc_0162 : m.matchDate ? new Date(m.matchDate).toLocaleDateString(appLocale(t.lang), { day: 'numeric', month: 'short' }) : ''}
                         {!m.flexibleSchedule && m.matchTime ? ` · ${m.matchTime}` : ''}
                         {m.duration != null ? t.sc_0304(m.duration) : ''}
                     </Text>
                 </TouchableOpacity>
             )}
-        </Animated.View>
-        {/* 🔄 kart gövdesinin ÜSTÜNDE — detay / skor dokunuşu yutmasın (özellikle 2v2 arka yüz) */}
-        <TouchableOpacity
-            onPress={flipCard}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={{
-                position: 'absolute',
-                right: 0,
-                bottom: 0,
-                zIndex: 20,
-                elevation: 20,
-                width: 28,
-                height: 28,
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#00000055',
-                borderTopLeftRadius: 8,
-                borderBottomRightRadius: 10,
-            }}
-        >
-            <Text style={{ fontSize: 13, lineHeight: 15 }}>🔄</Text>
-        </TouchableOpacity>
         </View>
         </View>
     );
@@ -34056,8 +34039,10 @@ function SubCategoryScreen({ route, navigation }) {
                                 // Her kategoride satırda 2 kart, gap=1.
                                 const panelGap = 6;
                                 const panelW = Math.max(168, Math.floor((winW - moderateScale(8) - panelGap) / 2));
-                                const Section = ({ title, count, open, onToggle, list }) => (
-                                    <View style={{ width: panelW, marginRight: panelGap }}>
+                                // Inline component YASAK — her parent render'da tip değişir, kartlar
+                                // remount olur, flip state sıfırlanır. Düz View kullan.
+                                const renderFormatPanel = (title, count, open, onToggle, list) => (
+                                    <View key={title} style={{ width: panelW, marginRight: panelGap }}>
                                         <TouchableOpacity
                                             onPress={onToggle}
                                             activeOpacity={0.75}
@@ -34069,7 +34054,6 @@ function SubCategoryScreen({ route, navigation }) {
                                             </Text>
                                         </TouchableOpacity>
                                         {open && list.length > 0 ? (
-                                            // %50 hücre + gap Android'de taşar → gap yok, padding hücrede (gap≈1)
                                             <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -0.5 }}>
                                                 {list.map(m => renderCard(m, { hideFormatBadge: true, twoCol: true }))}
                                             </View>
@@ -34089,25 +34073,13 @@ function SubCategoryScreen({ route, navigation }) {
                                         snapToInterval={panelW + panelGap}
                                         snapToAlignment="start"
                                         disableIntervalMomentum
-                                        keyboardShouldPersistTaps="handled"
+                                        keyboardShouldPersistTaps="always"
                                         overScrollMode="always"
                                         bounces
                                         contentContainerStyle={{ paddingVertical: 5, paddingRight: 24 }}
                                     >
-                                        <Section
-                                            title="1v1"
-                                            count={singles.length}
-                                            open={archiveSinglesExpanded}
-                                            onToggle={() => setArchiveSinglesExpanded(v => !v)}
-                                            list={singles}
-                                        />
-                                        <Section
-                                            title="2v2"
-                                            count={doubles.length}
-                                            open={archiveDoublesExpanded}
-                                            onToggle={() => setArchiveDoublesExpanded(v => !v)}
-                                            list={doubles}
-                                        />
+                                        {renderFormatPanel('1v1', singles.length, archiveSinglesExpanded, () => setArchiveSinglesExpanded(v => !v), singles)}
+                                        {renderFormatPanel('2v2', doubles.length, archiveDoublesExpanded, () => setArchiveDoublesExpanded(v => !v), doubles)}
                                     </ScrollView>
                                 );
                             })()
