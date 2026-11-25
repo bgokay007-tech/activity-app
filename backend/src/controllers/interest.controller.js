@@ -33,7 +33,7 @@ export const SUBCATEGORIES = {
         { id: 'shooting_hunting', name: 'Shooting & Hunting', emoji: '🔫' },
         { id: 'equestrian', name: 'Equestrian', emoji: '🐎' },
         { id: 'golf', name: 'Golf', emoji: '⛳' },
-        { id: 'fitness_gym', name: 'Fitness & Gym', emoji: '🏋️' },
+        { id: 'fitness_gym', name: 'Fitness', emoji: '🏋️' },
         { id: 'skiing_snowboard', name: 'Skiing & Snowboard', emoji: '⛷️' },
         { id: 'ice_skating', name: 'Ice Skating', emoji: '⛸️' },
         { id: 'roller_skating', name: 'Roller Skating', emoji: '🛼' },

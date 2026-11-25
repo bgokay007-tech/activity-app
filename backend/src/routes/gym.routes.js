@@ -5,6 +5,7 @@ import {
     applyMembership, getMembershipApplications, respondMembershipApplication,
     getMyMembershipQr, scanCheck, getCheckIns,
     getMyMemberships, leaveMembership,
+    getReviews, submitReview,
 } from '../controllers/gym.controller.js';
 import { reportListing } from '../controllers/listing-report.controller.js';
 
@@ -25,6 +26,8 @@ router.get('/:id/membership-applications', getMembershipApplications);
 router.get('/:id/my-qr', getMyMembershipQr);
 router.post('/:id/scan', scanCheck);
 router.get('/:id/check-ins', getCheckIns);
+router.get('/:id/reviews', getReviews);
+router.post('/:id/reviews', submitReview);
 
 router.patch('/:id', updateListing);
 router.delete('/:id', deleteListing);

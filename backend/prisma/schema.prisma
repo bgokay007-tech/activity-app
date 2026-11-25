@@ -146,6 +146,7 @@ model User {
   gymMemberships      GymMember[] @relation("GymMemberUser")
   gymMembershipManaged GymMember[] @relation("GymMemberAddedBy")
   gymCheckInsScanned  GymCheckIn[] @relation("GymCheckInScanner")
+  gymReviewsGiven     GymReview[] @relation("GymReviewer")
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
@@ -877,6 +878,23 @@ model GymListing {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   members         GymMember[]
   checkIns        GymCheckIn[]
+  reviews         GymReview[]
+}
+
+// Salon değerlendirme — her kullanıcı bir salona tek yıldız/yorum (upsert).
+model GymReview {
+  id           String   @id @default(uuid())
+  gymListingId String
+  reviewerId   String
+  rating       Int      // 1-5
+  comment      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  gymListing   GymListing @relation(fields: [gymListingId], references: [id], onDelete: Cascade)
+  reviewer     User       @relation("GymReviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@unique([gymListingId, reviewerId])
 }
 
 // Salon üyesi — kabul edilince QR token üretilir; giriş/çıkış GymCheckIn ile kaydedilir.

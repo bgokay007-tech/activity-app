@@ -94,6 +94,25 @@ export const getListings = async (req, res, next) => {
             filtered = filtered.map(l => mapListingForViewer(l, null, null));
         }
 
+        // Liste kartlarında yıldız ortalaması
+        if (filtered.length > 0) {
+            const stats = await prisma.gymReview.groupBy({
+                by: ['gymListingId'],
+                where: { gymListingId: { in: filtered.map(l => l.id) } },
+                _avg: { rating: true },
+                _count: { rating: true },
+            });
+            const byId = Object.fromEntries(stats.map(s => [s.gymListingId, {
+                avgRating: s._avg.rating != null ? Math.round(s._avg.rating * 10) / 10 : null,
+                reviewCount: s._count.rating,
+            }]));
+            filtered = filtered.map(l => ({
+                ...l,
+                avgRating: byId[l.id]?.avgRating ?? null,
+                reviewCount: byId[l.id]?.reviewCount ?? 0,
+            }));
+        }
+
         res.json(filtered);
     } catch (err) { next(err); }
 };
@@ -678,5 +697,58 @@ export const setGymApproval = async (req, res, next) => {
         }
 
         res.json(updated);
+    } catch (err) { next(err); }
+};
+
+export const getReviews = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const listing = await prisma.gymListing.findUnique({ where: { id }, select: { id: true, userId: true, status: true } });
+        if (!listing || (listing.status !== 'ACTIVE' && listing.userId !== req.userId))
+            return res.status(404).json({ message: 'Salon bulunamadı' });
+
+        const reviews = await prisma.gymReview.findMany({
+            where: { gymListingId: id },
+            include: { reviewer: { select: USER_SELECT } },
+            orderBy: { createdAt: 'desc' },
+        });
+        const myReview = req.userId
+            ? reviews.find(r => r.reviewerId === req.userId) || null
+            : null;
+        res.json({
+            reviews,
+            avgRating: reviews.length ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10 : null,
+            reviewCount: reviews.length,
+            canReview: !!req.userId && listing.userId !== req.userId,
+            myReview,
+        });
+    } catch (err) { next(err); }
+};
+
+export const submitReview = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { rating, comment } = req.body;
+        const r = parseInt(rating, 10);
+        if (!r || r < 1 || r > 5) return res.status(400).json({ message: 'Geçerli bir yıldız puanı girin (1-5)' });
+
+        const listing = await prisma.gymListing.findUnique({ where: { id } });
+        if (!listing || listing.status !== 'ACTIVE')
+            return res.status(404).json({ message: 'Salon bulunamadı' });
+        if (listing.userId === req.userId)
+            return res.status(400).json({ message: 'Kendi salonunuza değerlendirme yapamazsınız' });
+
+        const review = await prisma.gymReview.upsert({
+            where: { gymListingId_reviewerId: { gymListingId: id, reviewerId: req.userId } },
+            update: { rating: r, comment: comment?.trim() || null },
+            create: {
+                gymListingId: id,
+                reviewerId: req.userId,
+                rating: r,
+                comment: comment?.trim() || null,
+            },
+            include: { reviewer: { select: USER_SELECT } },
+        });
+        res.status(201).json(review);
     } catch (err) { next(err); }
 };

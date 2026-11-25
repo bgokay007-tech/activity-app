@@ -353,7 +353,7 @@ const SUB_CONFIG = {
     climbing:       { name:'Climbing',       nameTR:'Tırmanış',        nameRu:'Скалолазание',                  nameDe:'Klettern',                   emoji:'🧗', color:'#dc2626' },
     equestrian:     { name:'Equestrian',     nameTR:'Binicilik',       nameRu:'Конный спорт',                  nameDe:'Reitsport',                  emoji:'🐎', color:'#92400e' },
     extreme_sports: { name:'Extreme Sports', nameTR:'Ekstrem Sporlar', nameRu:'Экстремальные виды спорта',     nameDe:'Extremsport',                emoji:'🪂', color:'#e11d48' },
-    fitness_gym:    { name:'Fitness & Gym',  nameTR:'Fitness & Spor Salonu', nameRu:'Фитнес и тренажёрный зал', nameDe:'Fitness & Fitnessstudio', emoji:'🏋️', color:'#f97316' },
+    fitness_gym:    { name:'Fitness',  nameTR:'Fitness', nameRu:'Фитнес', nameDe:'Fitness', emoji:'🏋️', color:'#f97316' },
     foot_tennis:    { name:'Foot Tennis',    nameTR:'Ayak Tenisi',     nameRu:'Футтеннис',                     nameDe:'Fußtennis',                  emoji:'🦶', color:'#0891b2' },
     dodgeball:      { name:'Dodgeball',      nameTR:'Yakar Top',       nameRu:'Доджбол',                       nameDe:'Dodgeball',                  emoji:'🟠', color:'#ea580c' },
     rugby:          { name:'Rugby',          nameTR:'Ragbi',           nameRu:'Регби',                         nameDe:'Rugby',                      emoji:'🏉', color:'#14532d' },
@@ -26993,8 +26993,8 @@ function SubCategoryScreen({ route, navigation }) {
     const [loadingCoaches, setLoadingCoaches] = useState(false);
     // Fitness Destek varsayılanı Spor Salonları; diğer dallarda listings.
     const [coachSubTab, setCoachSubTab] = useState(
-        initialCoachSubTab || (sub === 'fitness_gym' ? 'gyms' : 'listings')
-    ); // 'gyms' | 'clubs' | 'listings' | 'courses' | 'support' | 'referees' | 'cvs'
+        initialCoachSubTab || 'listings'
+    ); // 'clubs' | 'listings' | 'courses' | 'support' | 'referees' | 'cvs'
     // Kullanıcı isteği: CVler sekmesinin kendi içinde 3 alt-sekmesi olsun —
     // Antrenörler / Hakemler / CV Yükle (CV Yükle burada iki seçenekli: antrenör CV'si mi
     // hakem CV'si mi). "İlan Oluştur" akışlarından CV yükleme tamamen kaldırıldı.
@@ -27298,6 +27298,13 @@ function SubCategoryScreen({ route, navigation }) {
     const [scoreConfirmExpanded, setScoreConfirmExpanded] = useState(false);
     const scoreConfirmBlink = useRef(new Animated.Value(1)).current;
     const [openRivalsExpanded, setOpenRivalsExpanded] = useState(true);
+    // Fitness Etkinlikler: Açık İlanlar / Salonlar bölümleri + filtre + Digimon yanı Salonlar sheet
+    const [openGymsExpanded, setOpenGymsExpanded] = useState(true);
+    const [gymListCount, setGymListCount] = useState(0);
+    const [gymCreateTick, setGymCreateTick] = useState(0);
+    const [showFitnessGymsSheet, setShowFitnessGymsSheet] = useState(false);
+    // 'all' | 'events' | 'gyms'
+    const [fitnessListFilter, setFitnessListFilter] = useState('all');
     const [showCreatePW, setShowCreatePW] = useState(false);
     // Voleybol "Resmi Takım Adı" — kullanıcı isteği: Rakip Bul'daki "Rakip Aranıyor" ilanının
     // sağına, bağış dekontu karşılığı admin onaylı, tek başına sahibine ait bir takım adı
@@ -30368,6 +30375,26 @@ function SubCategoryScreen({ route, navigation }) {
                         </View>
                         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
+                        {sub === 'fitness_gym' && activeTab === 'rivals' && (
+                            <>
+                                <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>🏋️ {t.fitnessFilterLabel}</Text>
+                                <View style={{ flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:18 }}>
+                                    {[
+                                        { key:'all', label: t.fitnessFilterAll },
+                                        { key:'events', label: t.fitnessFilterEvents },
+                                        { key:'gyms', label: t.fitnessFilterGyms },
+                                    ].map(opt => (
+                                        <TouchableOpacity key={opt.key}
+                                            onPress={() => setFitnessListFilter(opt.key)}
+                                            style={{ backgroundColor: fitnessListFilter === opt.key ? cfg.color+'25' : colors.surface2, borderRadius:8, paddingVertical:7, paddingHorizontal:12, borderWidth:1, borderColor: fitnessListFilter === opt.key ? cfg.color : colors.border }}
+                                        >
+                                            <Text style={{ color: fitnessListFilter === opt.key ? cfg.color : colors.textMuted, fontSize:12, fontWeight:'700' }}>{opt.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </>
+                        )}
+
                         {sub === 'volleyball' && (
                             <>
                                 <Text style={{ color:colors.textMuted, fontSize:12, fontWeight:'700', marginBottom:6 }}>🏐 {t.volleyballTypeLabel}</Text>
@@ -30655,6 +30682,12 @@ function SubCategoryScreen({ route, navigation }) {
                                 <Text style={{ color:'#fff', fontSize: moderateScale(16), fontWeight:'900', lineHeight: moderateScale(20) }}>?</Text>
                             </TouchableOpacity>
                         ) : null}
+                        {sub === 'fitness_gym' ? (
+                            <TouchableOpacity onPress={() => setShowFitnessGymsSheet(true)}
+                                style={{ height: moderateScale(28), paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center', borderRadius: moderateScale(8), backgroundColor:'#f9731620', borderWidth:1, borderColor:'#f9731650' }}>
+                                <Text style={{ color:'#fb923c', fontSize: moderateScale(12), fontWeight:'800', lineHeight: moderateScale(16) }}>{t.gymsSubTab}</Text>
+                            </TouchableOpacity>
+                        ) : null}
                         <TouchableOpacity onPress={() => setShowSpotlight(true)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                             <Text style={{ fontSize: moderateScale(24) }}>🃏</Text>
                         </TouchableOpacity>
@@ -30699,11 +30732,34 @@ function SubCategoryScreen({ route, navigation }) {
                                         </Text>
                                     </TouchableOpacity>
                                 )}
-                                <TouchableOpacity style={[s.createBtn, { marginBottom:0 }]} onPress={requireActivityThenCreate}>
-                                    <Text style={[s.createBtnText, { color: cfg.color }]}>{category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub) ? (t.createEventBtn || t.sc_0896) : t.createAdBtn}</Text>
+                                {sub === 'fitness_gym' && (
+                                    <TouchableOpacity
+                                        style={[s.createBtn, { marginBottom:0, flex:1, borderColor: '#f9731660' }]}
+                                        onPress={() => setGymCreateTick(n => n + 1)}>
+                                        <Text style={[s.createBtnText, { color: '#fb923c' }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.addGymBtn}</Text>
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity style={[s.createBtn, { marginBottom:0, flex:1 }]} onPress={requireActivityThenCreate}>
+                                    <Text style={[s.createBtnText, { color: cfg.color }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{category === 'ARTS' || SIMPLE_TAB_SUBS.has(sub) ? (t.createEventBtn || t.sc_0896) : t.createAdBtn}</Text>
                                 </TouchableOpacity>
                             </CityAlertRow>
 
+                            {sub === 'fitness_gym' && (
+                                <View style={{ flexDirection:'row', gap:6, marginBottom:8 }}>
+                                    {[
+                                        { key:'all', label: t.fitnessFilterAll },
+                                        { key:'events', label: t.fitnessFilterEvents },
+                                        { key:'gyms', label: t.fitnessFilterGyms },
+                                    ].map(opt => (
+                                        <TouchableOpacity key={opt.key} onPress={() => setFitnessListFilter(opt.key)}
+                                            style={{ flex:1, paddingVertical:6, borderRadius:8, alignItems:'center', backgroundColor: fitnessListFilter===opt.key ? cfg.color : colors.surface2, borderWidth:1, borderColor: fitnessListFilter===opt.key ? cfg.color : colors.border }}>
+                                            <Text style={{ color: fitnessListFilter===opt.key ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800' }} numberOfLines={1}>{opt.label}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            )}
+
+                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && (
                             <TouchableOpacity
                                 onPress={() => setOpenRivalsExpanded(v => !v)}
                                 style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: openRivalsExpanded ? 2 : 1 }}
@@ -30713,7 +30769,8 @@ function SubCategoryScreen({ route, navigation }) {
                                     {openRivalsExpanded ? '▼' : '›'}
                                 </Text>
                             </TouchableOpacity>
-                            {openRivalsExpanded && (
+                            )}
+                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && openRivalsExpanded && (
                                 (filteredRivals.length === 0 && upcomingNeedingSubs.length === 0)
                                     ? (!listsReady ? null : <EmptyState emoji="⚔️" text={rivals.length > 0 ? t.noFilterMatch : t.emptyRivals} />)
                                     : (
@@ -30744,8 +30801,39 @@ function SubCategoryScreen({ route, navigation }) {
                                     )
                             )}
 
+                            
+                            {sub === 'fitness_gym' && (
+                                <>
+                                    {(fitnessListFilter === 'all' || fitnessListFilter === 'gyms') && (
+                                    <TouchableOpacity
+                                        onPress={() => setOpenGymsExpanded(v => !v)}
+                                        style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop: 8, marginBottom: openGymsExpanded ? 2 : 1 }}
+                                    >
+                                        <Text style={[s.sectionTitle, { marginTop:0, marginBottom:0 }]}>{t.gymsSubTab} ({gymListCount})</Text>
+                                        <Text style={{ color: colors.textSecondary, fontSize:18, fontWeight:'700', marginTop:-4 }}>
+                                            {openGymsExpanded ? '▼' : '›'}
+                                        </Text>
+                                    </TouchableOpacity>
+                                    )}
+                                    <View style={(fitnessListFilter === 'all' || fitnessListFilter === 'gyms') && openGymsExpanded
+                                        ? undefined
+                                        : { height: 0, overflow: 'hidden', opacity: 0 }}>
+                                        <GymSupportSection
+                                            category={category}
+                                            sub={sub}
+                                            cfg={cfg}
+                                            cityFilter={filterCity || undefined}
+                                            hideCreateButton
+                                            createOpenTick={gymCreateTick}
+                                            onCountChange={setGymListCount}
+                                            onOpenScan={(gymId, gymName) => navigation.navigate('GymQrScan', { gymId, gymName })}
+                                        />
+                                    </View>
+                                </>
+                            )}
+
                             {/* Yaklaşan Maçlar — tüm ilanların altında, filtreye tabi */}
-                            {upcomingSubsFull.length > 0 && (
+                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && upcomingSubsFull.length > 0 && (
                                 <>
                                     <TouchableOpacity
                                         onPress={() => setUpcomingExpanded(v => !v)}
@@ -30769,7 +30857,7 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             {/* Oynanan Maçlar — maç saati gelmiş ama süresi henüz dolmamış maçlar */}
-                            {playingMatches.length > 0 && (
+                            {(sub !== 'fitness_gym' || fitnessListFilter !== 'gyms') && playingMatches.length > 0 && (
                                 <>
                                     <TouchableOpacity
                                         onPress={() => setPlayingExpanded(v => !v)}
@@ -31634,7 +31722,6 @@ function SubCategoryScreen({ route, navigation }) {
                         const nonProfileOnlyCoaches = filteredCoaches.filter(c => !c.profileOnly);
                         const subTabs = isFitnessSupport
                             ? [
-                                { key:'gyms',     label: t.gymsSubTab,       count: undefined },
                                 { key:'listings', label: t.coachesSubTab,    count: individualCoaches.length },
                                 { key:'support',  label: t.coachListingsTab, count: nonProfileOnlyCoaches.length },
                                 { key:'cvs',      label: t.coachCvsTab,      count: coachesWithCv.length + refereesWithCv.length },
@@ -31664,7 +31751,6 @@ function SubCategoryScreen({ route, navigation }) {
                         const shown = coachSubTab === 'cvs' ? coachesWithCv
                             : coachSubTab === 'courses' ? groupCourses
                             : coachSubTab === 'clubs' ? filteredClubs
-                            : coachSubTab === 'gyms' ? []
                             : coachSubTab === 'support' ? nonProfileOnlyCoaches
                             : ((isCoachExpanded || isFitnessSupport) && coachSubTab === 'listings') ? individualCoaches
                             : nonProfileOnlyCoaches;
@@ -31687,7 +31773,7 @@ function SubCategoryScreen({ route, navigation }) {
                             {/* Kullanıcı isteği: "CV Yükle" artık burada değil — sadece CVler sekmesinin
                                 kendi "CV Yükle" alt-sekmesinde yaşıyor. Burada sadece ilan/maç oluşturma
                                 kalıyor, ilan oluştururken mevcut CV zaten otomatik entegre oluyor. */}
-                            {coachSubTab === 'cvs' || coachSubTab === 'gyms' ? null : coachSubTab === 'clubs' ? (
+                            {coachSubTab === 'cvs' ? null : coachSubTab === 'clubs' ? (
                                 <CityAlertRow tab="clubs">
                                     <TouchableOpacity
                                         style={[s.createBtn, { marginBottom:0, borderColor: cfg.color + '60' }]}
@@ -31722,15 +31808,7 @@ function SubCategoryScreen({ route, navigation }) {
                             )}
 
                             <CompactFilter showDateChips={false} />
-                            {coachSubTab === 'gyms' ? (
-                                <GymSupportSection
-                                    category={category}
-                                    sub={sub}
-                                    cfg={cfg}
-                                    cityFilter={filterCity || undefined}
-                                    onOpenScan={(gymId, gymName) => navigation.navigate('GymQrScan', { gymId, gymName })}
-                                />
-                            ) : coachSubTab === 'clubs' ? (
+                            {coachSubTab === 'clubs' ? (
                                 loadingClubs
                                     ? <ActivityIndicator color={cfg.color} style={{ marginTop:20 }} />
                                     : filteredClubs.length === 0
@@ -34918,6 +34996,21 @@ function SubCategoryScreen({ route, navigation }) {
             {/* onCreated: load() değil onRefresh — aksi halde branchCache eski listeyi
                 geri basıyor; socket ile anlık gelen yeni ilan 2–3 sn sonra silinip sadece
                 yenilemede / poll'da görünüyordu. */}
+            {/* Fitness Digimon yanı Salonlar — filtre + değerlendirme */}
+            {showFitnessGymsSheet && (
+                <KeyboardSafeModal visible onClose={() => setShowFitnessGymsSheet(false)}>
+                    <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:10 }}>{t.gymsSubTab}</Text>
+                    <GymSupportSection
+                        category={category}
+                        sub={sub}
+                        cfg={cfg}
+                        cityFilter={filterCity || undefined}
+                        hideCreateButton={false}
+                        onOpenScan={(gymId, gymName) => { setShowFitnessGymsSheet(false); navigation.navigate('GymQrScan', { gymId, gymName }); }}
+                    />
+                </KeyboardSafeModal>
+            )}
+            {/* FitnessGymsSheetModal */}
             {showCreateRival && (
                 <CreateRivalModal
                     visible

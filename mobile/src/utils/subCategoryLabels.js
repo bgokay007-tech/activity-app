@@ -25,7 +25,7 @@ const LABELS = {
     shooting_hunting: { en: 'Shooting & Hunting', tr: 'Atıcılık & Avcılık', ru: 'Стрельба и охота', de: 'Schießen & Jagen' },
     equestrian: { en: 'Equestrian', tr: 'Binicilik', ru: 'Конный спорт', de: 'Reiten' },
     golf: { en: 'Golf', tr: 'Golf', ru: 'Гольф', de: 'Golf' },
-    fitness_gym: { en: 'Fitness & Gym', tr: 'Fitness & Spor Salonu', ru: 'Фитнес и тренажёрный зал', de: 'Fitness & Fitnessstudio' },
+    fitness_gym: { en: 'Fitness', tr: 'Fitness', ru: 'Фитнес', de: 'Fitness' },
     skiing_snowboard: { en: 'Skiing & Snowboard', tr: 'Kayak & Snowboard', ru: 'Лыжи и сноуборд', de: 'Skifahren & Snowboard' },
     ice_skating: { en: 'Ice Skating', tr: 'Buz Pateni', ru: 'Катание на коньках', de: 'Eislaufen' },
     roller_skating: { en: 'Roller Skating', tr: 'Paten', ru: 'Катание на роликах', de: 'Inlineskaten' },

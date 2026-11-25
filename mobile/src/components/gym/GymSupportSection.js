@@ -57,6 +57,10 @@ export default function GymSupportSection({
     feeMaxFilter,
     onOpenScan,
     CompactFilterSlot,
+    hideCreateButton = false,
+    // Parent "Spor Salonu Ekle" basınca artan sayaç — create modalını açar
+    createOpenTick = 0,
+    onCountChange,
 }) {
     const t = useT();
     const myId = useSelector(s => s.auth.user?.id);
@@ -70,6 +74,13 @@ export default function GymSupportSection({
     const [detailIsOwner, setDetailIsOwner] = useState(false);
     const [apps, setApps] = useState([]);
     const [myQr, setMyQr] = useState(null);
+    const [reviews, setReviews] = useState([]);
+    const [avgRating, setAvgRating] = useState(null);
+    const [canReview, setCanReview] = useState(false);
+    const [myReview, setMyReview] = useState(null);
+    const [reviewStars, setReviewStars] = useState(5);
+    const [reviewComment, setReviewComment] = useState('');
+    const [submittingReview, setSubmittingReview] = useState(false);
 
     const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -81,15 +92,24 @@ export default function GymSupportSection({
             if (feeMinFilter) params.minMonthlyFee = feeMinFilter;
             if (feeMaxFilter) params.maxMonthlyFee = feeMaxFilter;
             const { data } = await api.get('/gyms', { params });
-            setListings(Array.isArray(data) ? data : []);
+            const list = Array.isArray(data) ? data : [];
+            setListings(list);
+            onCountChange?.(list.filter(g => g.status === 'ACTIVE' || g.userId === myId).length);
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
         } finally {
             setLoading(false);
         }
-    }, [category, sub, cityFilter, feeMinFilter, feeMaxFilter, t.error, t.actionFailed]);
+    }, [category, sub, cityFilter, feeMinFilter, feeMaxFilter, t.error, t.actionFailed, onCountChange, myId]);
 
     useEffect(() => { load(); }, [load]);
+
+    useEffect(() => {
+        if (createOpenTick > 0) {
+            setForm(INIT_FORM);
+            setShowCreate(true);
+        }
+    }, [createOpenTick]);
 
     const filtered = useMemo(() => {
         let list = listings;
@@ -186,6 +206,46 @@ export default function GymSupportSection({
         }
     };
 
+    const loadReviews = async (gymId) => {
+        try {
+            const { data } = await api.get(`/gyms/${gymId}/reviews`);
+            setReviews(Array.isArray(data?.reviews) ? data.reviews : []);
+            setAvgRating(data?.avgRating ?? null);
+            setCanReview(!!data?.canReview);
+            setMyReview(data?.myReview || null);
+            if (data?.myReview) {
+                setReviewStars(data.myReview.rating || 5);
+                setReviewComment(data.myReview.comment || '');
+            } else {
+                setReviewStars(5);
+                setReviewComment('');
+            }
+        } catch {
+            setReviews([]);
+            setAvgRating(null);
+            setCanReview(false);
+            setMyReview(null);
+        }
+    };
+
+    const submitGymReview = async () => {
+        if (!detail?.id) return;
+        setSubmittingReview(true);
+        try {
+            await api.post(`/gyms/${detail.id}/reviews`, {
+                rating: reviewStars,
+                comment: reviewComment.trim() || undefined,
+            });
+            await loadReviews(detail.id);
+            load();
+            Alert.alert('', t.gymReviewSaved);
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setSubmittingReview(false);
+        }
+    };
+
     const openDetailFull = async (g) => {
         try {
             const { data } = await api.get(`/gyms/${g.id}`);
@@ -194,6 +254,7 @@ export default function GymSupportSection({
             setApps([]);
             const amOwner = !!(myId && (g.userId === myId || data.user?.id === myId));
             setDetailIsOwner(amOwner);
+            await loadReviews(g.id);
             if (amOwner) {
                 const { data: mem } = await api.get(`/gyms/${g.id}/membership-applications`);
                 setApps(Array.isArray(mem) ? mem : []);
@@ -252,11 +313,13 @@ export default function GymSupportSection({
 
     return (
         <View>
-            <TouchableOpacity
-                style={[s.createBtn, { borderColor: (cfg?.color || '#f97316') + '60' }]}
-                onPress={() => { reset(); setShowCreate(true); }}>
-                <Text style={[s.createBtnText, { color: cfg?.color || '#f97316' }]}>{t.createGymBtn}</Text>
-            </TouchableOpacity>
+            {!hideCreateButton && (
+                <TouchableOpacity
+                    style={[s.createBtn, { borderColor: (cfg?.color || '#f97316') + '60' }]}
+                    onPress={() => { reset(); setShowCreate(true); }}>
+                    <Text style={[s.createBtnText, { color: cfg?.color || '#f97316' }]}>{t.createGymBtn}</Text>
+                </TouchableOpacity>
+            )}
 
             {CompactFilterSlot}
 
@@ -297,6 +360,11 @@ export default function GymSupportSection({
                                     ) : null}
                                     {g.monthlyFee != null && (
                                         <Text style={s.cardFee}>{t.gymMonthlyFee}: {g.monthlyFee}₺</Text>
+                                    )}
+                                    {(g.avgRating != null || g.reviewCount > 0) && (
+                                        <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
+                                            ★ {g.avgRating != null ? g.avgRating : '—'}{g.reviewCount ? ` (${g.reviewCount})` : ''}
+                                        </Text>
                                     )}
                                     {g.myMembershipStatus === 'ACTIVE' && (
                                         <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '700', marginTop: 2 }}>{t.gymMemberActive}</Text>
@@ -454,6 +522,53 @@ export default function GymSupportSection({
                                 <Text style={s.submitText}>{t.gymApplyBtn}</Text>
                             </TouchableOpacity>
                         )}
+
+                        {/* Yıldız / yorum — herkes (sahip hariç) değerlendirebilir */}
+                        <Text style={s.section}>
+                            {t.gymReviewsTitle}
+                            {avgRating != null ? ` · ★ ${avgRating}` : ''}
+                            {reviews.length ? ` (${reviews.length})` : ''}
+                        </Text>
+                        {canReview && (
+                            <View style={{ marginBottom: 10 }}>
+                                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                                    {[1, 2, 3, 4, 5].map(n => (
+                                        <TouchableOpacity key={n} onPress={() => setReviewStars(n)}>
+                                            <Text style={{ fontSize: 26, color: n <= reviewStars ? '#fbbf24' : '#4b5563' }}>★</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <TextInput
+                                    style={[s.input, { height: 64, textAlignVertical: 'top', marginBottom: 8 }]}
+                                    value={reviewComment}
+                                    onChangeText={setReviewComment}
+                                    placeholder={t.gymReviewCommentPh}
+                                    placeholderTextColor={colors.textMuted}
+                                    multiline
+                                />
+                                <TouchableOpacity
+                                    style={[s.submit, { backgroundColor: '#f59e0b', marginBottom: 8 }]}
+                                    onPress={submitGymReview}
+                                    disabled={submittingReview}>
+                                    <Text style={s.submitText}>
+                                        {submittingReview ? '...' : (myReview ? t.gymReviewUpdate : t.gymReviewSubmit)}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                        {reviews.length === 0
+                            ? <Text style={s.cardMeta}>{t.gymNoReviews}</Text>
+                            : reviews.slice(0, 20).map(rv => (
+                                <View key={rv.id} style={s.appRow}>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>
+                                            {'★'.repeat(rv.rating)}{'☆'.repeat(Math.max(0, 5 - rv.rating))}{' '}
+                                            {rv.reviewer?.fullName || rv.reviewer?.username}
+                                        </Text>
+                                        {rv.comment ? <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2 }}>{rv.comment}</Text> : null}
+                                    </View>
+                                </View>
+                            ))}
 
                         {detailIsOwner && (
                             <View style={{ marginTop: 10 }}>

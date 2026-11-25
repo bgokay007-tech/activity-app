@@ -28,7 +28,7 @@ const STATIC_CATS = [
             { key: 'shooting_hunting',  label: 'Atıcılık ve Avcılık',      emoji: '🔫' },
             { key: 'equestrian',        label: 'Binicilik',                emoji: '🐎' },
             { key: 'golf',              label: 'Golf',                     emoji: '⛳' },
-            { key: 'fitness_gym',       label: 'Fitness ve Gym',           emoji: '🏋️' },
+            { key: 'fitness_gym',       label: 'Fitness',                  emoji: '🏋️' },
             { key: 'skiing_snowboard',  label: 'Kayak ve Snowboard',       emoji: '⛷️' },
             { key: 'ice_skating',       label: 'Buz Pateni',               emoji: '⛸️' },
             { key: 'roller_skating',    label: 'Paten',                    emoji: '🛼' },

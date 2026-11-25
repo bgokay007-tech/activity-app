@@ -94,7 +94,7 @@ const SUB_MAP = {
         { id: 'shooting_hunting', label: 'Shooting & Hunting',  labelTR: 'Atıcılık & Avcılık',  labelRU: 'Стрельба и охота',       labelDE: 'Schießen & Jagen',      emoji: '🔫' },
         { id: 'equestrian',       label: 'Equestrian',          labelTR: 'Binicilik',           labelRU: 'Конный спорт',           labelDE: 'Reiten',                emoji: '🐎' },
         { id: 'golf',             label: 'Golf',                labelTR: 'Golf',                labelRU: 'Гольф',                  labelDE: 'Golf',                  emoji: '⛳' },
-        { id: 'fitness_gym',      label: 'Fitness & Gym',       labelTR: 'Fitness & Spor Salonu', labelRU: 'Фитнес и тренажёрный зал', labelDE: 'Fitness & Fitnessstudio', emoji: '🏋️' },
+        { id: 'fitness_gym',      label: 'Fitness',             labelTR: 'Fitness', labelRU: 'Фитнес', labelDE: 'Fitness', emoji: '🏋️' },
         { id: 'skiing_snowboard', label: 'Skiing & Snowboard',  labelTR: 'Kayak & Snowboard',   labelRU: 'Лыжи и сноуборд',        labelDE: 'Skifahren & Snowboard', emoji: '⛷️' },
         { id: 'ice_skating',      label: 'Ice Skating',         labelTR: 'Buz Pateni',          labelRU: 'Катание на коньках',     labelDE: 'Eislaufen',             emoji: '⛸️' },
         { id: 'camping',          label: 'Camping',             labelTR: 'Kamp',                labelRU: 'Кемпинг',                labelDE: 'Camping',               emoji: '🏕️' },

@@ -425,7 +425,7 @@ const VENUE_BRANCHES = [
     { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      subCategory: 'shooting_hunting', color: '#57534e' },
     { key: 'equestrian',        label: '🐎 Binicilik',                subCategory: 'equestrian', color: '#92400e' },
     { key: 'golf',              label: '⛳ Golf',                     subCategory: 'golf', color: '#15803d' },
-    { key: 'fitness_gym',       label: '🏋️ Fitness ve Gym',          subCategory: 'fitness_gym', color: '#334155' },
+    { key: 'fitness_gym',       label: '🏋️ Fitness',                 subCategory: 'fitness_gym', color: '#334155' },
     { key: 'skiing_snowboard',  label: '⛷️ Kayak ve Snowboard',       subCategory: 'skiing_snowboard', color: '#38bdf8' },
     { key: 'ice_skating',       label: '⛸️ Buz Pateni',               subCategory: 'ice_skating', color: '#7dd3fc' },
     { key: 'roller_skating',    label: '🛼 Paten',                    subCategory: 'roller_skating', color: '#2dd4bf' },

@@ -1574,7 +1574,7 @@ const ALL_BRANCHES = [
     { key: 'shooting_hunting',  label: '🔫 Atıcılık ve Avcılık',      category: 'SPORTS', subCategory: 'shooting_hunting' },
     { key: 'equestrian',        label: '🐎 Binicilik',                category: 'SPORTS', subCategory: 'equestrian' },
     { key: 'golf',              label: '⛳ Golf',                     category: 'SPORTS', subCategory: 'golf' },
-    { key: 'fitness_gym',       label: '🏋️ Fitness ve Gym',          category: 'SPORTS', subCategory: 'fitness_gym' },
+    { key: 'fitness_gym',       label: '🏋️ Fitness',                 category: 'SPORTS', subCategory: 'fitness_gym' },
     { key: 'skiing_snowboard',  label: '⛷️ Kayak ve Snowboard',       category: 'SPORTS', subCategory: 'skiing_snowboard' },
     { key: 'ice_skating',       label: '⛸️ Buz Pateni',               category: 'SPORTS', subCategory: 'ice_skating' },
     { key: 'roller_skating',    label: '🛼 Paten',                    category: 'SPORTS', subCategory: 'roller_skating' },
