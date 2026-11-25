@@ -31126,7 +31126,10 @@ function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color: equipFilterActive ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.filterBtn}</Text>
                                     {equipFilterActive && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                 </TouchableOpacity>
-                                <CityAlertBtn tab="equipment" style={{ paddingVertical:6, paddingHorizontal:4, flexShrink:0 }} />
+                                {/* İlan ver / Filtre / Satılanlar ile aynı yükseklik: CityAlertBtn
+                                    varsayılan minHeight(touchSize 40) + dikey sayı satırı bu sırada
+                                    butonu şişiriyordu — minHeight kapat, sayı zilin yanında. */}
+                                <CityAlertBtn tab="equipment" style={{ paddingVertical:6, paddingHorizontal:4, flexShrink:0, minHeight:0, flexDirection:'row', gap:2 }} />
                                 <TouchableOpacity onPress={() => setEquipmentViewStatus(v => v === 'SOLD' ? 'ACTIVE' : 'SOLD')}
                                     style={{ flex:1, minWidth:0, alignItems:'center', justifyContent:'center', backgroundColor: equipmentViewStatus==='SOLD' ? cfg.color : colors.surface2, borderRadius:10, paddingVertical:6, paddingHorizontal:4, borderWidth:1, borderColor: equipmentViewStatus==='SOLD' ? cfg.color : colors.border }}>
                                     <Text style={{ color: equipmentViewStatus==='SOLD' ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.equipSoldTab}</Text>
@@ -34000,25 +34003,29 @@ function SubCategoryScreen({ route, navigation }) {
                                 )}
                                 {/* Paylaş, filtre, sonra o dalın kanalları ve videoları.
                                     Liste ayrı pencerede açılır; oyuncu paylaşımları yerinde kalır.
-                                    İstek ancak butona basılınca gider, video dosyası inmez. */}
+                                    İstek ancak butona basılınca gider, video dosyası inmez.
+                                    Kullanıcı isteği: Fitness Kanalları/Videoları buton yüksekliği
+                                    aynı satırdaki Paylaş + Filtre ile birebir aynı olsun — uzun
+                                    dal adı (Fitness & Spor Salonu …) paddingVertical ile şişmesin,
+                                    dört butona da sabit height. */}
                                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 4 }}>
                                     <TouchableOpacity onPress={() => setShowMediaTypeSheet(true)}
-                                        style={{ backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: cfg.color + '50' }}>
+                                        style={{ height: 30, justifyContent: 'center', backgroundColor: cfg.color + '20', borderRadius: 8, paddingHorizontal: 9, borderWidth: 1, borderColor: cfg.color + '50' }}>
                                         <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 12 }}>{t.mediaShareBtn}</Text>
                                     </TouchableOpacity>
                                     {!isSportsCategory && <View style={{ flex: 1 }} />}
                                     <TouchableOpacity onPress={() => setShowMediaFilter(true)}
-                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: mediaFilterActive ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 4, borderWidth: 1, borderColor: mediaFilterActive ? cfg.color + '50' : colors.border }}>
+                                        style={{ height: 30, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: mediaFilterActive ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 9, borderWidth: 1, borderColor: mediaFilterActive ? cfg.color + '50' : colors.border }}>
                                         <Text style={{ color: mediaFilterActive ? cfg.color : colors.textMuted, fontWeight: '800', fontSize: 12 }}>{t.filterBtn}</Text>
                                     </TouchableOpacity>
                                     {isSportsCategory && (
                                         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 }}>
                                             <TouchableOpacity onPress={() => openSportMedia('channels')}
-                                                style={{ flex: 1, minWidth: 0, backgroundColor: mediaBrowse === 'channels' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'channels' ? cfg.color + '50' : colors.border }}>
+                                                style={{ flex: 1, minWidth: 0, height: 30, justifyContent: 'center', backgroundColor: mediaBrowse === 'channels' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 8, borderWidth: 1, borderColor: mediaBrowse === 'channels' ? cfg.color + '50' : colors.border }}>
                                                 <Text style={{ color: mediaBrowse === 'channels' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.mediaChannelsBtn(sportDisplayName)}</Text>
                                             </TouchableOpacity>
                                             <TouchableOpacity onPress={() => openSportMedia('videos')}
-                                                style={{ flex: 1, minWidth: 0, backgroundColor: mediaBrowse === 'videos' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: mediaBrowse === 'videos' ? cfg.color + '50' : colors.border }}>
+                                                style={{ flex: 1, minWidth: 0, height: 30, justifyContent: 'center', backgroundColor: mediaBrowse === 'videos' ? cfg.color + '20' : colors.surface2, borderRadius: 8, paddingHorizontal: 8, borderWidth: 1, borderColor: mediaBrowse === 'videos' ? cfg.color + '50' : colors.border }}>
                                                 <Text style={{ color: mediaBrowse === 'videos' ? cfg.color : colors.textSecondary, fontWeight: '800', fontSize: 12 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.mediaVideosBtn(sportDisplayName)}</Text>
                                             </TouchableOpacity>
                                         </View>
