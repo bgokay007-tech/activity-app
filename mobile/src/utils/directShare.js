@@ -67,17 +67,39 @@ function resolveLinkUrl(linkUrl) {
     return linkUrl || PLAY_STORE_URL;
 }
 
+/** JPEG'i image/png diye göndermek WhatsApp'ta boş/kırık önizleme yapıyordu. */
+export function mimeFromPath(path, { isVideo } = {}) {
+    const p = String(path || '').toLowerCase();
+    if (isVideo || /\.(mp4|mov|m4v|webm)(\?|$)/i.test(p)) return 'video/mp4';
+    if (/\.png(\?|$)/i.test(p)) return 'image/png';
+    if (/\.webp(\?|$)/i.test(p)) return 'image/webp';
+    if (/\.gif(\?|$)/i.test(p)) return 'image/gif';
+    return 'image/jpeg';
+}
+
 /** WhatsApp sohbet — native SEND (görsel); yoksa deep link. */
-export async function shareToWhatsApp({ filePath, message }) {
+export async function shareToWhatsApp({ filePath, message, mime }) {
+    const resolvedMime = mime || mimeFromPath(filePath);
+    // Kullanıcı raporu: gönderi fotoğrafı WA'da boş/koyu — native bridge content:// imageUri
+    // ile sourceFile bulamıyordu (sadece filePath / file://). IG Hikâye gibi filePath ver.
     if (Platform.OS === 'android' && filePath && hasShareBridge()) {
+        const abs = String(filePath).replace(/^file:\/\//, '');
+        const ok = await nativeShareToWhatsApp({
+            filePath: abs,
+            imageUri: abs.startsWith('/') ? `file://${abs}` : String(filePath),
+            mime: resolvedMime,
+            text: message || '',
+        });
+        if (ok) return 'opened';
+        // Yedek: content URI (eski deneme yolu)
         const uri = (await contentUriFor(filePath)) || (await mediaStoreUriFor(filePath));
-        if (uri) {
-            const ok = await nativeShareToWhatsApp({
+        if (uri?.startsWith('file:')) {
+            const ok2 = await nativeShareToWhatsApp({
                 imageUri: uri,
-                mime: 'image/png',
+                mime: resolvedMime,
                 text: message || '',
             });
-            if (ok) return 'opened';
+            if (ok2) return 'opened';
         }
     }
     if (Platform.OS === 'android' && filePath) {
@@ -87,7 +109,7 @@ export async function shareToWhatsApp({ filePath, message }) {
             const intent = [
                 'intent:#Intent',
                 'action=android.intent.action.SEND',
-                'type=image/png',
+                `type=${resolvedMime}`,
                 'package=com.whatsapp',
                 'flags=1',
                 `U.android.intent.extra.STREAM=${encodeURIComponent(uri)}`,
@@ -96,6 +118,12 @@ export async function shareToWhatsApp({ filePath, message }) {
             ].filter(Boolean).join(';');
             if (await openUrl(intent)) return 'opened';
         }
+    }
+    if (Platform.OS === 'ios' && filePath) {
+        try {
+            await Share.share({ url: filePath, message: message || undefined });
+            return 'sheet';
+        } catch { /* fall through */ }
     }
     const textUrl = `whatsapp://send?text=${encodeURIComponent(message || '')}`;
     if (await openUrl(textUrl)) {
@@ -119,7 +147,7 @@ export async function shareToWhatsAppStatus({ filePath, message, t }) {
         const abs = String(filePath).replace(/^file:\/\//, '');
         const ok = await nativeShareToWhatsAppStatus({
             filePath: abs,
-            mime: 'image/png',
+            mime: mimeFromPath(filePath),
             text: '',
         });
         if (ok) return 'opened';
@@ -144,7 +172,7 @@ export async function shareToInstagramStory({ filePath, t, linkUrl }) {
         const igParams = {
             filePath: abs,
             imageUri: abs.startsWith('/') ? `file://${abs}` : String(filePath),
-            mime: 'image/png',
+            mime: mimeFromPath(filePath),
             facebookAppId: facebookAppId() || '',
             linkUrl: resolvedLink,
             linkText,
@@ -177,6 +205,7 @@ export async function shareToInstagramStory({ filePath, t, linkUrl }) {
 }
 
 export async function shareViaSystemSheet({ filePath, message }) {
+    const resolvedMime = mimeFromPath(filePath);
     if (Platform.OS === 'ios' && filePath) {
         await Share.share({ url: filePath, message: message || undefined });
         return;
@@ -187,7 +216,7 @@ export async function shareViaSystemSheet({ filePath, message }) {
             const url = [
                 'intent:#Intent',
                 'action=android.intent.action.SEND',
-                'type=image/png',
+                `type=${resolvedMime}`,
                 'flags=1',
                 `U.android.intent.extra.STREAM=${encodeURIComponent(uri)}`,
                 message ? `S.android.intent.extra.TEXT=${encodeURIComponent(message)}` : null,

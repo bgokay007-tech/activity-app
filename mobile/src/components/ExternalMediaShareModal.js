@@ -14,6 +14,7 @@ import {
     shareToWhatsApp,
     shareToWhatsAppStatus,
     shareToInstagramStory,
+    mimeFromPath,
 } from '../utils/directShare';
 
 const SHARE_HOST = BASE_URL.replace(/\/api\/?$/, '');
@@ -38,18 +39,31 @@ function postShareMessage(post, t) {
     return [intro, snippet, url].filter(Boolean).join('\n');
 }
 
+function extFromUrl(url, fallback) {
+    const m = String(url || '').toLowerCase().match(/\.(jpe?g|png|webp|gif|mp4|mov|m4v|webm)(\?|$)/i);
+    if (!m) return fallback;
+    const e = m[1].toLowerCase();
+    if (e === 'jpeg') return 'jpg';
+    return e;
+}
+
 async function cacheMediaFile(post) {
+    // Foto varsa onu paylaş (WA görsel önizleme); yoksa video.
     const remote = post?.imageUrl || post?.videoUrl;
     if (!remote) return null;
-    const isVideo = !!post.videoUrl && !post.imageUrl;
-    const ext = isVideo ? 'mp4' : 'jpg';
+    const isVideo = !post.imageUrl && !!post.videoUrl;
+    const ext = extFromUrl(remote, isVideo ? 'mp4' : 'jpg');
     const dest = `${FileSystem.cacheDirectory}activity-share-${post.id}.${ext}`;
     try {
         const info = await FileSystem.getInfoAsync(dest);
-        if (info.exists && info.size > 1000) return { path: dest, isVideo };
+        if (info.exists && info.size > 1000) {
+            return { path: dest, isVideo, mime: mimeFromPath(dest, { isVideo }) };
+        }
         const https = String(remote).replace(/^http:\/\//i, 'https://');
         const res = await FileSystem.downloadAsync(https, dest);
-        if (res?.uri) return { path: res.uri, isVideo };
+        if (res?.uri) {
+            return { path: res.uri, isVideo, mime: mimeFromPath(res.uri, { isVideo }) };
+        }
     } catch { /* ignore */ }
     return null;
 }
@@ -117,13 +131,22 @@ export default function ExternalMediaShareModal({ visible, post, onClose, onShar
             id: 'whatsapp', emoji: '💬', label: 'WhatsApp',
             go: async () => {
                 const file = await cacheMediaFile(post);
-                await shareToWhatsApp({ filePath: file?.path, message: msg });
+                await shareToWhatsApp({
+                    filePath: file?.path,
+                    message: msg,
+                    mime: file?.mime,
+                });
             },
         },
         {
             id: 'wa_status', emoji: '🟢', label: t.media_ext_wa_status || 'WhatsApp Status',
             go: async () => {
                 const file = await cacheMediaFile(post);
+                // Durum görsel ister — saf video'da galeri yoluna düşer.
+                if (file?.isVideo) {
+                    await shareToWhatsAppStatus({ filePath: null, message: msg, t });
+                    return;
+                }
                 await shareToWhatsAppStatus({ filePath: file?.path, message: msg, t });
             },
         },

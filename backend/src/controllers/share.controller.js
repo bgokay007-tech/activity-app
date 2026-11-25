@@ -34,8 +34,24 @@ function subCategoryLabel(sub) {
     return sub.charAt(0).toUpperCase() + sub.slice(1);
 }
 
-function renderSharePage({ title, description, deepLink, pageUrl, notFound = false }) {
-    const ogImage = `${BACKEND_URL}/icon-512.png`;
+/** WhatsApp/Telegram OG botları absolute https ister; http veya relative kırık önizleme üretir. */
+function absoluteHttps(url) {
+    if (url === null || url === undefined) return null;
+    const s = String(url).trim();
+    if (!s) return null;
+    if (s.startsWith('//')) return `https:${s}`;
+    if (/^http:\/\//i.test(s)) return s.replace(/^http:\/\//i, 'https://');
+    if (/^https:\/\//i.test(s)) return s;
+    if (s.startsWith('/')) return `${BACKEND_URL}${s}`;
+    return s;
+}
+
+function renderSharePage({ title, description, deepLink, pageUrl, notFound = false, imageUrl = null }) {
+    const fallbackOg = `${BACKEND_URL}/icon-512.png`;
+    // Kullanıcı raporu: medya gönderisi WhatsApp'ta boş/koyu önizleme — hep app ikonu
+    // (icon-512 ~1.5KB koyu PNG) basılıyordu. Gönderinin kendi fotoğrafı varsa onu kullan.
+    const ogImage = absoluteHttps(imageUrl) || fallbackOg;
+    const hasPreview = !!(imageUrl && absoluteHttps(imageUrl));
     // Uygulama henüz Play Store'da değil — varsa gerçek mağaza linki, yoksa geçici olarak
     // doğrudan APK indirme linki kullanılır (bkz. ANDROID_APK_URL, ekran görüntüsü/metin de
     // buna göre değişir — "Google Play'den İndir" değil "Uygulamayı İndir (APK)").
@@ -56,16 +72,19 @@ function renderSharePage({ title, description, deepLink, pageUrl, notFound = fal
 <title>${escapeHtml(title)}</title>
 <meta property="og:title" content="${escapeHtml(title)}">
 <meta property="og:description" content="${escapeHtml(description)}">
-<meta property="og:image" content="${ogImage}">
+<meta property="og:image" content="${escapeHtml(ogImage)}">
+<meta property="og:image:secure_url" content="${escapeHtml(ogImage)}">
+<meta property="og:image:type" content="image/jpeg">
 <meta property="og:url" content="${escapeHtml(pageUrl)}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeHtml(title)}">
 <meta name="twitter:description" content="${escapeHtml(description)}">
-<meta name="twitter:image" content="${ogImage}">
+<meta name="twitter:image" content="${escapeHtml(ogImage)}">
 <style>
   body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:#0A0A0A; color:#fff; margin:0; padding:24px; display:flex; flex-direction:column; align-items:center; text-align:center; min-height:100vh; box-sizing:border-box; }
   img.icon { width:88px; height:88px; border-radius:20px; margin-top:32px; }
+  img.preview { width:min(100%,420px); max-height:420px; object-fit:cover; border-radius:16px; margin-top:24px; background:#111; }
   h1 { font-size:20px; margin:20px 0 8px; }
   p.desc { color:#b3b3b3; font-size:15px; line-height:1.5; max-width:420px; }
   .open-btn { display:inline-block; margin:20px 8px 8px; padding:14px 26px; border-radius:12px; background:#6d28d9; color:#fff; text-decoration:none; font-weight:700; font-size:16px; }
@@ -74,7 +93,9 @@ function renderSharePage({ title, description, deepLink, pageUrl, notFound = fal
 </style>
 </head>
 <body>
-  <img class="icon" src="${ogImage}" alt="Activity">
+  ${hasPreview
+    ? `<img class="preview" src="${escapeHtml(ogImage)}" alt="">`
+    : `<img class="icon" src="${escapeHtml(fallbackOg)}" alt="Activity">`}
   <h1>${escapeHtml(title)}</h1>
   <p class="desc">${escapeHtml(description)}</p>
   ${notFound ? '' : `
@@ -275,7 +296,7 @@ export const getPostSharePage = async (req, res, next) => {
             where: { id },
             select: {
                 id: true, type: true, content: true, category: true, subCategory: true,
-                imageUrl: true, hidden: true,
+                imageUrl: true, videoUrl: true, musicCoverUrl: true, hidden: true,
                 user: { select: { username: true, fullName: true } },
             },
         });
@@ -292,12 +313,15 @@ export const getPostSharePage = async (req, res, next) => {
         const title = `${author} · ${kind}`;
         const description = (post.content || '').trim().slice(0, 180)
             || `${author} bir ${kind.toLowerCase()} paylaştı`;
+        // Foto → album kapağı (reel/hikaye müziği). Saf video için harici poster yoksa ikon kalır.
+        const previewImage = post.imageUrl || post.musicCoverUrl || null;
         res.set('Content-Type', 'text/html; charset=utf-8');
         res.send(renderSharePage({
             title,
             description,
             deepLink: `activityapp://post/${id}`,
             pageUrl,
+            imageUrl: previewImage,
         }));
     } catch (e) { next(e); }
 };

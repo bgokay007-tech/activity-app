@@ -10,7 +10,8 @@ type ShareBridgeNative = {
         linkText?: string;
     }): Promise<boolean>;
     shareToWhatsApp(params: {
-        imageUri: string;
+        imageUri?: string;
+        filePath?: string;
         mime?: string;
         text?: string;
     }): Promise<boolean>;
@@ -53,7 +54,8 @@ export async function nativeShareToInstagramStory(params: {
 }
 
 export async function nativeShareToWhatsApp(params: {
-    imageUri: string;
+    imageUri?: string;
+    filePath?: string;
     mime?: string;
     text?: string;
 }): Promise<boolean> {
