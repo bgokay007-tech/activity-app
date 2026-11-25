@@ -13038,16 +13038,23 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
     const opponentSetWins = sets ? sets.filter(s2 => s2.opponent > s2.sender).length : null;
 
     const [cardFlipped, setCardFlipped] = useState(false);
+    const flippingRef = useRef(false);
     const cardFlipAnim = useRef(new Animated.Value(0)).current;
-    // Digimon kartlarla aynı flip: 0→90 içerik değişir → 0. Stale closure / anında geri dönme yok.
+    // Digimon ile birebir: 0 → 0.5 (90°) → içerik değişir → 0 veya 1 (ikisi de 0°).
+    // Flip butonu Animated.View DIŞINDA (kardeş) — skor/detay TouchableOpacity basışı yutmasın.
     const flipCard = () => {
-        const next = !cardFlipped;
-        Animated.timing(cardFlipAnim, { toValue: 1, duration: 160, useNativeDriver: true }).start(() => {
-            setCardFlipped(next);
-            Animated.timing(cardFlipAnim, { toValue: 0, duration: 160, useNativeDriver: true }).start();
+        if (flippingRef.current) return;
+        flippingRef.current = true;
+        const toBack = !cardFlipped;
+        Animated.timing(cardFlipAnim, { toValue: 0.5, duration: 150, useNativeDriver: true }).start(() => {
+            setCardFlipped(toBack);
+            Animated.timing(cardFlipAnim, { toValue: toBack ? 1 : 0, duration: 150, useNativeDriver: true }).start(() => {
+                flippingRef.current = false;
+            });
         });
     };
-    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] });
+    const cardFlipRotate = cardFlipAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: ['0deg', '90deg', '0deg'] });
+    const isDoubles = isDoublesMatch(m);
 
     return (
         // Gruplu arşiv: satırda 2 kart, gap=1. Diğer: eski 3'lü ızgara.
@@ -13058,47 +13065,45 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
                 : [s.listGridCell, s.listGridCellThird, { paddingBottom: 1 }]}
             collapsable={false}
         >
+        <View style={{ position: 'relative', width: '100%' }}>
         <Animated.View style={[s.card, { width:'100%', paddingHorizontal:0, paddingTop:0, paddingBottom:0, minHeight:0 }, highlighted && { borderColor:'#f97316', borderWidth:2 }, { transform:[{ perspective:800 }, { rotateY: cardFlipRotate }] }]}>
-            {/* 🔄 Çevir — kartın geri kalanından ayrı, kendi dokunma hedefi (detayı açmaz). */}
-            <TouchableOpacity
-                onPress={flipCard}
-                hitSlop={{ top:8, bottom:8, left:8, right:8 }}
-                style={{ position:'absolute', top:3, right:3, zIndex:10, backgroundColor: 'transparent', borderRadius:12, width:20, height:20, alignItems:'center', justifyContent:'center' }}
-            >
-                <Text style={{ fontSize:11 }}>🔄</Text>
-            </TouchableOpacity>
             {/* Kullanıcı isteği: canlı takiple (saat/telefon) girilmiş, detaylı istatistikleri olan
                 maçlar küçük bir rozetle işaretlensin — detaya girmeden ayırt edilebilsin. */}
             {m.score?.stats && (
-                <View style={{ position:'absolute', top:3, left:3, zIndex:10, backgroundColor:'#00000060', borderRadius:8, paddingHorizontal:3, paddingVertical:1 }}>
+                <View pointerEvents="none" style={{ position:'absolute', top:3, left:3, zIndex:5, backgroundColor:'#00000060', borderRadius:8, paddingHorizontal:3, paddingVertical:1 }}>
                     <Text style={{ fontSize:9 }}>📊</Text>
                 </View>
             )}
             {cardFlipped ? (
-                <TouchableOpacity activeOpacity={0.85} style={{ padding:3, flex:1 }} onPress={onPress}>
-                    <Text style={{ color:'#fff', fontSize:11, fontWeight:'800', marginBottom:3, paddingRight:20 }}>{t.rosterPoolLabel}</Text>
-                    {/* Kullanıcı raporu: 1v1 maçlarda oyuncu ismi iki kere yazıyordu — tek kişilik
-                        bir tarafta founderLabel/opponentLabel zaten senderAlias(founderSide[0])'a
-                        (takım adı yokken kişinin kendi adına) düşüyor, altındaki .map de AYNI tek
-                        kişiyi tekrar listeliyordu. Etiket satırı sadece gerçek bir takım (2+ kişi)
-                        varken gösterilir; tek kişilik tarafta isim sadece roster satırında bir kez geçer. */}
-                    {founderSide.length > 1 && (
-                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800', marginBottom:1 }} numberOfLines={1}>{founderLabel}</Text>
+                <TouchableOpacity activeOpacity={0.85} style={{ padding:3, paddingBottom: 22, minHeight: 64 }} onPress={onPress}>
+                    {/* 2v2: arka yüzde iki takımın tüm oyuncuları net görünsün */}
+                    {isDoubles ? (
+                        <>
+                            <Text style={{ color: '#93c5fd', fontSize: 10, fontWeight: '800', marginBottom: 1 }} numberOfLines={1}>{founderLabel}</Text>
+                            {founderSide.map((p, i) => (
+                                <Text key={p.id || `f-${i}`} style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                            ))}
+                            <Text style={{ color: '#fca5a5', fontSize: 10, fontWeight: '800', marginTop: 4, marginBottom: 1 }} numberOfLines={1}>{opponentLabel}</Text>
+                            {opponentSide.map((p, i) => (
+                                <Text key={p.id || `o-${i}`} style={{ color: colors.textSecondary, fontSize: 11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>{senderAlias(p)}</Text>
+                            ))}
+                        </>
+                    ) : (
+                        <>
+                            {/* 1v1: etiket tekrarını önle — sadece roster satırları */}
+                            {founderSide.map((p, i) => (
+                                <Text key={p.id || `f-${i}`} style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
+                            ))}
+                            {opponentSide.map((p, i) => (
+                                <Text key={p.id || `o-${i}`} style={{ color: '#fca5a5', fontSize: 11, fontWeight: '700', marginTop: 3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
+                            ))}
+                        </>
                     )}
-                    {founderSide.map(p => (
-                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
-                    ))}
-                    {opponentSide.length > 1 && (
-                        <Text style={{ color:'#fca5a5', fontSize:10, fontWeight:'800', marginTop:3, marginBottom:1 }} numberOfLines={1}>{opponentLabel}</Text>
-                    )}
-                    {opponentSide.map(p => (
-                        <Text key={p.id} style={{ color: colors.textSecondary, fontSize:11, marginTop: opponentSide.length > 1 ? 0 : 3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{senderAlias(p)}</Text>
-                    ))}
                 </TouchableOpacity>
             ) : (
-                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:3 }}>
+                <TouchableOpacity activeOpacity={0.8} onPress={onPress} style={{ padding:3, paddingBottom: 22 }}>
                     {(!hideFormatBadge || modeTxt) ? (
-                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2, flexWrap:'wrap', paddingRight:20 }}>
+                        <View style={{ flexDirection:'row', alignItems:'center', gap:3, marginBottom:2, flexWrap:'wrap', paddingRight:4 }}>
                             {!hideFormatBadge ? (
                                 <Text style={{ color: cfg.color, fontSize:10, fontWeight:'800' }}>{sizeTxt}</Text>
                             ) : null}
@@ -13106,10 +13111,10 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
                             {modeTxt ? <Text style={{ color: m.matchMode?.toUpperCase() === 'COMPETITIVE' ? '#ef4444' : '#22c55e', fontSize:10, fontWeight:'700' }}>{modeTxt}</Text> : null}
                         </View>
                     ) : (
-                        <View style={{ height: 2, paddingRight: 20 }} />
+                        <View style={{ height: 2 }} />
                     )}
                     {/* İsimler altlı üstlü; her ismin yanında kendi set skoru */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2, paddingRight: 18 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 }}>
                         <View style={{ flex: 1, minWidth: 0 }}>
                             <Text style={{ color: '#93c5fd', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{founderLabel}</Text>
                             <Text style={{ color: '#fca5a5', fontSize: 11, fontWeight: '700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{opponentLabel}</Text>
@@ -13129,6 +13134,28 @@ function ArchiveRivalCard({ m, myId, cfg, highlighted, onPress, hideFormatBadge 
                 </TouchableOpacity>
             )}
         </Animated.View>
+        {/* 🔄 kart gövdesinin ÜSTÜNDE — detay / skor dokunuşu yutmasın (özellikle 2v2 arka yüz) */}
+        <TouchableOpacity
+            onPress={flipCard}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{
+                position: 'absolute',
+                right: 0,
+                bottom: 0,
+                zIndex: 20,
+                elevation: 20,
+                width: 28,
+                height: 28,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#00000055',
+                borderTopLeftRadius: 8,
+                borderBottomRightRadius: 10,
+            }}
+        >
+            <Text style={{ fontSize: 13, lineHeight: 15 }}>🔄</Text>
+        </TouchableOpacity>
+        </View>
         </View>
     );
 }
