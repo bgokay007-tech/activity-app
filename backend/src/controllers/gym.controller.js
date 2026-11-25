@@ -28,6 +28,51 @@ function newQrToken() {
     return crypto.randomUUID();
 }
 
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+function normalizeWeeklyHours(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const out = {};
+    for (const d of DAY_KEYS) {
+        const row = raw[d];
+        if (!row || typeof row !== 'object') {
+            out[d] = { open: '06:00', close: '23:00', closed: false };
+            continue;
+        }
+        out[d] = {
+            open: String(row.open || '06:00').trim().slice(0, 8) || '06:00',
+            close: String(row.close || '23:00').trim().slice(0, 8) || '23:00',
+            closed: !!row.closed,
+        };
+    }
+    return out;
+}
+
+function normalizeSalesProducts(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw.slice(0, 40).map(p => ({
+        name: String(p?.name || '').trim().slice(0, 120),
+        weight: String(p?.weight || '').trim().slice(0, 40),
+        price: (() => {
+            if (p?.price === '' || p?.price == null) return null;
+            const n = Number(p.price);
+            return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
+        })(),
+        photoUrl: String(p?.photoUrl || '').trim().slice(0, 500) || null,
+    })).filter(p => p.name);
+}
+
+function withMemberTotals(listing, appCount) {
+    const manual = listing.memberCount != null ? listing.memberCount : 0;
+    const app = appCount || 0;
+    return {
+        ...listing,
+        appMemberCount: app,
+        // memberCount = manuel; toplam = manuel + uygulama ACTIVE üyeleri
+        totalMemberCount: manual + app,
+    };
+}
+
 function mapListingForViewer(listing, reqUserId, membershipStatus = null) {
     return {
         ...listing,
@@ -94,6 +139,20 @@ export const getListings = async (req, res, next) => {
             filtered = filtered.map(l => mapListingForViewer(l, null, null));
         }
 
+        // Uygulama üzerinden ACTIVE üye sayacı — kartlarda totalMemberCount = manuel + app
+        if (filtered.length > 0) {
+            const counts = await prisma.gymMember.groupBy({
+                by: ['gymListingId'],
+                where: {
+                    gymListingId: { in: filtered.map(l => l.id) },
+                    status: 'ACTIVE',
+                },
+                _count: { _all: true },
+            });
+            const countBy = Object.fromEntries(counts.map(c => [c.gymListingId, c._count._all]));
+            filtered = filtered.map(l => withMemberTotals(l, countBy[l.id] || 0));
+        }
+
         // Liste kartlarında yıldız ortalaması
         if (filtered.length > 0) {
             const stats = await prisma.gymReview.groupBy({
@@ -134,16 +193,17 @@ export const getListing = async (req, res, next) => {
             });
         }
 
-        const isOwner = listing.userId === req.userId;
+        const appMemberCount = await prisma.gymMember.count({
+            where: { gymListingId: listing.id, status: 'ACTIVE' },
+        });
         res.json({
-            ...listing,
+            ...withMemberTotals(listing, appMemberCount),
             myMembershipStatus: myMembership?.status || null,
             // Üye kendi QR'sini görsün; sahibi tüm aktif üyeleri yönetirken token'a ihtiyaç duymaz
             myQrToken: myMembership?.status === 'ACTIVE' ? myMembership.qrToken : undefined,
             myMemberId: myMembership?.id || undefined,
-            activeMemberCount: isOwner
-                ? await prisma.gymMember.count({ where: { gymListingId: listing.id, status: 'ACTIVE' } })
-                : undefined,
+            // Eski alan adı — sahipler için geriye uyum
+            activeMemberCount: appMemberCount,
         });
     } catch (err) { next(err); }
 };
@@ -154,10 +214,10 @@ export const createListing = async (req, res, next) => {
             category = 'SPORTS', subCategory = 'fitness_gym',
             name, description, address, city, cities, district, photos,
             monthlyFee, weeklyFee, dailyFee, memberCount,
-            openTime, closeTime, squareMeters,
+            openTime, closeTime, weeklyHours, squareMeters,
             lockerMale, lockerFemale, showerMale, showerFemale,
             wcMale, wcFemale, dressingRoomMale, dressingRoomFemale,
-            equipmentList, salesList, amenities,
+            equipmentList, salesList, salesProducts, amenities,
             contactPhone, website, instagram,
         } = req.body;
 
@@ -190,6 +250,18 @@ export const createListing = async (req, res, next) => {
         const photoArr = Array.isArray(photos)
             ? photos.map(p => String(p || '').trim()).filter(Boolean).slice(0, 12)
             : [];
+        const hours = normalizeWeeklyHours(weeklyHours);
+        // Haftalık saatten genel open/close türet (liste kartı / eski istemciler)
+        let resolvedOpen = openTime?.trim() || null;
+        let resolvedClose = closeTime?.trim() || null;
+        if (hours && !resolvedOpen) {
+            const firstOpen = DAY_KEYS.map(d => hours[d]).find(h => h && !h.closed);
+            if (firstOpen) {
+                resolvedOpen = firstOpen.open;
+                resolvedClose = firstOpen.close;
+            }
+        }
+        const products = normalizeSalesProducts(salesProducts);
 
         const listing = await prisma.gymListing.create({
             data: {
@@ -204,10 +276,12 @@ export const createListing = async (req, res, next) => {
                 district: district?.trim() || null,
                 photos: photoArr,
                 ...nums,
-                openTime: openTime?.trim() || null,
-                closeTime: closeTime?.trim() || null,
+                openTime: resolvedOpen,
+                closeTime: resolvedClose,
+                weeklyHours: hours || undefined,
                 equipmentList: equipmentList?.trim() || null,
                 salesList: salesList?.trim() || null,
+                salesProducts: products,
                 amenities: amenities?.trim() || null,
                 contactPhone: contactPhone?.trim() || null,
                 website: website?.trim() || null,
@@ -261,6 +335,20 @@ export const updateListing = async (req, res, next) => {
                 ? body.photos.map(p => String(p || '').trim()).filter(Boolean).slice(0, 12)
                 : [];
         }
+        if (body.weeklyHours !== undefined) {
+            const hours = normalizeWeeklyHours(body.weeklyHours);
+            data.weeklyHours = hours;
+            if (hours && body.openTime === undefined && body.closeTime === undefined) {
+                const firstOpen = DAY_KEYS.map(d => hours[d]).find(h => h && !h.closed);
+                if (firstOpen) {
+                    data.openTime = firstOpen.open;
+                    data.closeTime = firstOpen.close;
+                }
+            }
+        }
+        if (body.salesProducts !== undefined) {
+            data.salesProducts = normalizeSalesProducts(body.salesProducts);
+        }
         const numFields = [
             'monthlyFee', 'weeklyFee', 'dailyFee', 'memberCount', 'squareMeters',
             'lockerMale', 'lockerFemale', 'showerMale', 'showerFemale',
@@ -279,7 +367,10 @@ export const updateListing = async (req, res, next) => {
             data,
             include: gymInclude,
         });
-        res.json(updated);
+        const appMemberCount = await prisma.gymMember.count({
+            where: { gymListingId: updated.id, status: 'ACTIVE' },
+        });
+        res.json(withMemberTotals(updated, appMemberCount));
     } catch (err) { next(err); }
 };
 

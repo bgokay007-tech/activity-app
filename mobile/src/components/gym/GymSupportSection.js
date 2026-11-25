@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View, Text, TouchableOpacity, TextInput, Image, ActivityIndicator,
-    Alert, StyleSheet, ScrollView,
+    Alert, StyleSheet, ScrollView, Dimensions,
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,18 +11,32 @@ import useT from '../../hooks/useT';
 import KeyboardAwareForm from '../KeyboardAwareForm';
 import KeyboardSafeModal from '../KeyboardSafeModal';
 
+const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const WIN_H = Dimensions.get('window').height;
+
+function emptyWeeklyHours() {
+    return Object.fromEntries(
+        DAY_KEYS.map(d => [d, { open: '06:00', close: '23:00', closed: false }]),
+    );
+}
+
+function emptyProduct() {
+    return { name: '', weight: '', price: '', photoUrl: '' };
+}
+
 const INIT_FORM = {
     name: '', description: '', address: '', city: '', district: '',
     photos: [],
     monthlyFee: '', weeklyFee: '', dailyFee: '', memberCount: '',
-    openTime: '', closeTime: '', squareMeters: '',
+    weeklyHours: emptyWeeklyHours(),
+    squareMeters: '',
     lockerMale: '', lockerFemale: '', showerMale: '', showerFemale: '',
     wcMale: '', wcFemale: '', dressingRoomMale: '', dressingRoomFemale: '',
-    equipmentList: '', salesList: '', amenities: '',
+    equipmentList: '', salesProducts: [], amenities: '',
     contactPhone: '', website: '', instagram: '',
 };
 
-function Field({ label, value, onChangeText, placeholder, multiline, keyboardType }) {
+function Field({ label, value, onChangeText, placeholder, multiline, keyboardType, autoCapitalize }) {
     return (
         <View style={{ marginBottom: 8 }}>
             <Text style={s.label}>{label}</Text>
@@ -34,6 +48,7 @@ function Field({ label, value, onChangeText, placeholder, multiline, keyboardTyp
                 placeholderTextColor={colors.textMuted}
                 multiline={!!multiline}
                 keyboardType={keyboardType || 'default'}
+                autoCapitalize={autoCapitalize}
             />
         </View>
     );
@@ -48,6 +63,22 @@ function PairRow({ left, right }) {
     );
 }
 
+function formatHoursLine(g, t) {
+    const wh = g?.weeklyHours;
+    if (wh && typeof wh === 'object') {
+        const parts = DAY_KEYS.map(d => {
+            const row = wh[d];
+            if (!row) return null;
+            const label = t[`gymDay_${d}`] || d;
+            if (row.closed) return `${label}: ${t.gymDayClosed}`;
+            return `${label} ${row.open || '?'}–${row.close || '?'}`;
+        }).filter(Boolean);
+        if (parts.length) return parts.join(' · ');
+    }
+    if (g?.openTime || g?.closeTime) return `${g.openTime || '?'} – ${g.closeTime || '?'}`;
+    return null;
+}
+
 export default function GymSupportSection({
     category = 'SPORTS',
     sub = 'fitness_gym',
@@ -58,19 +89,20 @@ export default function GymSupportSection({
     onOpenScan,
     CompactFilterSlot,
     hideCreateButton = false,
-    // Parent "Spor Salonu Ekle" basınca artan sayaç — create modalını açar
     createOpenTick = 0,
     onCountChange,
 }) {
     const t = useT();
-    const myId = useSelector(s => s.auth.user?.id);
+    const myId = useSelector(st => st.auth.user?.id);
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
+    const [editingId, setEditingId] = useState(null);
+    const [editAppMemberCount, setEditAppMemberCount] = useState(0);
     const [submitting, setSubmitting] = useState(false);
     const [form, setForm] = useState(INIT_FORM);
     const [uploading, setUploading] = useState(false);
-    const [detail, setDetail] = useState(null); // API listing
+    const [detail, setDetail] = useState(null);
     const [detailIsOwner, setDetailIsOwner] = useState(false);
     const [apps, setApps] = useState([]);
     const [myQr, setMyQr] = useState(null);
@@ -83,6 +115,24 @@ export default function GymSupportSection({
     const [submittingReview, setSubmittingReview] = useState(false);
 
     const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
+
+    const setDay = (day, patch) => {
+        setForm(p => ({
+            ...p,
+            weeklyHours: {
+                ...p.weeklyHours,
+                [day]: { ...p.weeklyHours[day], ...patch },
+            },
+        }));
+    };
+
+    const setProduct = (idx, patch) => {
+        setForm(p => {
+            const next = [...(p.salesProducts || [])];
+            next[idx] = { ...next[idx], ...patch };
+            return { ...p, salesProducts: next };
+        });
+    };
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -106,7 +156,9 @@ export default function GymSupportSection({
 
     useEffect(() => {
         if (createOpenTick > 0) {
-            setForm(INIT_FORM);
+            setEditingId(null);
+            setEditAppMemberCount(0);
+            setForm({ ...INIT_FORM, weeklyHours: emptyWeeklyHours(), salesProducts: [] });
             setShowCreate(true);
         }
     }, [createOpenTick]);
@@ -124,7 +176,29 @@ export default function GymSupportSection({
         return list;
     }, [listings, cityFilter]);
 
-    const reset = () => setForm(INIT_FORM);
+    const reset = () => {
+        setForm({ ...INIT_FORM, weeklyHours: emptyWeeklyHours(), salesProducts: [] });
+        setEditingId(null);
+        setEditAppMemberCount(0);
+    };
+
+    const closeForm = () => {
+        setShowCreate(false);
+        reset();
+    };
+
+    const uploadOne = async (asset, filename = 'gym.jpg') => {
+        const fd = new FormData();
+        fd.append('file', {
+            uri: asset.uri,
+            name: filename,
+            type: 'image/jpeg',
+        });
+        const { data } = await api.post('/upload', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return data?.url || null;
+    };
 
     const pickPhotos = async () => {
         try {
@@ -138,16 +212,8 @@ export default function GymSupportSection({
             setUploading(true);
             const urls = [...form.photos];
             for (const asset of (res.assets || []).slice(0, 6 - urls.length)) {
-                const fd = new FormData();
-                fd.append('file', {
-                    uri: asset.uri,
-                    name: 'gym.jpg',
-                    type: 'image/jpeg',
-                });
-                const { data } = await api.post('/upload', fd, {
-                    headers: { 'Content-Type': 'multipart/form-data' },
-                });
-                if (data?.url) urls.push(data.url);
+                const url = await uploadOne(asset);
+                if (url) urls.push(url);
             }
             set('photos', urls);
         } catch (e) {
@@ -157,47 +223,148 @@ export default function GymSupportSection({
         }
     };
 
+    const pickProductPhoto = async (idx) => {
+        try {
+            const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: false,
+                quality: 0.7,
+            });
+            if (res.canceled || !res.assets?.[0]) return;
+            setUploading(true);
+            const url = await uploadOne(res.assets[0], 'product.jpg');
+            if (url) setProduct(idx, { photoUrl: url });
+        } catch (e) {
+            Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const listingToForm = (data) => {
+        const wh = data.weeklyHours && typeof data.weeklyHours === 'object'
+            ? { ...emptyWeeklyHours(), ...Object.fromEntries(
+                DAY_KEYS.map(d => [d, {
+                    open: data.weeklyHours[d]?.open || data.openTime || '06:00',
+                    close: data.weeklyHours[d]?.close || data.closeTime || '23:00',
+                    closed: !!data.weeklyHours[d]?.closed,
+                }]),
+            ) }
+            : {
+                ...emptyWeeklyHours(),
+                ...Object.fromEntries(DAY_KEYS.map(d => [d, {
+                    open: data.openTime || '06:00',
+                    close: data.closeTime || '23:00',
+                    closed: false,
+                }])),
+            };
+        const products = Array.isArray(data.salesProducts)
+            ? data.salesProducts.map(p => ({
+                name: p.name || '',
+                weight: p.weight || '',
+                price: p.price != null ? String(p.price) : '',
+                photoUrl: p.photoUrl || '',
+            }))
+            : [];
+        return {
+            name: data.name || '',
+            description: data.description || '',
+            address: data.address || '',
+            city: data.city || '',
+            district: data.district || '',
+            photos: Array.isArray(data.photos) ? data.photos : [],
+            monthlyFee: data.monthlyFee != null ? String(data.monthlyFee) : '',
+            weeklyFee: data.weeklyFee != null ? String(data.weeklyFee) : '',
+            dailyFee: data.dailyFee != null ? String(data.dailyFee) : '',
+            memberCount: data.memberCount != null ? String(data.memberCount) : '',
+            weeklyHours: wh,
+            squareMeters: data.squareMeters != null ? String(data.squareMeters) : '',
+            lockerMale: data.lockerMale != null ? String(data.lockerMale) : '',
+            lockerFemale: data.lockerFemale != null ? String(data.lockerFemale) : '',
+            showerMale: data.showerMale != null ? String(data.showerMale) : '',
+            showerFemale: data.showerFemale != null ? String(data.showerFemale) : '',
+            wcMale: data.wcMale != null ? String(data.wcMale) : '',
+            wcFemale: data.wcFemale != null ? String(data.wcFemale) : '',
+            dressingRoomMale: data.dressingRoomMale != null ? String(data.dressingRoomMale) : '',
+            dressingRoomFemale: data.dressingRoomFemale != null ? String(data.dressingRoomFemale) : '',
+            equipmentList: data.equipmentList || '',
+            salesProducts: products,
+            amenities: data.amenities || '',
+            contactPhone: data.contactPhone || '',
+            website: data.website || '',
+            instagram: data.instagram || '',
+        };
+    };
+
+    const openEdit = (data) => {
+        setDetail(null);
+        setDetailIsOwner(false);
+        setEditingId(data.id);
+        setEditAppMemberCount(data.appMemberCount || data.activeMemberCount || 0);
+        setForm(listingToForm(data));
+        setShowCreate(true);
+    };
+
+    const buildPayload = () => {
+        const num = (v) => (v === '' || v == null ? undefined : parseInt(v, 10));
+        const firstOpen = DAY_KEYS.map(d => form.weeklyHours[d]).find(h => h && !h.closed);
+        return {
+            category,
+            subCategory: sub,
+            name: form.name.trim(),
+            description: form.description.trim() || undefined,
+            address: form.address.trim() || undefined,
+            city: form.city.trim(),
+            cities: [form.city.trim()],
+            district: form.district.trim() || undefined,
+            photos: form.photos,
+            monthlyFee: num(form.monthlyFee),
+            weeklyFee: num(form.weeklyFee),
+            dailyFee: num(form.dailyFee),
+            // Manuel üye — uygulama ACTIVE sayacı sunucuda toplanır
+            memberCount: num(form.memberCount) ?? 0,
+            weeklyHours: form.weeklyHours,
+            openTime: firstOpen?.open || undefined,
+            closeTime: firstOpen?.close || undefined,
+            squareMeters: num(form.squareMeters),
+            lockerMale: num(form.lockerMale),
+            lockerFemale: num(form.lockerFemale),
+            showerMale: num(form.showerMale),
+            showerFemale: num(form.showerFemale),
+            wcMale: num(form.wcMale),
+            wcFemale: num(form.wcFemale),
+            dressingRoomMale: num(form.dressingRoomMale),
+            dressingRoomFemale: num(form.dressingRoomFemale),
+            equipmentList: form.equipmentList.trim() || undefined,
+            salesProducts: (form.salesProducts || [])
+                .filter(p => (p.name || '').trim())
+                .map(p => ({
+                    name: p.name.trim(),
+                    weight: (p.weight || '').trim() || undefined,
+                    price: p.price === '' || p.price == null ? undefined : Number(p.price),
+                    photoUrl: p.photoUrl || undefined,
+                })),
+            amenities: form.amenities.trim() || undefined,
+            contactPhone: form.contactPhone.trim() || undefined,
+            website: form.website.trim() || undefined,
+            instagram: form.instagram.trim() || undefined,
+        };
+    };
+
     const submit = async () => {
         if (!form.name.trim()) return Alert.alert('', t.gymNameRequired);
         if (!form.city.trim()) return Alert.alert('', t.gymCityRequired);
         setSubmitting(true);
         try {
-            const num = (v) => (v === '' || v == null ? undefined : parseInt(v, 10));
-            await api.post('/gyms', {
-                category,
-                subCategory: sub,
-                name: form.name.trim(),
-                description: form.description.trim() || undefined,
-                address: form.address.trim() || undefined,
-                city: form.city.trim(),
-                cities: [form.city.trim()],
-                district: form.district.trim() || undefined,
-                photos: form.photos,
-                monthlyFee: num(form.monthlyFee),
-                weeklyFee: num(form.weeklyFee),
-                dailyFee: num(form.dailyFee),
-                memberCount: num(form.memberCount),
-                openTime: form.openTime.trim() || undefined,
-                closeTime: form.closeTime.trim() || undefined,
-                squareMeters: num(form.squareMeters),
-                lockerMale: num(form.lockerMale),
-                lockerFemale: num(form.lockerFemale),
-                showerMale: num(form.showerMale),
-                showerFemale: num(form.showerFemale),
-                wcMale: num(form.wcMale),
-                wcFemale: num(form.wcFemale),
-                dressingRoomMale: num(form.dressingRoomMale),
-                dressingRoomFemale: num(form.dressingRoomFemale),
-                equipmentList: form.equipmentList.trim() || undefined,
-                salesList: form.salesList.trim() || undefined,
-                amenities: form.amenities.trim() || undefined,
-                contactPhone: form.contactPhone.trim() || undefined,
-                website: form.website.trim() || undefined,
-                instagram: form.instagram.trim() || undefined,
-            });
-            setShowCreate(false);
-            reset();
-            Alert.alert('', t.gymSubmittedPending);
+            const payload = buildPayload();
+            if (editingId) {
+                await api.patch(`/gyms/${editingId}`, payload);
+                Alert.alert('', t.gymUpdated);
+            } else {
+                await api.post('/gyms', payload);
+                Alert.alert('', t.gymSubmittedPending);
+            }
+            closeForm();
             load();
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
@@ -286,6 +453,7 @@ export default function GymSupportSection({
             if (detail) {
                 const { data: mem } = await api.get(`/gyms/${detail.id}/membership-applications`);
                 setApps(Array.isArray(mem) ? mem : []);
+                openDetailFull(detail);
             }
         } catch (e) {
             Alert.alert(t.error, e?.response?.data?.message || t.actionFailed);
@@ -310,6 +478,197 @@ export default function GymSupportSection({
             },
         ]);
     };
+
+    const manualN = parseInt(form.memberCount, 10);
+    const manualSafe = Number.isFinite(manualN) && manualN >= 0 ? manualN : 0;
+    const totalPreview = manualSafe + (editingId ? editAppMemberCount : 0);
+
+    const formModal = (
+        <KeyboardSafeModal visible={showCreate} onClose={closeForm}>
+            {/* Kulüp formu ile aynı kalıp: başlık form içinde; maxHeight %82; bottomOffset 48 */}
+            <KeyboardAwareForm
+                adjustWindow={false}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator
+                bottomOffset={48}
+                style={{ maxHeight: Math.round(WIN_H * 0.82) }}
+                contentContainerStyle={{ paddingBottom: 28 }}
+            >
+                <Text style={s.modalTitle}>{editingId ? t.editGymTitle : t.createGymTitle}</Text>
+
+                <Field label={`${t.gymNameLabel} *`} value={form.name} onChangeText={v => set('name', v)} placeholder={t.gymNamePh} />
+                <Field label={`${t.gymCityLabel} *`} value={form.city} onChangeText={v => set('city', v)} placeholder={t.gymCityPh} />
+                <Field label={t.gymDistrictLabel} value={form.district} onChangeText={v => set('district', v)} placeholder={t.gymDistrictPh} />
+                <Field label={t.gymAddressLabel} value={form.address} onChangeText={v => set('address', v)} placeholder={t.gymAddressPh} multiline />
+                <Field label={t.gymDescLabel} value={form.description} onChangeText={v => set('description', v)} placeholder={t.gymDescPh} multiline />
+
+                <Text style={s.section}>{t.gymFeesSection}</Text>
+                <PairRow
+                    left={<Field label={t.gymMonthlyFee} value={form.monthlyFee} onChangeText={v => set('monthlyFee', v)} keyboardType="number-pad" placeholder="₺" />}
+                    right={<Field label={t.gymWeeklyFee} value={form.weeklyFee} onChangeText={v => set('weeklyFee', v)} keyboardType="number-pad" placeholder="₺" />}
+                />
+                <Field label={t.gymDailyFee} value={form.dailyFee} onChangeText={v => set('dailyFee', v)} keyboardType="number-pad" placeholder="₺" />
+
+                <Text style={s.section}>{t.gymMembersSection}</Text>
+                <Text style={s.hint}>{t.gymMemberManualHint}</Text>
+                <Field
+                    label={t.gymMemberManual}
+                    value={form.memberCount}
+                    onChangeText={v => set('memberCount', v)}
+                    keyboardType="number-pad"
+                    placeholder="0"
+                />
+                {editingId ? (
+                    <Text style={s.cardMeta}>
+                        {t.gymMemberApp}: {editAppMemberCount} · {t.gymMemberTotal}: {totalPreview}
+                    </Text>
+                ) : (
+                    <Text style={s.hint}>{t.gymMemberCreateHint}</Text>
+                )}
+
+                <Text style={s.section}>{t.gymHoursSection}</Text>
+                <Text style={s.hint}>{t.gymHoursByDayHint}</Text>
+                {DAY_KEYS.map(d => {
+                    const row = form.weeklyHours[d] || { open: '06:00', close: '23:00', closed: false };
+                    return (
+                        <View key={d} style={s.dayRow}>
+                            <TouchableOpacity
+                                onPress={() => setDay(d, { closed: !row.closed })}
+                                style={[s.dayChip, row.closed && s.dayChipOff]}
+                            >
+                                <Text style={[s.dayChipText, row.closed && { color: colors.textMuted }]}>
+                                    {t[`gymDay_${d}`] || d}
+                                </Text>
+                            </TouchableOpacity>
+                            {row.closed ? (
+                                <Text style={[s.cardMeta, { flex: 1, marginTop: 0 }]}>{t.gymDayClosed}</Text>
+                            ) : (
+                                <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
+                                    <TextInput
+                                        style={[s.input, { flex: 1, marginBottom: 0 }]}
+                                        value={row.open}
+                                        onChangeText={v => setDay(d, { open: v })}
+                                        placeholder="06:00"
+                                        placeholderTextColor={colors.textMuted}
+                                    />
+                                    <TextInput
+                                        style={[s.input, { flex: 1, marginBottom: 0 }]}
+                                        value={row.close}
+                                        onChangeText={v => setDay(d, { close: v })}
+                                        placeholder="23:00"
+                                        placeholderTextColor={colors.textMuted}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                    );
+                })}
+                <TouchableOpacity
+                    onPress={() => {
+                        const src = form.weeklyHours.mon;
+                        setForm(p => ({
+                            ...p,
+                            weeklyHours: Object.fromEntries(DAY_KEYS.map(d => [d, { ...src }])),
+                        }));
+                    }}
+                    style={{ marginBottom: 8 }}
+                >
+                    <Text style={{ color: cfg?.color || '#f97316', fontSize: 12, fontWeight: '700' }}>
+                        {t.gymHoursCopyMon}
+                    </Text>
+                </TouchableOpacity>
+
+                <Field label={t.gymSquareMeters} value={form.squareMeters} onChangeText={v => set('squareMeters', v)} keyboardType="number-pad" placeholder="m²" />
+
+                <Text style={s.section}>{t.gymFacilitiesSection}</Text>
+                <PairRow
+                    left={<Field label={t.gymLockerMale} value={form.lockerMale} onChangeText={v => set('lockerMale', v)} keyboardType="number-pad" />}
+                    right={<Field label={t.gymLockerFemale} value={form.lockerFemale} onChangeText={v => set('lockerFemale', v)} keyboardType="number-pad" />}
+                />
+                <PairRow
+                    left={<Field label={t.gymShowerMale} value={form.showerMale} onChangeText={v => set('showerMale', v)} keyboardType="number-pad" />}
+                    right={<Field label={t.gymShowerFemale} value={form.showerFemale} onChangeText={v => set('showerFemale', v)} keyboardType="number-pad" />}
+                />
+                <PairRow
+                    left={<Field label={t.gymWcMale} value={form.wcMale} onChangeText={v => set('wcMale', v)} keyboardType="number-pad" />}
+                    right={<Field label={t.gymWcFemale} value={form.wcFemale} onChangeText={v => set('wcFemale', v)} keyboardType="number-pad" />}
+                />
+                <PairRow
+                    left={<Field label={t.gymDressingMale} value={form.dressingRoomMale} onChangeText={v => set('dressingRoomMale', v)} keyboardType="number-pad" />}
+                    right={<Field label={t.gymDressingFemale} value={form.dressingRoomFemale} onChangeText={v => set('dressingRoomFemale', v)} keyboardType="number-pad" />}
+                />
+
+                <Field label={t.gymEquipmentList} value={form.equipmentList} onChangeText={v => set('equipmentList', v)} placeholder={t.gymEquipmentPh} multiline />
+
+                <Text style={s.section}>{t.gymSalesList}</Text>
+                <Text style={s.hint}>{t.gymSalesProductsHint}</Text>
+                {(form.salesProducts || []).map((p, idx) => (
+                    <View key={`prod-${idx}`} style={s.productCard}>
+                        <Field label={t.gymProductName} value={p.name} onChangeText={v => setProduct(idx, { name: v })} placeholder={t.gymProductNamePh} />
+                        <PairRow
+                            left={<Field label={t.gymProductWeight} value={p.weight} onChangeText={v => setProduct(idx, { weight: v })} placeholder={t.gymProductWeightPh} />}
+                            right={<Field label={t.gymProductPrice} value={p.price} onChangeText={v => setProduct(idx, { price: v })} keyboardType="number-pad" placeholder="₺" />}
+                        />
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <TouchableOpacity style={[s.photoBtn, { flex: 1, marginBottom: 0 }]} onPress={() => pickProductPhoto(idx)} disabled={uploading}>
+                                <Text style={s.photoBtnText}>
+                                    {uploading ? '...' : (p.photoUrl ? t.gymProductPhotoChange : t.gymProductPhotoAdd)}
+                                </Text>
+                            </TouchableOpacity>
+                            {p.photoUrl ? (
+                                <Image source={{ uri: p.photoUrl }} style={{ width: 48, height: 48, borderRadius: 8 }} />
+                            ) : null}
+                            <TouchableOpacity
+                                onPress={() => setForm(f => ({
+                                    ...f,
+                                    salesProducts: f.salesProducts.filter((_, i) => i !== idx),
+                                }))}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Text style={{ color: '#f87171', fontWeight: '800' }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                ))}
+                <TouchableOpacity
+                    style={[s.photoBtn, { borderColor: (cfg?.color || '#f97316') + '80' }]}
+                    onPress={() => setForm(f => ({
+                        ...f,
+                        salesProducts: [...(f.salesProducts || []), emptyProduct()],
+                    }))}
+                >
+                    <Text style={[s.photoBtnText, { color: cfg?.color || '#f97316' }]}>{t.gymProductAdd}</Text>
+                </TouchableOpacity>
+
+                <Field label={t.gymAmenities} value={form.amenities} onChangeText={v => set('amenities', v)} placeholder={t.gymAmenitiesPh} multiline />
+                <Field label={t.gymPhone} value={form.contactPhone} onChangeText={v => set('contactPhone', v)} keyboardType="phone-pad" />
+                <Field label={t.gymWebsite} value={form.website} onChangeText={v => set('website', v)} autoCapitalize="none" />
+                <Field label={t.gymInstagram} value={form.instagram} onChangeText={v => set('instagram', v)} autoCapitalize="none" />
+
+                <TouchableOpacity style={s.photoBtn} onPress={pickPhotos} disabled={uploading}>
+                    <Text style={s.photoBtnText}>
+                        {uploading ? '...' : (form.photos.length ? t.gymPhotosChange(form.photos.length) : t.gymPhotosAdd)}
+                    </Text>
+                </TouchableOpacity>
+                {form.photos.length > 0 && (
+                    <ScrollView horizontal style={{ marginBottom: 10 }}>
+                        {form.photos.map((u, i) => (
+                            <Image key={u + i} source={{ uri: u }} style={{ width: 64, height: 64, borderRadius: 8, marginRight: 6 }} />
+                        ))}
+                    </ScrollView>
+                )}
+
+                <TouchableOpacity
+                    style={[s.submit, { backgroundColor: cfg?.color || '#f97316' }, submitting && { opacity: 0.6 }]}
+                    onPress={submit}
+                    disabled={submitting}>
+                    <Text style={s.submitText}>
+                        {submitting ? t.submittingBtn : (editingId ? t.saveGymBtn : t.createGymBtn)}
+                    </Text>
+                </TouchableOpacity>
+            </KeyboardAwareForm>
+        </KeyboardSafeModal>
+    );
 
     return (
         <View>
@@ -361,6 +720,9 @@ export default function GymSupportSection({
                                     {g.monthlyFee != null && (
                                         <Text style={s.cardFee}>{t.gymMonthlyFee}: {g.monthlyFee}₺</Text>
                                     )}
+                                    {g.totalMemberCount != null && (
+                                        <Text style={s.cardMeta}>👥 {t.gymMemberTotal}: {g.totalMemberCount}</Text>
+                                    )}
                                     {(g.avgRating != null || g.reviewCount > 0) && (
                                         <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '700', marginTop: 2 }}>
                                             ★ {g.avgRating != null ? g.avgRating : '—'}{g.reviewCount ? ` (${g.reviewCount})` : ''}
@@ -377,82 +739,11 @@ export default function GymSupportSection({
                         </TouchableOpacity>
                     ))}
 
-            <KeyboardSafeModal visible={showCreate} onClose={() => { setShowCreate(false); reset(); }}>
-                <Text style={s.modalTitle}>{t.createGymTitle}</Text>
-                <KeyboardAwareForm adjustWindow={false} style={{ maxHeight: 520 }}>
-                    <Field label={`${t.gymNameLabel} *`} value={form.name} onChangeText={v => set('name', v)} placeholder={t.gymNamePh} />
-                    <Field label={`${t.gymCityLabel} *`} value={form.city} onChangeText={v => set('city', v)} placeholder={t.gymCityPh} />
-                    <Field label={t.gymDistrictLabel} value={form.district} onChangeText={v => set('district', v)} placeholder={t.gymDistrictPh} />
-                    <Field label={t.gymAddressLabel} value={form.address} onChangeText={v => set('address', v)} placeholder={t.gymAddressPh} multiline />
-                    <Field label={t.gymDescLabel} value={form.description} onChangeText={v => set('description', v)} placeholder={t.gymDescPh} multiline />
-
-                    <Text style={s.section}>{t.gymFeesSection}</Text>
-                    <PairRow
-                        left={<Field label={t.gymMonthlyFee} value={form.monthlyFee} onChangeText={v => set('monthlyFee', v)} keyboardType="number-pad" placeholder="₺" />}
-                        right={<Field label={t.gymWeeklyFee} value={form.weeklyFee} onChangeText={v => set('weeklyFee', v)} keyboardType="number-pad" placeholder="₺" />}
-                    />
-                    <PairRow
-                        left={<Field label={t.gymDailyFee} value={form.dailyFee} onChangeText={v => set('dailyFee', v)} keyboardType="number-pad" placeholder="₺" />}
-                        right={<Field label={t.gymMemberCount} value={form.memberCount} onChangeText={v => set('memberCount', v)} keyboardType="number-pad" />}
-                    />
-
-                    <Text style={s.section}>{t.gymHoursSection}</Text>
-                    <PairRow
-                        left={<Field label={t.gymOpenTime} value={form.openTime} onChangeText={v => set('openTime', v)} placeholder="06:00" />}
-                        right={<Field label={t.gymCloseTime} value={form.closeTime} onChangeText={v => set('closeTime', v)} placeholder="23:00" />}
-                    />
-                    <Field label={t.gymSquareMeters} value={form.squareMeters} onChangeText={v => set('squareMeters', v)} keyboardType="number-pad" placeholder="m²" />
-
-                    <Text style={s.section}>{t.gymFacilitiesSection}</Text>
-                    <PairRow
-                        left={<Field label={t.gymLockerMale} value={form.lockerMale} onChangeText={v => set('lockerMale', v)} keyboardType="number-pad" />}
-                        right={<Field label={t.gymLockerFemale} value={form.lockerFemale} onChangeText={v => set('lockerFemale', v)} keyboardType="number-pad" />}
-                    />
-                    <PairRow
-                        left={<Field label={t.gymShowerMale} value={form.showerMale} onChangeText={v => set('showerMale', v)} keyboardType="number-pad" />}
-                        right={<Field label={t.gymShowerFemale} value={form.showerFemale} onChangeText={v => set('showerFemale', v)} keyboardType="number-pad" />}
-                    />
-                    <PairRow
-                        left={<Field label={t.gymWcMale} value={form.wcMale} onChangeText={v => set('wcMale', v)} keyboardType="number-pad" />}
-                        right={<Field label={t.gymWcFemale} value={form.wcFemale} onChangeText={v => set('wcFemale', v)} keyboardType="number-pad" />}
-                    />
-                    <PairRow
-                        left={<Field label={t.gymDressingMale} value={form.dressingRoomMale} onChangeText={v => set('dressingRoomMale', v)} keyboardType="number-pad" />}
-                        right={<Field label={t.gymDressingFemale} value={form.dressingRoomFemale} onChangeText={v => set('dressingRoomFemale', v)} keyboardType="number-pad" />}
-                    />
-
-                    <Field label={t.gymEquipmentList} value={form.equipmentList} onChangeText={v => set('equipmentList', v)} placeholder={t.gymEquipmentPh} multiline />
-                    <Field label={t.gymSalesList} value={form.salesList} onChangeText={v => set('salesList', v)} placeholder={t.gymSalesPh} multiline />
-                    <Field label={t.gymAmenities} value={form.amenities} onChangeText={v => set('amenities', v)} placeholder={t.gymAmenitiesPh} multiline />
-                    <Field label={t.gymPhone} value={form.contactPhone} onChangeText={v => set('contactPhone', v)} keyboardType="phone-pad" />
-                    <Field label={t.gymWebsite} value={form.website} onChangeText={v => set('website', v)} autoCapitalize="none" />
-                    <Field label={t.gymInstagram} value={form.instagram} onChangeText={v => set('instagram', v)} autoCapitalize="none" />
-
-                    <TouchableOpacity style={s.photoBtn} onPress={pickPhotos} disabled={uploading}>
-                        <Text style={s.photoBtnText}>
-                            {uploading ? '...' : (form.photos.length ? t.gymPhotosChange(form.photos.length) : t.gymPhotosAdd)}
-                        </Text>
-                    </TouchableOpacity>
-                    {form.photos.length > 0 && (
-                        <ScrollView horizontal style={{ marginBottom: 10 }}>
-                            {form.photos.map((u, i) => (
-                                <Image key={u + i} source={{ uri: u }} style={{ width: 64, height: 64, borderRadius: 8, marginRight: 6 }} />
-                            ))}
-                        </ScrollView>
-                    )}
-
-                    <TouchableOpacity
-                        style={[s.submit, { backgroundColor: cfg?.color || '#f97316' }, submitting && { opacity: 0.6 }]}
-                        onPress={submit}
-                        disabled={submitting}>
-                        <Text style={s.submitText}>{submitting ? t.submittingBtn : t.createGymBtn}</Text>
-                    </TouchableOpacity>
-                </KeyboardAwareForm>
-            </KeyboardSafeModal>
+            {formModal}
 
             <KeyboardSafeModal visible={!!detail} onClose={() => { setDetail(null); setDetailIsOwner(false); setMyQr(null); setApps([]); }}>
                 {detail && (
-                    <ScrollView style={{ maxHeight: 560 }}>
+                    <ScrollView style={{ maxHeight: Math.round(WIN_H * 0.82) }} keyboardShouldPersistTaps="handled">
                         <Text style={s.modalTitle}>{detail.name}</Text>
                         {(detail.address || detail.city) && (
                             <Text style={s.cardMeta}>📍 {[detail.address, detail.district, detail.city].filter(Boolean).join(' · ')}</Text>
@@ -460,15 +751,45 @@ export default function GymSupportSection({
                         {detail.monthlyFee != null && <Text style={s.cardFee}>{t.gymMonthlyFee}: {detail.monthlyFee}₺</Text>}
                         {detail.weeklyFee != null && <Text style={s.cardMeta}>{t.gymWeeklyFee}: {detail.weeklyFee}₺</Text>}
                         {detail.dailyFee != null && <Text style={s.cardMeta}>{t.gymDailyFee}: {detail.dailyFee}₺</Text>}
-                        {(detail.openTime || detail.closeTime) && (
-                            <Text style={s.cardMeta}>🕒 {detail.openTime || '?'} – {detail.closeTime || '?'}</Text>
+                        {formatHoursLine(detail, t) && (
+                            <Text style={s.cardMeta}>🕒 {formatHoursLine(detail, t)}</Text>
                         )}
                         {detail.squareMeters != null && <Text style={s.cardMeta}>📐 {detail.squareMeters} m²</Text>}
-                        {detail.memberCount != null && <Text style={s.cardMeta}>👥 {t.gymMemberCount}: {detail.memberCount}</Text>}
+                        <Text style={s.cardMeta}>
+                            👥 {t.gymMemberTotal}: {detail.totalMemberCount != null
+                                ? detail.totalMemberCount
+                                : ((detail.memberCount || 0) + (detail.appMemberCount || 0))}
+                            {detailIsOwner ? (
+                                `  (${t.gymMemberManual}: ${detail.memberCount || 0} + ${t.gymMemberApp}: ${detail.appMemberCount || 0})`
+                            ) : null}
+                        </Text>
                         {detail.description ? <Text style={[s.cardMeta, { marginTop: 8 }]}>{detail.description}</Text> : null}
                         {detail.equipmentList ? <Text style={s.cardMeta}>{t.gymEquipmentList}: {detail.equipmentList}</Text> : null}
-                        {detail.salesList ? <Text style={s.cardMeta}>{t.gymSalesList}: {detail.salesList}</Text> : null}
                         {detail.amenities ? <Text style={s.cardMeta}>{t.gymAmenities}: {detail.amenities}</Text> : null}
+
+                        {Array.isArray(detail.salesProducts) && detail.salesProducts.length > 0 && (
+                            <>
+                                <Text style={s.section}>{t.gymSalesList}</Text>
+                                {detail.salesProducts.map((p, i) => (
+                                    <View key={`sp-${i}`} style={{ flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                                        {p.photoUrl ? (
+                                            <Image source={{ uri: p.photoUrl }} style={{ width: 48, height: 48, borderRadius: 8 }} />
+                                        ) : (
+                                            <View style={[s.thumb, { width: 48, height: 48 }]} />
+                                        )}
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>{p.name}</Text>
+                                            <Text style={s.cardMeta}>
+                                                {[p.weight, p.price != null ? `${p.price}₺` : null].filter(Boolean).join(' · ')}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                ))}
+                            </>
+                        )}
+                        {(!detail.salesProducts || !detail.salesProducts.length) && detail.salesList ? (
+                            <Text style={s.cardMeta}>{t.gymSalesList}: {detail.salesList}</Text>
+                        ) : null}
 
                         {Array.isArray(detail.photos) && detail.photos.length > 0 && (
                             <ScrollView horizontal style={{ marginVertical: 10 }}>
@@ -489,7 +810,6 @@ export default function GymSupportSection({
                             </View>
                         )}
 
-                        {/* Aktif üye ayrılınca Arşiv > Salonlar'a düşer (REVOKED + endedAt). */}
                         {!detailIsOwner && detail.myMembershipStatus === 'ACTIVE' && (
                             <TouchableOpacity
                                 style={[s.submit, { backgroundColor: '#7f1d1d', marginTop: 8 }]}
@@ -523,7 +843,6 @@ export default function GymSupportSection({
                             </TouchableOpacity>
                         )}
 
-                        {/* Yıldız / yorum — herkes (sahip hariç) değerlendirebilir */}
                         <Text style={s.section}>
                             {t.gymReviewsTitle}
                             {avgRating != null ? ` · ★ ${avgRating}` : ''}
@@ -572,6 +891,11 @@ export default function GymSupportSection({
 
                         {detailIsOwner && (
                             <View style={{ marginTop: 10 }}>
+                                <TouchableOpacity
+                                    style={[s.submit, { backgroundColor: '#a855f7', marginBottom: 8 }]}
+                                    onPress={() => openEdit(detail)}>
+                                    <Text style={s.submitText}>{t.editGymBtn}</Text>
+                                </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[s.submit, { backgroundColor: '#0ea5e9', marginBottom: 8 }]}
                                     onPress={() => onOpenScan?.(detail.id, detail.name)}>
@@ -638,6 +962,18 @@ const s = StyleSheet.create({
         color: '#fff', paddingHorizontal: 10, paddingVertical: 8, fontSize: 13,
     },
     section: { color: '#fff', fontSize: 13, fontWeight: '800', marginTop: 8, marginBottom: 6 },
+    hint: { color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 },
+    dayRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+    dayChip: {
+        minWidth: 52, paddingHorizontal: 8, paddingVertical: 8, borderRadius: 8,
+        backgroundColor: '#f9731630', borderWidth: 1, borderColor: '#f9731660', alignItems: 'center',
+    },
+    dayChipOff: { backgroundColor: colors.surface2, borderColor: colors.border },
+    dayChipText: { color: '#fb923c', fontSize: 11, fontWeight: '800' },
+    productCard: {
+        borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 8, marginBottom: 8,
+        backgroundColor: colors.surface2,
+    },
     photoBtn: {
         borderWidth: 1, borderColor: colors.border, borderRadius: 8, padding: 10,
         alignItems: 'center', marginBottom: 8,

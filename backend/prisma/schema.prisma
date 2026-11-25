@@ -147,6 +147,9 @@ model User {
   gymMembershipManaged GymMember[] @relation("GymMemberAddedBy")
   gymCheckInsScanned  GymCheckIn[] @relation("GymCheckInScanner")
   gymReviewsGiven     GymReview[] @relation("GymReviewer")
+  workoutPlansOwned   WorkoutPlan[] @relation("WorkoutPlanOwner")
+  workoutPlansAuthored WorkoutPlan[] @relation("WorkoutPlanAuthor")
+  workoutSessions     WorkoutSession[]
   listingReports      ListingReport[]
   userAchievements    UserAchievement[]
   matchComments    MatchComment[]
@@ -616,6 +619,7 @@ model CoachListing {
   lessonRequests  CoachLessonRequest[]
   reviews         CoachReview[]
   messages        Message[]
+  workoutPlans    WorkoutPlan[]
 }
 
 // Öğrencinin antrenörle "ders aldım" ilişkisini kurması — antrenör kabul edince
@@ -847,10 +851,13 @@ model GymListing {
   monthlyFee      Int?     // aylık üyelik ₺
   weeklyFee       Int?
   dailyFee        Int?
-  memberCount     Int?     // güncel üye sayısı (sahibin beyanı)
+  // Manuel (uygulama dışı) üye beyanı — toplam = memberCount + ACTIVE GymMember sayısı
+  memberCount     Int?
 
-  openTime        String?  // "06:00"
+  openTime        String?  // "06:00" — genel / geriye uyum; asıl kaynak weeklyHours
   closeTime       String?  // "23:00"
+  // Gün bazlı saat: { mon:{open,close,closed}, ... sun }
+  weeklyHours     Json?
   squareMeters    Int?
 
   lockerMale      Int?
@@ -863,7 +870,9 @@ model GymListing {
   dressingRoomFemale Int?
 
   equipmentList   String?  // salondaki ekipman özeti (serbest metin)
-  salesList       String?  // satışta ekipman / gıda takviyesi vb. (serbest metin)
+  salesList       String?  // eski serbest metin (geriye uyum)
+  // Salon içi satış ürünleri: [{ name, weight, price, photoUrl }]
+  salesProducts   Json     @default("[]")
   amenities       String?  // parking, sauna, çocuk alanı vb. serbest metin
   contactPhone    String?
   website         String?
@@ -933,6 +942,94 @@ model GymCheckIn {
 
   @@index([gymListingId, createdAt])
   @@index([memberId, createdAt])
+}
+
+// Fitness — kullanıcının Antremanım planı. Kendisi veya kabul edilmiş antrenörü yazar.
+// period: DAILY | WEEKLY | MONTHLY. dayIndex: günlük null; haftalık 0–6; aylık 1–31.
+model WorkoutPlan {
+  id              String   @id @default(uuid())
+  userId          String
+  authorId        String
+  coachListingId  String?
+  category        String   @default("SPORTS")
+  subCategory     String   @default("fitness_gym")
+  title           String
+  period          String   // DAILY | WEEKLY | MONTHLY
+  notes           String?
+  status          String   @default("ACTIVE") // ACTIVE | ARCHIVED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation("WorkoutPlanOwner", fields: [userId], references: [id], onDelete: Cascade)
+  author          User     @relation("WorkoutPlanAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  coachListing    CoachListing? @relation(fields: [coachListingId], references: [id], onDelete: SetNull)
+  exercises       WorkoutExercise[]
+  sessions        WorkoutSession[]
+
+  @@index([userId, status, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model WorkoutExercise {
+  id            String   @id @default(uuid())
+  planId        String
+  name          String
+  sortOrder     Int      @default(0)
+  // STRAIGHT | DROP | PYRAMID | SUPERSET | CIRCUIT
+  setScheme     String   @default("STRAIGHT")
+  targetSets    Int?
+  targetReps    String?  // "10" veya "8-12"
+  targetWeight  Float?   // önerilen kg
+  restSeconds   Int?
+  dayIndex      Int?
+  notes         String?
+  // drop/piramit detayı: { drops:[{reps,weightPct}], steps:[{reps,weight}] }
+  schemeMeta    Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  plan          WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  setLogs       WorkoutSetLog[]
+
+  @@index([planId, sortOrder])
+}
+
+// Bir günde yapılan antrenman oturumu — set logları buraya bağlanır.
+model WorkoutSession {
+  id          String   @id @default(uuid())
+  planId      String
+  userId      String
+  date        DateTime // gün (UTC geceyarısı normalize)
+  notes       String?
+  completed   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  plan        WorkoutPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  setLogs     WorkoutSetLog[]
+
+  @@unique([planId, userId, date])
+  @@index([userId, date])
+}
+
+model WorkoutSetLog {
+  id          String   @id @default(uuid())
+  sessionId   String
+  exerciseId  String
+  setIndex    Int
+  dropIndex   Int      @default(0) // drop set parçası (0=ana, 1=ilk drop…)
+  reps        Int?
+  weightKg    Float?
+  completed   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session     WorkoutSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exercise    WorkoutExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, exerciseId, setIndex, dropIndex])
+  @@index([exerciseId])
 }
 
 model EquipmentListing {
