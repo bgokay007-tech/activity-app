@@ -54,7 +54,8 @@ async function avatarToDataUrl(url) {
  * 9:16 skor kartı — spor/zemin arka planı + yarı saydam koyu overlay,
  * skor tablosu + canlı takip istatistikleri + saat/sağlık workout paneli.
  * IG üst chrome için TOP boşluk.
- * Meta ile "Uygulamayı indir" arasında paylaşanın digimon ön/arka kartı.
+ * Digimon ön/arka: AcTiViTy iki yanında (üst=marka üstü, alt=KAZANDI altı, gap 5).
+ * Meta (tarih/saat/süre/konum) KAZANDI altında tek satır, panelsiz.
  */
 function cardHtml(p, bgDataUrl, avatarDataUrl) {
     const brand = p.brand || 'AcTiViTy';
@@ -151,66 +152,16 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         ctx.strokeStyle='rgba(255,255,255,0.08)'; ctx.lineWidth=1.2; ctx.stroke();
       }
 
-      // Digimon ÖN YÜZ — sol üst köşe; yazıya göre sıkı w/h, kenarda boşluk yok
-      var digFrontH=0;
-      if(sharer){
-        var fx=16, fy=TOP-8;
-        var frontW=198;
-        var frontCx=fx+frontW/2;
-        var frontMaxW=frontW-digPad*2;
-        var dispName=sharer.alias||sharer.name||sharer.username||'';
-        var nameFs=16;
-        ctx.font='900 '+nameFs+'px sans-serif';
-        while(nameFs>11 && ctx.measureText(dispName).width>frontMaxW){
-          nameFs-=1; ctx.font='900 '+nameFs+'px sans-serif';
-        }
-        var eloLines=0;
-        if(sharer.isUtr){
-          if(sharer.showSinglesLine) eloLines++;
-          if(sharer.showDoublesLine) eloLines++;
-        } else if(sharer.elo) eloLines=1;
-        // içerik yüksekliği: pad + başlık + avatar + isim + spor + elo + pad
-        digFrontH=digPad+18+8+52+8+nameFs+4+14+4+(eloLines?eloLines*18:0)+digPad+6;
-        digimonShell(fx,fy,frontW,digFrontH,'#C8F54A');
-        text(sharer.labels.front||'PLAYER', frontCx, fy+digPad+16, 12, '#C8F54A', 'center', '900');
-        var ax=frontCx, ay=fy+digPad+18+8+26, ar=24;
-        ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
-        ctx.fillStyle='#1C1F2A'; ctx.fill();
-        ctx.strokeStyle='#C8F54A'; ctx.lineWidth=2; ctx.stroke();
-        if(avImg){
-          ctx.save();
-          ctx.beginPath(); ctx.arc(ax,ay,ar-1.5,0,Math.PI*2); ctx.closePath(); ctx.clip();
-          var as=Math.max((ar*2)/(avImg.width||1),(ar*2)/(avImg.height||1));
-          var aw=(avImg.width||1)*as, ah=(avImg.height||1)*as;
-          ctx.drawImage(avImg, ax-aw/2, ay-ah/2, aw, ah);
-          ctx.restore();
-        } else {
-          var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
-          text(ini, ax, ay+8, 20, '#F4F1EA', 'center', '900');
-        }
-        var tyFront=ay+ar+nameFs+2;
-        text(dispName, frontCx, tyFront, nameFs, '#F4F1EA', 'center', '900');
-        tyFront+=16;
-        text((sharer.emoji||'')+' '+(sharer.sport||''), frontCx, tyFront, 12, '#A8A29A', 'center', '700');
-        tyFront+=16;
-        if(sharer.isUtr){
-          if(sharer.showSinglesLine){
-            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), frontCx, tyFront, 13, '#C8F54A', 'center', '900');
-            tyFront+=18;
-          }
-          if(sharer.showDoublesLine){
-            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), frontCx, tyFront, 13, '#C8F54A', 'center', '900');
-          }
-        } else if(sharer.elo){
-          text(sharer.elo, frontCx, tyFront, 14, '#C8F54A', 'center', '900');
-        }
-      }
-
-      // Uygulama adı — ortada (digimon sol üstte)
+      // Uygulama adı — ortada; Digimon yanlarda (üst=marka üstü, alt=KAZANDI altı)
       ctx.font='900 82px sans-serif'; ctx.textAlign='left';
+      var brandMetric=ctx.measureText(brand);
+      var brandAscent=(brandMetric.actualBoundingBoxAscent!=null)?brandMetric.actualBoundingBoxAscent:Math.round(82*0.78);
+      var brandTop=TOP-brandAscent;
       var totalW=0;
       for(var i=0;i<brand.length;i++) totalW+=ctx.measureText(brand[i]).width+3;
-      var bx=(W-totalW)/2;
+      var brandLeft=(W-totalW)/2;
+      var brandRight=brandLeft+totalW;
+      var bx=brandLeft;
       for(var i=0;i<brand.length;i++){
         ctx.fillStyle=cols[i%cols.length];
         ctx.fillText(brand[i], bx, TOP);
@@ -233,10 +184,13 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
       var isDraw=${JSON.stringify(p.winnerSide==='draw')};
       var tournName=${JSON.stringify(p.tournamentName||'')};
       var tournRound=${JSON.stringify(p.tournamentRound||'')};
-      // Rozet ile kazanan arası boşluk
-      var ny=Math.max(TOP+118, sharer ? (TOP-8+digFrontH+16) : (TOP+118));
+      // Digimon yanlarda → orta sütun dar; skor bloğu marka/rozet altına inebilir
+      var digSideGap=5;
+      var approxDigW=sharer?Math.min(228, Math.max(140, brandLeft-digSideGap-12)):0;
+      var centerMaxW=sharer?Math.max(280, W-2*(approxDigW+digSideGap+10)):940;
+      var ny=TOP+118;
       if(tournName){
-        var tLines=nameLines(tournName, 940, 36);
+        var tLines=nameLines(tournName, centerMaxW, 36);
         tLines.forEach(function(ln){ text(ln, 540, ny, 36, '#F4F1EA', 'center', '900'); ny+=42; });
         if(tournRound){ text(tournRound, 540, ny, 24, '#A8A29A', 'center', '800'); ny+=34; }
         ny+=6;
@@ -244,19 +198,182 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 
       var name=${JSON.stringify(p.isUpcoming ? '' : (p.resultLabel||''))};
       var won=${JSON.stringify(p.isUpcoming ? (p.wonWord||'VS') : (p.wonWord||'WON'))};
+      var kazandiBottom=ny;
       if(!isUpcoming && name){
-        var nLines=nameLines(name, 940, 56);
+        var nLines=nameLines(name, centerMaxW, 56);
         nLines.forEach(function(ln){ text(ln, 540, ny, 56, '#F4F1EA', 'center', '900'); ny+=60; });
         // Beraberlikte KAZANDI yazma
         if(!isDraw){
-          text(won, 540, ny+4, 48, '#C8F54A', 'center', '900');
-          ny+=56;
+          var wonBaseline=ny+4;
+          text(won, 540, wonBaseline, 48, '#C8F54A', 'center', '900');
+          ctx.font='900 48px sans-serif';
+          var wonM=ctx.measureText(won);
+          var wonDesc=(wonM.actualBoundingBoxDescent!=null)?wonM.actualBoundingBoxDescent:Math.round(48*0.22);
+          kazandiBottom=wonBaseline+wonDesc;
+          ny=kazandiBottom+8;
         } else {
+          kazandiBottom=ny;
           ny+=10;
         }
       } else if(isUpcoming){
-        text(won, 540, ny+4, 48, '#C8F54A', 'center', '900');
-        ny+=56;
+        var wonBaseline2=ny+4;
+        text(won, 540, wonBaseline2, 48, '#C8F54A', 'center', '900');
+        ctx.font='900 48px sans-serif';
+        var wonM2=ctx.measureText(won);
+        var wonDesc2=(wonM2.actualBoundingBoxDescent!=null)?wonM2.actualBoundingBoxDescent:Math.round(48*0.22);
+        kazandiBottom=wonBaseline2+wonDesc2;
+        ny=kazandiBottom+8;
+      }
+
+      // Meta: KAZANDI altı boşluk — tarih saat süre konum tek satır, panelsiz
+      var metaLine=[];
+      if(${JSON.stringify(!!p.dateStr)}) metaLine.push(${JSON.stringify(p.dateStr||'')});
+      if(${JSON.stringify(!!p.timeStr)}) metaLine.push(${JSON.stringify(p.timeStr||'')});
+      if(${JSON.stringify(!!p.durationLabel)}) metaLine.push(${JSON.stringify(p.durationLabel||'')});
+      if(${JSON.stringify(!!p.surface)}) metaLine.push(${JSON.stringify(p.surface||'')});
+      var placeName=${JSON.stringify(p.placeName||'')};
+      var placeRegion=${JSON.stringify(p.placeRegion||'')};
+      var locLine='';
+      if(placeName) locLine=placeName;
+      else if(${JSON.stringify(!!p.place)} && !placeRegion) locLine=${JSON.stringify(p.place||'')};
+      if(placeRegion) locLine=locLine ? (locLine+' '+placeRegion) : placeRegion;
+      if(locLine) metaLine.push(locLine);
+      if(metaLine.length){
+        var metaGap=5;
+        var metaFs=22;
+        var metaMaxW=Math.min(centerMaxW, Math.max(280, brandRight-brandLeft+80));
+        function metaWidth(fs){
+          ctx.font='700 '+fs+'px sans-serif';
+          var tw=0;
+          metaLine.forEach(function(m,idx){ tw+=ctx.measureText(m).width; if(idx) tw+=metaGap; });
+          return tw;
+        }
+        while(metaFs>13 && metaWidth(metaFs)>metaMaxW) metaFs-=1;
+        var metaTotal=metaWidth(metaFs);
+        var mx=(W-metaTotal)/2;
+        var my=ny+18;
+        metaLine.forEach(function(m){
+          text(m, mx, my, metaFs, '#E7E5E4', 'left', '700');
+          mx+=ctx.measureText(m).width+metaGap;
+        });
+        ny=my+14;
+      }
+
+      // Digimon ÖN (sol) + ARKA (sağ) — AcTiViTy iki yanında, yükseklik marka üstü→KAZANDI altı
+      if(sharer){
+        var digH=Math.max(168, kazandiBottom-brandTop);
+        var digTop=brandTop;
+        var frontW=approxDigW;
+        var fx=brandLeft-digSideGap-frontW;
+        if(fx<10){ fx=10; frontW=Math.max(140, brandLeft-digSideGap-fx); }
+        var frontCx=fx+frontW/2;
+        var frontMaxW=frontW-digPad*2;
+        var dispName=sharer.alias||sharer.name||sharer.username||'';
+        var nameFs=18;
+        ctx.font='900 '+nameFs+'px sans-serif';
+        while(nameFs>12 && ctx.measureText(dispName).width>frontMaxW){
+          nameFs-=1; ctx.font='900 '+nameFs+'px sans-serif';
+        }
+        var eloLines=0;
+        if(sharer.isUtr){
+          if(sharer.showSinglesLine) eloLines++;
+          if(sharer.showDoublesLine) eloLines++;
+        } else if(sharer.elo) eloLines=1;
+        digimonShell(fx,digTop,frontW,digH,'#C8F54A');
+        var ar=Math.min(36, Math.max(28, Math.floor((digH-digPad*2-90)/3.2)));
+        var lblFs=13;
+        text(sharer.labels.front||'PLAYER', frontCx, digTop+digPad+lblFs+2, lblFs, '#C8F54A', 'center', '900');
+        var ax=frontCx, ay=digTop+digPad+lblFs+10+ar;
+        ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
+        ctx.fillStyle='#1C1F2A'; ctx.fill();
+        ctx.strokeStyle='#C8F54A'; ctx.lineWidth=2.5; ctx.stroke();
+        if(avImg){
+          ctx.save();
+          ctx.beginPath(); ctx.arc(ax,ay,ar-1.5,0,Math.PI*2); ctx.closePath(); ctx.clip();
+          var as=Math.max((ar*2)/(avImg.width||1),(ar*2)/(avImg.height||1));
+          var aw=(avImg.width||1)*as, ah=(avImg.height||1)*as;
+          ctx.drawImage(avImg, ax-aw/2, ay-ah/2, aw, ah);
+          ctx.restore();
+        } else {
+          var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
+          text(ini, ax, ay+Math.round(ar*0.35), Math.round(ar*0.85), '#F4F1EA', 'center', '900');
+        }
+        var tyFront=ay+ar+nameFs+4;
+        text(dispName, frontCx, tyFront, nameFs, '#F4F1EA', 'center', '900');
+        tyFront+=Math.max(16, nameFs+2);
+        text((sharer.emoji||'')+' '+(sharer.sport||''), frontCx, tyFront, 13, '#A8A29A', 'center', '700');
+        tyFront+=17;
+        if(sharer.isUtr){
+          if(sharer.showSinglesLine){
+            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), frontCx, tyFront, 14, '#C8F54A', 'center', '900');
+            tyFront+=18;
+          }
+          if(sharer.showDoublesLine){
+            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), frontCx, tyFront, 14, '#C8F54A', 'center', '900');
+          }
+        } else if(sharer.elo){
+          text(sharer.elo, frontCx, tyFront, 15, '#C8F54A', 'center', '900');
+        }
+
+        // ARKA YÜZ — markanın sağı, ön yüz ile aynı yükseklik, küçültülmüş içerik
+        var backW=Math.min(frontW, Math.max(140, W-12-(brandRight+digSideGap)));
+        var bx2=brandRight+digSideGap;
+        if(bx2+backW>W-10){ backW=Math.max(120, W-10-bx2); }
+        var backH=digH;
+        var hasRanks=!!sharer.showRanks;
+        var isUtrRank=!!sharer.isUtr && hasRanks;
+        digimonShell(bx2,digTop,backW,backH,'#A855F7');
+        var backCx=bx2+backW/2;
+        text(sharer.labels.back||'STATS', backCx, digTop+digPad+12, 11, '#C084FC', 'center', '900');
+        var digTiles=[
+          { label:sharer.labels.matches||'Matches', value:String(sharer.totalMatches||0), color:'#38BDF8' },
+          { label:sharer.labels.wins||'Wins', value:String(sharer.wins||0), color:'#4ADE80' },
+          { label:sharer.labels.losses||'Losses', value:String(sharer.losses||0), color:'#F87171' },
+        ];
+        var digCols=3;
+        var digGap=4;
+        var digTw=(backW-digPad*2-(digCols-1)*digGap)/digCols;
+        var digTh=Math.min(48, Math.max(34, Math.floor(backH*0.22)));
+        digTiles.forEach(function(tile,i){
+          var tx=bx2+digPad+i*(digTw+digGap);
+          var ty=digTop+digPad+20;
+          roundRect(tx,ty,digTw,digTh,6);
+          ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
+          text(tile.value, tx+digTw/2, ty+Math.round(digTh*0.48), Math.max(14, Math.min(20, Math.floor(digTh*0.42))), tile.color, 'center', '900');
+          text(tile.label, tx+digTw/2, ty+digTh-6, 9, '#A8A29A', 'center', '700');
+        });
+        var afterStatsY=digTop+digPad+20+digTh+6;
+        if((sharer.titles||0)>0){
+          roundRect(bx2+digPad, afterStatsY, backW-digPad*2, 20, 6);
+          ctx.fillStyle='rgba(250,204,21,0.12)'; ctx.fill();
+          text('🏆 '+(sharer.labels.titles||'Titles')+'  '+String(sharer.titles), backCx, afterStatsY+14, 11, '#FACC15', 'center', '800');
+          afterStatsY+=24;
+        }
+        if(hasRanks){
+          var sShort=sharer.labels.singlesShort||'S';
+          var dShort=sharer.labels.doublesShort||'D';
+          var colS=bx2+backW-digPad-(isUtrRank?72:36);
+          var colD=bx2+backW-digPad;
+          var rankFs=11;
+          if(isUtrRank){
+            text(sShort, colS, afterStatsY+10, 10, '#C8F54A', 'right', '900');
+            text(dShort, colD, afterStatsY+10, 10, '#C084FC', 'right', '900');
+            afterStatsY+=14;
+          }
+          var rankRows=[
+            { lbl:sharer.labels.rankLocal||'📍 Local', s:sharer.rankLocalS||'—', d:sharer.rankLocalD||'—' },
+            { lbl:sharer.labels.rankNational||'🇹🇷 National', s:sharer.rankNationalS||'—', d:sharer.rankNationalD||'—' },
+            { lbl:sharer.labels.rankIntl||'🌍 International', s:sharer.rankInternationalS||'—', d:sharer.rankInternationalD||'—' },
+          ];
+          var rankRowH=Math.min(20, Math.max(14, Math.floor((digTop+backH-digPad-afterStatsY-4)/3)));
+          rankRows.forEach(function(r,i){
+            var ry=afterStatsY+rankRowH-2+i*rankRowH;
+            if(ry>digTop+backH-digPad-2) return;
+            text(r.lbl, bx2+digPad, ry, rankFs, '#A8A29A', 'left', '700');
+            text(r.s, colS, ry, rankFs+1, '#FACC15', 'right', '900');
+            if(isUtrRank) text(r.d, colD, ry, rankFs+1, '#FACC15', 'right', '900');
+          });
+        }
       }
 
       // Skor tablosu — alt boşluk yok, sıkı yükseklik (pad L/R=5, bottom=3)
@@ -326,103 +443,7 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
 
       ny = ny + panelH + 12;
 
-      // Meta: tarih + saat + süre + zemin aynı satır (gap 5); konum alt satır + (il/ilçe)
-      var metaLine=[];
-      if(${JSON.stringify(!!p.dateStr)}) metaLine.push(${JSON.stringify(p.dateStr||'')});
-      if(${JSON.stringify(!!p.timeStr)}) metaLine.push(${JSON.stringify(p.timeStr||'')});
-      if(${JSON.stringify(!!p.durationLabel)}) metaLine.push(${JSON.stringify(p.durationLabel||'')});
-      if(${JSON.stringify(!!p.surface)}) metaLine.push(${JSON.stringify(p.surface||'')});
-      var placeName=${JSON.stringify(p.placeName||'')};
-      var placeRegion=${JSON.stringify(p.placeRegion||'')};
-      var hasMeta=metaLine.length>0 || placeName || placeRegion || ${JSON.stringify(!!p.place)};
-      if(hasMeta){
-        var metaH=48;
-        if(placeName || placeRegion || ${JSON.stringify(!!p.place)}) metaH+=32;
-        panel(56, ny, W-112, metaH);
-        var metaGap=5;
-        var metaFs=24;
-        ctx.font='700 '+metaFs+'px sans-serif';
-        var metaTotal=0;
-        metaLine.forEach(function(m,idx){
-          metaTotal+=ctx.measureText(m).width;
-          if(idx) metaTotal+=metaGap;
-        });
-        var mx=(W-metaTotal)/2;
-        var my=ny+30;
-        metaLine.forEach(function(m){
-          text(m, mx, my, metaFs, '#E7E5E4', 'left', '700');
-          mx+=ctx.measureText(m).width+metaGap;
-        });
-        var locLine='';
-        if(placeName) locLine=placeName;
-        else if(${JSON.stringify(!!p.place)} && !placeRegion) locLine=${JSON.stringify(p.place||'')};
-        if(placeRegion) locLine=locLine ? (locLine+' '+placeRegion) : placeRegion;
-        if(locLine){
-          text(locLine, 540, my+(metaLine.length?30:0), 22, '#E7E5E4', 'center', '700');
-        }
-        ny += metaH + 12;
-      }
-
-      // Digimon ARKA YÜZ — skor/meta altında (ön yüz zaten sol üstte)
-      if(sharer){
-        var hasRanks=!!sharer.showRanks;
-        var isUtrRank=!!sharer.isUtr && hasRanks;
-        var backH=hasRanks?(isUtrRank?260:240):200;
-        var backW=W-112;
-        var digTop=ny;
-        var bx2=56;
-        digimonShell(bx2,digTop,backW,backH,'#A855F7');
-        text(sharer.labels.back||'STATS', bx2+backW/2, digTop+digPad+16, 13, '#C084FC', 'center', '900');
-        var digTiles=[
-          { label:sharer.labels.matches||'Matches', value:String(sharer.totalMatches||0), color:'#38BDF8' },
-          { label:sharer.labels.wins||'Wins', value:String(sharer.wins||0), color:'#4ADE80' },
-          { label:sharer.labels.losses||'Losses', value:String(sharer.losses||0), color:'#F87171' },
-        ];
-        var digCols=3;
-        var digGap=6;
-        var digTw=(backW-digPad*2-(digCols-1)*digGap)/digCols;
-        var digTh=56;
-        digTiles.forEach(function(tile,i){
-          var tx=bx2+digPad+i*(digTw+digGap);
-          var ty=digTop+digPad+28;
-          roundRect(tx,ty,digTw,digTh,8);
-          ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
-          text(tile.value, tx+digTw/2, ty+26, 24, tile.color, 'center', '900');
-          text(tile.label, tx+digTw/2, ty+digTh-10, 12, '#A8A29A', 'center', '700');
-        });
-        var afterStatsY=digTop+digPad+28+digTh+8;
-        if((sharer.titles||0)>0){
-          roundRect(bx2+digPad, afterStatsY, backW-digPad*2, 26, 8);
-          ctx.fillStyle='rgba(250,204,21,0.12)'; ctx.fill();
-          text('🏆 '+(sharer.labels.titles||'Titles')+'  '+String(sharer.titles), bx2+backW/2, afterStatsY+18, 14, '#FACC15', 'center', '800');
-          afterStatsY+=32;
-        }
-        if(hasRanks){
-          var sShort=sharer.labels.singlesShort||'S';
-          var dShort=sharer.labels.doublesShort||'D';
-          var colS=bx2+backW-digPad-(isUtrRank?110:60);
-          var colD=bx2+backW-digPad;
-          if(isUtrRank){
-            text(sShort, colS, afterStatsY+12, 13, '#C8F54A', 'right', '900');
-            text(dShort, colD, afterStatsY+12, 13, '#C084FC', 'right', '900');
-            afterStatsY+=20;
-          }
-          var rankRows=[
-            { lbl:sharer.labels.rankLocal||'📍 Local', s:sharer.rankLocalS||'—', d:sharer.rankLocalD||'—' },
-            { lbl:sharer.labels.rankNational||'🇹🇷 National', s:sharer.rankNationalS||'—', d:sharer.rankNationalD||'—' },
-            { lbl:sharer.labels.rankIntl||'🌍 International', s:sharer.rankInternationalS||'—', d:sharer.rankInternationalD||'—' },
-          ];
-          rankRows.forEach(function(r,i){
-            var ry=afterStatsY+16+i*24;
-            text(r.lbl, bx2+digPad, ry, 14, '#A8A29A', 'left', '700');
-            text(r.s, colS, ry, 15, '#FACC15', 'right', '900');
-            if(isUtrRank) text(r.d, colD, ry, 15, '#FACC15', 'right', '900');
-          });
-        }
-        ny = digTop + backH + 12;
-      }
-
-      // Turnuva skor paylaşımı: Digimon (veya meta) altında küçültülmüş puan tablosu
+      // Turnuva skor paylaşımı: skor tablosu altında küçültülmüş puan tablosu
       var standingsTable=${JSON.stringify(p.standingsTable || null)};
       var hasStandings=!!(standingsTable && standingsTable.rows && standingsTable.rows.length);
       if(hasStandings){
