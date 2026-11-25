@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
-    Alert, ScrollView,
+    Alert, ScrollView, Image, useWindowDimensions,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -58,7 +58,7 @@ async function avatarToDataUrl(url) {
  * 9:16 skor kartı — spor/zemin arka planı + yarı saydam koyu overlay,
  * skor tablosu + canlı takip istatistikleri + saat/sağlık workout paneli.
  * IG üst chrome için TOP boşluk.
- * Digimon ön/arka: AcTiViTy iki yanında (üst=marka üstü, alt=KAZANDI altı, gap 5).
+ * Digimon ön/arka: AcTiViTy iki yanında (üst=MAÇ SONUCU, yükseklik içeriğe sıkı, gap 5).
  * Meta (tarih/saat/süre/konum) KAZANDI altında tek satır, panelsiz.
  */
 function cardHtml(p, bgDataUrl, avatarDataUrl) {
@@ -264,17 +264,17 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         ny=my+14;
       }
 
-      // Digimon ÖN (sol) + ARKA (sağ) — AcTiViTy iki yanında, yükseklik marka üstü→KAZANDI altı
+      // Digimon ÖN/ARKA — üst = MAÇ SONUCU rozeti üstü; yükseklik içeriğe sıkı (altta boşluk yok)
       if(sharer){
-        var digH=Math.max(168, kazandiBottom-brandTop);
-        var digTop=brandTop;
+        var badgeTop=TOP+58;
+        var digTop=badgeTop;
         var frontW=approxDigW;
         var fx=brandLeft-digSideGap-frontW;
         if(fx<10){ fx=10; frontW=Math.max(140, brandLeft-digSideGap-fx); }
         var frontCx=fx+frontW/2;
         var frontMaxW=frontW-digPad*2;
         var dispName=sharer.alias||sharer.name||sharer.username||'';
-        var nameFs=18;
+        var nameFs=17;
         ctx.font='900 '+nameFs+'px sans-serif';
         while(nameFs>12 && ctx.measureText(dispName).width>frontMaxW){
           nameFs-=1; ctx.font='900 '+nameFs+'px sans-serif';
@@ -284,11 +284,18 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           if(sharer.showSinglesLine) eloLines++;
           if(sharer.showDoublesLine) eloLines++;
         } else if(sharer.elo) eloLines=1;
+        var hasRanks=!!sharer.showRanks;
+        var isUtrRank=!!sharer.isUtr && hasRanks;
+        var ar=30;
+        var lblFs=12;
+        // İçerik yüksekliği — altta boş pad kalmasın
+        var frontContentH=digPad+lblFs+6+8+ar*2+6+nameFs+4+15+16+(eloLines?eloLines*17:0)+digPad+4;
+        var digTh=40;
+        var backContentH=digPad+14+digTh+8+((sharer.titles||0)>0?24:0)+(hasRanks?(isUtrRank?14:0)+3*18:0)+digPad+4;
+        var digH=Math.max(frontContentH, backContentH);
         digimonShell(fx,digTop,frontW,digH,'#C8F54A');
-        var ar=Math.min(36, Math.max(28, Math.floor((digH-digPad*2-90)/3.2)));
-        var lblFs=13;
-        text(sharer.labels.front||'PLAYER', frontCx, digTop+digPad+lblFs+2, lblFs, '#C8F54A', 'center', '900');
-        var ax=frontCx, ay=digTop+digPad+lblFs+10+ar;
+        text(sharer.labels.front||'PLAYER', frontCx, digTop+digPad+lblFs+1, lblFs, '#C8F54A', 'center', '900');
+        var ax=frontCx, ay=digTop+digPad+lblFs+8+ar;
         ctx.beginPath(); ctx.arc(ax,ay,ar,0,Math.PI*2);
         ctx.fillStyle='#1C1F2A'; ctx.fill();
         ctx.strokeStyle='#C8F54A'; ctx.lineWidth=2.5; ctx.stroke();
@@ -303,30 +310,28 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
           var ini=(sharer.name||sharer.username||'?').charAt(0).toUpperCase();
           text(ini, ax, ay+Math.round(ar*0.35), Math.round(ar*0.85), '#F4F1EA', 'center', '900');
         }
-        var tyFront=ay+ar+nameFs+4;
+        var tyFront=ay+ar+nameFs+2;
         text(dispName, frontCx, tyFront, nameFs, '#F4F1EA', 'center', '900');
-        tyFront+=Math.max(16, nameFs+2);
-        text((sharer.emoji||'')+' '+(sharer.sport||''), frontCx, tyFront, 13, '#A8A29A', 'center', '700');
-        tyFront+=17;
+        tyFront+=Math.max(15, nameFs+1);
+        text((sharer.emoji||'')+' '+(sharer.sport||''), frontCx, tyFront, 12, '#A8A29A', 'center', '700');
+        tyFront+=16;
         if(sharer.isUtr){
           if(sharer.showSinglesLine){
-            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), frontCx, tyFront, 14, '#C8F54A', 'center', '900');
-            tyFront+=18;
+            text((sharer.labels.singles||'Singles')+' '+(sharer.singlesElo||'—'), frontCx, tyFront, 13, '#C8F54A', 'center', '900');
+            tyFront+=17;
           }
           if(sharer.showDoublesLine){
-            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), frontCx, tyFront, 14, '#C8F54A', 'center', '900');
+            text((sharer.labels.doubles||'Doubles')+' '+(sharer.doublesElo||'—'), frontCx, tyFront, 13, '#C8F54A', 'center', '900');
           }
         } else if(sharer.elo){
-          text(sharer.elo, frontCx, tyFront, 15, '#C8F54A', 'center', '900');
+          text(sharer.elo, frontCx, tyFront, 14, '#C8F54A', 'center', '900');
         }
 
-        // ARKA YÜZ — markanın sağı, ön yüz ile aynı yükseklik, küçültülmüş içerik
+        // ARKA YÜZ — markanın sağı, aynı üst/yükseklik
         var backW=Math.min(frontW, Math.max(140, W-12-(brandRight+digSideGap)));
         var bx2=brandRight+digSideGap;
         if(bx2+backW>W-10){ backW=Math.max(120, W-10-bx2); }
         var backH=digH;
-        var hasRanks=!!sharer.showRanks;
-        var isUtrRank=!!sharer.isUtr && hasRanks;
         digimonShell(bx2,digTop,backW,backH,'#A855F7');
         var backCx=bx2+backW/2;
         text(sharer.labels.back||'STATS', backCx, digTop+digPad+12, 11, '#C084FC', 'center', '900');
@@ -338,13 +343,12 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
         var digCols=3;
         var digGap=4;
         var digTw=(backW-digPad*2-(digCols-1)*digGap)/digCols;
-        var digTh=Math.min(48, Math.max(34, Math.floor(backH*0.22)));
         digTiles.forEach(function(tile,i){
           var tx=bx2+digPad+i*(digTw+digGap);
           var ty=digTop+digPad+20;
           roundRect(tx,ty,digTw,digTh,6);
           ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fill();
-          text(tile.value, tx+digTw/2, ty+Math.round(digTh*0.48), Math.max(14, Math.min(20, Math.floor(digTh*0.42))), tile.color, 'center', '900');
+          text(tile.value, tx+digTw/2, ty+Math.round(digTh*0.48), 16, tile.color, 'center', '900');
           text(tile.label, tx+digTw/2, ty+digTh-6, 9, '#A8A29A', 'center', '700');
         });
         var afterStatsY=digTop+digPad+20+digTh+6;
@@ -370,7 +374,7 @@ function cardHtml(p, bgDataUrl, avatarDataUrl) {
             { lbl:sharer.labels.rankNational||'🇹🇷 National', s:sharer.rankNationalS||'—', d:sharer.rankNationalD||'—' },
             { lbl:sharer.labels.rankIntl||'🌍 International', s:sharer.rankInternationalS||'—', d:sharer.rankInternationalD||'—' },
           ];
-          var rankRowH=Math.min(20, Math.max(14, Math.floor((digTop+backH-digPad-afterStatsY-4)/3)));
+          var rankRowH=18;
           rankRows.forEach(function(r,i){
             var ry=afterStatsY+rankRowH-2+i*rankRowH;
             if(ry>digTop+backH-digPad-2) return;
@@ -689,9 +693,11 @@ export default function MatchResultShareModal({
     const [busy, setBusy] = useState(false);
     const [needCapture, setNeedCapture] = useState(false);
     const [captureHtml, setCaptureHtml] = useState(null);
+    const [photoPreviewUri, setPhotoPreviewUri] = useState(null);
     const pendingAction = useRef(null);
     const bgDataRef = useRef(null);
     const avatarDataRef = useRef(null);
+    const { width: winW, height: winH } = useWindowDimensions();
 
     useEffect(() => {
         if (!visible) {
@@ -702,6 +708,7 @@ export default function MatchResultShareModal({
             bgDataRef.current = null;
             avatarDataRef.current = null;
             setAvatarDataUrl(null);
+            setPhotoPreviewUri(null);
             setTournamentWins(0);
             setRanks({
                 singles: { local: null, national: null, international: null },
@@ -843,6 +850,10 @@ export default function MatchResultShareModal({
             const b64 = dataUrl.replace(/^data:image\/png;base64,/, '');
             const path = `${FileSystem.cacheDirectory}activity-match-${payload.id}.png`;
             await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
+            if (action === 'preview') {
+                setPhotoPreviewUri(path);
+                return;
+            }
             const message = payload.isTournament
                 ? tournamentMatchShareMessage(payload, t)
                 : matchShareMessage(payload, t);
@@ -903,6 +914,7 @@ export default function MatchResultShareModal({
     };
 
     const targets = [
+        { id: 'preview', emoji: '👁', label: t.shareMatchPreviewBtn || 'Önizleme' },
         { id: 'whatsapp', emoji: '💬', label: 'WhatsApp' },
         { id: 'wa_status', emoji: '🟢', label: t.shareMatchWaStatus || 'WhatsApp Status' },
         { id: 'ig_story', emoji: '📱', label: t.shareMatchIgStory || 'Instagram Story' },
@@ -912,95 +924,40 @@ export default function MatchResultShareModal({
 
     if (!payload) {
         return (
-            <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-                <View style={s.overlay} />
+            <Modal visible={visible} animationType="fade" onRequestClose={onClose}>
+                <View style={s.fullScreen} />
             </Modal>
         );
     }
 
-    const previewStats = payload.shareStats;
+    const previewImgH = Math.min(winH * 0.78, (winW - 32) * (H / W));
 
     return (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <View style={[s.overlay, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-                <TouchableOpacity style={s.backdropTap} activeOpacity={1} onPress={onClose} />
-                <View style={s.sheet}>
-                    <View style={s.handle} />
-                    <View style={s.header}>
-                        <Text style={s.title}>
-                            {payload.isTournament
-                                ? (payload.isUpcoming
-                                    ? (t.shareTournMatchTitleUpcoming || t.shareMatchTitle)
-                                    : (t.shareTournMatchTitle || t.shareMatchTitle))
-                                : t.shareMatchTitle}
-                        </Text>
-                        <TouchableOpacity onPress={onClose} hitSlop={12}><Text style={s.close}>✕</Text></TouchableOpacity>
-                    </View>
+        <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+            <View style={[s.fullScreen, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }]}>
+                <View style={s.header}>
+                    <Text style={s.title}>
+                        {payload.isTournament
+                            ? (payload.isUpcoming
+                                ? (t.shareTournMatchTitleUpcoming || t.shareMatchTitle)
+                                : (t.shareTournMatchTitle || t.shareMatchTitle))
+                            : t.shareMatchTitle}
+                    </Text>
+                    <TouchableOpacity onPress={onClose} hitSlop={12}><Text style={s.close}>✕</Text></TouchableOpacity>
+                </View>
 
-                    <View style={s.preview}>
-                        <View style={s.brandRow}>
-                            {(payload.brand || 'AcTiViTy').split('').map((ch, i) => (
-                                <Text key={i} style={{ color: BRAND_LETTER_COLORS[i % BRAND_LETTER_COLORS.length], fontWeight: '900', fontSize: 16 }}>
-                                    {ch}
-                                </Text>
-                            ))}
-                        </View>
-                        <Text style={s.sport}>{payload.emoji} {payload.sport}{payload.surface ? ` · ${payload.surface}` : ''}</Text>
-                        {!!payload.tournamentName && (
-                            <Text style={[s.metaLine, { color: '#F4F1EA', fontWeight: '800', marginTop: 2 }]} numberOfLines={2}>
-                                {payload.tournamentName}
-                            </Text>
-                        )}
-                        {!!payload.tournamentRound && (
-                            <Text style={s.metaLine}>{payload.tournamentRound}</Text>
-                        )}
-                        {payload.isUpcoming ? (
-                            <Text style={s.winnerLine} numberOfLines={1}>
-                                <Text style={{ color: '#C8F54A' }}>{payload.wonWord}</Text>
-                            </Text>
-                        ) : (
-                            <Text style={s.winnerLine} numberOfLines={1}>
-                                <Text style={{ color: '#F4F1EA' }}>{payload.resultLabel} </Text>
-                                <Text style={{ color: '#C8F54A' }}>{payload.wonWord}</Text>
-                            </Text>
-                        )}
-                        <View style={s.vsRow}>
-                            <View style={{ flex: 1 }}>
-                                {(payload.leftRoster?.length ? payload.leftRoster : [{ name: payload.leftLabel, elo: payload.leftElo, rank: payload.leftRank }]).map((r, i) => (
-                                    <View key={`L${i}`} style={{ marginBottom: 2 }}>
-                                        <Text style={s.side} numberOfLines={1}>{r.name}</Text>
-                                        {r.rank != null ? <Text style={[s.elo, { color: '#FACC15' }]}>#{r.rank}</Text> : null}
-                                        {!!r.elo && <Text style={s.elo}>{r.elo}</Text>}
-                                    </View>
-                                ))}
-                            </View>
-                            <Text style={s.score}>
-                                {payload.isUpcoming ? 'vs' : `${payload.leftSets}–${payload.rightSets}`}
-                            </Text>
-                            <View style={{ flex: 1 }}>
-                                {(payload.rightRoster?.length ? payload.rightRoster : [{ name: payload.rightLabel, elo: payload.rightElo, rank: payload.rightRank }]).map((r, i) => (
-                                    <View key={`R${i}`} style={{ marginBottom: 2 }}>
-                                        <Text style={[s.side, { textAlign: 'right' }]} numberOfLines={1}>{r.name}</Text>
-                                        {r.rank != null ? <Text style={[s.elo, { textAlign: 'right', color: '#FACC15' }]}>#{r.rank}</Text> : null}
-                                        {!!r.elo && <Text style={[s.elo, { textAlign: 'right' }]}>{r.elo}</Text>}
-                                    </View>
-                                ))}
-                            </View>
-                        </View>
-                        {!!payload.dateStr && (
-                            <Text style={s.metaLine}>📅 {payload.dateStr}</Text>
-                        )}
-                        {!!payload.place && (
-                            <Text style={s.metaLine}>📍 {payload.place}</Text>
-                        )}
-                        {!!payload.durationLabel && (
-                            <Text style={s.metaLine}>⏱ {payload.durationLabel}</Text>
-                        )}
-                        {previewStats?.hasWorkout && (
-                            <Text style={s.metaLine}>♥ {t.statWorkout}{previewStats.workoutSource ? ` · ${previewStats.workoutSource}` : ''}</Text>
-                        )}
-                    </View>
+                <Text style={s.subHint}>
+                    {payload.emoji} {payload.sport}
+                    {payload.resultLabel ? ` · ${payload.resultLabel}` : ''}
+                    {payload.wonWord && !payload.isUpcoming && payload.winnerSide !== 'draw' ? ` ${payload.wonWord}` : ''}
+                </Text>
 
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{ paddingBottom: 16 }}
+                    showsVerticalScrollIndicator
+                    keyboardShouldPersistTaps="handled"
+                >
                     {/* Digimon kartı isteğe bağlı — kapalıysa skor kartına çizilmez */}
                     {!!payload.sharerCard && (
                         <TouchableOpacity
@@ -1052,29 +1009,38 @@ export default function MatchResultShareModal({
                     {busy ? (
                         <ActivityIndicator color="#C8F54A" style={{ marginVertical: 28 }} />
                     ) : (
-                        <ScrollView
-                            style={s.list}
-                            contentContainerStyle={{ paddingBottom: 8 }}
-                            showsVerticalScrollIndicator
-                            bounces={false}
-                            keyboardShouldPersistTaps="handled"
-                        >
-                            {targets.map((it) => (
-                                <TouchableOpacity
-                                    key={it.id}
-                                    style={s.row}
-                                    activeOpacity={0.75}
-                                    onPress={() => start(it.id)}
-                                >
-                                    <Text style={s.emoji}>{it.emoji}</Text>
-                                    <Text style={s.rowLabel}>{it.label}</Text>
-                                    <Text style={s.chev}>›</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
+                        targets.map((it) => (
+                            <TouchableOpacity
+                                key={it.id}
+                                style={[s.row, it.id === 'preview' && s.previewRow]}
+                                activeOpacity={0.75}
+                                onPress={() => start(it.id)}
+                            >
+                                <Text style={s.emoji}>{it.emoji}</Text>
+                                <Text style={s.rowLabel}>{it.label}</Text>
+                                <Text style={s.chev}>›</Text>
+                            </TouchableOpacity>
+                        ))
                     )}
-                </View>
+                </ScrollView>
             </View>
+
+            {/* Foto önizleme — sadece Önizleme'ye basınca */}
+            <Modal visible={!!photoPreviewUri} transparent animationType="fade" onRequestClose={() => setPhotoPreviewUri(null)}>
+                <View style={s.previewOverlay}>
+                    <TouchableOpacity style={s.previewClose} onPress={() => setPhotoPreviewUri(null)} hitSlop={12}>
+                        <Text style={s.close}>✕</Text>
+                    </TouchableOpacity>
+                    {photoPreviewUri ? (
+                        <Image
+                            source={{ uri: photoPreviewUri }}
+                            style={{ width: winW - 32, height: previewImgH, borderRadius: 12 }}
+                            resizeMode="contain"
+                        />
+                    ) : null}
+                </View>
+            </Modal>
+
             {needCapture && captureHtml && (
                 <View style={s.hidden} pointerEvents="none">
                     <WebView
@@ -1091,31 +1057,16 @@ export default function MatchResultShareModal({
 }
 
 const s = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' },
-    backdropTap: { flex: 1 },
-    sheet: {
-        backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-        paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, maxHeight: '78%',
+    fullScreen: {
+        flex: 1, backgroundColor: colors.bg || '#0B0C10',
+        paddingHorizontal: 16,
     },
-    handle: {
-        alignSelf: 'center', width: 40, height: 4, borderRadius: 2,
-        backgroundColor: '#ffffff33', marginBottom: 10,
-    },
-    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-    title: { color: '#fff', fontSize: 17, fontWeight: '900', flex: 1 },
+    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+    title: { color: '#fff', fontSize: 18, fontWeight: '900', flex: 1 },
     close: { color: colors.textMuted, fontSize: 22 },
-    preview: {
-        borderRadius: 14, overflow: 'hidden', marginBottom: 12, paddingVertical: 12, paddingHorizontal: 14,
-        backgroundColor: '#0B0C10', borderWidth: 1, borderColor: '#2A2D36',
+    subHint: {
+        color: '#A8A29A', fontSize: 13, fontWeight: '700', marginBottom: 14,
     },
-    brandRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 4 },
-    sport: { color: '#C8F54A', fontSize: 12, fontWeight: '800', textAlign: 'center', marginBottom: 6 },
-    winnerLine: { textAlign: 'center', fontSize: 15, fontWeight: '900', marginBottom: 10 },
-    vsRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    side: { color: '#F4F1EA', fontSize: 12, fontWeight: '800', textAlign: 'center' },
-    elo: { color: '#C8F54A', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 2 },
-    score: { color: '#C8F54A', fontSize: 22, fontWeight: '900', minWidth: 56, textAlign: 'center' },
-    metaLine: { color: '#A8A29A', fontSize: 11, fontWeight: '700', textAlign: 'center', marginTop: 8 },
     digimonToggle: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
         backgroundColor: '#16181F', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14,
@@ -1132,15 +1083,23 @@ const s = StyleSheet.create({
     digimonCheckMark: { color: '#0B0C10', fontSize: 14, fontWeight: '900', lineHeight: 16 },
     digimonToggleTitle: { color: '#F4F1EA', fontSize: 14, fontWeight: '800' },
     digimonToggleHint: { color: '#A8A29A', fontSize: 11, fontWeight: '600', marginTop: 2 },
-    list: { flexGrow: 0 },
     row: {
         flexDirection: 'row', alignItems: 'center', gap: 12,
         backgroundColor: colors.surface2 || '#222',
         borderRadius: 14, paddingVertical: 14, paddingHorizontal: 14,
         marginBottom: 8, borderWidth: 1, borderColor: colors.border || '#333',
     },
+    previewRow: { borderColor: '#C8F54A55', backgroundColor: '#C8F54A12' },
     emoji: { fontSize: 22, width: 28, textAlign: 'center' },
     rowLabel: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1 },
     chev: { color: colors.textMuted, fontSize: 22, fontWeight: '600' },
+    previewOverlay: {
+        flex: 1, backgroundColor: '#000000ee',
+        alignItems: 'center', justifyContent: 'center', padding: 16,
+    },
+    previewClose: {
+        position: 'absolute', top: 48, right: 20, zIndex: 2,
+        width: 40, height: 40, alignItems: 'center', justifyContent: 'center',
+    },
     hidden: { position: 'absolute', width: 1, height: 1, opacity: 0, left: -20, top: -20 },
 });
