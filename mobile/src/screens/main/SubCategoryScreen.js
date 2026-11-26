@@ -13497,11 +13497,15 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
     const sets = Array.isArray(m.score?.sets) ? m.score.sets : null;
     const winner = m.score?.winner;
     const iAmFounderSide = isOwner || senderTeamArr.some(st => st?.id === myId);
-    const founderLabel = m.founderTeamName || (founderSide.length > 1 ? t.sc_team_host : (founderSide[0] ? senderAlias(founderSide[0]) : t.sc_0053));
-    const opponentLabel = m.opponentTeamName || (opponentSide.length > 1 ? t.sc_team_opp : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
+    // 2v2 / takım: asla "Sen" — Kurucu Takım / Rakip Takım (veya özel takım adı).
+    const isDoublesOrTeam = isDoublesMatch(m) || founderSide.length > 1 || opponentSide.length > 1 || (m.teamSize || 1) > 1;
+    const founderLabel = m.founderTeamName
+        || (isDoublesOrTeam ? (t.founderTeamShortLabel || t.sc_team_host) : (founderSide[0] ? senderAlias(founderSide[0]) : t.sc_0053));
+    const opponentLabel = m.opponentTeamName
+        || (isDoublesOrTeam ? (t.opponentTeamShortLabel || t.sc_team_opp) : (opponentSide[0] ? senderAlias(opponentSide[0]) : t.sc_0075));
     // Kullanıcı isteği: takım maçlarında "Kazandın/Kaybettin" yerine kazanan takımın ismi
     // yazsın ("X Takımı Kazandı") — bireysel (tek oyunculu) maçlarda kişiselleştirilmiş metin korunuyor.
-    const isTeamMatch = founderSide.length > 1 || opponentSide.length > 1;
+    const isTeamMatch = isDoublesOrTeam;
     const winningLabel = winner === 'sender' ? founderLabel : winner === 'opponent' ? opponentLabel : null;
     const myResultText = winner === 'draw' ? t.sc_drew
         : !winningLabel ? null
@@ -13533,8 +13537,29 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
     const myGames = viewerSets.reduce((n, s2) => n + s2.me, 0);
     const theirGames = viewerSets.reduce((n, s2) => n + s2.them, 0);
     const liveDuration = formatArchiveDuration(stats, m.duration, t);
-    const youLabel = t.archiveYouLabel;
-    const themLabel = iAmFounderSide ? opponentLabel : founderLabel;
+    // 1v1: Sen / rakip adı. 2v2: skor tabelası da kurucu↔rakip (Sen diye bir şey yok).
+    const youLabel = isDoublesOrTeam ? founderLabel : t.archiveYouLabel;
+    const themLabel = isDoublesOrTeam ? opponentLabel : (iAmFounderSide ? opponentLabel : founderLabel);
+    // 2v2 skor satırları: her zaman kurucu üstte / rakip altta (bakış açısı çevirme yok).
+    const tableRows = isDoublesOrTeam && sets ? [
+        {
+            name: founderLabel,
+            sets: sets.map(s2 => Number(s2.sender) || 0),
+            setWins: sets.filter(s2 => (Number(s2.sender) || 0) > (Number(s2.opponent) || 0)).length,
+            games: sets.reduce((n, s2) => n + (Number(s2.sender) || 0), 0),
+            me: true,
+        },
+        {
+            name: opponentLabel,
+            sets: sets.map(s2 => Number(s2.opponent) || 0),
+            setWins: sets.filter(s2 => (Number(s2.opponent) || 0) > (Number(s2.sender) || 0)).length,
+            games: sets.reduce((n, s2) => n + (Number(s2.opponent) || 0), 0),
+            me: false,
+        },
+    ] : [
+        { name: youLabel, sets: viewerSets.map(s2 => s2.me), setWins: mySetWins, games: myGames, me: true },
+        { name: themLabel, sets: viewerSets.map(s2 => s2.them), setWins: theirSetWins, games: theirGames, me: false },
+    ];
     // Kullanıcı raporu: 2v2 arşiv detayında "1v1" yazıyordu — isTeamMatch (kadro 2+)
     // true olunca teamSize (teniste genelde 1) ile "1v1" basılıyordu. Format için
     // matchFormatLabel kullan (DOUBLE / senderTeam → 2v2).
@@ -13701,11 +13726,8 @@ function ArchiveMatchDetailContent({ match, myId, onClose, onUserPress, onAppeal
                         <Text style={{ flex:1, color:'#4ade80', fontSize:10, fontWeight:'900', textAlign:'center' }}>{t.archiveColSets}</Text>
                         <Text style={{ flex:1, color:'#4ade80', fontSize:10, fontWeight:'900', textAlign:'center' }}>{t.archiveColGames}</Text>
                     </View>
-                    {[
-                        { name: youLabel, sets: viewerSets.map(s2 => s2.me), setWins: mySetWins, games: myGames, me: true },
-                        { name: themLabel, sets: viewerSets.map(s2 => s2.them), setWins: theirSetWins, games: theirGames, me: false },
-                    ].map(row => (
-                        <View key={row.name} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, borderTopWidth:1, borderTopColor:'#33415566' }}>
+                    {tableRows.map((row, ri) => (
+                        <View key={`${row.name}-${ri}`} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, borderTopWidth:1, borderTopColor:'#33415566' }}>
                             <View style={{ flex:1.4, flexDirection:'row', alignItems:'center', gap:6, paddingRight:4 }}>
                                 <View style={{ width:7, height:7, borderRadius:4, backgroundColor: row.me ? '#94a3b8' : '#4ade80' }} />
                                 <Text style={{ color:'#fff', fontSize:12, fontWeight:'800', flexShrink:1 }} numberOfLines={1}>{row.name}</Text>
