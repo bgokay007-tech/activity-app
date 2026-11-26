@@ -3,7 +3,7 @@ import { createNotification } from '../controllers/notification.controller.js';
 import {
     advanceTournamentAfterMatch,
     resolveThirdPlaceByAveraj,
-    applyTournamentMatchAutoDraw,
+    applyTournamentMatchExpiredResolution,
     applyInsufficientAvailabilityForfeit,
 } from '../controllers/tournament.controller.js';
 
@@ -224,16 +224,17 @@ async function autoDrawExpiredMatches() {
                 });
                 if (!tournament || tournament.status !== 'IN_PROGRESS') continue;
 
-                // Önce kural 7: yetersiz müsaitlik (+ joker yok) → hükmen; aksi halde 0-0
+                // Önce kural 7: yetersiz müsaitlik (+ joker yok) → hükmen
                 const forfeited = await applyInsufficientAvailabilityForfeit(match, tournament, { notifyPlayers: true });
                 if (forfeited) {
                     console.log(`[tournamentDeadlineReminder] Forfeit (insufficient availability) match ${match.id} (tournament ${tournament.id})`);
                     continue;
                 }
-                await applyTournamentMatchAutoDraw(match, tournament, { source: 'auto', notifyPlayers: true });
-                console.log(`[tournamentDeadlineReminder] Auto-drew expired match ${match.id} (tournament ${tournament.id}) after creator grace`);
+                // Jokerliyse madde 3 hükmen; değilse 0-0 berabere
+                await applyTournamentMatchExpiredResolution(match, tournament, { source: 'auto', notifyPlayers: true });
+                console.log(`[tournamentDeadlineReminder] Resolved expired match ${match.id} (tournament ${tournament.id}) after creator grace`);
             } catch (matchErr) {
-                console.error(`[tournamentDeadlineReminder] Failed to auto-draw match ${match.id}:`, matchErr.message);
+                console.error(`[tournamentDeadlineReminder] Failed to resolve expired match ${match.id}:`, matchErr.message);
             }
         }
     } catch (err) {

@@ -37,6 +37,9 @@ import {
     applyByeToStandings,
 } from '../utils/tournamentEngines.js';
 
+/** Joker uzatma haftasında hükmen kaçınmak için sunulması gereken min. müsait gün (madde 3). */
+const JOKER_MIN_AVAIL_DAYS = 4;
+
 /** Bu spor dalındaki görünen ad: UserInterest.alias varsa o, yoksa fullName/username. */
 function sportDisplayName(userOrPlayer, interest) {
     const alias = interest?.alias ?? userOrPlayer?.alias ?? null;
@@ -977,6 +980,56 @@ async function generateNextEloRound(tournament, nextRound, playedPairKeys) {
         status: 'PENDING',
         deadline,
     }));
+}
+
+/** Play-off kontenjanı sınırındaki eşit oyuncular/takımlar — aralarında maç (rematch serbest). Madde 6. */
+async function generateCutoffTieMatches(tournament, nextRound, tiedStandings) {
+    const tiedIds = [...new Set(tiedStandings.map(s => s.userId).filter(Boolean))];
+    if (tiedIds.length < 2) return [];
+
+    const isTeam = tournament.type === '2' || tournament.type === '4' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14';
+    const players = isTeam
+        ? await getCurrentTeamRatings(tournament, tiedIds)
+        : await getCurrentPlayerRatings(tournament, tiedIds);
+    if (players.length < 2) return [];
+
+    const sorted = [...players].sort((a, b) => (b.skillRating || 0) - (a.skillRating || 0));
+    const pairs = [];
+    for (let i = 0; i + 1 < sorted.length; i += 2) {
+        pairs.push({ p1: sorted[i], p2: sorted[i + 1] });
+    }
+    const byePlayer = sorted.length % 2 === 1 ? sorted[sorted.length - 1] : null;
+
+    const baseDate = tournamentBaseDate(tournament);
+    const deadline = groupMatchDeadlineFromBase(baseDate, nextRound, tournament);
+    const rows = pairs.map((pair, idx) => ({
+        tournamentId: tournament.id,
+        round: nextRound,
+        phase: 'GROUP',
+        matchIndex: idx,
+        p1Id: pair.p1.id,
+        p1Name: sportDisplayName(pair.p1),
+        p2Id: pair.p2.id,
+        p2Name: sportDisplayName(pair.p2),
+        status: 'PENDING',
+        deadline,
+    }));
+    if (byePlayer) {
+        rows.push({
+            tournamentId: tournament.id,
+            round: nextRound,
+            phase: 'GROUP',
+            matchIndex: rows.length,
+            p1Id: byePlayer.id,
+            p1Name: sportDisplayName(byePlayer),
+            p2Id: null,
+            p2Name: null,
+            status: 'BYE',
+            winnerId: byePlayer.id,
+            deadline: null,
+        });
+    }
+    return rows;
 }
 
 // Çiftler Rekabetçi (type '2'): kabul edilmiş katılımcılardan takım oluşturur.
@@ -3478,11 +3531,12 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                     compareStandingsCore(standings[qualifiers - 1], standings[qualifiers], tournament.type, allGroupMatches) === 0;
 
                 let extraRoundMatches = [];
+                const tiedAtCutoff = boundaryTied
+                    ? standings.filter(s => compareStandingsCore(s, standings[qualifiers - 1], tournament.type, allGroupMatches) === 0)
+                    : [];
                 if (boundaryTied) {
-                    const playedPairKeys = allGroupMatches
-                        .filter(m => m.p1Id && m.p2Id)
-                        .map(m => [m.p1Id, m.p2Id].sort().join('|'));
-                    extraRoundMatches = await generateNextEloRound(tournament, maxRound + 1, playedPairKeys);
+                    // Madde 6: eşitliği bozmak için bu oyuncular arasında maç atanır.
+                    extraRoundMatches = await generateCutoffTieMatches(tournament, maxRound + 1, tiedAtCutoff);
                 }
 
                 if (boundaryTied && extraRoundMatches.length > 0) {
@@ -3491,9 +3545,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                         await linkEloRoundToAvailability(tournament, maxRound + 1);
                     }
 
-                    const tiedNames = standings
-                        .filter(s => compareStandingsCore(s, standings[qualifiers - 1], tournament.type, allGroupMatches) === 0)
-                        .map(s => s.name).join(', ');
+                    const tiedNames = tiedAtCutoff.map(s => s.name).join(', ');
                     const recipients = isTeamTournament
                         ? [...new Set((await prisma.tournamentTeam.findMany({ where: { tournamentId: id } }))
                             .flatMap(t => [t.player1Id, t.player2Id]).filter(Boolean))]
@@ -3502,7 +3554,7 @@ export async function advanceTournamentAfterMatch(tournament, match, isTeamTourn
                         createNotification(
                             uid, 'TOURNAMENT_EXTRA_ROUND',
                             '⚖️ Play-off öncesi ek tur eklendi',
-                            `${tournament.name}: play-off kontenjanı sınırında puan/averaj/set/oyun oranı tamamen eşit olan oyuncular var (${tiedNames}). Eşitlik bozulana kadar bir tur daha eklendi.`,
+                            `${tournament.name}: play-off kontenjanı sınırında eşit olan oyuncular (${tiedNames}) kendi aralarında maç oynayacak; eşitlik bozulunca play-off belirlenir.`,
                             { tournamentId: id, category: tournament.category, subCategory: tournament.subCategory }
                         ).catch(() => {});
                     }
@@ -4563,27 +4615,56 @@ export const useJoker = async (req, res, next) => {
         };
 
         if (otherJokerRequested) {
-            // Karşılıklı joker: rakip taraf ilk tıkladığında tek kullanım sayılıp deadline +7 uzamış ve
-            // kendi hakkı tüketilmişti. Bu tarafın da onaylamasıyla durum "karşılıklı" oluyor:
-            // süre tekrar +7 EKLENMEZ (toplam hep +7 kalır) ve iki tarafın da joker hakkı geri verilir/korunur.
-            // Onay hakkı kendi başına turnuva boyunca oyuncu/takım başına 1 kez kullanılabilir.
-            if (myParticipants.some(p => p.mutualJokerUsed)) {
-                return res.status(400).json({ message: `Karşılıklı ${isPlayoff ? 'ek süre' : 'joker'} onay hakkınızı bu turnuvada daha önce kullandınız.` });
+            // Madde 4: karşılıklı joker yalnızca rakibin jokerinden itibaren 2 gün içinde kullanılırsa geçerli.
+            const otherJokerAts = otherParticipants.map(p => p.jokerUsedAt).filter(Boolean)
+                .map(d => new Date(d).getTime()).filter(n => Number.isFinite(n));
+            const otherJokerAtMs = otherJokerAts.length ? Math.min(...otherJokerAts) : null;
+            const within2Days = otherJokerAtMs != null
+                && (Date.now() - otherJokerAtMs) <= (2 * 86400000);
+
+            if (within2Days) {
+                if (myParticipants.some(p => p.mutualJokerUsed)) {
+                    return res.status(400).json({ message: `Karşılıklı ${isPlayoff ? 'ek süre' : 'joker'} onay hakkınızı bu turnuvada daha önce kullandınız.` });
+                }
+                await prisma.$transaction([
+                    prisma.tournamentMatch.update({
+                        where: { id: matchId },
+                        data: { p1JokerRequested: false, p2JokerRequested: false },
+                    }),
+                    ...myParticipants.map(p => prisma.tournamentParticipant.update({
+                        where: { id: p.id },
+                        data: { mutualJokerUsed: true },
+                    })),
+                    ...otherParticipants.map(p => prisma.tournamentParticipant.update({
+                        where: { id: p.id },
+                        data: { jokerUsed: false, jokerUsedAt: null },
+                    })),
+                ]);
+            } else {
+                if (myParticipants.some(p => p.jokerUsed)) {
+                    return res.status(400).json({ message: alreadyUsedMsg });
+                }
+                const fieldLate = isP1 ? 'p1JokerRequested' : 'p2JokerRequested';
+                await prisma.$transaction([
+                    prisma.tournamentMatch.update({
+                        where: { id: matchId },
+                        data: { [fieldLate]: true, deadline: newDeadline },
+                    }),
+                    ...myParticipants.map(p => prisma.tournamentParticipant.update({
+                        where: { id: p.id },
+                        data: { jokerUsed: true, jokerUsedAt: new Date() },
+                    })),
+                ]);
+                const allMatchesLate = await emitMatchUpdate();
+                const updatedLate = allMatchesLate.find(m => m.id === matchId) || match;
+                return res.json({
+                    mutual: false,
+                    separateJoker: true,
+                    message: `${isPlayoff ? 'Ek süre' : 'Joker'} kullanıldı — rakibin kullanımından 2 günden fazla geçtiği için karşılıklı sayılmaz; süre +7 gün daha uzadı, her iki tarafın hakkı tükenir.`,
+                    deadline: updatedLate.deadline || newDeadline,
+                    matches: allMatchesLate,
+                });
             }
-            await prisma.$transaction([
-                prisma.tournamentMatch.update({
-                    where: { id: matchId },
-                    data: { p1JokerRequested: false, p2JokerRequested: false },
-                }),
-                ...myParticipants.map(p => prisma.tournamentParticipant.update({
-                    where: { id: p.id },
-                    data: { mutualJokerUsed: true },
-                })),
-                ...otherParticipants.map(p => prisma.tournamentParticipant.update({
-                    where: { id: p.id },
-                    data: { jokerUsed: false, jokerUsedAt: null },
-                })),
-            ]);
         } else {
             if (myParticipants.some(p => p.jokerUsed)) {
                 return res.status(400).json({ message: alreadyUsedMsg });
@@ -7172,6 +7253,123 @@ export async function applyInsufficientAvailabilityForfeit(match, tournament, { 
     }
 
     return updated;
+}
+
+
+/** Joker haftasında sunulan müsait gün (weekday + tarih + teklif). Madde 3: min JOKER_MIN_AVAIL_DAYS. */
+function countOfferedAvailDays(schedule, side) {
+    const days = new Set();
+    for (const slot of (schedule?.availability?.[side] || [])) {
+        if (slot?.weekday != null && Number.isFinite(Number(slot.weekday))) days.add('wd:' + Number(slot.weekday));
+        if (slot?.date) days.add('d:' + String(slot.date).slice(0, 10));
+    }
+    for (const p of (schedule?.proposals || [])) {
+        if (p?.side === side && p?.date) days.add('d:' + String(p.date).slice(0, 10));
+    }
+    return days.size;
+}
+
+/** Madde 3: joker süresi dolunca hükmen — 4 gün müsaitlik sunduysa rakip yenilir. */
+export async function applyTournamentMatchJokerForfeit(match, tournament, { notifyPlayers = true } = {}) {
+    if (!match || match.status !== 'PENDING' || !match.p1Id || !match.p2Id) return null;
+    if (!tournament || tournament.status !== 'IN_PROGRESS') return null;
+
+    const p1J = !!match.p1JokerRequested;
+    const p2J = !!match.p2JokerRequested;
+    if (!p1J && !p2J) return null;
+
+    const schedule = normalizeSchedule(match.scheduleData);
+    let winnerId = null;
+    let note = '';
+
+    if (p1J && p2J) {
+        const d1 = countOfferedAvailDays(schedule, 'p1');
+        const d2 = countOfferedAvailDays(schedule, 'p2');
+        if (d1 >= JOKER_MIN_AVAIL_DAYS && d2 < JOKER_MIN_AVAIL_DAYS) {
+            winnerId = match.p1Id;
+            note = 'Joker uzatmasında p1 ≥' + JOKER_MIN_AVAIL_DAYS + ' gün müsaitlik sundu; p2 hükmen yenildi.';
+        } else if (d2 >= JOKER_MIN_AVAIL_DAYS && d1 < JOKER_MIN_AVAIL_DAYS) {
+            winnerId = match.p2Id;
+            note = 'Joker uzatmasında p2 ≥' + JOKER_MIN_AVAIL_DAYS + ' gün müsaitlik sundu; p1 hükmen yenildi.';
+        } else {
+            return null;
+        }
+    } else {
+        const jokerSide = p1J ? 'p1' : 'p2';
+        const jokerId = p1J ? match.p1Id : match.p2Id;
+        const otherId = p1J ? match.p2Id : match.p1Id;
+        const days = countOfferedAvailDays(schedule, jokerSide);
+        if (days >= JOKER_MIN_AVAIL_DAYS) {
+            winnerId = jokerId;
+            note = 'Joker kullanan taraf ' + days + ' gün müsaitlik sundu; rakip hükmen yenildi.';
+        } else {
+            winnerId = otherId;
+            note = 'Joker kullanan taraf yeterli müsaitlik sunmadı (' + days + '/' + JOKER_MIN_AVAIL_DAYS + '); joker kullanan hükmen yenildi.';
+        }
+    }
+
+    const isTeamTournament = tournament.type === '2' || tournament.type === '4' || tournament.type === '10' || tournament.type === '12' || tournament.type === '14';
+    let p1Members = [match.p1Id].filter(Boolean);
+    let p2Members = [match.p2Id].filter(Boolean);
+    if (isTeamTournament) {
+        const teams = await prisma.tournamentTeam.findMany({
+            where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } },
+        });
+        const t1 = teams.find(t => t.id === match.p1Id);
+        const t2 = teams.find(t => t.id === match.p2Id);
+        if (t1) p1Members = [t1.player1Id, t1.player2Id].filter(Boolean);
+        if (t2) p2Members = [t2.player1Id, t2.player2Id].filter(Boolean);
+    }
+    const winnerSide = winnerId === match.p1Id ? 'p1' : 'p2';
+    const now = new Date();
+    const score = {
+        sets: [],
+        winner: winnerSide,
+        p1Sets: winnerSide === 'p1' ? 1 : 0,
+        p2Sets: winnerSide === 'p2' ? 1 : 0,
+        p1Games: 0, p2Games: 0,
+        forfeit: true,
+        autoForfeit: true,
+        forfeitNote: note,
+    };
+
+    await prisma.tournamentMatch.update({
+        where: { id: match.id },
+        data: {
+            score,
+            status: 'FORFEIT',
+            winnerId,
+            p1Confirmed: true,
+            p2Confirmed: true,
+            scoreSubmittedAt: now,
+        },
+    });
+
+    await advanceTournamentAfterMatch(tournament, match, isTeamTournament, false);
+
+    if (notifyPlayers) {
+        const winnerName = winnerId === match.p1Id ? (match.p1Name || '?') : (match.p2Name || '?');
+        const loserName = winnerId === match.p1Id ? (match.p2Name || '?') : (match.p1Name || '?');
+        for (const uid of [...new Set([...p1Members, ...p2Members])]) {
+            createNotification(
+                uid, 'TOURNAMENT_MATCH_FORFEIT',
+                '⚖️ Maç hükmen sonuçlandı',
+                tournament.name + ': ' + winnerName + ' kazandı — ' + loserName + ' hükmen yenildi. ' + note,
+                { tournamentId: tournament.id, matchId: match.id, category: tournament.category, subCategory: tournament.subCategory },
+            ).catch(() => {});
+        }
+    }
+    return match;
+}
+
+/** Süre dolmuş GROUP maç: jokerliyse madde 3 hükmen; değilse 0-0 berabere. */
+export async function applyTournamentMatchExpiredResolution(match, tournament, opts = {}) {
+    if (!match || match.status !== 'PENDING') return null;
+    if (match.p1JokerRequested || match.p2JokerRequested) {
+        const forfeited = await applyTournamentMatchJokerForfeit(match, tournament, opts);
+        if (forfeited) return forfeited;
+    }
+    return applyTournamentMatchAutoDraw(match, tournament, opts);
 }
 
 /**
