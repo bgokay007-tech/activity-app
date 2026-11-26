@@ -30331,13 +30331,13 @@ function SubCategoryScreen({ route, navigation }) {
                 onLongPress={() => setCityPickerTab(tab)}
                 delayLongPress={400}
                 disabled={isLoading}
-                style={[{ minHeight: touchSize(40), minWidth: touchSize(32), paddingVertical: moderateScale(4), paddingHorizontal: 1, borderRadius: moderateScale(8), backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
+                style={[{ minHeight: moderateScale(36), minWidth: moderateScale(30), paddingVertical: moderateScale(2), paddingHorizontal: 1, borderRadius: moderateScale(8), backgroundColor: active ? cfg.color+'20' : '#ffffff10', borderWidth:1, borderColor: active ? cfg.color+'60' : '#ffffff20', alignItems:'center', justifyContent:'center' }, style]}
             >
                 {isLoading
                     ? <ActivityIndicator size="small" color={cfg.color} style={{ width:18 }} />
                     : <>
-                        <Text style={{ fontSize: moderateScale(14) }}>{active ? '🔔' : '🔕'}</Text>
-                        {active && <Text style={{ color:cfg.color, fontSize: moderateScale(10), fontWeight:'800' }}>{t.cityBellCount(cities.length)}</Text>}
+                        <Text style={{ fontSize: moderateScale(13) }}>{active ? '🔔' : '🔕'}</Text>
+                        {active && <Text style={{ color:cfg.color, fontSize: moderateScale(9), fontWeight:'800' }}>{t.cityBellCount(cities.length)}</Text>}
                       </>
                 }
             </TouchableOpacity>
@@ -30349,7 +30349,7 @@ function SubCategoryScreen({ route, navigation }) {
     // ediliyor) bir arada gösteriliyor — spor dallarının hepsinde (rakip bul/ilan
     // ara/turnuva sekmeleri) CityAlertRow ortak kullanıldığı için değişiklik hepsine yansıyor.
     const CityAlertRow = ({ tab, children, dateFilter = false, endChildren = null }) => (
-        <View style={{ flexDirection:'row', alignItems:'center', gap: 4, marginBottom: moderateScale(10), flexWrap:'nowrap' }}>
+        <View style={{ flexDirection:'row', alignItems:'center', gap: 4, marginBottom: moderateScale(8), flexWrap:'nowrap' }}>
             {children}
             <CityAlertBtn tab={tab} />
             {dateFilter ? (() => {
@@ -30357,18 +30357,18 @@ function SubCategoryScreen({ route, navigation }) {
                 return (
                 <TouchableOpacity
                     onPress={() => setShowFilterModal(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: touchSize(40), backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: moderateScale(36), backgroundColor: hasActiveFilter ? cfg.color+'25' : colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: hasActiveFilter ? cfg.color : colors.border }}
                 >
-                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    <Text style={{ color: hasActiveFilter ? cfg.color : colors.textMuted, fontSize: moderateScale(12), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                         {filterSummaryLabel()}
                     </Text>
-                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(12) }}>▾</Text>
+                    <Text style={{ color: colors.textMuted, fontSize: moderateScale(11) }}>▾</Text>
                 </TouchableOpacity>
                 );
             })() : (
                 <TouchableOpacity
                     onPress={() => setShowCityFilter(true)}
-                    style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: touchSize(40), backgroundColor:colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
+                    style={{ flexDirection:'row', alignItems:'center', gap: 2, flexShrink:1, minHeight: moderateScale(36), backgroundColor:colors.surface2, borderRadius: moderateScale(10), paddingHorizontal: 1, borderWidth:1, borderColor: filterCity ? cfg.color+'60' : colors.border }}
                 >
                     <Text style={{ color: filterCity ? cfg.color : colors.textMuted, fontSize: moderateScale(13), fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                         {filterCity ? filterCity : t.sc_0880}
@@ -31394,7 +31394,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 onPress={() => setTournSubTab('open')}
                                                 style={{
                                                     width: 48,
-                                                    height: 40,
+                                                    height: moderateScale(36),
                                                     paddingHorizontal: 2,
                                                     borderRadius: 8,
                                                     alignItems: 'center',
@@ -31405,7 +31405,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 }}
                                             >
                                                 <Text
-                                                    style={{ color: tournSubTab !== 'inprogress' ? '#fff' : colors.textMuted, fontSize: 12, fontWeight: '800', textAlign: 'center', lineHeight: 14 }}
+                                                    style={{ color: tournSubTab !== 'inprogress' ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '800', textAlign: 'center', lineHeight: 13 }}
                                                     numberOfLines={2}
                                                     adjustsFontSizeToFit
                                                     minimumFontScale={0.65}
@@ -31417,7 +31417,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 onPress={() => setTournSubTab('inprogress')}
                                                 style={{
                                                     width: 72,
-                                                    height: 40,
+                                                    height: moderateScale(36),
                                                     paddingHorizontal: 2,
                                                     borderRadius: 8,
                                                     alignItems: 'center',
@@ -31428,7 +31428,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 }}
                                             >
                                                 <Text
-                                                    style={{ color: tournSubTab === 'inprogress' ? '#fff' : colors.textMuted, fontSize: 11, fontWeight: '800', textAlign: 'center', lineHeight: 13 }}
+                                                    style={{ color: tournSubTab === 'inprogress' ? '#fff' : colors.textMuted, fontSize: 10, fontWeight: '800', textAlign: 'center', lineHeight: 12 }}
                                                     numberOfLines={2}
                                                     adjustsFontSizeToFit
                                                     minimumFontScale={0.55}
@@ -36812,22 +36812,21 @@ function SubCategoryScreen({ route, navigation }) {
 
 const s = StyleSheet.create({
     container:        { flex:1, backgroundColor: colors.bg },
-    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal: moderateScale(16), marginBottom: moderateScale(8), gap: moderateScale(6) },
+    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal: moderateScale(16), marginBottom: 1, gap: moderateScale(6) },
     back:             { fontSize: moderateScale(16), fontWeight:'700' },
     title:            { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', flex:1, minWidth:0 },
 
-    // Yatay ScrollView üst/alt border kırpıyordu; paddingVertical + margin ile
-    // başlık / Kort Rez.–İlan Oluştur / Yazılar formu arasında net boşluk.
-    tabBar:           { flexGrow:0, flexShrink:0, marginBottom: moderateScale(12), overflow:'visible' },
-    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2, alignItems:'center', paddingVertical: moderateScale(4) },
-    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: 2, paddingVertical: moderateScale(4) },
+    // 1px boşluk: border kırpılmaz, üst/alt içerikle çakışmaz (fazla boşluk istemiyoruz).
+    tabBar:           { flexGrow:0, flexShrink:0, marginBottom: 1, overflow:'visible' },
+    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2, alignItems:'center', paddingVertical: 1 },
+    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: 2, paddingVertical: 1 },
     tab:              { paddingHorizontal: 3, paddingTop: moderateScale(5), paddingBottom: moderateScale(5), minHeight: 34, borderRadius: 8, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
     tabCompact:       { paddingHorizontal: 3, paddingTop: moderateScale(4), paddingBottom: moderateScale(5), borderRadius: 8, minHeight: 34 },
     tabText:          { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700', lineHeight: moderateScale(17), includeFontPadding: false },
     tabTextCompact:   { fontSize: moderateScale(12), lineHeight: moderateScale(16) },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingTop: moderateScale(2), paddingBottom: moderateScale(64) },
+    list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingTop: 0, paddingBottom: moderateScale(64) },
     // Hücre genişliği: RivalCardsHScroll sarmalayıcısı (peek) veya listGrid %33.
     // gap + yüzde hücre Android Yoga'da sığmaz diye padding hücre içinde.
     listGrid:         { flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', alignContent:'flex-start' },
@@ -36835,11 +36834,12 @@ const s = StyleSheet.create({
     listGridCellThird:{ width:'33.333%', maxWidth:'33.333%' },
     sectionTitle:     { color: colors.textSecondary, fontSize: moderateScale(14), fontWeight:'800', marginTop: moderateScale(6), marginBottom: moderateScale(6) },
 
-    createBtn:        { flexShrink:1, backgroundColor: colors.surface, borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
-    createBtnText:    { fontWeight:'700', fontSize: moderateScale(15) },
+    // Chrome aksiyon satırı (Kort Rez./İlan/Turnuva/Filtre) — bir tık alçak.
+    createBtn:        { flexShrink:1, backgroundColor: colors.surface, borderRadius: moderateScale(10), minHeight: moderateScale(36), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderStyle:'dashed' },
+    createBtnText:    { fontWeight:'700', fontSize: moderateScale(14) },
 
-    courtResBtn:      { flexShrink:1, backgroundColor: '#9333ea20', borderRadius: moderateScale(12), minHeight: touchSize(44), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
-    courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize: moderateScale(14) },
+    courtResBtn:      { flexShrink:1, backgroundColor: '#9333ea20', borderRadius: moderateScale(10), minHeight: moderateScale(36), justifyContent:'center', paddingHorizontal: 1, alignItems:'center', borderWidth:1, borderColor: '#9333ea50' },
+    courtResBtnText:  { color: '#a855f7', fontWeight:'800', fontSize: moderateScale(13) },
 
     filterBox:        { backgroundColor: colors.surface, borderRadius: moderateScale(12), padding: moderateScale(8), borderWidth:1, borderColor: colors.border, gap: moderateScale(6) },
     filterInputRow:   { flexDirection:'row', gap: moderateScale(6), alignItems:'center' },
