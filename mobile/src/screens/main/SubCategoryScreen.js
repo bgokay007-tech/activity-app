@@ -26306,6 +26306,9 @@ function SubCategoryScreen({ route, navigation }) {
     const [sportPlayer, setSportPlayer] = useState(null);
     const tabs = getTabs(sub, category);
     const openSportMedia = (kind) => {
+        // Kanallar/videolar sayfasına geçince gönderi müziği arka planda çalmasın
+        stopActivePostMusic();
+        setAudiblePostId(null);
         setMediaBrowse(prev => prev === kind ? null : kind);
         if (sportMediaCacheRef.current[sub]?.videos?.length) {
             setSportMedia(sportMediaCacheRef.current[sub]);
@@ -26333,6 +26336,8 @@ function SubCategoryScreen({ route, navigation }) {
             if (item?.url) Linking.openURL(item.url).catch(() => {});
             return;
         }
+        stopActivePostMusic();
+        setAudiblePostId(null);
         pausePlayback();
         const ordered = ids.includes(videoId) ? ids : [videoId, ...ids];
         const start = Math.max(0, ordered.indexOf(videoId));
@@ -26349,10 +26354,19 @@ function SubCategoryScreen({ route, navigation }) {
     useEffect(() => {
         if (!mediaBrowse) setSportPlayer(null);
     }, [mediaBrowse]);
+    // Kanallar/videolar modalı veya YouTube oynatıcı açıkken gönderi müziği kapalı kalsın
+    useEffect(() => {
+        if (!mediaBrowse && !sportPlayer) return undefined;
+        stopActivePostMusic();
+        setAudiblePostId(null);
+        return undefined;
+    }, [mediaBrowse, sportPlayer]);
     useEffect(() => {
         setMediaBrowse(null);
         setSportPlayer(null);
         setSportMedia(sportMediaCacheRef.current[sub]?.videos?.length ? sportMediaCacheRef.current[sub] : null);
+        stopActivePostMusic();
+        setAudiblePostId(null);
     }, [sub]);
     const tabLabel = (tab) => {
         if (category === 'ARTS') {
@@ -26529,7 +26543,7 @@ function SubCategoryScreen({ route, navigation }) {
     // gelince effect müziği yeniden başlatır (önceki "prev tut" bug'u restart'ı engelliyordu).
     const audiblePickGen = useRef(0);
     const pickAudiblePost = useCallback(() => {
-        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) {
+        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null || mediaBrowse || sportPlayer) {
             setAudiblePostId(null);
             return;
         }
@@ -26568,13 +26582,13 @@ function SubCategoryScreen({ route, navigation }) {
                 return null;
             });
         });
-    }, [dataSaverMode, activeTab, mediaViewIdx, winH]);
+    }, [dataSaverMode, activeTab, mediaViewIdx, mediaBrowse, sportPlayer, winH]);
     useEffect(() => {
-        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null) return undefined;
+        if (dataSaverMode || activeTab !== 'media' || mediaViewIdx !== null || mediaBrowse || sportPlayer) return undefined;
         pickAudiblePost();
         const timer = setInterval(pickAudiblePost, 700);
         return () => clearInterval(timer);
-    }, [pickAudiblePost, mediaPosts, dataSaverMode, activeTab, mediaViewIdx]);
+    }, [pickAudiblePost, mediaPosts, dataSaverMode, activeTab, mediaViewIdx, mediaBrowse, sportPlayer]);
     useEffect(() => {
         if (activeTab !== 'media') return undefined;
         let alive = true;
@@ -34706,7 +34720,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                             {/* Görsel/Video — kullanıcı isteği: video Instagram gibi akışta otomatik
                                                                 oynasın (Veri Tasarrufu kapalıyken), açıksa dokununca küçük oynasın,
                                                                 basılı tutunca tam ekran açılsın (bkz. MediaTile). */}
-                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} active={screenFocused} playMusic={screenFocused && !dataSaverMode && mediaViewIdx === null && !musicDetail && audiblePostId === post.id && !mutedMusicIds.has(post.id)} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
+                                                            <MediaTile post={post} dataSaverMode={dataSaverMode} active={screenFocused && !mediaBrowse && !sportPlayer} playMusic={screenFocused && !dataSaverMode && mediaViewIdx === null && !musicDetail && !mediaBrowse && !sportPlayer && audiblePostId === post.id && !mutedMusicIds.has(post.id)} onOpenFullscreen={() => setMediaViewIdx(actualIdx)} />
                                                             {!!post.musicName && (
                                                                 <TouchableOpacity onPress={() => setMusicDetail(post)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingTop: 6 }}>
                                                                     <Text style={{ fontSize: 12 }}>🎵</Text>
