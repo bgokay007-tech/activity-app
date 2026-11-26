@@ -31615,11 +31615,16 @@ function SubCategoryScreen({ route, navigation }) {
                                     ))}
                                 </View>
                             )}
-                            {/* İlan ver formu Modal */}
-                            <Modal visible={showEquipmentForm} animationType="slide" onRequestClose={() => { setShowEquipmentForm(false); resetEquipmentForm(); }}>
-                                <View style={{ flex:1, backgroundColor: colors.bg, justifyContent:'flex-end' }}>
-                                    <View style={{ backgroundColor: colors.surface, borderTopLeftRadius:20, borderTopRightRadius:20, paddingBottom:33, maxHeight:'92%' }}>
-                                        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding:17 }}>
+                            {/* İlan ver formu — klavye formu kapatmasın (KeyboardSafeModal + KeyboardAwareForm). */}
+                            <KeyboardSafeModal visible={showEquipmentForm} onClose={() => { setShowEquipmentForm(false); resetEquipmentForm(); }}>
+                                        <KeyboardAwareForm
+                                            adjustWindow={false}
+                                            showsVerticalScrollIndicator={false}
+                                            keyboardShouldPersistTaps="always"
+                                            bottomOffset={56}
+                                            style={{ maxHeight: Math.round(winH * 0.82) }}
+                                            contentContainerStyle={{ paddingBottom: 28 }}
+                                        >
                                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.sc_0904}</Text>
                                             <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
                                                 {['NEW','USED'].map(c => (
@@ -31637,6 +31642,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 onChangeText={v => setEquipmentForm(f=>({...f,location:v}))}
                                                 placeholder={t.sc_0910}
                                                 style={{ marginBottom: 10 }}
+                                                openUp
                                             />
 
                                             {/* Medya seçici — 1+ resim; 1. kapak, 2. paylaşım arka planı */}
@@ -31754,10 +31760,8 @@ function SubCategoryScreen({ route, navigation }) {
                                                     </Text>
                                                 </TouchableOpacity>
                                             </View>
-                                        </ScrollView>
-                                    </View>
-                                </View>
-                            </Modal>
+                                        </KeyboardAwareForm>
+                            </KeyboardSafeModal>
 
                             {/* İlan detay Modal */}
                             <Modal visible={!!selectedEquipment} animationType="slide" transparent onRequestClose={() => { setSelectedEquipment(null); setEqFullscreen(false); setEqGalleryIdx(0); }}>

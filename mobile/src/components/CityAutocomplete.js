@@ -3,7 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet,
 import api from '../services/api';
 import colors from '../theme/colors';
 
-export default function CityAutocomplete({ value, onChangeText, onSelect, placeholder, style, inputStyle }) {
+// openUp: alt / klavyeye yakın alanlarda öneri yukarı açılsın (klavye-form skill).
+export default function CityAutocomplete({ value, onChangeText, onSelect, placeholder, style, inputStyle, openUp = false }) {
     const [results, setResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const timer = useRef(null);
@@ -28,10 +29,11 @@ export default function CityAutocomplete({ value, onChangeText, onSelect, placeh
         onChangeText(label);
         if (onSelect) onSelect(city);
         setResults([]);
+        // Keyboard.dismiss() yok — klavye kalsın, ilk dokunuşta seçilsin.
     };
 
     return (
-        <View style={[s.wrapper, style]}>
+        <View style={[s.wrapper, style, openUp && { zIndex: 200, elevation: 12 }]}>
             <View style={s.inputRow}>
                 <TextInput
                     style={[s.input, inputStyle]}
@@ -39,12 +41,13 @@ export default function CityAutocomplete({ value, onChangeText, onSelect, placeh
                     onChangeText={search}
                     placeholder={placeholder || 'İl / İlçe ara...'}
                     placeholderTextColor={colors.textMuted}
+                    blurOnSubmit={false}
                 />
                 {loading && <ActivityIndicator size="small" color={colors.purple} style={{ position:'absolute', right:10 }} />}
             </View>
             {results.length > 0 && (
                 <ScrollView
-                    style={s.dropdown}
+                    style={[s.dropdown, openUp ? s.dropdownUp : s.dropdownDown]}
                     keyboardShouldPersistTaps="always"
                     nestedScrollEnabled
                     bounces={false}
@@ -66,7 +69,9 @@ const s = StyleSheet.create({
     wrapper: { position: 'relative', zIndex: 100 },
     inputRow: { position: 'relative' },
     input: { backgroundColor: colors.surface2, color: colors.text, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5, borderWidth: 1, borderColor: colors.border, fontSize: 13 },
-    dropdown: { position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 180, backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, zIndex: 200, elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8, marginTop: 2 },
+    dropdown: { position: 'absolute', left: 0, right: 0, maxHeight: 180, backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.border, zIndex: 200, elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 8 },
+    dropdownDown: { top: '100%', marginTop: 2 },
+    dropdownUp: { bottom: '100%', marginBottom: 2 },
     row: { paddingHorizontal: 9, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: colors.border },
     rowText: { fontSize: 13 },
 });
