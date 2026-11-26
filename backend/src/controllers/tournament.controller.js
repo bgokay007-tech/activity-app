@@ -37,6 +37,22 @@ import {
     applyByeToStandings,
 } from '../utils/tournamentEngines.js';
 
+/** YEREL: birden fazla il/ilçe etiketi ("Kadıköy, İstanbul" veya eski "İstanbul / Kadıköy"). */
+function normalizeTournamentCities(cities, city) {
+    if (Array.isArray(cities)) {
+        return [...new Set(cities.map((c) => String(c || '').trim()).filter(Boolean))].slice(0, 30);
+    }
+    if (city != null && String(city).trim()) return [String(city).trim()];
+    return [];
+}
+function provinceFromCityLabel(label) {
+    const s = String(label || '').trim();
+    if (!s) return null;
+    if (s.includes(',')) return s.split(',').pop().trim() || null;
+    if (s.includes('/')) return s.split('/')[0].trim() || null;
+    return s;
+}
+
 /** Joker uzatma haftasında hükmen kaçınmak için sunulması gereken min. müsait gün (madde 3). */
 const JOKER_MIN_AVAIL_DAYS = 4;
 
@@ -1244,7 +1260,7 @@ export const createTournament = async (req, res, next) => {
             setsPerMatch, advantageScoring, decidingTiebreak, matchesBeforePlayoff, playoffQualifiers,
             teamSize, teamRequiredMaleCount,
             rules, extraServices,
-            location, city,
+            location, city, cities,
             venueId, venueCourtId,
             surface, isIndoor,
             eventDate, eventTime, eventEndDate, eventEndTime,
@@ -1305,6 +1321,8 @@ export const createTournament = async (req, res, next) => {
             cleanWa = sanitizeWhatsappGroupUrl(whatsappGroupUrl);
             if (!cleanWa) return res.status(400).json({ message: 'Geçersiz WhatsApp grup linki (chat.whatsapp.com veya wa.me olmalı).' });
         }
+        const citiesList = normalizeTournamentCities(cities, city);
+        const citySummary = citiesList.length ? citiesList.join(' · ') : (city || null);
         const tournament = await prisma.tournament.create({
             data: {
                 name,
@@ -1365,7 +1383,8 @@ export const createTournament = async (req, res, next) => {
                 location: location || null,
                 venueId: venueId || null,
                 venueCourtId: venueCourtId || null,
-                city: city || null,
+                city: citySummary,
+                cities: citiesList.length ? citiesList : null,
                 surface: surface || null,
                 isIndoor: isIndoor === true,
                 eventDate: eventDate ? new Date(eventDate) : null,
@@ -1389,26 +1408,32 @@ export const createTournament = async (req, res, next) => {
 
         // Notify city-alert subscribers for tournaments tab (async, non-blocking)
         const creatorInfo = await prisma.user.findUnique({ where: { id: req.userId }, select: { city: true, username: true } }).catch(() => null);
-        // tournament.city can be "İl / İlçe" (district appended) — alerts subscribe by plain province only
-        const province = (tournament.city || creatorInfo?.city || '').split('/')[0].trim() || null;
-        notifyCitySubscribers({
-            subCategory: tournament.subCategory,
-            category: tournament.category,
-            senderCity: province,
-            senderUsername: creatorInfo?.username || '',
-            senderId: req.userId,
-            itemId: tournament.id,
-            tab: 'tournaments',
-        });
-        notifyActivityAlertSubscribers({
-            subCategory: tournament.subCategory,
-            category: tournament.category,
-            senderCity: province,
-            senderUsername: creatorInfo?.username || '',
-            senderId: req.userId,
-            itemId: tournament.id,
-            tab: 'tournaments',
-        });
+        // cities[] veya eski "İl / İlçe" — her il için ayrı abone bildirimi
+        const alertProvinces = [...new Set(
+            (citiesList.length ? citiesList : [tournament.city || creatorInfo?.city || ''])
+                .map(provinceFromCityLabel)
+                .filter(Boolean),
+        )];
+        for (const province of (alertProvinces.length ? alertProvinces : [null])) {
+            notifyCitySubscribers({
+                subCategory: tournament.subCategory,
+                category: tournament.category,
+                senderCity: province,
+                senderUsername: creatorInfo?.username || '',
+                senderId: req.userId,
+                itemId: tournament.id,
+                tab: 'tournaments',
+            });
+            notifyActivityAlertSubscribers({
+                subCategory: tournament.subCategory,
+                category: tournament.category,
+                senderCity: province,
+                senderUsername: creatorInfo?.username || '',
+                senderId: req.userId,
+                itemId: tournament.id,
+                tab: 'tournaments',
+            });
+        }
     } catch (e) { next(e); }
 };
 
@@ -2299,6 +2324,16 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.location            !== undefined && { location: b.location || null }),
                 ...(b.venueId             !== undefined && { venueId: b.venueId || null }),
                 ...(b.venueCourtId        !== undefined && { venueCourtId: b.venueCourtId || null }),
+                ...((b.cities !== undefined || b.city !== undefined) && (() => {
+                    const list = normalizeTournamentCities(
+                        b.cities !== undefined ? b.cities : undefined,
+                        b.city !== undefined ? b.city : tournament.city,
+                    );
+                    return {
+                        cities: list.length ? list : null,
+                        city: list.length ? list.join(' · ') : (b.city !== undefined ? (b.city || null) : tournament.city),
+                    };
+                })()),
                 ...(b.surface             !== undefined && { surface: b.surface || null }),
                 ...(b.isIndoor            !== undefined && { isIndoor: !!b.isIndoor }),
                 ...(b.isPaid              !== undefined && { isPaid: !!b.isPaid }),

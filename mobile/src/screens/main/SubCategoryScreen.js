@@ -20612,8 +20612,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{tournFormatLabel(item, t) || typeLabels[item.type] || item.type}</Text>
                         </View>
                         <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
-                            <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                                {(item.location || item.city) === 'Dünya' ? t.sc_0395 : (item.location || item.city || (item.scope === 'ULUSLARARASI' ? t.sc_0395 : item.scope === 'ULUSAL' ? t.sc_0396 : t.sc_0397))}
+                            <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                                {(item.location || item.city) === 'Dünya' ? t.sc_0395
+                                    : (Array.isArray(item.cities) && item.cities.length ? item.cities.join(' · ')
+                                        : (item.city || item.location || (item.scope === 'ULUSLARARASI' ? t.sc_0395 : item.scope === 'ULUSAL' ? t.sc_0396 : t.sc_0397)))}
                             </Text>
                         </View>
                         {item.status !== 'OPEN' ? (
@@ -23361,8 +23363,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{tournFormatLabel(item, t) || typeLabels[item.type] || item.type}</Text>
                                 </View>
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
-                                    <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
-                                        {(item.location || item.city) === 'Dünya' ? t.sc_0395 : (item.location || item.city || (item.scope === 'ULUSLARARASI' ? t.sc_0395 : item.scope === 'ULUSAL' ? t.sc_0396 : t.sc_0397))}
+                                    <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                                        {(item.location || item.city) === 'Dünya' ? t.sc_0395
+                                            : (Array.isArray(item.cities) && item.cities.length ? item.cities.join(' · ')
+                                                : (item.city || item.location || (item.scope === 'ULUSLARARASI' ? t.sc_0395 : item.scope === 'ULUSAL' ? t.sc_0396 : t.sc_0397)))}
                                     </Text>
                                 </View>
                             </View>
@@ -23548,6 +23552,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             {showRules && (
                 <View style={{ backgroundColor:'#0f172a', borderRadius:12, padding:12, marginTop:6, borderWidth:1, borderColor: infoColor + '30' }}>
                         <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:19 }}>{t['tournRules' + item.type]}</Text>
+                        {!!t.tournRegionForfeitRule && (
+                            <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:19, marginTop:10 }}>
+                                {t.tournRegionForfeitRule}
+                            </Text>
+                        )}
                 </View>
             )}
 
@@ -24196,7 +24205,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
         if (!f.name.trim()) { Alert.alert('', t.tournMissingName); return; }
         if (!f.scope) { Alert.alert('', t.sc_0631); return; }
         if (!isAirsoft && !f.genderType) { Alert.alert('', t.sc_0632); return; }
-        if (f.scope === 'YEREL' && !f.scopeCity.trim()) { Alert.alert('', t.tournMissingCity); return; }
+        if (f.scope === 'YEREL' && !(Array.isArray(f.scopeCities) && f.scopeCities.length)) {
+            Alert.alert('', t.tournMissingCity); return;
+        }
         if (f.scope === 'ULUSAL' && !f.scopeCountry.trim()) { Alert.alert('', t.tournMissingCountry); return; }
         if (!f.regEndDate) { Alert.alert('', t.tournMissingRegEnd); return; }
         {
@@ -24392,7 +24403,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                         </View>
                         <KeyboardAwareForm key={formEpoch} adjustWindow={false} ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
 
-                            {/* Ad | Kapsam | İl | İlçe (Yerel ise) / Ülke (Ulusal ise) — tek satır, tek buton/modal */}
+                            {/* Ad | Kapsam | Ülke (Ulusal) — YEREL'de il/ilçe ayrı satırda çoklu seçim */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
                                 <View style={{ flex:1 }}>
                                     <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournNameLabel}</Text>
@@ -24407,42 +24418,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         </Text>
                                     </View>
                                 </TouchableOpacity>
-                                {f.scope === 'YEREL' && (
-                                    <>
-                                        <View style={{ flex:1, zIndex: 30 }}>
-                                            <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournCityLabel}</Text>
-                                            <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeCity}
-                                                onChangeText={searchCityProvince}
-                                                placeholder={t.tournCityPh} placeholderTextColor={colors.textMuted} />
-                                            {citySuggestions.length > 0 && (
-                                                <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:40, elevation:12 }]}>
-                                                    {citySuggestions.map(p => (
-                                                        <TouchableOpacity key={p} style={s.courtResultRow}
-                                                            onPress={() => { set('scopeCity', p); setCitySuggestions([]); }}>
-                                                            <Text style={s.courtResultName}>📍 {p}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            )}
-                                        </View>
-                                        <View style={{ flex:1, zIndex: 29 }}>
-                                            <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{t.tournDistrictLabel}</Text>
-                                            <TextInput style={[s.fieldInput, ti, { height:30, marginBottom:0, paddingVertical:0, fontSize:12 }]} value={f.scopeDistrict}
-                                                onChangeText={searchDistrict}
-                                                placeholder={t.tournDistrictPh} placeholderTextColor={colors.textMuted} />
-                                            {districtSuggestions.length > 0 && (
-                                                <View style={[s.courtResultsBox, { position:'absolute', top:'100%', left:0, right:0, zIndex:40, elevation:12 }]}>
-                                                    {districtSuggestions.map(d => (
-                                                        <TouchableOpacity key={d} style={s.courtResultRow}
-                                                            onPress={() => { set('scopeDistrict', d); setDistrictSuggestions([]); }}>
-                                                            <Text style={s.courtResultName}>🏘️ {d}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
-                                            )}
-                                        </View>
-                                    </>
-                                )}
                                 {f.scope === 'ULUSAL' && (
                                     <View style={{ flex:2 }}>
                                         <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>{t.tournCountryLabel}</Text>
@@ -24451,6 +24426,22 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     </View>
                                 )}
                             </View>
+                            {f.scope === 'YEREL' && (
+                                <View style={{ marginBottom:10, zIndex: 40 }}>
+                                    <Text style={{ color: '#ef4444', fontSize:9, fontWeight:'700', marginBottom:3 }}>
+                                        {t.tournCitiesLabel || `${t.tournCityLabel} / ${t.tournDistrictLabel}`}
+                                    </Text>
+                                    <MultiCityAutocomplete
+                                        values={Array.isArray(f.scopeCities) ? f.scopeCities : []}
+                                        onChange={(vals) => set('scopeCities', vals)}
+                                        placeholder={t.tournCitiesPh || t.tournCityPh}
+                                        style={{ marginBottom: 2 }}
+                                    />
+                                    <Text style={{ color: colors.textMuted, fontSize:10, lineHeight:14, marginTop:4 }}>
+                                        {t.tournCitiesHint || ''}
+                                    </Text>
+                                </View>
+                            )}
                             <OptionPickerModal
                                 visible={showScopePicker}
                                 title={t.tournScopeLabel}
@@ -24626,6 +24617,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0644,
                                         // Kural 7: 24s müsaitlik + 8 günlük tur + min 3 gün / jokersiz hükmen
                                         t.tournCompetitiveRule7,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3 && i !== 6)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -24650,6 +24642,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0653,
                                         // Kural 9 (lig): 24s müsaitlik + 8 günlük tur + min 3 gün / jokersiz hükmen
                                         t.tournCompetitiveRule7,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3 && i !== 8)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -24671,6 +24664,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0643,
                                         t.sc_0644,
                                         t.sc_0657,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -24694,6 +24688,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0653,
                                         t.sc_0652,
                                         t.sc_0663,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -24715,6 +24710,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0641,
                                         t.sc_0668,
                                         t.sc_0669,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -24736,6 +24732,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0668,
                                         t.sc_0673,
                                         t.sc_0674,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
@@ -24762,6 +24759,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0679,
                                         t.sc_0680,
                                         t.sc_0681,
+                                        t.tournRegionForfeitRule,
                                     ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>

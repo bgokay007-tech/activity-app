@@ -1656,7 +1656,8 @@ model Tournament {
   // Sabit seçilen Pro+ işletme tesisi (oyuncular eşleşme kartından rezervasyon yapabilir)
   venueId        String?
   venueCourtId   String?      // isteğe bağlı varsayılan VenueCourt
-  city           String?      // il (YEREL) | ülke (ULUSAL) | Dünya (ULUSLARARASI)
+  city           String?      // özet metin: YEREL'de cities birleşimi | ülke (ULUSAL) | Dünya (ULUSLARARASI)
+  cities         Json?        // string[] — YEREL kapsamda birden fazla il/ilçe (ör. "Kadıköy, İstanbul")
   surface        String?      // clay | hard | grass | carpet | sand | artificial
   isIndoor       Boolean      @default(false)
   eventDate      DateTime?
