@@ -4,6 +4,7 @@ import {
     advanceTournamentAfterMatch,
     resolveThirdPlaceByAveraj,
     applyTournamentMatchAutoDraw,
+    applyInsufficientAvailabilityForfeit,
 } from '../controllers/tournament.controller.js';
 
 // Tip '1' Elo: sonraki tur skor/joker anında kurulur (tur deadline'ı beklenmez). Skor/joker
@@ -223,6 +224,12 @@ async function autoDrawExpiredMatches() {
                 });
                 if (!tournament || tournament.status !== 'IN_PROGRESS') continue;
 
+                // Önce kural 7: yetersiz müsaitlik (+ joker yok) → hükmen; aksi halde 0-0
+                const forfeited = await applyInsufficientAvailabilityForfeit(match, tournament, { notifyPlayers: true });
+                if (forfeited) {
+                    console.log(`[tournamentDeadlineReminder] Forfeit (insufficient availability) match ${match.id} (tournament ${tournament.id})`);
+                    continue;
+                }
                 await applyTournamentMatchAutoDraw(match, tournament, { source: 'auto', notifyPlayers: true });
                 console.log(`[tournamentDeadlineReminder] Auto-drew expired match ${match.id} (tournament ${tournament.id}) after creator grace`);
             } catch (matchErr) {

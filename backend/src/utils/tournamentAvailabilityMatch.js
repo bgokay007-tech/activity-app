@@ -44,10 +44,15 @@ export function isoWeekdayFromYmd(ymd) {
 
 /** Grup turu oyun süresi (gün). */
 export const ROUND_PLAY_DAYS = 7;
-/** Tenis: her tur/grup öncesi müsaitlik bekleme (24 saat). */
+/** Lig rekabetçi / tenis: her tur/grup öncesi müsaitlik bekleme (24 saat). */
 export const TENNIS_AVAIL_LEAD_DAYS = 1;
 /** Diğer sporlar (availability engine): tur öncesi müsaitlik (eski davranış). */
 export const DEFAULT_AVAIL_LEAD_DAYS = 3;
+/**
+ * 8 günlük turda (24s müsaitlik + 7 gün) oyuncunun sunması gereken min. farklı gün.
+ * Altında kalan ve joker kullanmayan → hükmen yenik (bkz. lig rekabetçi kural 7).
+ */
+export const MIN_AVAIL_DISTINCT_DAYS = 3;
 
 export function isTennisTournament(tournamentOrSub) {
     const sub = typeof tournamentOrSub === 'string'
@@ -57,11 +62,37 @@ export function isTennisTournament(tournamentOrSub) {
 }
 
 /**
- * Tenis tur döngüsü: 24s (müsaitlik + isteyenler maç da yapabilir) + 7 gün resmi tur = 8 gün.
+ * 24s + 7g = 8 günlük tur döngüsü:
+ * - tenis (her zaman), veya
+ * - müsaitliğe göre eşleştirme açık bireysel/çiftler rekabetçi (type 1/2)
+ */
+export function usesEightDayRoundCycle(tournamentOrSub) {
+    if (isTennisTournament(tournamentOrSub)) return true;
+    const t = (tournamentOrSub && typeof tournamentOrSub === 'object') ? tournamentOrSub : null;
+    if (!t) return false;
+    if (!t.availabilityMatchEnabled) return false;
+    const typ = String(t.type || '');
+    return typ === '1' || typ === '2';
+}
+
+/** Slot listesinden benzersiz YYYY-MM-DD gün sayısı. */
+export function countDistinctAvailDays(slots) {
+    if (!Array.isArray(slots)) return 0;
+    const dates = new Set();
+    for (const s of slots) {
+        if (!s || typeof s !== 'object') continue;
+        const d = s.date != null ? String(s.date).slice(0, 10) : '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) dates.add(d);
+    }
+    return dates.size;
+}
+
+/**
+ * Tenis / lig-rekabetçi tur döngüsü: 24s (müsaitlik + isteyenler maç da yapabilir) + 7 gün resmi tur = 8 gün.
  * Klasik maç penceresi / deadline de bu 8 günü kapsar — ilk 24s oyun dışı değil.
  */
 export function groupRoundCycleDays(tournamentOrSub) {
-    if (isTennisTournament(tournamentOrSub)) {
+    if (usesEightDayRoundCycle(tournamentOrSub)) {
         return TENNIS_AVAIL_LEAD_DAYS + ROUND_PLAY_DAYS;
     }
     return ROUND_PLAY_DAYS;

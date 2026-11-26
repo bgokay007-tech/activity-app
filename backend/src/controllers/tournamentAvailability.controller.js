@@ -13,6 +13,7 @@ import {
     toYmd,
     isPlayersArrangeCourts,
     getRoundAvailWindow,
+    usesEightDayRoundCycle,
 } from '../utils/tournamentAvailabilityMatch.js';
 import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
 
@@ -93,10 +94,10 @@ async function roundUsedCounts(roundId) {
 /** Turnuva başlarken çağrılır — klasik kura yerine turları açar */
 export async function bootstrapAvailabilityRounds(tournament, { sides, actorUserId = null } = {}) {
     const base = tournamentBaseDate(tournament);
-    // Tenis: tur/grup aralarında 24s müsaitlik, sonra 7 gün oyun (ardışık döngü).
-    // Diğer sporlar: eski 3 gün müsaitlik + 7 gün oyun (bitişik haftalar).
-    const tennis = String(tournament.subCategory || '').toLowerCase() === 'tennis';
-    const cycleDays = tennis ? 8 : 7;
+    // 8 günlük döngü (24s müsaitlik + 7 gün tur): tenis veya müsaitlik açık lig rekabetçi (1/2).
+    // Diğerleri: eski 3 gün müsaitlik + 7 gün oyun (bitişik haftalar).
+    const eightDay = usesEightDayRoundCycle(tournament);
+    const cycleDays = eightDay ? 8 : 7;
     let weekCount = tournament.matchesBeforePlayoff || 4;
     if (tournament.eventEndDate) {
         const end = new Date(tournament.eventEndDate);
@@ -104,7 +105,7 @@ export async function bootstrapAvailabilityRounds(tournament, { sides, actorUser
         const weeks = Math.ceil(ms / (cycleDays * 24 * 60 * 60 * 1000));
         if (weeks > 0) weekCount = Math.max(weekCount, weeks);
     }
-    const defs = buildWeeklyRounds(base, weekCount, tennis
+    const defs = buildWeeklyRounds(base, weekCount, eightDay
         ? { availLeadDays: 1, playDays: 7, sequentialCycles: true }
         : { availLeadDays: 3, playDays: 7 });
     await prisma.tournamentRound.createMany({
@@ -147,8 +148,8 @@ export async function bootstrapAvailabilityRounds(tournament, { sides, actorUser
                 p.userId,
                 'TOURNAMENT_STARTED',
                 '🏆 Turnuva Başladı',
-                tennis
-                    ? `"${tournament.name}" başladı — ilk 24 saatte müsaitlik bildirin; anlaşabilirseniz bu 24 saat içinde de maç yapabilirsiniz. Sonra 7 günlük tur devam eder.`
+                eightDay
+                    ? `"${tournament.name}" başladı — ilk 24 saatte müsaitlik bildirin; anlaşabilirseniz bu 24 saat içinde de maç yapabilirsiniz. Sonra 7 günlük tur devam eder (toplam 8 gün).`
                     : `"${tournament.name}" başladı — 1. tur için müsait gün/saatlerinizi girin.`,
                 { tournamentId: tournament.id, category: tournament.category, subCategory: tournament.subCategory },
             ).catch(() => {});

@@ -24607,7 +24607,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0642,
                                         t.sc_0643,
                                         t.sc_0644,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        // Kural 7: 24s müsaitlik + 8 günlük tur + min 3 gün / jokersiz hükmen
+                                        t.tournCompetitiveRule7,
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3 && i !== 6)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
@@ -24629,7 +24631,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0651,
                                         t.sc_0652,
                                         t.sc_0653,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
+                                        // Kural 9 (lig): 24s müsaitlik + 8 günlük tur + min 3 gün / jokersiz hükmen
+                                        t.tournCompetitiveRule7,
+                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3 && i !== 8)).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
@@ -24750,10 +24754,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 </View>
                             )}
 
-                            {/* Kuralların altında: müsaitliğe göre eşleştir (Defi hariç) */}
+                            {/* Kuralların altında: müsaitliğe göre eşleştir (Defi hariç) — tik kutusu = ayar */}
                             {!f.pollEnabled && f.type !== '9' && (
                                 <TouchableOpacity
                                     onPress={() => set('availabilityMatchEnabled', !f.availabilityMatchEnabled)}
+                                    activeOpacity={0.85}
                                     style={{
                                         backgroundColor: f.availabilityMatchEnabled ? cfg.color + '22' : '#1e293b',
                                         borderRadius: 8,
@@ -24761,14 +24766,34 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         marginBottom: 10,
                                         borderWidth: 1,
                                         borderColor: f.availabilityMatchEnabled ? cfg.color : '#334155',
+                                        flexDirection: 'row',
+                                        alignItems: 'flex-start',
+                                        gap: 10,
                                     }}
                                 >
-                                    <Text style={{ color: f.availabilityMatchEnabled ? cfg.color : '#e2e8f0', fontSize: 12, fontWeight: '900' }}>
-                                        {f.availabilityMatchEnabled ? '✅ ' : ''}{t.tournAvailToggle || 'Müsaitliğe göre eşleştir'}
-                                    </Text>
-                                    <Text style={{ color: '#94a3b8', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
-                                        {t.tournAvailToggleHint || 'Katılımcılar tur/hafta için müsait gün-saat ve maç sayısı girer; sistem ortak aralığa göre eşleştirir, admin onaylar.'}
-                                    </Text>
+                                    <View style={{
+                                        width: 22,
+                                        height: 22,
+                                        borderRadius: 5,
+                                        borderWidth: 2,
+                                        borderColor: f.availabilityMatchEnabled ? cfg.color : '#64748b',
+                                        backgroundColor: f.availabilityMatchEnabled ? cfg.color : 'transparent',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        marginTop: 1,
+                                    }}>
+                                        {f.availabilityMatchEnabled ? (
+                                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 15 }}>✓</Text>
+                                        ) : null}
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ color: f.availabilityMatchEnabled ? cfg.color : '#e2e8f0', fontSize: 12, fontWeight: '900' }}>
+                                            {t.tournAvailToggle || 'Müsaitliğe göre eşleştir'}
+                                        </Text>
+                                        <Text style={{ color: '#94a3b8', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
+                                            {t.tournAvailToggleHint || 'Katılımcılar tur/hafta için müsait gün-saat ve maç sayısı girer; sistem ortak aralığa göre eşleştirir, admin onaylar.'}
+                                        </Text>
+                                    </View>
                                 </TouchableOpacity>
                             )}
                             </>

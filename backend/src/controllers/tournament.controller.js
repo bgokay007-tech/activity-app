@@ -21,6 +21,8 @@ import {
     constrainSlotsToWindow,
     isYmdInWindow,
     groupMatchDeadlineFromBase,
+    countDistinctAvailDays,
+    MIN_AVAIL_DISTINCT_DAYS,
 } from '../utils/tournamentAvailabilityMatch.js';
 import {
     swissRoundCount,
@@ -7039,6 +7041,138 @@ export const reserveMatchShare = async (req, res, next) => {
         });
     } catch (e) { next(e); }
 };
+
+/**
+ * Lig rekabetçi kural 7: 8 günlük turda en az MIN_AVAIL_DISTINCT_DAYS gün müsaitlik
+ * sunmayan ve joker kullanmayan taraf, eşleştiği rakibe karşı hükmen yenik.
+ * Dönüş: forfeit uygulandıysa güncellenmiş maç; aksi halde null (çağıran auto-draw'a düşer).
+ */
+export async function applyInsufficientAvailabilityForfeit(match, tournament, { notifyPlayers = true } = {}) {
+    if (!match || match.status !== 'PENDING' || !match.p1Id || !match.p2Id) return null;
+    if (!tournament || tournament.status !== 'IN_PROGRESS') return null;
+    if (!tournament.availabilityMatchEnabled) return null;
+    if (match.phase !== 'GROUP') return null;
+
+    const schedule = (match.scheduleData && typeof match.scheduleData === 'object')
+        ? match.scheduleData
+        : {};
+    const avail = (schedule.availability && typeof schedule.availability === 'object')
+        ? schedule.availability
+        : {};
+
+    let p1Days = countDistinctAvailDays(avail.p1);
+    let p2Days = countDistinctAvailDays(avail.p2);
+
+    // Tur müsaitlik kaydı (eşleştirme motoru) varsa gün sayısına ekle
+    if (match.roundId) {
+        try {
+            const rows = await prisma.tournamentRoundAvailability.findMany({
+                where: { roundId: match.roundId, tournamentId: tournament.id },
+                select: { userId: true, slots: true },
+            });
+            const isTeam = tournament.type === '2' || tournament.type === '4'
+                || tournament.type === '10' || tournament.type === '12' || tournament.type === '14';
+            let p1UserIds = [match.p1Id];
+            let p2UserIds = [match.p2Id];
+            if (isTeam) {
+                const teams = await prisma.tournamentTeam.findMany({
+                    where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } },
+                });
+                const t1 = teams.find(t => t.id === match.p1Id);
+                const t2 = teams.find(t => t.id === match.p2Id);
+                if (t1) p1UserIds = [t1.player1Id, t1.player2Id].filter(Boolean);
+                if (t2) p2UserIds = [t2.player1Id, t2.player2Id].filter(Boolean);
+            }
+            for (const row of rows) {
+                const d = countDistinctAvailDays(row.slots);
+                if (p1UserIds.includes(row.userId)) p1Days = Math.max(p1Days, d);
+                if (p2UserIds.includes(row.userId)) p2Days = Math.max(p2Days, d);
+            }
+        } catch { /* tablo yoksa yok say */ }
+    }
+
+    const p1Short = p1Days < MIN_AVAIL_DISTINCT_DAYS;
+    const p2Short = p2Days < MIN_AVAIL_DISTINCT_DAYS;
+    if (!p1Short && !p2Short) return null;
+
+    // Joker kullanan taraf hükmen müsaitlik cezası almaz
+    const isTeam = tournament.type === '2' || tournament.type === '4'
+        || tournament.type === '10' || tournament.type === '12' || tournament.type === '14';
+    let p1MemberIds = [match.p1Id].filter(Boolean);
+    let p2MemberIds = [match.p2Id].filter(Boolean);
+    if (isTeam) {
+        const teams = await prisma.tournamentTeam.findMany({
+            where: { id: { in: [match.p1Id, match.p2Id].filter(Boolean) } },
+        });
+        const t1 = teams.find(t => t.id === match.p1Id);
+        const t2 = teams.find(t => t.id === match.p2Id);
+        if (t1) p1MemberIds = [t1.player1Id, t1.player2Id].filter(Boolean);
+        if (t2) p2MemberIds = [t2.player1Id, t2.player2Id].filter(Boolean);
+    }
+    const jokerParts = await prisma.tournamentParticipant.findMany({
+        where: {
+            tournamentId: tournament.id,
+            status: 'ACCEPTED',
+            jokerUsed: true,
+            userId: { in: [...p1MemberIds, ...p2MemberIds] },
+        },
+        select: { userId: true },
+    });
+    const jokerUsers = new Set(jokerParts.map(p => p.userId));
+    const p1Joker = !!match.p1JokerRequested || p1MemberIds.some(uid => jokerUsers.has(uid));
+    const p2Joker = !!match.p2JokerRequested || p2MemberIds.some(uid => jokerUsers.has(uid));
+
+    const p1Fails = p1Short && !p1Joker;
+    const p2Fails = p2Short && !p2Joker;
+    if (!p1Fails && !p2Fails) return null;
+    // İkisi de yetersiz → hükmen tek taraflı değil; auto-draw'a bırak
+    if (p1Fails && p2Fails) return null;
+
+    const winnerId = p1Fails ? match.p2Id : match.p1Id;
+    const loserName = p1Fails ? (match.p1Name || '?') : (match.p2Name || '?');
+    const winnerName = p1Fails ? (match.p2Name || '?') : (match.p1Name || '?');
+
+    const updated = await prisma.tournamentMatch.update({
+        where: { id: match.id },
+        data: {
+            status: 'FORFEIT',
+            winnerId,
+            score: {
+                sets: [],
+                winner: p1Fails ? 'p2' : 'p1',
+                p1Sets: 0, p2Sets: 0, p1Games: 0, p2Games: 0,
+                forfeitReason: 'insufficient_availability',
+                forfeitMinDays: MIN_AVAIL_DISTINCT_DAYS,
+                p1AvailDays: p1Days,
+                p2AvailDays: p2Days,
+            },
+            p1Confirmed: true,
+            p2Confirmed: true,
+            scoreSubmittedAt: new Date(),
+        },
+    });
+
+    await advanceTournamentAfterMatch(tournament, match, isTeam, false);
+
+    if (notifyPlayers) {
+        const title = '⚠️ Hükmen yenilgi — yetersiz müsaitlik';
+        const body = `${tournament.name}: ${loserName}, ${MIN_AVAIL_DISTINCT_DAYS} günden az müsaitlik bildirdiği ve joker kullanmadığı için ${winnerName} karşısında hükmen yenildi.`;
+        for (const uid of [...new Set([...p1MemberIds, ...p2MemberIds])]) {
+            createNotification(
+                uid, 'TOURNAMENT_MATCH_FORFEIT', title, body,
+                {
+                    tournamentId: tournament.id,
+                    matchId: match.id,
+                    category: tournament.category,
+                    subCategory: tournament.subCategory,
+                    forfeitReason: 'insufficient_availability',
+                },
+            ).catch(() => {});
+        }
+    }
+
+    return updated;
+}
 
 /**
  * Deadline sonrası 0-0 beraberlik (puan/ELO yok). Job (grace sonrası) ve turnuva sahibi
