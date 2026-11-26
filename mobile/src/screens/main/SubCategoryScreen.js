@@ -36787,22 +36787,22 @@ function SubCategoryScreen({ route, navigation }) {
 
 const s = StyleSheet.create({
     container:        { flex:1, backgroundColor: colors.bg },
-    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal: moderateScale(16), marginBottom: moderateScale(6), gap: moderateScale(6) },
+    header:           { flexDirection:'row', alignItems:'center', paddingHorizontal: moderateScale(16), marginBottom: moderateScale(8), gap: moderateScale(6) },
     back:             { fontSize: moderateScale(16), fontWeight:'700' },
     title:            { color:'#fff', fontSize: moderateScale(22), fontWeight:'900', flex:1, minWidth:0 },
 
-    // Kullanıcı raporu: Rakip Bul/Turnuvalar şeridi alttaki Kort Rez./İlan Oluştur ile
-    // hafif çakışıyordu — sekme yüksekliğini bir tık düşür, alt boşluğu artır.
-    tabBar:           { flexGrow:0, marginBottom: moderateScale(10) },
-    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2, alignItems:'center' },
-    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: 2, paddingBottom: 0 },
+    // Yatay ScrollView üst/alt border kırpıyordu; paddingVertical + margin ile
+    // başlık / Kort Rez.–İlan Oluştur / Yazılar formu arasında net boşluk.
+    tabBar:           { flexGrow:0, flexShrink:0, marginBottom: moderateScale(12), overflow:'visible' },
+    tabBarInner:      { paddingHorizontal: moderateScale(12), gap: 2, alignItems:'center', paddingVertical: moderateScale(4) },
+    tabBarInnerCompact:{ paddingHorizontal: moderateScale(14), gap: 2, paddingVertical: moderateScale(4) },
     tab:              { paddingHorizontal: 3, paddingTop: moderateScale(5), paddingBottom: moderateScale(5), minHeight: 34, borderRadius: 8, backgroundColor: colors.surface, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
     tabCompact:       { paddingHorizontal: 3, paddingTop: moderateScale(4), paddingBottom: moderateScale(5), borderRadius: 8, minHeight: 34 },
     tabText:          { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700', lineHeight: moderateScale(17), includeFontPadding: false },
     tabTextCompact:   { fontSize: moderateScale(12), lineHeight: moderateScale(16) },
     tabTextActive:    { color:'#fff' },
 
-    list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingBottom: moderateScale(64) },
+    list:             { paddingHorizontal: moderateScale(4), gap: moderateScale(6), paddingTop: moderateScale(2), paddingBottom: moderateScale(64) },
     // Hücre genişliği: RivalCardsHScroll sarmalayıcısı (peek) veya listGrid %33.
     // gap + yüzde hücre Android Yoga'da sığmaz diye padding hücre içinde.
     listGrid:         { flexDirection:'row', flexWrap:'wrap', alignItems:'flex-start', alignContent:'flex-start' },
