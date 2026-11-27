@@ -976,118 +976,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
             </div>
 
-            {/* Team sports: Surface (volleyball only) + Team Size */}
-            {isTeamSport ? (
-                <>
-                    {/* Surface type */}
-                    <div>
-                        <label className="text-gray-400 text-xs mb-2 block">
-                            {isVolleyball ? t('rival.court_type') : t('rival.field_type')}
-                        </label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(isVolleyball ? VOLLEYBALL_SURFACES : FOOTBALL_SURFACES).map(s => (
-                                <button key={s.id} type="button"
-                                    onClick={() => setForm(f => ({ ...f, surface: s.id }))}
-                                    className={`flex flex-col items-center py-2.5 rounded-xl border font-bold text-xs transition ${form.surface === s.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                                    <span className="text-xl mb-0.5">{s.emoji}</span>
-                                    <span className="text-center leading-tight">{t(s.tKey)}</span>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Players per side */}
-                    <div>
-                        <label className="text-gray-400 text-xs mb-2 block">{t('rival.players_per_side')}</label>
-                        <div className="grid grid-cols-5 gap-1.5">
-                            {(isVolleyball ? VOLLEYBALL_SIZES : FOOTBALL_SIZES).map(n => (
-                                <button key={n} type="button" disabled={isEdit}
-                                    onClick={() => !isEdit && setForm(f => ({ ...f, teamSize: n }))}
-                                    className={`py-2.5 rounded-xl border font-black text-sm transition ${form.teamSize === n ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                    {n}v{n}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </>
-            ) : (
-            /* Match format: Single / Double */
-            <div>
-                <label className="text-gray-400 text-xs mb-2 block">{t('rival.format')}</label>
-                <div className="grid grid-cols-2 gap-2">
-                    {[
-                        { value: 'SINGLE', icon: '🎾', label: t('rival.single_label'), desc: '1 vs 1' },
-                        { value: 'DOUBLE', icon: '🎾🎾', label: t('rival.double_label'), desc: '2 vs 2' },
-                    ].map(opt => (
-                        <button key={opt.value} type="button" disabled={editHasParticipants}
-                            onClick={() => {
-                                if (editHasParticipants) return alert(t('websc.format_locked'));
-                                setForm(f => ({ ...f, matchType: opt.value }));
-                            }}
-                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${editHasParticipants ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                            <span className="text-xl">{opt.icon}</span>
-                            <div><p className="font-bold text-sm">{opt.label}</p><p className="text-xs opacity-70">{opt.desc}</p></div>
-                        </button>
-                    ))}
-                </div>
-            </div>
-            )}
-
-            {/* Rakip davet et — tekli maç, henüz oluşturulmamış ilan için (fiyat/mesaj yok) */}
-            {!isEdit && !isTeamSport && form.matchType === 'SINGLE' && (
-                <div className="bg-gray-800/60 border border-purple-500/20 rounded-2xl p-3">
-                    <p className="text-white font-bold text-xs mb-2">🎯 {t('rival.invite_opponent')}</p>
-                    <InvitePickerRow
-                        value={singleOppInvite}
-                        myId={myId}
-                        excludeIds={[]}
-                        onSelect={setSingleOppInvite}
-                        onRemove={() => setSingleOppInvite(null)}
-                        placeholder={t('rival.search_user_ph')}
-                        buttonLabel={t('rival.invite_opponent')}
-                    />
-                </div>
-            )}
-
-            {/* Rating range restriction — individual (non-team) sports */}
-            {!isTeamSport && (
-                <div>
-                    <label className="text-gray-400 text-xs mb-2 block">{t('rival.rating_limit_label')}</label>
-                    <div className="flex items-center gap-2">
-                        <select value={form.minRating} onChange={e => setForm(f => ({ ...f, minRating: e.target.value }))}
-                            className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm">
-                            <option value="">{t('rival.rating_free')}</option>
-                            {RATING_OPTIONS.map(r => <option key={r} value={r}>{r}★</option>)}
-                        </select>
-                        <span className="text-gray-500 text-xs">–</span>
-                        <select value={form.maxRating} onChange={e => setForm(f => ({ ...f, maxRating: e.target.value }))}
-                            className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm">
-                            <option value="">{t('rival.rating_free')}</option>
-                            {RATING_OPTIONS.map(r => <option key={r} value={r}>{r}★</option>)}
-                        </select>
-                    </div>
-                </div>
-            )}
-
-            {/* Gender restriction — tennis/padel only */}
-            {(sub === 'tennis' || sub === 'padel' || sub === 'pickleball' || sub === 'squash' || sub === 'badminton' || sub === 'table_tennis') && form.matchType === 'SINGLE' && (
-                <div>
-                    <label className="text-gray-400 text-xs mb-2 block">{t('rival.gender_req_label')}</label>
-                    <div className="flex gap-2">
-                        {[
-                            { id: 'MIX', label: t('rival.gender_mix') },
-                            { id: 'MALE', label: t('rival.gender_male') },
-                            { id: 'FEMALE', label: t('rival.gender_female') },
-                        ].map(g => (
-                            <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, genderReq: g.id }))}
-                                className={`flex-1 py-2 rounded-xl border font-bold text-xs transition ${form.genderReq === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                                {g.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
+            {/* Mobil CreateRivalModal sırası: Mod → Format → Cinsiyet → Derece */}
             {/* Match mode: Practice / Competitive */}
             <div>
                 <label className="text-gray-400 text-xs mb-2 block">{t('rival.mode')}</label>
@@ -1124,6 +1013,141 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 </div>
             </div>
 
+            {/* Format: team size / surface OR single-double */}
+            {isTeamSport ? (
+                <>
+                    <div>
+                        <label className="text-gray-400 text-xs mb-2 block">
+                            {isVolleyball ? t('rival.court_type') : t('rival.field_type')}
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {(isVolleyball ? VOLLEYBALL_SURFACES : FOOTBALL_SURFACES).map(s => (
+                                <button key={s.id} type="button"
+                                    onClick={() => setForm(f => ({ ...f, surface: s.id }))}
+                                    className={`flex flex-col items-center py-2.5 rounded-xl border font-bold text-xs transition ${form.surface === s.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                                    <span className="text-xl mb-0.5">{s.emoji}</span>
+                                    <span className="text-center leading-tight">{t(s.tKey)}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-gray-400 text-xs mb-2 block">{t('rival.players_per_side')}</label>
+                        <div className="grid grid-cols-5 gap-1.5">
+                            {(isVolleyball ? VOLLEYBALL_SIZES : FOOTBALL_SIZES).map(n => (
+                                <button key={n} type="button" disabled={isEdit}
+                                    onClick={() => !isEdit && setForm(f => ({ ...f, teamSize: n }))}
+                                    className={`py-2.5 rounded-xl border font-black text-sm transition ${form.teamSize === n ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${isEdit ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    {n}v{n}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </>
+            ) : (
+            <div>
+                <label className="text-gray-400 text-xs mb-2 block">{t('rival.format')}</label>
+                <div className="grid grid-cols-2 gap-2">
+                    {[
+                        { value: 'SINGLE', icon: '🎾', label: t('rival.single_label'), desc: '1 vs 1' },
+                        { value: 'DOUBLE', icon: '🎾🎾', label: t('rival.double_label'), desc: '2 vs 2' },
+                    ].map(opt => (
+                        <button key={opt.value} type="button" disabled={editHasParticipants}
+                            onClick={() => {
+                                if (editHasParticipants) return alert(t('websc.format_locked'));
+                                setForm(f => ({ ...f, matchType: opt.value }));
+                            }}
+                            className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${editHasParticipants ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                            <span className="text-xl">{opt.icon}</span>
+                            <div><p className="font-bold text-sm">{opt.label}</p><p className="text-xs opacity-70">{opt.desc}</p></div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+            )}
+
+            {/* Cinsiyet kısıtlaması — format sonrası (mobil: Format seçiminde açılan modal) */}
+            {(sub === 'tennis' || sub === 'padel' || sub === 'pickleball' || sub === 'squash' || sub === 'badminton' || sub === 'table_tennis') && (
+                form.matchType === 'DOUBLE' ? (
+                    <div className="space-y-2">
+                        <label className="text-gray-400 text-xs mb-1 block">{t('rival.gender_req_label')}</label>
+                        {[
+                            { field: 'partnerGenderReq', label: t('rival.partner_gender_label') },
+                            { field: 'opp1GenderReq', label: t('rival.opp1_gender_label') },
+                            { field: 'opp2GenderReq', label: t('rival.opp2_gender_label') },
+                        ].map(row => (
+                            <div key={row.field} className="flex items-center gap-2 flex-wrap">
+                                <span className="text-gray-400 text-xs flex-shrink-0 min-w-[7rem]">{row.label}</span>
+                                <div className="flex gap-1.5 flex-1">
+                                    {[
+                                        { id: 'MIX', label: t('rival.gender_mix') },
+                                        { id: 'MALE', label: t('rival.gender_male') },
+                                        { id: 'FEMALE', label: t('rival.gender_female') },
+                                    ].map(g => (
+                                        <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, [row.field]: g.id }))}
+                                            className={`flex-1 py-2 rounded-xl border font-bold text-xs transition ${form[row.field] === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                                            {g.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div>
+                        <label className="text-gray-400 text-xs mb-2 block">{t('rival.gender_req_label')}</label>
+                        <div className="flex gap-2">
+                            {[
+                                { id: 'MIX', label: t('rival.gender_mix') },
+                                { id: 'MALE', label: t('rival.gender_male') },
+                                { id: 'FEMALE', label: t('rival.gender_female') },
+                            ].map(g => (
+                                <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, genderReq: g.id }))}
+                                    className={`flex-1 py-2 rounded-xl border font-bold text-xs transition ${form.genderReq === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                                    {g.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )
+            )}
+
+            {/* Derece kısıtlaması — cinsiyetten sonra */}
+            {!isTeamSport && (
+                <div>
+                    <label className="text-gray-400 text-xs mb-2 block">{t('rival.rating_limit_label')}</label>
+                    <div className="flex items-center gap-2">
+                        <select value={form.minRating} onChange={e => setForm(f => ({ ...f, minRating: e.target.value }))}
+                            className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm">
+                            <option value="">{t('rival.rating_free')}</option>
+                            {RATING_OPTIONS.map(r => <option key={r} value={r}>{r}★</option>)}
+                        </select>
+                        <span className="text-gray-500 text-xs">–</span>
+                        <select value={form.maxRating} onChange={e => setForm(f => ({ ...f, maxRating: e.target.value }))}
+                            className="flex-1 bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm">
+                            <option value="">{t('rival.rating_free')}</option>
+                            {RATING_OPTIONS.map(r => <option key={r} value={r}>{r}★</option>)}
+                        </select>
+                    </div>
+                </div>
+            )}
+
+            {/* Rakip davet et — tekli maç, henüz oluşturulmamış ilan için (fiyat/mesaj yok) */}
+            {!isEdit && !isTeamSport && form.matchType === 'SINGLE' && (
+                <div className="bg-gray-800/60 border border-purple-500/20 rounded-2xl p-3">
+                    <p className="text-white font-bold text-xs mb-2">🎯 {t('rival.invite_opponent')}</p>
+                    <InvitePickerRow
+                        value={singleOppInvite}
+                        myId={myId}
+                        excludeIds={[]}
+                        onSelect={setSingleOppInvite}
+                        onRemove={() => setSingleOppInvite(null)}
+                        placeholder={t('rival.search_user_ph')}
+                        buttonLabel={t('rival.invite_opponent')}
+                    />
+                </div>
+            )}
+
             {/* ── TEAM BUILDER (football, teamSize > 1, any mode) / PARTNER-RAKİP DAVETİ (tenis/padel çiftler) ── */}
             {!form.flexibleSchedule && isTeamBuilder && (!isEdit || needsPartner) && (
                 <div className="bg-gray-800/60 border border-green-500/30 rounded-2xl p-4 space-y-3">
@@ -1142,32 +1166,7 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     {needsPartner && (
                         <>
                             <p className="text-white font-bold text-sm">🤝 {t('rival.build_team')}</p>
-                            <div className="space-y-2 border-t border-gray-700 pt-3">
-                                {[
-                                    { field: 'partnerGenderReq', label: t('rival.partner_gender_label') },
-                                    { field: 'opp1GenderReq', label: t('rival.opp1_gender_label') },
-                                    { field: 'opp2GenderReq', label: t('rival.opp2_gender_label') },
-                                ].map(row => (
-                                    <div key={row.field} className="flex items-center gap-2 flex-wrap">
-                                        <span className="text-gray-400 text-xs flex-shrink-0">{row.label}</span>
-                                        <div className="flex gap-1.5">
-                                            {[
-                                                { id: 'MIX', label: t('rival.gender_mix') },
-                                                { id: 'MALE', label: t('rival.gender_male') },
-                                                { id: 'FEMALE', label: t('rival.gender_female') },
-                                            ].map(g => (
-                                                <button key={g.id} type="button" onClick={() => setForm(f => ({ ...f, [row.field]: g.id }))}
-                                                    className={`px-2.5 py-1 rounded-lg border font-bold text-[11px] transition ${form[row.field] === g.id ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-700 border-gray-600 text-gray-300 hover:border-gray-500'}`}>
-                                                    {g.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Partner/rakip daveti — sadece yeni ilan oluştururken; düzenlemede backend
-                                partnerInviteId/opp1InviteId/opp2InviteId kabul etmiyor. */}
+                            {/* Cinsiyet kısıtları yukarıda (format sonrası); burada sadece davet. */}
                             {!isEdit && (
                                 <div className="space-y-2 border-t border-gray-700 pt-3">
                                     <InvitePickerRow
