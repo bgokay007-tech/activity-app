@@ -5933,21 +5933,12 @@ function SubCategoryPage() {
                                     );
                                 };
 
-                                // Yaklaşan: yatay peek OK. Skor bekleyen: tam genişlik —
-                                // dar peek kartta yazı butonları / ELO görünmüyordu (kullanıcı raporu).
-                                const PeekRow = ({ items, render }) => (
-                                    <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin]">
+                                // Kullanıcı isteği: Yaklaşan / Skor Bekleyen / Skor Onay Bekleyen —
+                                // her satırda 2 kart (web masaüstü).
+                                const TwoColGrid = ({ items, render }) => (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {items.map((item) => (
-                                            <div key={item.id} className="min-w-[42%] max-w-[280px] w-[42%] sm:min-w-[260px] sm:w-[260px] flex-shrink-0 snap-start">
-                                                {render(item)}
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                                const FullStack = ({ items, render }) => (
-                                    <div className="space-y-3">
-                                        {items.map((item) => (
-                                            <div key={item.id} className="w-full">
+                                            <div key={item.id} className="min-w-0 h-full">
                                                 {render(item)}
                                             </div>
                                         ))}
@@ -5960,7 +5951,7 @@ function SubCategoryPage() {
                                         {future.length > 0 && (
                                             <div className="mt-2">
                                                 <h4 className="text-[#F4F1EA] font-bold mb-3 text-sm">{t('rival.upcoming')}</h4>
-                                                <FullStack items={future} render={(m) => <UpcomingCard m={m} />} />
+                                                <TwoColGrid items={future} render={(m) => <UpcomingCard m={m} />} />
                                             </div>
                                         )}
 
@@ -5980,7 +5971,7 @@ function SubCategoryPage() {
                                                     </span>
                                                 </button>
                                                 {pendingScoreExpanded && (
-                                                    <FullStack
+                                                    <TwoColGrid
                                                         items={needsScoreEntry}
                                                         render={(m) => <UpcomingCard m={m} isPastCard />}
                                                     />
@@ -6004,7 +5995,7 @@ function SubCategoryPage() {
                                                     </span>
                                                 </button>
                                                 {(scoreConfirmExpanded || scoreConfirmNeedsMyAction) && (
-                                                    <FullStack
+                                                    <TwoColGrid
                                                         items={needsScoreConfirm}
                                                         render={(m) => <ScoreConfirmCard match={m} />}
                                                     />
