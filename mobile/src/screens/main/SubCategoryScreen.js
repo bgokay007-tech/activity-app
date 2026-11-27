@@ -5626,13 +5626,11 @@ function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, aut
                             })}
                         </ScrollView>
                     )}
-                    {/* Kullanıcı isteği: liste kartında (detaya girmeden) "istek" rozeti ve
-                        "Sipariş Ver" artık ön yüzde değil, dıgımon kartın ARKA yüzünde, oyuncu
-                        listesinin ALTINDA — ön yüz sadece ilan bilgisi. */}
-                    {isOwner && (item.joinRequests||[]).filter(jr => jr.initiatedBy !== 'OWNER').length > 0 && (
+                    {/* Detaya girmeden istek sayısı: İstekler(N) */}
+                    {isOwner && (
                         <TouchableOpacity onPress={() => setDetailVisible(true)} style={{ marginTop:6 }}>
                             <Text style={{ color: colors.purple, fontSize:moderateScale(11), fontWeight:'700' }} numberOfLines={1}>
-                                📬 {item.joinRequests.filter(jr => jr.initiatedBy !== 'OWNER').length} {t.requests}
+                                {t.requests || 'İstekler'}({(item.joinRequests || []).filter(jr => jr.initiatedBy !== 'OWNER').length})
                             </Text>
                         </TouchableOpacity>
                     )}
@@ -5907,15 +5905,20 @@ function RivalCard({ item, myId, sub, onRefresh, onRivalMatched, navigation, aut
                     kart artık önlü-arkalı "digimon kart" (bkz. backFacePlayers/cardFlipped
                     yukarıda), aynı liste zaten 🔄 ile çevrilince arka yüzde görünüyor, ön
                     yüzde tekrar göstermek gereksiz tekrar oluyordu. */}
-                {/* Kullanıcı isteği: istek rozeti artık burada (ön yüz) değil, 🔄 ile
-                    çevrilince açılan arka yüzde, oyuncu listesinin altında (bkz. cardFlipped
-                    bloğu yukarıda) — ön yüz sadece yorum sayısını gösterir. */}
+                {/* Ön yüz: yorum + (sahip için) İstekler(N) — detaya / çevirmeye gerek yok. */}
             </TouchableOpacity>
-                {/* Yorum + ödül solda; 🔄 sağ alt köşede (kırmızı kare). */}
-                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0, maxWidth:'85%' }}>
+                {/* Yorum + ödül + istek sayacı solda; 🔄 sağ alt köşede. */}
+                <View style={{ flexDirection:'row', alignItems:'center', alignSelf:'flex-start', gap:5, marginTop:0, marginBottom:0, paddingTop:0, paddingBottom:0, maxWidth:'85%', flexWrap:'wrap' }}>
                     <Text style={{ color: colors.textMuted, fontSize:moderateScale(11), lineHeight: moderateScale(14) }}>
                         💬 {item.commentCount ?? 0}
                     </Text>
+                    {isOwner ? (
+                        <TouchableOpacity onPress={() => setDetailVisible(true)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>
+                            <Text style={{ color: colors.purple, fontSize:moderateScale(11), fontWeight:'800', lineHeight: moderateScale(14) }} numberOfLines={1}>
+                                {t.requests || 'İstekler'}({(item.joinRequests || []).filter(jr => jr.initiatedBy !== 'OWNER').length})
+                            </Text>
+                        </TouchableOpacity>
+                    ) : null}
                     {!!item.wager && (
                         <Text style={{ color:'#fbbf24', fontSize: moderateScale(11), fontWeight:'700', lineHeight: moderateScale(14), flexShrink:1 }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                             🏆 {item.wager}
