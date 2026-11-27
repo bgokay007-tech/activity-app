@@ -6222,25 +6222,25 @@ function SubCategoryPage() {
                                     </div>
                                 ) : (
                                     <div className="space-y-3">
-                                        {tournaments.map(t => {
-                                            const isOwn = t.creatorId === myId;
-                                            const isExpanded = expandedTournament === t.id;
+                                        {tournaments.map(trn => {
+                                            const isOwn = trn.creatorId === myId;
+                                            const isExpanded = expandedTournament === trn.id;
                                             return (
-                                                <div key={t.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                                                <div key={trn.id} className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
                                                     {/* Card header */}
                                                     <div className="p-4">
                                                         <div className="flex items-start gap-3">
                                                             <div className="flex-1 min-w-0">
                                                                 <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                    <span className="text-white font-bold text-sm">{t.name}</span>
+                                                                    <span className="text-white font-bold text-sm">{trn.name}</span>
                                                                     <span className="text-[10px] bg-gray-800 text-gray-400 px-2 py-0.5 rounded-full">
-                                                                        {t.status === 'POLL' ? t('websc.poll') : (TYPE_LABEL[t.type] || t.type)}
+                                                                        {trn.status === 'POLL' ? t('websc.poll') : (TYPE_LABEL[trn.type] || trn.type)}
                                                                     </span>
-                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${t.status === 'OPEN' ? 'bg-green-500/20 text-green-400' : t.status === 'POLL' ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-700 text-gray-500'}`}>
-                                                                        {t.status === 'OPEN' ? t('websc.open') : t.status === 'POLL' ? t('websc.poll') : t.status}
+                                                                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${trn.status === 'OPEN' ? 'bg-green-500/20 text-green-400' : trn.status === 'POLL' ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-700 text-gray-500'}`}>
+                                                                        {trn.status === 'OPEN' ? t('websc.open') : trn.status === 'POLL' ? t('websc.poll') : trn.status}
                                                                     </span>
-                                                                    {t.status !== 'POLL' && (
-                                                                        <button onClick={() => setRulesOpen(t.type)}
+                                                                    {trn.status !== 'POLL' && (
+                                                                        <button onClick={() => setRulesOpen(trn.type)}
                                                                             className="text-[10px] text-purple-400 hover:text-purple-300 underline underline-offset-2 transition">
                                                                             Rules
                                                                         </button>
@@ -6248,68 +6248,68 @@ function SubCategoryPage() {
                                                                 </div>
                                                                 <p className="text-gray-500 text-xs">
                                                                     {(() => {
-                                                                        const reqs = joinRequests[t.id];
+                                                                        const reqs = joinRequests[trn.id];
                                                                         if (reqs) {
                                                                             const acc = reqs.filter(r => r.status === 'ACCEPTED').length;
-                                                                            return `${Math.min(acc, t.maxPlayers)}/${t.maxPlayers} participants${acc > t.maxPlayers ? ` · ${acc - t.maxPlayers} reserve` : ''}`;
+                                                                            return `${Math.min(acc, trn.maxPlayers)}/${trn.maxPlayers} participants${acc > trn.maxPlayers ? ` · ${acc - trn.maxPlayers} reserve` : ''}`;
                                                                         }
-                                                                        return `${t._count?.participants || 0}/${t.maxPlayers} participants`;
+                                                                        return `${trn._count?.participants || 0}/${trn.maxPlayers} participants`;
                                                                     })()}
                                                                 </p>
                                                                 {/* Details row */}
                                                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1.5">
-                                                                    {t.location  && <span className="text-gray-400 text-[11px]">📍 {t.location}</span>}
-                                                                    {t.eventDate && <span className="text-gray-400 text-[11px]">📅 {new Date(t.eventDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}{t.startTime ? ` · ${t.startTime}` : ''}</span>}
-                                                                    {t.endDate   && <span className="text-gray-400 text-[11px]">🏁 {new Date(t.endDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}{t.endTime ? ` · ${t.endTime}` : ''}</span>}
+                                                                    {trn.location  && <span className="text-gray-400 text-[11px]">📍 {trn.location}</span>}
+                                                                    {trn.eventDate && <span className="text-gray-400 text-[11px]">📅 {new Date(trn.eventDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}{trn.startTime ? ` · ${trn.startTime}` : ''}</span>}
+                                                                    {trn.endDate   && <span className="text-gray-400 text-[11px]">🏁 {new Date(trn.endDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'long', year: 'numeric' })}{trn.endTime ? ` · ${trn.endTime}` : ''}</span>}
                                                                 </div>
                                                             </div>
                                                             {/* Action buttons */}
                                                             <div className="flex items-center gap-2 flex-shrink-0">
-                                                                <button onClick={() => shareTournament(t)}
+                                                                <button onClick={() => shareTournament(trn)}
                                                                     className="bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 font-bold text-xs px-3 py-1.5 rounded-xl transition">
                                                                     📤 Share
                                                                 </button>
-                                                                {t.status === 'POLL' ? (
+                                                                {trn.status === 'POLL' ? (
                                                                     <div className="flex flex-col items-end gap-1">
-                                                                        {(Array.isArray(t.pollTypes) ? t.pollTypes : ['1', '2']).map(tp => {
-                                                                            const votes = (t.typeVotes || []).filter(v => v.votedType === tp).length;
-                                                                            const voted = (t.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
+                                                                        {(Array.isArray(trn.pollTypes) ? trn.pollTypes : ['1', '2']).map(tp => {
+                                                                            const votes = (trn.typeVotes || []).filter(v => v.votedType === tp).length;
+                                                                            const voted = (trn.typeVotes || []).find(v => v.userId === myId)?.votedType === tp;
                                                                             return (
-                                                                                <button key={tp} disabled={votingTournamentId === t.id}
-                                                                                    onClick={() => handleVoteType(t.id, tp)}
+                                                                                <button key={tp} disabled={votingTournamentId === trn.id}
+                                                                                    onClick={() => handleVoteType(trn.id, tp)}
                                                                                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition whitespace-nowrap ${voted ? 'bg-purple-600 border-purple-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500/50'}`}>
                                                                                     {voted ? '✓ ' : ''}{TYPE_LABEL[tp] || `🏅 Type ${tp}`} · {votes}
                                                                                 </button>
                                                                             );
                                                                         })}
-                                                                        {t.pollEndDate && (
+                                                                        {trn.pollEndDate && (
                                                                             <span className="text-gray-500 text-[10px]">
-                                                                                🗳️ {new Date(t.pollEndDate).toLocaleDateString(uiLocale(), { day: '2-digit', month: '2-digit' })}{t.pollEndTime ? ` ${t.pollEndTime}` : ''}
+                                                                                🗳️ {new Date(trn.pollEndDate).toLocaleDateString(uiLocale(), { day: '2-digit', month: '2-digit' })}{trn.pollEndTime ? ` ${trn.pollEndTime}` : ''}
                                                                             </span>
                                                                         )}
                                                                     </div>
                                                                 ) : isOwn ? (
-                                                                    <button onClick={() => openManage(t)}
+                                                                    <button onClick={() => openManage(trn)}
                                                                         className="bg-purple-600/20 border border-purple-500/40 text-purple-300 font-bold text-xs px-3 py-1.5 rounded-xl hover:bg-purple-600/40 transition">
                                                                         Manage
                                                                     </button>
-                                                                ) : t._myRequest ? (() => {
-                                                                    const hoursLeft = t.eventDate ? (new Date(t.eventDate) - Date.now()) / 3600000 : Infinity;
+                                                                ) : trn._myRequest ? (() => {
+                                                                    const hoursLeft = trn.eventDate ? (new Date(trn.eventDate) - Date.now()) / 3600000 : Infinity;
                                                                     const canSelfCancel = hoursLeft > 24;
-                                                                    if (t._myRequest === 'REJECTED') {
+                                                                    if (trn._myRequest === 'REJECTED') {
                                                                         return <span className="text-xs font-bold px-3 py-1.5 rounded-xl bg-red-500/10 text-red-400">{t('websc.rejected')}</span>;
                                                                     }
                                                                     return (
                                                                         <div className="flex items-center gap-1.5">
-                                                                            <span className={`text-xs font-bold px-3 py-1.5 rounded-xl ${t._myRequest === 'ACCEPTED' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
-                                                                                {t._myRequest === 'ACCEPTED' ? t('websc.accepted') : t('websc.pending')}
+                                                                            <span className={`text-xs font-bold px-3 py-1.5 rounded-xl ${trn._myRequest === 'ACCEPTED' ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                                                                                {trn._myRequest === 'ACCEPTED' ? t('websc.accepted') : t('websc.pending')}
                                                                             </span>
                                                                             {canSelfCancel ? (
                                                                                 <button onClick={async () => {
                                                                                     if (!confirm(t('websc.cancel_reg'))) return;
                                                                                     try {
-                                                                                        await api.delete(`/tournaments/${t.id}/join`);
-                                                                                        setTournaments(prev => prev.map(x => x.id === t.id ? { ...x, _myRequest: null } : x));
+                                                                                        await api.delete(`/tournaments/${trn.id}/join`);
+                                                                                        setTournaments(prev => prev.map(x => x.id === trn.id ? { ...x, _myRequest: null } : x));
                                                                                     } catch (e) { alert(e?.response?.data?.message || 'Error'); }
                                                                                 }} className="text-red-400/70 hover:text-red-400 text-[10px] font-bold border border-red-500/20 hover:border-red-500/40 px-2 py-1.5 rounded-xl transition">
                                                                                     ✕ Cancel
@@ -6318,7 +6318,7 @@ function SubCategoryPage() {
                                                                                 <button onClick={async () => {
                                                                                     if (!confirm(t('websc.cancel_late'))) return;
                                                                                     try {
-                                                                                        await api.post(`/tournaments/${t.id}/cancel-request`);
+                                                                                        await api.post(`/tournaments/${trn.id}/cancel-request`);
                                                                                         alert(t('websc.cancel_sent'));
                                                                                     } catch (e) { alert(e?.response?.data?.message || 'Error'); }
                                                                                 }} className="text-orange-400/70 hover:text-orange-400 text-[10px] font-bold border border-orange-500/20 hover:border-orange-500/40 px-2 py-1.5 rounded-xl transition">
@@ -6328,7 +6328,7 @@ function SubCategoryPage() {
                                                                         </div>
                                                                     );
                                                                 })() : (
-                                                                    <button onClick={() => handleJoin(t.id)}
+                                                                    <button onClick={() => handleJoin(trn.id)}
                                                                         className={`bg-gradient-to-r ${config.color} text-white font-bold text-xs px-3 py-1.5 rounded-xl hover:opacity-90 transition`}>
                                                                         Join
                                                                     </button>
@@ -6336,9 +6336,9 @@ function SubCategoryPage() {
                                                                 {/* Expand arrow */}
                                                                 <button onClick={async () => {
                                                                     if (!isExpanded) {
-                                                                        setExpandedTournament(t.id);
+                                                                        setExpandedTournament(trn.id);
                                                                         // Auto-resume bracket if saved
-                                                                        const savedBracket = t.type === 'mix_double' && t.creatorId === myId ? localStorage.getItem(`bracket_${t.id}`) : null;
+                                                                        const savedBracket = trn.type === 'mix_double' && trn.creatorId === myId ? localStorage.getItem(`bracket_${trn.id}`) : null;
                                                                         if (savedBracket) {
                                                                             const parsed = JSON.parse(savedBracket);
                                                                             if (parsed.matches) {
@@ -6347,51 +6347,51 @@ function SubCategoryPage() {
                                                                             if (parsed.final && !parsed.final.sets) {
                                                                                 parsed.final = { ...parsed.final, sets: [{ t1: parsed.final.s1 || '', t2: parsed.final.s2 || '' }], winner: parsed.final.winner ?? null };
                                                                             }
-                                                                            const savedPlayers = localStorage.getItem(`bracket_players_${t.id}`);
-                                                                            setManagingTournament(t);
-                                                                            setBracketTournamentId(t.id);
+                                                                            const savedPlayers = localStorage.getItem(`bracket_players_${trn.id}`);
+                                                                            setManagingTournament(trn);
+                                                                            setBracketTournamentId(trn.id);
                                                                             setBracket(parsed);
                                                                             if (savedPlayers) setMixPlayers(JSON.parse(savedPlayers));
                                                                             setTournamentView('mix_double');
                                                                             return;
                                                                         }
                                                                         try {
-                                                                            const { data } = await api.get(`/tournaments/${t.id}/requests`);
-                                                                            setJoinRequests(prev => ({ ...prev, [t.id]: data }));
-                                                                        } catch { setJoinRequests(prev => ({ ...prev, [t.id]: [] })); }
+                                                                            const { data } = await api.get(`/tournaments/${trn.id}/requests`);
+                                                                            setJoinRequests(prev => ({ ...prev, [trn.id]: data }));
+                                                                        } catch { setJoinRequests(prev => ({ ...prev, [trn.id]: [] })); }
                                                                     } else {
                                                                         setExpandedTournament(null);
                                                                     }
                                                                 }} className="w-8 h-8 bg-gray-800 hover:bg-gray-700 rounded-xl flex items-center justify-center text-gray-400 hover:text-white transition text-sm font-bold">
-                                                                    {isExpanded ? '↓' : localStorage.getItem(`bracket_${t.id}`) && t.creatorId === myId ? '▶' : '→'}
+                                                                    {isExpanded ? '↓' : localStorage.getItem(`bracket_${trn.id}`) && trn.creatorId === myId ? '▶' : '→'}
                                                                 </button>
                                                             </div>
                                                         </div>
                                                     </div>
                                                     {/* Expanded: accepted participants + reserve + rejected + start */}
                                                     {isExpanded && (() => {
-                                                        const allReqs = joinRequests[t.id] || [];
+                                                        const allReqs = joinRequests[trn.id] || [];
                                                         const accepted = allReqs.filter(r => r.status === 'ACCEPTED');
                                                         const rejected = allReqs.filter(r => r.status === 'REJECTED');
-                                                        const main    = accepted.slice(0, t.maxPlayers);
-                                                        const reserve = accepted.slice(t.maxPlayers);
-                                                        const emptyCount = Math.max(0, t.maxPlayers - main.length);
+                                                        const main    = accepted.slice(0, trn.maxPlayers);
+                                                        const reserve = accepted.slice(trn.maxPlayers);
+                                                        const emptyCount = Math.max(0, trn.maxPlayers - main.length);
 
                                                         const removeMain = async (r) => {
-                                                            await handleRequestAction(t.id, r.user.id, 'REJECTED');
+                                                            await handleRequestAction(trn.id, r.user.id, 'REJECTED');
                                                         };
 
                                                         return (
-                                                            <div className="border-t border-gray-800 bg-gray-950 px-4 py-3 space-y-3">
+                                                            <div className="border-trn border-gray-800 bg-gray-950 px-4 py-3 space-y-3">
                                                                 {/* Main slots */}
                                                                 <div>
-                                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Participants ({main.length}/{t.maxPlayers})</p>
-                                                                    {(t.type === '2' || t.type === '4') ? (() => {
+                                                                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-wide mb-2">Participants ({main.length}/{trn.maxPlayers})</p>
+                                                                    {(trn.type === '2' || trn.type === '4') ? (() => {
                                                                         const { pairs, solos, byUserId } = groupDoublesPairs(main);
                                                                         return (
                                                                             <div className="grid grid-cols-2 gap-1.5">
-                                                                                {pairs.map(([p1, p2]) => renderTournamentDuoCard(t.id, p1, p2, solos, byUserId, false))}
-                                                                                {solos.filter(s => !pairs.some(([p1, p2]) => p1.id === s.id || p2.id === s.id)).map(s => renderTournamentDuoCard(t.id, s, null, solos, byUserId, false))}
+                                                                                {pairs.map(([p1, p2]) => renderTournamentDuoCard(trn.id, p1, p2, solos, byUserId, false))}
+                                                                                {solos.filter(s => !pairs.some(([p1, p2]) => p1.id === s.id || p2.id === s.id)).map(s => renderTournamentDuoCard(trn.id, s, null, solos, byUserId, false))}
                                                                             </div>
                                                                         );
                                                                     })() : (
@@ -6455,16 +6455,16 @@ function SubCategoryPage() {
                                                                     </div>
                                                                 )}
                                                                 {/* Real tournament types ('1'/'2'/'3'/'4'): Start + Matches buttons */}
-                                                                {(t.type === '1' || t.type === '2' || t.type === '3' || t.type === '4') && (
+                                                                {(trn.type === '1' || trn.type === '2' || trn.type === '3' || trn.type === '4') && (
                                                                     <div className="flex gap-2">
-                                                                        {isOwn && t.status === 'OPEN' && (
-                                                                            <button onClick={() => handleStartTournament(t)} disabled={matchActionLoading || main.length < (t.minPlayers || 2)}
+                                                                        {isOwn && trn.status === 'OPEN' && (
+                                                                            <button onClick={() => handleStartTournament(trn)} disabled={matchActionLoading || main.length < (trn.minPlayers || 2)}
                                                                                 className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-40`}>
                                                                                 🚀 {t('tournament.start')}
                                                                             </button>
                                                                         )}
-                                                                        {(t.status === 'IN_PROGRESS' || t.status === 'COMPLETED') && (
-                                                                            <button onClick={() => openMatchesModal(t)}
+                                                                        {(trn.status === 'IN_PROGRESS' || trn.status === 'COMPLETED') && (
+                                                                            <button onClick={() => openMatchesModal(trn)}
                                                                                 className="flex-1 bg-purple-600/20 border border-purple-500/40 text-purple-300 font-bold py-2 rounded-xl text-sm hover:bg-purple-600/30 transition">
                                                                                 📅 {t('tournament.bracket')}
                                                                             </button>
@@ -6472,8 +6472,8 @@ function SubCategoryPage() {
                                                                     </div>
                                                                 )}
                                                                 {/* Archive button — creator only, when bracket is done in localStorage */}
-                                                                {isOwn && t.type === 'mix_double' && (() => {
-                                                                    const rawSaved = localStorage.getItem(`bracket_${t.id}`);
+                                                                {isOwn && trn.type === 'mix_double' && (() => {
+                                                                    const rawSaved = localStorage.getItem(`bracket_${trn.id}`);
                                                                     if (!rawSaved) return null;
                                                                     try {
                                                                         const parsed = JSON.parse(rawSaved);
@@ -6490,14 +6490,14 @@ function SubCategoryPage() {
                                                                                         if (bracketToSave.matches) {
                                                                                             bracketToSave.matches = bracketToSave.matches.map(m => m.sets ? m : { ...m, sets: [{ t1: m.s1 || '', t2: m.s2 || '' }], winner: null });
                                                                                         }
-                                                                                        await api.post(`/tournaments/${t.id}/complete`, { bracketData: bracketToSave });
-                                                                                        localStorage.removeItem(`bracket_${t.id}`);
-                                                                                        localStorage.removeItem(`bracket_players_${t.id}`);
+                                                                                        await api.post(`/tournaments/${trn.id}/complete`, { bracketData: bracketToSave });
+                                                                                        localStorage.removeItem(`bracket_${trn.id}`);
+                                                                                        localStorage.removeItem(`bracket_players_${trn.id}`);
                                                                                         setBracket(null);
                                                                                         setBracketTournamentId(null);
                                                                                         setManagingTournament(null);
                                                                                         setExpandedTournament(null);
-                                                                                        setTournaments(prev => prev.filter(tx => tx.id !== t.id));
+                                                                                        setTournaments(prev => prev.filter(tx => tx.id !== trn.id));
                                                                                     } catch (e) { alert(e?.response?.data?.message || t('websc.archive_error')); }
                                                                                 }} className="w-full bg-green-600/80 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-sm transition">
                                                                                     📦 Archive Tournament
@@ -6508,21 +6508,21 @@ function SubCategoryPage() {
                                                                 })()}
 
                                                                 {/* Start Tournament — creator only, mix_double */}
-                                                                {isOwn && t.type === 'mix_double' && !((() => { try { const p = JSON.parse(localStorage.getItem(`bracket_${t.id}`) || 'null'); return p?.phase === 'done' && p?.final?.winner != null; } catch { return false; } })()) && (
+                                                                {isOwn && trn.type === 'mix_double' && !((() => { try { const p = JSON.parse(localStorage.getItem(`bracket_${trn.id}`) || 'null'); return p?.phase === 'done' && p?.final?.winner != null; } catch { return false; } })()) && (
                                                                     <button
                                                                         onClick={async () => {
-                                                                            setManagingTournament(t);
-                                                                            setBracketTournamentId(t.id);
+                                                                            setManagingTournament(trn);
+                                                                            setBracketTournamentId(trn.id);
 
                                                                             // If bracket already in memory for this tournament, just jump back
-                                                                            if (bracket && bracketTournamentId === t.id) {
+                                                                            if (bracket && bracketTournamentId === trn.id) {
                                                                                 setTournamentView('mix_double');
                                                                                 return;
                                                                             }
 
                                                                             // Restore saved bracket if it exists
-                                                                            const savedBracket  = localStorage.getItem(`bracket_${t.id}`);
-                                                                            const savedPlayers  = localStorage.getItem(`bracket_players_${t.id}`);
+                                                                            const savedBracket  = localStorage.getItem(`bracket_${trn.id}`);
+                                                                            const savedPlayers  = localStorage.getItem(`bracket_players_${trn.id}`);
                                                                             if (savedBracket) {
                                                                                 const parsed = JSON.parse(savedBracket);
                                                                                 // Migrate old s1/s2 format to sets array
@@ -6545,8 +6545,8 @@ function SubCategoryPage() {
                                                                             // No saved bracket — fresh start: load latest accepted list
                                                                             let latestAccepted = accepted;
                                                                             try {
-                                                                                const { data } = await api.get(`/tournaments/${t.id}/requests`);
-                                                                                setJoinRequests(prev => ({ ...prev, [t.id]: data }));
+                                                                                const { data } = await api.get(`/tournaments/${trn.id}/requests`);
+                                                                                setJoinRequests(prev => ({ ...prev, [trn.id]: data }));
                                                                                 latestAccepted = data.filter(r => r.status === 'ACCEPTED');
                                                                             } catch { /* fall back to local state */ }
 
@@ -6563,7 +6563,7 @@ function SubCategoryPage() {
                                                                             setTournamentView('mix_double');
                                                                         }}
                                                                         className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-3 rounded-2xl text-sm hover:opacity-90 transition mt-1`}>
-                                                                        {(bracket && bracketTournamentId === t.id) || localStorage.getItem(`bracket_${t.id}`) ? t('websc.resume_tourn') : `🏆 Start Tournament (${main.length} players ready)`}
+                                                                        {(bracket && bracketTournamentId === trn.id) || localStorage.getItem(`bracket_${trn.id}`) ? t('websc.resume_tourn') : `🏆 Start Tournament (${main.length} players ready)`}
                                                                     </button>
                                                                 )}
                                                             </div>
