@@ -69,9 +69,13 @@ import { registerEntityShareOpener } from '../../utils/entityShareBridge';
 import EntityShareModal from '../../components/EntityShareModal';
 import EquipmentCardThumb from '../../components/EquipmentCardThumb';
 import EquipmentStoresModal from '../../components/EquipmentStoresModal';
+import EquipmentAdInterstitial from '../../components/EquipmentAdInterstitial';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import { sportFacilityLabels, sportEquipmentTabLabel } from '../../utils/sportFacilityLabels';
+
+const EQUIP_MEDIA_MAX = 10;
+const EQUIP_AD_DAILY_TRY = 5;
 import {
     sportProfile, createRacketMatch, racketRecordPoint, racketPointLabel,
     racketUndoPointForSide, racketUndoGameForSide, racketUndoSetForSide,
@@ -24309,7 +24313,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 matchTimeStart: f.matchTimeStart || null,
                 matchTimeEnd: f.matchTimeEnd || null,
                 dayTrip: f.dayTrip,
-                availabilityMatchEnabled: f.availabilityMatchEnabled === true && f.type !== '9',
+                availabilityMatchEnabled: f.availabilityMatchEnabled === true && f.type !== '9' && !f.dayTrip,
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
@@ -24480,7 +24484,18 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 marginTop: üst satır (ad/kapsam/il) ile etiket çakışmasın. */}
                             {!isAirsoft && (
                             <>
-                            <Text style={[s.fieldLabelRed, { marginTop: 18 }]}>{t.tournFormatLabel}</Text>
+                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:18, marginBottom:8, gap:8 }}>
+                                <Text style={[s.fieldLabelRed, { marginBottom:0, flex:1 }]}>{t.tournFormatLabel}</Text>
+                                <TouchableOpacity
+                                    onPress={() => setF(p => ({
+                                        ...p,
+                                        dayTrip: !p.dayTrip,
+                                        ...(!p.dayTrip ? { availabilityMatchEnabled: false } : {}),
+                                    }))}
+                                    style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
+                                    <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
+                                </TouchableOpacity>
+                            </View>
 
                             {!f.pollEnabled && !DEFI_TEAM_SUBS.includes(sub) && (
                                 <>
@@ -24626,26 +24641,25 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && f.type === '1' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_singles_elo_playoff}</Text>
-                                    {[
-                                        t.sc_0639,
-                                        t.sc_0640,
-                                        t.sc_0641,
-                                        t.sc_0642,
-                                        t.sc_0643,
-                                        t.sc_0644,
-                                        // Kural 7: 24s müsaitlik… — müsaitliğe göre eşleştir açıkken kalkar; 8. madde 7 olur
-                                        ...(f.availabilityMatchEnabled ? [] : [t.tournCompetitiveRule7]),
-                                        t.tournRegionForfeitRule,
-                                    ].filter((kural, i) => {
-                                        if (f.dayTrip && (i === 2 || i === 3)) return false;
-                                        if (f.dayTrip && kural === t.tournCompetitiveRule7) return false;
-                                        return true;
-                                    }).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0639,
+                                            t.sc_0640,
+                                            t.sc_0641,
+                                            t.sc_0642,
+                                            t.sc_0643,
+                                            t.sc_0644,
+                                            // Kural 7: 24s müsaitlik… — müsaitliğe göre eşleştir açıkken kalkar; 8. madde 7 olur
+                                            ...(f.availabilityMatchEnabled || f.dayTrip ? [] : [t.tournCompetitiveRule7]),
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
@@ -24653,28 +24667,27 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && f.type === '2' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>{t.sc_0645}</Text>
-                                    {[
-                                        t.sc_0646,
-                                        t.sc_0647,
-                                        t.sc_0648,
-                                        t.sc_0649,
-                                        t.sc_0650,
-                                        t.sc_0651,
-                                        t.sc_0652,
-                                        t.sc_0653,
-                                        // Lig kuralı (24s müsaitlik…) — müsaitliğe göre eşleştir açıkken kalkar
-                                        ...(f.availabilityMatchEnabled ? [] : [t.tournCompetitiveRule7]),
-                                        t.tournRegionForfeitRule,
-                                    ].filter((kural, i) => {
-                                        if (f.dayTrip && (i === 2 || i === 3)) return false;
-                                        if (f.dayTrip && kural === t.tournCompetitiveRule7) return false;
-                                        return true;
-                                    }).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0646,
+                                            t.sc_0647,
+                                            t.sc_0648,
+                                            t.sc_0649,
+                                            t.sc_0650,
+                                            t.sc_0651,
+                                            t.sc_0652,
+                                            t.sc_0653,
+                                            // Lig kuralı (24s müsaitlik…) — müsaitliğe göre eşleştir açıkken kalkar
+                                            ...(f.availabilityMatchEnabled || f.dayTrip ? [] : [t.tournCompetitiveRule7]),
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
@@ -24682,21 +24695,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && f.type === '3' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>{t.sc_0654}</Text>
-                                    {[
-                                        t.sc_0655,
-                                        t.sc_0656,
-                                        t.sc_0641,
-                                        t.sc_0642,
-                                        t.sc_0643,
-                                        t.sc_0644,
-                                        t.sc_0657,
-                                        t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0655,
+                                            t.sc_0656,
+                                            t.sc_0641,
+                                            t.sc_0642,
+                                            t.sc_0643,
+                                            t.sc_0644,
+                                            t.sc_0657,
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
@@ -24704,23 +24720,26 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && f.type === '4' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>{t.sc_0658}</Text>
-                                    {[
-                                        t.sc_0659,
-                                        t.sc_0647,
-                                        t.sc_0660,
-                                        t.sc_0649,
-                                        t.sc_0661,
-                                        t.sc_0662,
-                                        t.sc_0653,
-                                        t.sc_0652,
-                                        t.sc_0663,
-                                        t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0659,
+                                            t.sc_0647,
+                                            t.sc_0660,
+                                            t.sc_0649,
+                                            t.sc_0661,
+                                            t.sc_0662,
+                                            t.sc_0653,
+                                            t.sc_0652,
+                                            t.sc_0663,
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
@@ -24728,21 +24747,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && (f.type === '5' || f.type === '12') && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_swiss}</Text>
-                                    {[
-                                        t.sc_0664,
-                                        t.sc_0665,
-                                        t.sc_0666,
-                                        t.sc_0667,
-                                        t.sc_0641,
-                                        t.sc_0668,
-                                        t.sc_0669,
-                                        t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0664,
+                                            t.sc_0665,
+                                            t.sc_0666,
+                                            t.sc_0667,
+                                            t.sc_0641,
+                                            t.sc_0668,
+                                            t.sc_0669,
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
@@ -24750,21 +24772,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && f.type === '6' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_double_elim}</Text>
-                                    {[
-                                        t.sc_0670,
-                                        t.sc_0671,
-                                        t.sc_0672,
-                                        t.sc_0641,
-                                        t.sc_0668,
-                                        t.sc_0673,
-                                        t.sc_0674,
-                                        t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0670,
+                                            t.sc_0671,
+                                            t.sc_0672,
+                                            t.sc_0641,
+                                            t.sc_0668,
+                                            t.sc_0673,
+                                            t.sc_0674,
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 3 && i !== 4));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
@@ -24777,26 +24802,29 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                             {!f.pollEnabled && f.type === '7' && (
                                 <View style={{ backgroundColor:'#1e293b', borderRadius:8, padding:7, marginBottom:10, borderWidth:1, borderColor: cfg.color + '40' }}>
                                     <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', marginBottom:8 }}>📋 {t.tournPreset_americano}</Text>
-                                    {[
-                                        t.sc_0675,
-                                        t.sc_0676,
-                                        t.sc_0677,
-                                        t.sc_0678,
-                                        t.sc_0679,
-                                        t.sc_0680,
-                                        t.sc_0681,
-                                        t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5)).map((kural, i) => (
-                                        <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
-                                            <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
-                                            <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
-                                        </View>
-                                    ))}
+                                    {(() => {
+                                        const rules = [
+                                            t.sc_0675,
+                                            t.sc_0676,
+                                            t.sc_0677,
+                                            t.sc_0678,
+                                            t.sc_0679,
+                                            t.sc_0680,
+                                            t.sc_0681,
+                                            t.tournRegionForfeitRule,
+                                        ].filter((_, i) => !f.dayTrip || (i !== 4 && i !== 5));
+                                        return (f.dayTrip ? rules.slice(0, 4) : rules).map((kural, i) => (
+                                            <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
+                                                <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
+                                                <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
+                                            </View>
+                                        ));
+                                    })()}
                                 </View>
                             )}
 
-                            {/* Kuralların altında: müsaitliğe göre eşleştir (Defi hariç) — tik kutusu = ayar */}
-                            {!f.pollEnabled && f.type !== '9' && (
+                            {/* Kuralların altında: müsaitliğe göre eşleştir (Defi / günübirlik hariç) */}
+                            {!f.pollEnabled && f.type !== '9' && !f.dayTrip && (
                                 <TouchableOpacity
                                     onPress={() => set('availabilityMatchEnabled', !f.availabilityMatchEnabled)}
                                     activeOpacity={0.85}
@@ -24842,28 +24870,187 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     </View>
                                 </TouchableOpacity>
                             )}
+
+                            {/* Katılım ücreti + kort ücretini kim öder — müsaitlik seçeneğinin hemen altında */}
+                            <Text style={s.fieldLabelRed}>{t.tournFeeLabel}</Text>
+                            <View style={[s.chipRow, { marginBottom:6 }]}>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
+                                    onPress={() => { set('isPaid', false); if (f.feeType === 'INCLUDED') set('feeType', 'SHARED'); }}>
+                                    <Text style={[s.chipText, !f.isPaid && { color: '#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
+                                    onPress={() => { set('isPaid', true); if (f.feeType === 'SPONSORED') set('feeType', 'SHARED'); }}>
+                                    <Text style={[s.chipText, f.isPaid && { color: '#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
+                                </TouchableOpacity>
+                            </View>
+                            <View style={{ backgroundColor: f.isPaid ? '#d9770615' : '#16a34a15', borderRadius:8, padding:5, marginBottom:8, borderWidth:1, borderColor: f.isPaid ? '#d9770640' : '#16a34a40' }}>
+                                <Text style={{ color: f.isPaid ? '#fbbf24' : '#4ade80', fontSize:11, lineHeight:17 }}>
+                                    {f.isPaid ? t.tournPaidNote : t.tournFreeNote}
+                                </Text>
+                            </View>
+
+                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan ücretlerini kim öder?' : lang === 'ru' ? 'Кто оплачивает аренду места?' : lang === 'de' ? 'Wer zahlt die Platzgebühren?' : 'Who pays the venue fees?') : t.tournCourtFeeWho}</Text>
+                            <View style={[s.chipRow, { marginBottom:10 }]}>
+                                {(f.isPaid
+                                    ? [{ id:'INCLUDED', label: t.tournFeeIncluded }, { id:'SHARED', label: t.tournFeeShared }]
+                                    : [{ id:'SHARED', label: t.tournFeeShared }, { id:'SPONSORED', label: t.tournFeeSponsored }]
+                                ).map(ft => (
+                                    <TouchableOpacity key={ft.id}
+                                        style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:7 }, f.feeType === ft.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        onPress={() => set('feeType', ft.id)}>
+                                        <Text style={[s.chipText, { textAlign:'center' }, f.feeType === ft.id && { color: cfg.color, fontWeight:'800' }]}>{ft.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {f.isPaid && (<>
+                                <Text style={s.fieldLabelRed}>{t.sc_0684}</Text>
+                                <TextInput
+                                    style={[s.fieldInput, ti, { marginBottom:10 }]}
+                                    value={f.playerFee}
+                                    onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
+                                    keyboardType="numeric" maxLength={8}
+                                    placeholder={t.sc_0685}
+                                    placeholderTextColor={colors.textMuted} />
+
+                                <Text style={[s.fieldLabelRed, { marginTop:4 }]}>{t.sc_0283}</Text>
+                                <View style={{ opacity:0.4, marginBottom:6 }}>
+                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:7, borderWidth:1, borderColor: colors.border }}>
+                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
+                                            <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border }} />
+                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0686}</Text>
+                                        </View>
+                                        <View style={{ backgroundColor:'#334155', borderRadius:6, paddingHorizontal:3, paddingVertical:0 }}>
+                                            <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>{t.sc_0687}</Text>
+                                        </View>
+                                    </View>
+                                </View>
+                                <TouchableOpacity
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='EFT' ? '#2563eb15' : colors.surface2, borderRadius:10, padding:7, marginBottom:6, borderWidth:1, borderColor: f.paymentMethod==='EFT' ? '#2563eb' : colors.border }}
+                                    onPress={() => set('paymentMethod', 'EFT')}>
+                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='EFT' ? '#60a5fa' : colors.border, backgroundColor: f.paymentMethod==='EFT' ? '#60a5fa' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                        {f.paymentMethod==='EFT' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#1e40af' }} />}
+                                    </View>
+                                    <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0688}</Text>
+                                </TouchableOpacity>
+                                {!f.courtDecidedByPlayers && (
+                                <TouchableOpacity
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
+                                    onPress={() => set('paymentMethod', 'CASH')}>
+                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='CASH' ? '#4ade80' : colors.border, backgroundColor: f.paymentMethod==='CASH' ? '#4ade80' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                        {f.paymentMethod==='CASH' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#14532d' }} />}
+                                    </View>
+                                    <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0689}</Text>
+                                </TouchableOpacity>
+                                )}
+                                {f.paymentMethod === 'EFT' && (<>
+                                    <Text style={s.fieldLabelRed}>{t.sc_0690}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti]}
+                                        value={f.ibanNumber}
+                                        onChangeText={v => set('ibanNumber', v.toUpperCase().replace(/\s/g,''))}
+                                        placeholder="TR00 0000 0000 0000 0000 0000 00"
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="characters" maxLength={32} />
+                                    <Text style={s.fieldLabelRed}>{t.sc_0691}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti]}
+                                        value={f.ibanHolder}
+                                        onChangeText={v => set('ibanHolder', v)}
+                                        placeholder={t.sc_0692}
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="words" />
+                                </>)}
+                            </>)}
                             </>
                             )}
 
-                            {/* Court — airsoft'ta "kort" yerine "mekan" kavramı kullanılır.
-                                Kullanıcılar oylasın / günübirlik formatın yanında değil, bu başlıkla aynı satırda. */}
-                            <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:8, gap:6, flexWrap:'wrap' }}>
-                                <Text style={[s.fieldLabelRed, { marginBottom:0 }]}>{isAirsoft ? (lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : lang === 'de' ? 'Ort' : 'Venue') : t.tournCourtLabel}</Text>
-                                {!isAirsoft && (
-                                    <View style={{ flexDirection:'row', gap:4, flexWrap:'wrap' }}>
-                                        <TouchableOpacity
-                                            onPress={() => set('pollEnabled', !f.pollEnabled)}
-                                            style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.pollEnabled && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                            <Text style={[s.chipText, f.pollEnabled && { color: cfg.color, fontWeight:'800' }]}>{f.pollEnabled ? '✅ ' : ''}{t.tournTypePollToggle}</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            onPress={() => set('dayTrip', !f.dayTrip)}
-                                            style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
-                                            <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                )}
+                            {/* Airsoft: format/müsaitlik yok — katılım ücreti korttan önce */}
+                            {isAirsoft && (<>
+                            <Text style={s.fieldLabelRed}>{t.tournFeeLabel}</Text>
+                            <View style={[s.chipRow, { marginBottom:6 }]}>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
+                                    onPress={() => { set('isPaid', false); if (f.feeType === 'INCLUDED') set('feeType', 'SHARED'); }}>
+                                    <Text style={[s.chipText, !f.isPaid && { color: '#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
+                                    onPress={() => { set('isPaid', true); if (f.feeType === 'SPONSORED') set('feeType', 'SHARED'); }}>
+                                    <Text style={[s.chipText, f.isPaid && { color: '#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
+                                </TouchableOpacity>
                             </View>
+                            <View style={{ backgroundColor: f.isPaid ? '#d9770615' : '#16a34a15', borderRadius:8, padding:5, marginBottom:8, borderWidth:1, borderColor: f.isPaid ? '#d9770640' : '#16a34a40' }}>
+                                <Text style={{ color: f.isPaid ? '#fbbf24' : '#4ade80', fontSize:11, lineHeight:17 }}>
+                                    {f.isPaid ? t.tournPaidNote : t.tournFreeNote}
+                                </Text>
+                            </View>
+                            <Text style={s.fieldLabelRed}>{lang==='tr' ? 'Mekan ücretlerini kim öder?' : lang === 'ru' ? 'Кто оплачивает аренду места?' : lang === 'de' ? 'Wer zahlt die Platzgebühren?' : 'Who pays the venue fees?'}</Text>
+                            <View style={[s.chipRow, { marginBottom:10 }]}>
+                                {(f.isPaid
+                                    ? [{ id:'INCLUDED', label: t.tournFeeIncluded }, { id:'SHARED', label: t.tournFeeShared }]
+                                    : [{ id:'SHARED', label: t.tournFeeShared }, { id:'SPONSORED', label: t.tournFeeSponsored }]
+                                ).map(ft => (
+                                    <TouchableOpacity key={ft.id}
+                                        style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:7 }, f.feeType === ft.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
+                                        onPress={() => set('feeType', ft.id)}>
+                                        <Text style={[s.chipText, { textAlign:'center' }, f.feeType === ft.id && { color: cfg.color, fontWeight:'800' }]}>{ft.label}</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                            {f.isPaid && (<>
+                                <Text style={s.fieldLabelRed}>{t.sc_0684}</Text>
+                                <TextInput
+                                    style={[s.fieldInput, ti, { marginBottom:10 }]}
+                                    value={f.playerFee}
+                                    onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
+                                    keyboardType="numeric" maxLength={8}
+                                    placeholder={t.sc_0685}
+                                    placeholderTextColor={colors.textMuted} />
+                                <Text style={[s.fieldLabelRed, { marginTop:4 }]}>{t.sc_0283}</Text>
+                                <TouchableOpacity
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='EFT' ? '#2563eb15' : colors.surface2, borderRadius:10, padding:7, marginBottom:6, borderWidth:1, borderColor: f.paymentMethod==='EFT' ? '#2563eb' : colors.border }}
+                                    onPress={() => set('paymentMethod', 'EFT')}>
+                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='EFT' ? '#60a5fa' : colors.border, backgroundColor: f.paymentMethod==='EFT' ? '#60a5fa' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                        {f.paymentMethod==='EFT' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#1e40af' }} />}
+                                    </View>
+                                    <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0688}</Text>
+                                </TouchableOpacity>
+                                {!f.courtDecidedByPlayers && (
+                                <TouchableOpacity
+                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
+                                    onPress={() => set('paymentMethod', 'CASH')}>
+                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='CASH' ? '#4ade80' : colors.border, backgroundColor: f.paymentMethod==='CASH' ? '#4ade80' : 'transparent', alignItems:'center', justifyContent:'center' }}>
+                                        {f.paymentMethod==='CASH' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#14532d' }} />}
+                                    </View>
+                                    <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0689}</Text>
+                                </TouchableOpacity>
+                                )}
+                                {f.paymentMethod === 'EFT' && (<>
+                                    <Text style={s.fieldLabelRed}>{t.sc_0690}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti]}
+                                        value={f.ibanNumber}
+                                        onChangeText={v => set('ibanNumber', v.toUpperCase().replace(/\s/g,''))}
+                                        placeholder="TR00 0000 0000 0000 0000 0000 00"
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="characters" maxLength={32} />
+                                    <Text style={s.fieldLabelRed}>{t.sc_0691}</Text>
+                                    <TextInput
+                                        style={[s.fieldInput, ti]}
+                                        value={f.ibanHolder}
+                                        onChangeText={v => set('ibanHolder', v)}
+                                        placeholder={t.sc_0692}
+                                        placeholderTextColor={colors.textMuted}
+                                        autoCapitalize="words" />
+                                </>)}
+                            </>)}
+                            </>)}
+
+                            {/* Court — airsoft'ta "kort" yerine "mekan". Belirli kort | oyuncular ortak kararlaştırır. */}
+                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan' : lang === 'ru' ? 'Место' : lang === 'de' ? 'Ort' : 'Venue') : t.tournCourtLabel}</Text>
                             <View style={[s.chipRow, { marginBottom:8 }]}>
                                 <TouchableOpacity
                                     style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.courtDecidedByPlayers && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
@@ -24897,19 +25084,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     <Text style={[s.chipText, f.courtDecidedByPlayers && { color: cfg.color, fontWeight:'800' }]}>
                                         {isAirsoft
                                             ? (lang==='tr' ? '🤝 Takımlar ortaklaşa mekan seçecek' : lang === 'ru' ? '🤝 Команды совместно согласуют место' : lang === 'de' ? '🤝 Teams einigen sich gemeinsam' : '🤝 Teams agree jointly')
-                                            : (t.tournCourtNoSpecific || t.sc_0682)}
+                                            : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
                                     </Text>
                                 </TouchableOpacity>
                             </View>
-                            {f.courtDecidedByPlayers && (
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:10, paddingVertical:8, marginBottom:8, borderWidth:1, borderColor:'#334155' }}>
-                                    <Text style={{ color: colors.textMuted, fontSize:11, fontWeight:'700', lineHeight:16 }}>
-                                        {isAirsoft
-                                            ? (lang==='tr' ? 'Takımlar ortaklaşa mekan seçecek' : lang === 'ru' ? 'Команды совместно согласуют место' : lang === 'de' ? 'Teams einigen sich gemeinsam' : 'Teams agree jointly')
-                                            : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
-                                    </Text>
-                                </View>
-                            )}
                             {/* Belirli kort yokken tenis (ve benzeri) için zemin detayı — sert/toprak/çim/diğer veya oyuncular karar verir */}
                             {f.courtDecidedByPlayers && (sub === 'tennis' || sub === 'padel' || sub === 'badminton' || sub === 'table_tennis' || sub === 'pickleball' || sub === 'squash') && (
                                 <>
@@ -25311,108 +25489,6 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 onClose={() => setShowTeamGenderModal(false)}
                                 t={t}
                             />
-
-                            {/* Entry fee */}
-                            <Text style={s.fieldLabelRed}>{t.tournFeeLabel}</Text>
-                            <View style={[s.chipRow, { marginBottom:6 }]}>
-                                <TouchableOpacity
-                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, !f.isPaid && { backgroundColor: '#16a34a30', borderColor: '#16a34a' }]}
-                                    onPress={() => { set('isPaid', false); if (f.feeType === 'INCLUDED') set('feeType', 'SHARED'); }}>
-                                    <Text style={[s.chipText, !f.isPaid && { color: '#4ade80', fontWeight:'800' }]}>{t.tournFreeOption}</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={[s.chip, { paddingVertical:2, paddingHorizontal:7 }, f.isPaid && { backgroundColor: '#d9770630', borderColor: '#d97706' }]}
-                                    onPress={() => { set('isPaid', true); if (f.feeType === 'SPONSORED') set('feeType', 'SHARED'); }}>
-                                    <Text style={[s.chipText, f.isPaid && { color: '#fbbf24', fontWeight:'800' }]}>{t.tournPaidOption}</Text>
-                                </TouchableOpacity>
-                            </View>
-                            <View style={{ backgroundColor: f.isPaid ? '#d9770615' : '#16a34a15', borderRadius:8, padding:5, marginBottom:8, borderWidth:1, borderColor: f.isPaid ? '#d9770640' : '#16a34a40' }}>
-                                <Text style={{ color: f.isPaid ? '#fbbf24' : '#4ade80', fontSize:11, lineHeight:17 }}>
-                                    {f.isPaid ? t.tournPaidNote : t.tournFreeNote}
-                                </Text>
-                            </View>
-
-                            {/* Kort ücreti kim öder — ücretsizde ve ücretlide farklı seçenekler. Airsoft'ta
-                                "kort" yerine "mekan" denir, seçenekler (ortaklaşa/sponsor) aynı kalır. */}
-                            <Text style={s.fieldLabelRed}>{isAirsoft ? (lang==='tr' ? 'Mekan ücretlerini kim öder?' : lang === 'ru' ? 'Кто оплачивает аренду места?' : lang === 'de' ? 'Wer zahlt die Platzgebühren?' : 'Who pays the venue fees?') : t.tournCourtFeeWho}</Text>
-                            <View style={[s.chipRow, { marginBottom:10 }]}>
-                                {(f.isPaid
-                                    ? [{ id:'INCLUDED', label: t.tournFeeIncluded }, { id:'SHARED', label: t.tournFeeShared }]
-                                    : [{ id:'SHARED', label: t.tournFeeShared }, { id:'SPONSORED', label: t.tournFeeSponsored }]
-                                ).map(ft => (
-                                    <TouchableOpacity key={ft.id}
-                                        style={[s.chip, { flex:1, paddingVertical:2, paddingHorizontal:7 }, f.feeType === ft.id && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}
-                                        onPress={() => set('feeType', ft.id)}>
-                                        <Text style={[s.chipText, { textAlign:'center' }, f.feeType === ft.id && { color: cfg.color, fontWeight:'800' }]}>{ft.label}</Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            {/* Payment options — only when paid */}
-                            {f.isPaid && (<>
-                                <Text style={s.fieldLabelRed}>{t.sc_0684}</Text>
-                                <TextInput
-                                    style={[s.fieldInput, ti, { marginBottom:10 }]}
-                                    value={f.playerFee}
-                                    onChangeText={v => set('playerFee', v.replace(/[^0-9.]/g,''))}
-                                    keyboardType="numeric" maxLength={8}
-                                    placeholder={t.sc_0685}
-                                    placeholderTextColor={colors.textMuted} />
-
-                                <Text style={[s.fieldLabelRed, { marginTop:4 }]}>{t.sc_0283}</Text>
-                                {/* Online payment — disabled */}
-                                <View style={{ opacity:0.4, marginBottom:6 }}>
-                                    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', backgroundColor: colors.surface2, borderRadius:10, padding:7, borderWidth:1, borderColor: colors.border }}>
-                                        <View style={{ flexDirection:'row', alignItems:'center', gap:3 }}>
-                                            <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: colors.border }} />
-                                            <Text style={{ color:'#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0686}</Text>
-                                        </View>
-                                        <View style={{ backgroundColor:'#334155', borderRadius:6, paddingHorizontal:3, paddingVertical:0 }}>
-                                            <Text style={{ color:'#94a3b8', fontSize:10, fontWeight:'700' }}>{t.sc_0687}</Text>
-                                        </View>
-                                    </View>
-                                </View>
-                                {/* EFT */}
-                                <TouchableOpacity
-                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='EFT' ? '#2563eb15' : colors.surface2, borderRadius:10, padding:7, marginBottom:6, borderWidth:1, borderColor: f.paymentMethod==='EFT' ? '#2563eb' : colors.border }}
-                                    onPress={() => set('paymentMethod', 'EFT')}>
-                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='EFT' ? '#60a5fa' : colors.border, backgroundColor: f.paymentMethod==='EFT' ? '#60a5fa' : 'transparent', alignItems:'center', justifyContent:'center' }}>
-                                        {f.paymentMethod==='EFT' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#1e40af' }} />}
-                                    </View>
-                                    <Text style={{ color: f.paymentMethod==='EFT' ? '#60a5fa' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0688}</Text>
-                                </TouchableOpacity>
-                                {/* Cash — only when a specific court is chosen */}
-                                {!f.courtDecidedByPlayers && (
-                                <TouchableOpacity
-                                    style={{ flexDirection:'row', alignItems:'center', gap:3, backgroundColor: f.paymentMethod==='CASH' ? '#16a34a15' : colors.surface2, borderRadius:10, padding:7, marginBottom:8, borderWidth:1, borderColor: f.paymentMethod==='CASH' ? '#16a34a' : colors.border }}
-                                    onPress={() => set('paymentMethod', 'CASH')}>
-                                    <View style={{ width:18, height:18, borderRadius:9, borderWidth:2, borderColor: f.paymentMethod==='CASH' ? '#4ade80' : colors.border, backgroundColor: f.paymentMethod==='CASH' ? '#4ade80' : 'transparent', alignItems:'center', justifyContent:'center' }}>
-                                        {f.paymentMethod==='CASH' && <View style={{ width:8, height:8, borderRadius:4, backgroundColor:'#14532d' }} />}
-                                    </View>
-                                    <Text style={{ color: f.paymentMethod==='CASH' ? '#4ade80' : '#fff', fontSize:12, fontWeight:'700' }}>{t.sc_0689}</Text>
-                                </TouchableOpacity>
-                                )}
-
-                                {/* EFT fields */}
-                                {f.paymentMethod === 'EFT' && (<>
-                                    <Text style={s.fieldLabelRed}>{t.sc_0690}</Text>
-                                    <TextInput
-                                        style={[s.fieldInput, ti]}
-                                        value={f.ibanNumber}
-                                        onChangeText={v => set('ibanNumber', v.toUpperCase().replace(/\s/g,''))}
-                                        placeholder="TR00 0000 0000 0000 0000 0000 00"
-                                        placeholderTextColor={colors.textMuted}
-                                        autoCapitalize="characters" maxLength={32} />
-                                    <Text style={s.fieldLabelRed}>{t.sc_0691}</Text>
-                                    <TextInput
-                                        style={[s.fieldInput, ti]}
-                                        value={f.ibanHolder}
-                                        onChangeText={v => set('ibanHolder', v)}
-                                        placeholder={t.sc_0692}
-                                        placeholderTextColor={colors.textMuted}
-                                        autoCapitalize="words" />
-                                </>)}
-                            </>)}
 
                             {/* Prizes — required for paid, optional for free — 1./2. yan yana, 3./Sürpriz yan yana.
                                 Üst satırla çakışmayı önlemek için satırlar arasında net boşluk (marginTop). */}
@@ -26887,7 +26963,7 @@ function SubCategoryScreen({ route, navigation }) {
     const [showEquipmentForm, setShowEquipmentForm] = useState(false);
     const [equipmentForm, setEquipmentForm] = useState({
         title: '', price: '', condition: 'NEW', description: '', location: '', images: [],
-        isAd: false, adUrl: '',
+        isAd: false, adUrl: '', adDays: '1',
         storeName: '', storePhone: '', storeWebsite: '', storeFeedUrl: '',
     });
     const [submittingEquipment, setSubmittingEquipment] = useState(false);
@@ -28953,7 +29029,7 @@ function SubCategoryScreen({ route, navigation }) {
     }, [openEquipmentId]);
 
     const pickEquipmentMedia = async () => {
-        if (equipmentMedia.length >= 5) return Alert.alert('', t.sc_0862);
+        if (equipmentMedia.length >= EQUIP_MEDIA_MAX) return Alert.alert('', t.sc_0862);
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) { Alert.alert('', t.sc_0010); return; }
         const result = await ImagePicker.launchImageLibraryAsync({
@@ -28961,11 +29037,11 @@ function SubCategoryScreen({ route, navigation }) {
             allowsMultipleSelection: true,
             quality: 0.85,
             videoMaxDuration: 60,
-            selectionLimit: 5 - equipmentMedia.length,
+            selectionLimit: EQUIP_MEDIA_MAX - equipmentMedia.length,
         });
         if (!result.canceled) {
             const picked = result.assets.map(a => ({ uri: a.uri, type: a.type === 'video' ? 'video' : 'image' }));
-            setEquipmentMedia(prev => [...prev, ...picked].slice(0, 5));
+            setEquipmentMedia(prev => [...prev, ...picked].slice(0, EQUIP_MEDIA_MAX));
         }
     };
 
@@ -28988,15 +29064,30 @@ function SubCategoryScreen({ route, navigation }) {
     const resetEquipmentForm = () => {
         setEquipmentForm({
             title: '', price: '', condition: 'NEW', description: '', location: '', images: [],
-            isAd: false, adUrl: '',
+            isAd: false, adUrl: '', adDays: '1',
             storeName: '', storePhone: '', storeWebsite: '', storeFeedUrl: '',
         });
         setEquipmentMedia([]);
         setEquipmentAdMedia([]);
     };
 
+    const confirmEquipAdEft = () => new Promise((resolve) => {
+        const days = Math.max(1, Math.min(365, parseInt(equipmentForm.adDays, 10) || 1));
+        const total = days * EQUIP_AD_DAILY_TRY;
+        Alert.alert(
+            t.equipAdEftTitle || 'Reklam — EFT / Havale',
+            (t.equipAdEftBody
+                ? t.equipAdEftBody(days, total)
+                : `${days} gün × ${EQUIP_AD_DAILY_TRY} TL = ${total} TL\n\nIBAN: (şirket hesabı yakında eklenecek)\nAlıcı: AcTiViTy\nAçıklama: EKIPMAN-REKLAM\n\nÖdemeyi yaptıktan sonra onaylayın.`),
+            [
+                { text: t.sc_0065 || 'İptal', style: 'cancel', onPress: () => resolve(false) },
+                { text: t.equipAdEftConfirm || 'Ödeme yaptım', onPress: () => resolve(true) },
+            ],
+        );
+    });
+
     const submitEquipment = async () => {
-        // Mağaza açılışı — sadece isim / telefon / web (+ opsiyonel feed)
+        // Mağaza açılışı — isim / telefon / web (+ opsiyonel feed / ücretli reklam)
         if (equipmentForm.condition === 'STORE') {
             const name = (equipmentForm.storeName || '').trim();
             const website = (equipmentForm.storeWebsite || '').trim();
@@ -29005,6 +29096,29 @@ function SubCategoryScreen({ route, navigation }) {
             if (!name) return Alert.alert('', t.equipStoreNameRequired || 'Mağaza adı gerekli');
             if (!/^https?:\/\//i.test(website)) {
                 return Alert.alert('', t.equipStoreWebsiteRequired || 'Geçerli bir https:// web sayfası gerekli');
+            }
+            const wantAd = !!equipmentForm.isAd;
+            let uploadedAdUrls = [];
+            if (wantAd) {
+                const adUrl = (equipmentForm.adUrl || '').trim() || website;
+                if (!/^https?:\/\//i.test(adUrl)) return Alert.alert('', t.equipAdUrlRequired || 'Reklam için geçerli bir https:// site linki gerekli');
+                if (equipmentAdMedia.length === 0) return Alert.alert('', t.equipAdMediaRequired || 'Reklam için en az 1 görsel ekleyin');
+                const paid = await confirmEquipAdEft();
+                if (!paid) return;
+                setUploadingEquipmentMedia(true);
+                try {
+                    for (const media of equipmentAdMedia) {
+                        const fd = new FormData();
+                        fd.append('file', { uri: media.uri, type: 'image/jpeg', name: `ad_${Date.now()}.jpg` });
+                        const { data: up } = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+                        if (up?.url) uploadedAdUrls.push(up.url);
+                    }
+                } catch {
+                    setUploadingEquipmentMedia(false);
+                    return Alert.alert('', t.actionFailed);
+                }
+                setUploadingEquipmentMedia(false);
+                if (uploadedAdUrls.length === 0) return Alert.alert('', t.equipAdMediaRequired || 'Reklam için en az 1 görsel ekleyin');
             }
             setSubmittingEquipment(true);
             try {
@@ -29017,6 +29131,10 @@ function SubCategoryScreen({ route, navigation }) {
                     feedUrl: feedUrl && /^https?:\/\//i.test(feedUrl) ? feedUrl : undefined,
                     city: (equipmentForm.location || '').trim() || undefined,
                     syncNow: true,
+                    isAd: wantAd,
+                    adUrl: wantAd ? ((equipmentForm.adUrl || '').trim() || website) : undefined,
+                    adImages: wantAd ? uploadedAdUrls : undefined,
+                    adDays: wantAd ? (parseInt(equipmentForm.adDays, 10) || 1) : undefined,
                 });
                 setShowEquipmentForm(false);
                 resetEquipmentForm();
@@ -29045,6 +29163,8 @@ function SubCategoryScreen({ route, navigation }) {
         if (wantAd) {
             if (!/^https?:\/\//i.test(adUrl)) return Alert.alert('', t.equipAdUrlRequired || 'Reklam için geçerli bir https:// site linki gerekli');
             if (equipmentAdMedia.length === 0) return Alert.alert('', t.equipAdMediaRequired || 'Reklam için en az 1 dönen görsel ekleyin');
+            const paid = await confirmEquipAdEft();
+            if (!paid) return;
         }
         setSubmittingEquipment(true);
         try {
@@ -29079,6 +29199,7 @@ function SubCategoryScreen({ route, navigation }) {
                 isAd: wantAd,
                 adUrl: wantAd ? adUrl : undefined,
                 adImages: wantAd ? uploadedAdUrls : [],
+                adDays: wantAd ? (parseInt(equipmentForm.adDays, 10) || 1) : undefined,
             });
             setShowEquipmentForm(false);
             resetEquipmentForm();
@@ -29898,7 +30019,12 @@ function SubCategoryScreen({ route, navigation }) {
 
         const runDelete = async (voidMatches) => {
             try {
-                await api.delete(`/tournaments/${id}`, { data: { voidMatches: !!voidMatches } });
+                // data + params: bazı proxy'ler DELETE body'sini düşürür; seçim kaybolmasın.
+                const vm = !!voidMatches;
+                await api.delete(`/tournaments/${id}`, {
+                    data: { voidMatches: vm },
+                    params: { voidMatches: vm },
+                });
                 loadTournaments();
             } catch (e) {
                 Alert.alert('', e?.response?.data?.message || t.actionFailed);
@@ -30535,6 +30661,14 @@ function SubCategoryScreen({ route, navigation }) {
         <>
         <View style={[s.container, { paddingTop: Platform.OS==='ios' ? 56 : 40 }]}>
             {chromeReady && <>
+            {/* Dal içinde aktif mağaza/bireysel reklam — ~30 sn'de bir tam ekran */}
+            <EquipmentAdInterstitial
+                enabled={!showEquipmentForm && !showEquipmentStores && !selectedEquipment}
+                category={category}
+                subCategory={sub}
+                myUserId={myId}
+                t={t}
+            />
             <CityPickerModal
                 visible={showCityFilter}
                 onClose={() => setShowCityFilter(false)}
@@ -31779,6 +31913,84 @@ function SubCategoryScreen({ route, navigation }) {
                                                         style={{ marginBottom: 12 }}
                                                         openUp
                                                     />
+                                                    {/* Mağaza reklamı — ücretli tam ekran (günlük 5 TL, EFT) */}
+                                                    <TouchableOpacity
+                                                        onPress={() => setEquipmentForm(f => ({ ...f, isAd: !f.isAd }))}
+                                                        style={{
+                                                            flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                                                            paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, marginBottom: 10,
+                                                            backgroundColor: equipmentForm.isAd ? '#a855f725' : colors.surface2,
+                                                            borderWidth: 1, borderColor: equipmentForm.isAd ? '#a855f7' : colors.border,
+                                                        }}
+                                                    >
+                                                        <View style={{ flex: 1, paddingRight: 10 }}>
+                                                            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.equipAdToggle || 'Reklam ver'}</Text>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
+                                                                {t.equipStoreAdHint || `Bu dalda gezen kullanıcılara 30 sn'de bir tam ekran. Günlük ${EQUIP_AD_DAILY_TRY} TL (EFT).`}
+                                                            </Text>
+                                                        </View>
+                                                        <Switch
+                                                            value={!!equipmentForm.isAd}
+                                                            onValueChange={(v) => setEquipmentForm(f => ({ ...f, isAd: v }))}
+                                                            trackColor={{ false: '#334155', true: '#a855f7' }}
+                                                            thumbColor="#fff"
+                                                        />
+                                                    </TouchableOpacity>
+                                                    {equipmentForm.isAd ? (
+                                                        <View style={{ marginBottom: 14, padding: 10, borderRadius: 10, backgroundColor: '#a855f715', borderWidth: 1, borderColor: '#a855f740' }}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                                                <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>{t.equipAdDaysLabel || 'Gün'}</Text>
+                                                                <TextInput
+                                                                    value={String(equipmentForm.adDays || '1')}
+                                                                    onChangeText={v => setEquipmentForm(f => ({ ...f, adDays: v.replace(/[^0-9]/g, '').slice(0, 3) || '1' }))}
+                                                                    keyboardType="number-pad"
+                                                                    style={{ width: 64, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, color: '#fff', borderWidth: 1, borderColor: colors.border, textAlign: 'center', fontWeight: '800' }}
+                                                                />
+                                                                <Text style={{ color: '#c084fc', fontSize: 12, fontWeight: '800', flex: 1 }}>
+                                                                    {(parseInt(equipmentForm.adDays, 10) || 1) * EQUIP_AD_DAILY_TRY} TL
+                                                                    {' · '}{t.equipAdDailyPrice || `${EQUIP_AD_DAILY_TRY} TL/gün`}
+                                                                </Text>
+                                                            </View>
+                                                            <Text style={{ color: colors.textMuted, fontSize: 10, marginBottom: 8, lineHeight: 14 }}>
+                                                                {t.equipAdEftHint || 'Ödeme EFT/Havale ile. Şirket IBAN bilgileri yakında eklenecek.'}
+                                                            </Text>
+                                                            <TextInput
+                                                                placeholder={t.equipAdUrlPlaceholder || 'https://magazaniz.com'}
+                                                                placeholderTextColor={colors.textMuted}
+                                                                value={equipmentForm.adUrl || ''}
+                                                                onChangeText={v => setEquipmentForm(f => ({ ...f, adUrl: v }))}
+                                                                autoCapitalize="none"
+                                                                autoCorrect={false}
+                                                                keyboardType="url"
+                                                                style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', marginBottom: 8, borderWidth: 1, borderColor: colors.border }}
+                                                            />
+                                                            <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
+                                                                {t.equipAdMediaHint || 'Tam ekran reklam görselleri (en fazla 8)'}
+                                                            </Text>
+                                                            {equipmentAdMedia.length > 0 && (
+                                                                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+                                                                    {equipmentAdMedia.map((m, idx) => (
+                                                                        <View key={idx} style={{ marginRight: 8, position: 'relative' }}>
+                                                                            <Image source={{ uri: m.uri }} style={{ width: 90, height: 90, borderRadius: 8 }} resizeMode="cover" />
+                                                                            <TouchableOpacity
+                                                                                onPress={() => setEquipmentAdMedia(prev => prev.filter((_, i) => i !== idx))}
+                                                                                style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#ef4444', borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center' }}>
+                                                                                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '900' }}>✕</Text>
+                                                                            </TouchableOpacity>
+                                                                        </View>
+                                                                    ))}
+                                                                </ScrollView>
+                                                            )}
+                                                            {equipmentAdMedia.length < 8 && (
+                                                                <TouchableOpacity onPress={pickEquipmentAdMedia}
+                                                                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: '#a855f760', borderStyle: 'dashed', backgroundColor: colors.surface2 }}>
+                                                                    <Text style={{ color: '#c084fc', fontSize: 13, fontWeight: '700' }}>
+                                                                        {t.equipAdMediaAdd || 'Reklam görseli ekle'} {equipmentAdMedia.length > 0 ? `(${equipmentAdMedia.length}/8)` : ''}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            )}
+                                                        </View>
+                                                    ) : null}
                                                 </>
                                             ) : (
                                                 <>
@@ -31793,9 +32005,9 @@ function SubCategoryScreen({ route, navigation }) {
                                                 openUp
                                             />
 
-                                            {/* Medya seçici — 1+ resim; 1. kapak, 2. paylaşım arka planı */}
+                                            {/* Medya — en az 1, en fazla 10 */}
                                             <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
-                                                {t.equipMediaOrderHint || 'En az 1 fotoğraf. 1. seçilen kapak, 2. seçilen paylaşım arka planı olur (en fazla 5).'}
+                                                {t.equipMediaOrderHint || 'En az 1 fotoğraf en fazla 10 fotoğraf koyabilirsiniz.'}
                                             </Text>
                                             {equipmentMedia.length > 0 && (
                                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom:10 }}>
@@ -31809,9 +32021,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                                 : <Image source={{ uri:m.uri }} style={{ width:90, height:90, borderRadius:8 }} resizeMode="cover" />
                                                             }
                                                             <View style={{ position:'absolute', left:4, bottom:4, backgroundColor:'#000000aa', borderRadius:6, paddingHorizontal:5, paddingVertical:1 }}>
-                                                                <Text style={{ color:'#C8F54A', fontSize:9, fontWeight:'900' }}>
-                                                                    {idx === 0 ? (t.equipMediaCoverTag || '1·Kapak') : idx === 1 ? (t.equipMediaBgTag || '2·Arka plan') : String(idx + 1)}
-                                                                </Text>
+                                                                <Text style={{ color:'#C8F54A', fontSize:9, fontWeight:'900' }}>{idx + 1}</Text>
                                                             </View>
                                                             <TouchableOpacity
                                                                 onPress={() => setEquipmentMedia(prev => prev.filter((_,i) => i !== idx))}
@@ -31822,17 +32032,17 @@ function SubCategoryScreen({ route, navigation }) {
                                                     ))}
                                                 </ScrollView>
                                             )}
-                                            {equipmentMedia.length < 5 && (
+                                            {equipmentMedia.length < EQUIP_MEDIA_MAX && (
                                                 <TouchableOpacity onPress={pickEquipmentMedia}
                                                     style={{ flexDirection:'row', alignItems:'center', justifyContent:'center', gap:3, paddingVertical:7, borderRadius:8, borderWidth:1, borderColor:colors.border, borderStyle:'dashed', backgroundColor:colors.surface2, marginBottom:14 }}>
                                                     <Text style={{ fontSize:16 }}>📷</Text>
                                                     <Text style={{ color:colors.textSecondary, fontSize:13, fontWeight:'700' }}>
-                                                        {t.sc_0912} {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/5)` : ''}
+                                                        {t.sc_0912} {equipmentMedia.length > 0 ? `(${equipmentMedia.length}/${EQUIP_MEDIA_MAX})` : ''}
                                                     </Text>
                                                 </TouchableOpacity>
                                             )}
 
-                                            {/* Reklam ver — site linki + kartta dönen görseller */}
+                                            {/* Bireysel satış reklamı — ücretli (günlük 5 TL, EFT) */}
                                             <TouchableOpacity
                                                 onPress={() => setEquipmentForm(f => ({ ...f, isAd: !f.isAd }))}
                                                 style={{
@@ -31845,7 +32055,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                 <View style={{ flex: 1, paddingRight: 10 }}>
                                                     <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>{t.equipAdToggle || 'Reklam ver'}</Text>
                                                     <Text style={{ color: colors.textMuted, fontSize: 11, marginTop: 2, lineHeight: 15 }}>
-                                                        {t.equipAdToggleHint || 'Satış sayfanızın linki + kartta sırayla dönen görseller'}
+                                                        {t.equipAdToggleHint || `Dal içinde 30 sn'de bir tam ekran. Günlük ${EQUIP_AD_DAILY_TRY} TL (EFT).`}
                                                     </Text>
                                                 </View>
                                                 <Switch
@@ -31857,6 +32067,22 @@ function SubCategoryScreen({ route, navigation }) {
                                             </TouchableOpacity>
                                             {equipmentForm.isAd ? (
                                                 <View style={{ marginBottom: 14, padding: 10, borderRadius: 10, backgroundColor: '#a855f715', borderWidth: 1, borderColor: '#a855f740' }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                                        <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>{t.equipAdDaysLabel || 'Gün'}</Text>
+                                                        <TextInput
+                                                            value={String(equipmentForm.adDays || '1')}
+                                                            onChangeText={v => setEquipmentForm(f => ({ ...f, adDays: v.replace(/[^0-9]/g, '').slice(0, 3) || '1' }))}
+                                                            keyboardType="number-pad"
+                                                            style={{ width: 64, backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, color: '#fff', borderWidth: 1, borderColor: colors.border, textAlign: 'center', fontWeight: '800' }}
+                                                        />
+                                                        <Text style={{ color: '#c084fc', fontSize: 12, fontWeight: '800', flex: 1 }}>
+                                                            {(parseInt(equipmentForm.adDays, 10) || 1) * EQUIP_AD_DAILY_TRY} TL
+                                                            {' · '}{t.equipAdDailyPrice || `${EQUIP_AD_DAILY_TRY} TL/gün`}
+                                                        </Text>
+                                                    </View>
+                                                    <Text style={{ color: colors.textMuted, fontSize: 10, marginBottom: 8, lineHeight: 14 }}>
+                                                        {t.equipAdEftHint || 'Ödeme EFT/Havale ile. Şirket IBAN bilgileri yakında eklenecek.'}
+                                                    </Text>
                                                     <TextInput
                                                         placeholder={t.equipAdUrlPlaceholder || 'https://magazaniz.com/urun'}
                                                         placeholderTextColor={colors.textMuted}
@@ -31868,7 +32094,7 @@ function SubCategoryScreen({ route, navigation }) {
                                                         style={{ backgroundColor: colors.surface2, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7, color: '#fff', marginBottom: 8, borderWidth: 1, borderColor: colors.border }}
                                                     />
                                                     <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 6, lineHeight: 15 }}>
-                                                        {t.equipAdMediaHint || 'Kartta arka arkaya dönen reklam görselleri (en fazla 8)'}
+                                                        {t.equipAdMediaHint || 'Tam ekran reklam görselleri (en fazla 8)'}
                                                     </Text>
                                                     {equipmentAdMedia.length > 0 && (
                                                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
