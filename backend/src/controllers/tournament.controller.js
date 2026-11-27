@@ -2405,9 +2405,16 @@ export const deleteTournament = async (req, res, next) => {
         const voidRaw = req.body?.voidMatches ?? req.query?.voidMatches;
         const voidMatches = voidRaw === true || voidRaw === 'true' || voidRaw === 1 || voidRaw === '1';
 
+        // Bildirim: ACCEPTED + PENDING + diğer tüm katılımcılar (kurucu hariç).
+        // Önceden sadece socket vardı; push/bildirim listesi hiç gitmiyordu.
         const tournament = await prisma.tournament.findUnique({
             where: { id },
-            include: { participants: { where: { status: 'ACCEPTED' }, select: { userId: true } } },
+            include: {
+                participants: {
+                    where: { userId: { not: null } },
+                    select: { userId: true },
+                },
+            },
         });
         if (!tournament) return res.status(404).json({ message: 'Tournament not found' });
         if (tournament.creatorId !== req.userId && !req.isAdmin) return res.status(403).json({ message: 'Not authorized' });
@@ -2423,18 +2430,51 @@ export const deleteTournament = async (req, res, next) => {
             }
         }
 
+        const name = tournament.name || 'Turnuva';
+        const cat = tournament.category;
+        const sub = tournament.subCategory;
+        const notifyUsers = [...new Set(
+            (tournament.participants || [])
+                .map((p) => p.userId)
+                .filter((uid) => uid && uid !== req.userId),
+        )];
+
         await prisma.tournament.delete({ where: { id } });
-        for (const p of tournament.participants) {
-            if (p.userId && p.userId !== req.userId) {
-                emitToUser(p.userId, 'tournament:deleted', { tournamentId: id, voidMatches });
-            }
+
+        const payload = { tournamentId: id, voidMatches, category: cat, subCategory: sub };
+        broadcast('tournament:deleted', payload);
+
+        const title = voidMatches
+            ? '🗑️ Turnuva silindi — maçlar yok sayıldı'
+            : '🗑️ Turnuva silindi';
+        const body = voidMatches
+            ? `"${name}" organizatör tarafından silindi. Bu turnuvadaki maçlar hiç oynanmamış sayıldı; kazanılan/kaybedilen ELO iade edildi.`
+            : `"${name}" organizatör tarafından silindi. Oynanan maçlar ve ELO geçerli kaldı; turnuva artık geçerli değil.`;
+
+        for (const uid of notifyUsers) {
+            emitToUser(uid, 'tournament:deleted', payload);
+            createNotification(
+                uid,
+                'TOURNAMENT_DELETED',
+                title,
+                body,
+                {
+                    tournamentId: id,
+                    category: cat,
+                    subCategory: sub,
+                    voidMatches,
+                    tournamentName: name,
+                },
+            ).catch(() => {});
         }
+
         res.json({
             message: voidMatches
                 ? 'Turnuva silindi; oynanan maçlar yok sayıldı ve ELO geri alındı.'
                 : 'Turnuva silindi; oynanan maçlar ve ELO geçerli kaldı.',
             voidMatches,
             reversed,
+            notified: notifyUsers.length,
         });
     } catch (e) { next(e); }
 };

@@ -107,6 +107,9 @@ const TYPE_ICON = {
     TOURNAMENT_CANCEL_APPROVED: '✅',
     TOURNAMENT_CANCEL_REJECTED: '❌',
     TOURNAMENT_REMOVED: '🚫',
+    TOURNAMENT_DELETED: '🗑️',
+    TOURNAMENT_UNDERFILL_DELETED: '🗑️',
+    TOURNAMENT_UNDERFILL_WARNING: '⚠️',
     RESERVATION: '📅',
     RESERVATION_UPDATE: '🔄',
     VENUE_ORDER: '🛒',
@@ -551,7 +554,7 @@ export default function NotificationsScreen({ navigation }) {
                 initialTournSubTab: 'open',
                 highlightTournamentId: data.tournamentId || null,
             });
-        } else if (type === 'TOURNAMENT_UNDERFILL_DELETED') {
+        } else if (type === 'TOURNAMENT_UNDERFILL_DELETED' || type === 'TOURNAMENT_DELETED') {
             // Silindi — dal turnuva listesine git (kart yok)
             goToSub('tournaments', 'open');
         } else if (type === 'TOURNAMENT_CHAT_MESSAGE' || type === 'TOURNAMENT_CHAT_MENTION') {
