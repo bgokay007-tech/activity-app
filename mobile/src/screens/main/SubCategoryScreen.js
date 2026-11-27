@@ -20683,10 +20683,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 )}
                 {!collapsed && (
                     <>
-                        <View style={{ backgroundColor: infoColor + '18', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+                        <View style={{ backgroundColor: infoColor + '18', borderRadius:999, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
                             <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{tournFormatLabel(item, t) || typeLabels[item.type] || item.type}</Text>
                         </View>
-                        <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                        <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
                             <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={2}>
                                 {(item.location || item.city) === 'Dünya' ? t.sc_0395
                                     : (Array.isArray(item.cities) && item.cities.length ? item.cities.join(' · ')
@@ -20694,7 +20694,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                             </Text>
                         </View>
                         {item.status !== 'OPEN' ? (
-                            <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
+                            <View style={{ backgroundColor: item.status === 'IN_PROGRESS' ? '#16a34a20' : item.status === 'COMPLETED' ? '#64748b20' : item.status === 'POLL' ? '#a855f720' : infoColor + '20', borderRadius:999, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: item.status === 'IN_PROGRESS' ? '#16a34a50' : item.status === 'COMPLETED' ? '#64748b50' : item.status === 'POLL' ? '#a855f750' : infoColor + '50' }}>
                                 <Text style={{ color: item.status === 'IN_PROGRESS' ? '#4ade80' : item.status === 'COMPLETED' ? '#94a3b8' : item.status === 'POLL' ? '#c084fc' : infoColor, fontSize:10, fontWeight:'800' }}>
                                     {item.status === 'IN_PROGRESS' ? t.sc_0398 : item.status === 'COMPLETED' ? t.sc_0399 : item.status === 'POLL' ? t.tournStatusPoll : t.tournStatusOpen}
                                 </Text>
@@ -20710,7 +20710,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 <TouchableOpacity
                     disabled={!item.creatorId || !onUserPress}
                     onPress={() => item.creatorId && onUserPress?.(item.creatorId)}
-                    style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
+                    style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:3, paddingVertical:4, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
                 >
                     <Text style={{ color: onUserPress ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800', textDecorationLine: onUserPress ? 'underline' : 'none' }}>
                         {item.creator?.fullName || item.creator?.username || '—'}
@@ -20719,13 +20719,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 {item.contactPhone ? (
                     <TouchableOpacity
                         onPress={() => openTournPhone(item.contactPhone)}
-                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50' }}
+                        style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:3, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50' }}
                     >
                         <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{item.contactPhone}</Text>
                     </TouchableOpacity>
                 ) : null}
                 {item.endDate ? (
-                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
+                    <View style={{ flexDirection:'row', alignItems:'center', gap:4, backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:3, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>
                             {t.sc_0400} {new Date(item.endDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
                         </Text>
@@ -20736,39 +20736,41 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             {/* Cinsiyet → derece → set → sayı sistemi → zemin → ön maç → play-off */}
             <View style={{ flexDirection:'row', flexWrap:'wrap', gap:2, marginTop:6 }}>
                 {item.genderType ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
                             {t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType}
                         </Text>
                     </View>
                 ) : null}
                 {((item.minRating !== null && item.minRating !== undefined) || (item.maxRating !== null && item.maxRating !== undefined)) ? (
-                    <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
+                    <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#fbbf2440' }}>
                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
                             ⭐ {item.minRating !== null && item.minRating !== undefined ? item.minRating : '0'}–{item.maxRating !== null && item.maxRating !== undefined ? item.maxRating : '5'}★
                         </Text>
                     </View>
                 ) : null}
                 {item.setsPerMatch ? (
-                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak, item.thirdSetPlayersDecide)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
+                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                            {t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak, item.thirdSetPlayersDecide)}`] || item.setsPerMatch) : `${item.setsPerMatch} set`}
+                        </Text>
                     </View>
                 ) : null}
                 {item.advantageScoring !== undefined ? (
-                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
+                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'40' }}>
                         <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
                             {String(item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding).replace(/^[^\p{L}\p{N}]+/u, '').trim()}
                         </Text>
                     </View>
                 ) : null}
                 {hasTournExplicitSurface(item) ? (
-                    <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
+                    <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#0ea5e940' }}>
                         <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
                     </View>
                 ) : null}
                 {!hasTournSpecificCourt(item) ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
-                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#334155' }}>
+                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
                             {item.subCategory === 'airsoft'
                                 ? (t.tournCourtPlayersArrange || t.sc_0402)
                                 : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
@@ -20779,12 +20781,12 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     const playoffTxt = tournPlayoffCardText(item, t);
                     if (!playoffTxt) return null;
                     return (
-                        <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
-                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={3}>{playoffTxt}</Text>
+                        <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
+                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={2}>{playoffTxt}</Text>
                         </View>
                     );
                 })()}
-                <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
+                <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#fbbf2440' }}>
                     <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
                         {(() => {
                             const max = item.maxPlayers;
@@ -20797,28 +20799,33 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     </Text>
                 </View>
                 {item.dayTrip ? (
-                    <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#f59e0b40' }}>
+                    <View style={{ backgroundColor:'#f59e0b18', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#f59e0b40' }}>
                         <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>{t.sc_0408}</Text>
                     </View>
                 ) : null}
                 {item.availabilityMatchEnabled ? (
-                    <View style={{ backgroundColor:'#7c3aed18', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#7c3aed40' }}>
+                    <View style={{ backgroundColor:'#7c3aed18', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#7c3aed40' }}>
                         <Text style={{ color:'#c4b5fd', fontSize:10, fontWeight:'800' }}>{t.tournAvailBadge || 'Müsaitliğe göre eşleştir'}</Text>
                     </View>
                 ) : null}
                 {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' ? (
-                    <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#1e3a8a50' }}>
-                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }}>
+                    <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#1e3a8a50' }}>
+                        <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }} numberOfLines={1}>
                             {item.matchFrequency === 'WEEKLY_1' ? t.sc_0409 : t.sc_0410}
                         </Text>
                     </View>
                 ) : null}
             </View>
+            {item.matchesBeforePlayoff ? (
+                <Text style={{ color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: 3 }}>
+                    {t.tournMatchesMayDropNote || '(Diskalifiye, ligden çekilme, sağlıksal problemler, oyuncu eksikliği olması durumunda maç sayısı düşebilir)'}
+                </Text>
+            ) : null}
 
             {/* Tahmini süre + ücret / ödeme + ödül / mekan */}
             <View style={{ gap:2, marginTop:6 }}>
                 {(item.eventDate || item.eventEndDate) ? (
-                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:5, borderWidth:1, borderColor:'#334155' }}>
+                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:3, paddingVertical:5, borderWidth:1, borderColor:'#334155' }}>
                         <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
                             {(() => {
                                 const fmt = (d, tm) => {
@@ -23438,10 +23445,10 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                     {showInfo && (
                         <View style={{ marginTop:6, backgroundColor:'#0f172a', borderRadius:12, padding:10, borderWidth:1, borderColor: infoColor + '30', gap:6 }}>
                             <View style={{ flexDirection:'row', flexWrap:'wrap', alignItems:'center', gap:2 }}>
-                                <View style={{ backgroundColor: infoColor + '18', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
+                                <View style={{ backgroundColor: infoColor + '18', borderRadius:999, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor + '40' }}>
                                     <Text style={{ color: infoColor, fontSize:10, fontWeight:'800' }}>{tournFormatLabel(item, t) || typeLabels[item.type] || item.type}</Text>
                                 </View>
-                                <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
+                                <View style={{ backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#334155', maxWidth:'100%' }}>
                                     <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'700' }} numberOfLines={2}>
                                         {(item.location || item.city) === 'Dünya' ? t.sc_0395
                                             : (Array.isArray(item.cities) && item.cities.length ? item.cities.join(' · ')
@@ -23453,7 +23460,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 <TouchableOpacity
                                     disabled={!item.creatorId || !onUserPress}
                                     onPress={() => item.creatorId && onUserPress?.(item.creatorId)}
-                                    style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
+                                    style={{ flexDirection:'row', alignItems:'center', backgroundColor:'#1e293b', borderRadius:999, paddingHorizontal:3, paddingVertical:4, borderWidth:1, borderColor: onUserPress ? infoColor + '50' : '#334155' }}
                                 >
                                     <Text style={{ color: onUserPress ? '#fff' : colors.textMuted, fontSize:11, fontWeight:'800', textDecorationLine: onUserPress ? 'underline' : 'none' }}>
                                         {item.creator?.fullName || item.creator?.username || '—'}
@@ -23462,54 +23469,56 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {item.contactPhone ? (
                                     <TouchableOpacity
                                         onPress={() => openTournPhone(item.contactPhone)}
-                                        style={{ backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50' }}
+                                        style={{ backgroundColor:'#16a34a18', borderRadius:999, paddingHorizontal:3, paddingVertical:4, borderWidth:1, borderColor:'#16a34a50' }}
                                     >
                                         <Text style={{ color:'#4ade80', fontSize:11, fontWeight:'800' }}>{item.contactPhone}</Text>
                                     </TouchableOpacity>
                                 ) : null}
                                 {item.endDate ? (
-                                    <View style={{ backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
+                                    <View style={{ backgroundColor:'#dc262618', borderRadius:999, paddingHorizontal:3, paddingVertical:4, borderWidth:1, borderColor:'#dc262650' }}>
                                         <Text style={{ color:'#f87171', fontSize:11, fontWeight:'800' }}>
                                             {t.sc_0400} {new Date(item.endDate).toLocaleDateString(appLocale(t.lang), { day:'numeric', month:'short' })}{item.endTime ? ` · ${item.endTime}` : ''}
                                         </Text>
                                     </View>
                                 ) : null}
                             </View>
-                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:2 }}>
+                            <View style={{ flexDirection:'row', flexWrap:'wrap', gap:2, alignItems:'center' }}>
                                 {item.genderType ? (
-                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
-                                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#334155' }}>
+                                        <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }} numberOfLines={1}>
                                             {String(t['tournGender' + item.genderType.charAt(0) + item.genderType.slice(1).toLowerCase()] || item.genderType).replace(/^[^\p{L}\p{N}]+/u, '').trim()}
                                         </Text>
                                     </View>
                                 ) : null}
                                 {((item.minRating !== null && item.minRating !== undefined) || (item.maxRating !== null && item.maxRating !== undefined)) ? (
-                                    <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
-                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                                    <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#fbbf2440' }}>
+                                        <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }} numberOfLines={1}>
                                             {item.minRating !== null && item.minRating !== undefined ? item.minRating : '0'}–{item.maxRating !== null && item.maxRating !== undefined ? item.maxRating : '5'}★
                                         </Text>
                                     </View>
                                 ) : null}
                                 {item.setsPerMatch ? (
-                                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak, item.thirdSetPlayersDecide)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
+                                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                                            {t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak, item.thirdSetPlayersDecide)}`] || item.setsPerMatch) : `${item.setsPerMatch} set`}
+                                        </Text>
                                     </View>
                                 ) : null}
                                 {item.advantageScoring !== undefined ? (
-                                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>
+                                    <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'40' }}>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
                                             {String(item.advantageScoring === null ? t.tournFreeScoring : item.advantageScoring ? t.tournAdvantage : t.tournDeciding).replace(/^[^\p{L}\p{N}]+/u, '').trim()}
                                         </Text>
                                     </View>
                                 ) : null}
                                 {hasTournExplicitSurface(item) ? (
-                                    <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#0ea5e940' }}>
-                                        <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }}>{getSurface(t, item.surface)}</Text>
+                                    <View style={{ backgroundColor:'#0ea5e915', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#0ea5e940' }}>
+                                        <Text style={{ color:'#7dd3fc', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{getSurface(t, item.surface)}</Text>
                                     </View>
                                 ) : null}
                                 {!hasTournSpecificCourt(item) ? (
-                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#334155' }}>
-                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={2}>
+                                    <View style={{ backgroundColor:'#1e293b', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#334155' }}>
+                                        <Text style={{ color: colors.textMuted, fontSize:10, fontWeight:'700' }} numberOfLines={1}>
                                             {item.subCategory === 'airsoft'
                                                 ? (t.tournCourtPlayersArrange || t.sc_0402)
                                                 : (t.tournCourtPlayersArrange || t.tournCourtPlayersDecide)}
@@ -23520,13 +23529,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     const playoffTxt = tournPlayoffCardText(item, t);
                                     if (!playoffTxt) return null;
                                     return (
-                                        <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
-                                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={3}>{playoffTxt}</Text>
+                                        <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor: infoColor+'40', maxWidth:'100%' }}>
+                                            <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }} numberOfLines={2}>{playoffTxt}</Text>
                                         </View>
                                     );
                                 })()}
-                                <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor:'#fbbf2440' }}>
-                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }}>
+                                <View style={{ backgroundColor:'#fbbf2418', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#fbbf2440' }}>
+                                    <Text style={{ color:'#fbbf24', fontSize:10, fontWeight:'800' }} numberOfLines={1}>
                                         {(() => {
                                             const max = item.maxPlayers;
                                             const asCount = max ? Math.min(participantCount, max) : participantCount;
@@ -23538,6 +23547,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                     </Text>
                                 </View>
                             </View>
+                            {item.matchesBeforePlayoff ? (
+                                <Text style={{ color: colors.textMuted, fontSize: 9, lineHeight: 12, marginTop: 3 }}>
+                                    {t.tournMatchesMayDropNote || '(Diskalifiye, ligden çekilme, sağlıksal problemler, oyuncu eksikliği olması durumunda maç sayısı düşebilir)'}
+                                </Text>
+                            ) : null}
                             {(item.eventDate || item.eventEndDate) ? (
                                 <Text style={{ color:'#e2e8f0', fontSize:10, fontWeight:'700' }}>
                                     {(() => {
@@ -23630,12 +23644,20 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
             </TouchableOpacity>
             {showRules && (
                 <View style={{ backgroundColor:'#0f172a', borderRadius:12, padding:12, marginTop:6, borderWidth:1, borderColor: infoColor + '30' }}>
-                        <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:19 }}>{t['tournRules' + item.type]}</Text>
-                        {!!t.tournRegionForfeitRule && (
-                            <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:19, marginTop:10 }}>
-                                {t.tournRegionForfeitRule}
-                            </Text>
-                        )}
+                        <Text style={{ color: colors.textSecondary, fontSize:12, lineHeight:19 }}>
+                            {(() => {
+                                const raw = t['tournRules' + item.type] || '';
+                                const drop7 = !!(item.availabilityMatchEnabled || item.dayTrip)
+                                    && (item.type === '1' || item.type === '2');
+                                let clauses = String(raw).split(/\n\n+/).map((c) => c.trim()).filter(Boolean);
+                                if (drop7) clauses = clauses.filter((c) => !/^7\.\s/.test(c));
+                                clauses = clauses.map((c, i) => c.replace(/^\d+\.\s*/, `${i + 1}. `));
+                                if (t.tournRegionForfeitRule) {
+                                    clauses.push(`${clauses.length + 1}. ${t.tournRegionForfeitRule}`);
+                                }
+                                return clauses.join('\n\n');
+                            })()}
+                        </Text>
                 </View>
             )}
 
@@ -24642,7 +24664,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                                 }}>
                                                 <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:4 }}>
                                                     <Text style={{ color:'#fff', fontSize:14, fontWeight:'900', flex:1 }} numberOfLines={1}>{title}</Text>
-                                                    <View style={{ backgroundColor: (p.comingSoon ? '#64748b' : p.accent) + '33', borderRadius:999, paddingHorizontal:8, paddingVertical:3 }}>
+                                                    <View style={{ backgroundColor: (p.comingSoon ? '#64748b' : p.accent) + '33', borderRadius:999, paddingHorizontal:3, paddingVertical:3 }}>
                                                         <Text style={{ color: p.comingSoon ? '#94a3b8' : p.accent, fontSize:10, fontWeight:'800' }}>{badge}</Text>
                                                     </View>
                                                 </View>
@@ -25581,6 +25603,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     </>
                                 )}
                             </View>
+                            {(f.type === '1' || f.type === '2' || f.type === '3' || f.type === '4' || f.type === '5' || f.type === '12' || f.type === '7') ? (
+                                <Text style={{ color: colors.textMuted, fontSize: 9, lineHeight: 13, marginTop: -4, marginBottom: 8 }}>
+                                    {t.tournMatchesMayDropNote || '(Diskalifiye, ligden çekilme, sağlıksal problemler, oyuncu eksikliği olması durumunda maç sayısı düşebilir)'}
+                                </Text>
+                            ) : null}
 
                             <GenderCountModal
                                 visible={showTeamGenderModal}
@@ -37359,7 +37386,7 @@ const s = StyleSheet.create({
     emptyBtn:         { marginTop: moderateScale(16), backgroundColor: colors.purple, borderRadius: moderateScale(12), paddingHorizontal: moderateScale(18), paddingVertical: moderateScale(12), minHeight: touchSize(44), justifyContent:'center' },
     emptyBtnText:     { color: colors.ctaText, fontWeight:'700', fontSize: moderateScale(15) },
 
-    card:             { backgroundColor: colors.surface, borderRadius: moderateScale(14), paddingHorizontal: moderateScale(10), paddingTop: moderateScale(8), paddingBottom: moderateScale(8), borderWidth:1, borderColor: colors.border, overflow:'hidden' },
+    card:             { backgroundColor: colors.surface, borderRadius: moderateScale(14), paddingHorizontal: 3, paddingTop: moderateScale(8), paddingBottom: moderateScale(8), borderWidth:1, borderColor: colors.border, overflow:'hidden' },
     cardHeader:       { flexDirection:'row', alignItems:'flex-start', gap: moderateScale(6), marginBottom: moderateScale(4) },
     avatar:           { justifyContent:'center', alignItems:'center', borderWidth:1 },
     avatarText:       { fontWeight:'800' },
