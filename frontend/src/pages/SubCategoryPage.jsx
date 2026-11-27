@@ -5693,7 +5693,7 @@ function SubCategoryPage() {
                                             {isTeamMatch ? (
                                                 <div className="flex gap-3 mb-3">
                                                     <TeamBlock
-                                                        label={`${config.emoji} ${m.sender?.username}'s Team`}
+                                                        label={`${m.sender?.username || t('websc.team_a')} — ${t('websc.team') || 'Team'}`}
                                                         members={creatorTeam}
                                                         avgRating={avgOf(creatorTeam)}
                                                         colorClass={config.color}
@@ -5702,7 +5702,7 @@ function SubCategoryPage() {
                                                         <span className="text-gray-600 text-xs font-black">VS</span>
                                                     </div>
                                                     <TeamBlock
-                                                        label="Opponents"
+                                                        label={t('websc.challenger_team') || 'Opponents'}
                                                         members={opponentTeam.length > 0 ? opponentTeam : [{ username: '?', fullName: 'TBD' }]}
                                                         avgRating={opponentTeam.length > 0 ? avgOf(opponentTeam) : null}
                                                         colorClass={config.color}
@@ -5710,29 +5710,35 @@ function SubCategoryPage() {
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2 flex-wrap mb-3">
-                                                    <div className="flex items-center gap-1.5 bg-[#1C1F28] rounded-full px-3 py-1">
+                                                    {(() => {
+                                                        const sElo = fmtElo(m.senderSkillRating ?? m.sender?.interests?.[0]?.skillRating);
+                                                        return (
+                                                    <div className="flex items-center gap-1.5 bg-[#1C1F28] rounded-full px-3 py-1.5">
                                                         <div className={`w-5 h-5 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[9px] font-bold`}>
                                                             {m.sender?.username?.[0]?.toUpperCase()}
                                                         </div>
                                                         <span className="text-[#F4F1EA] text-xs font-bold">{m.sender?.username}</span>
-                                                        {fmtElo(m.senderSkillRating ?? m.sender?.interests?.[0]?.skillRating) && (
-                                                            <span className="text-yellow-400 text-[10px] font-extrabold">
-                                                                {fmtElo(m.senderSkillRating ?? m.sender?.interests?.[0]?.skillRating)}
-                                                            </span>
-                                                        )}
+                                                        <span className={`text-[11px] font-extrabold ${sElo ? 'text-yellow-400' : 'text-gray-600'}`}>
+                                                            {sElo || '—'}
+                                                        </span>
                                                     </div>
+                                                        );
+                                                    })()}
                                                     {parts.length > 0 && <span className="text-gray-600 text-xs font-bold">vs</span>}
-                                                    {parts.map(p => (
-                                                        <div key={p.id} className="flex items-center gap-1.5 bg-[#1C1F28] rounded-full px-3 py-1">
+                                                    {parts.map(p => {
+                                                        const pElo = fmtElo(p.skillRating);
+                                                        return (
+                                                        <div key={p.id} className="flex items-center gap-1.5 bg-[#1C1F28] rounded-full px-3 py-1.5">
                                                             <div className={`w-5 h-5 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[9px] font-bold`}>
                                                                 {p.username?.[0]?.toUpperCase()}
                                                             </div>
                                                             <span className="text-[#F4F1EA] text-xs font-bold">{p.username}</span>
-                                                            {fmtElo(p.skillRating) && (
-                                                                <span className="text-yellow-400 text-[10px] font-extrabold">{fmtElo(p.skillRating)}</span>
-                                                            )}
+                                                            <span className={`text-[11px] font-extrabold ${pElo ? 'text-yellow-400' : 'text-gray-600'}`}>
+                                                                {pElo || '—'}
+                                                            </span>
                                                         </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
 
@@ -5894,7 +5900,7 @@ function SubCategoryPage() {
                                                         <div className="flex-1 bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-bold py-2 rounded-xl text-center">
                                                             {t('websc.waiting_opponent')}
                                                         </div>
-                                                        <button type="button" onClick={() => setScoringMatch(match)} className="bg-[#1C1F28] text-[#A8A29A] text-xs font-bold px-3 py-2 rounded-xl hover:text-white transition">✏️</button>
+                                                        <button type="button" onClick={() => setScoringMatch(match)} className="bg-[#1C1F28] text-[#A8A29A] text-xs font-bold px-3 py-2 rounded-xl hover:text-white transition">{t('websc.edit') || 'Edit'}</button>
                                                     </div>
                                                 )}
                                                 {canConfirm && (
@@ -5927,10 +5933,21 @@ function SubCategoryPage() {
                                     );
                                 };
 
+                                // Yaklaşan: yatay peek OK. Skor bekleyen: tam genişlik —
+                                // dar peek kartta yazı butonları / ELO görünmüyordu (kullanıcı raporu).
                                 const PeekRow = ({ items, render }) => (
                                     <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin]">
                                         {items.map((item) => (
                                             <div key={item.id} className="min-w-[42%] max-w-[280px] w-[42%] sm:min-w-[260px] sm:w-[260px] flex-shrink-0 snap-start">
+                                                {render(item)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                                const FullStack = ({ items, render }) => (
+                                    <div className="space-y-3">
+                                        {items.map((item) => (
+                                            <div key={item.id} className="w-full">
                                                 {render(item)}
                                             </div>
                                         ))}
@@ -5943,7 +5960,7 @@ function SubCategoryPage() {
                                         {future.length > 0 && (
                                             <div className="mt-2">
                                                 <h4 className="text-[#F4F1EA] font-bold mb-3 text-sm">{t('rival.upcoming')}</h4>
-                                                <PeekRow items={future} render={(m) => <UpcomingCard m={m} />} />
+                                                <FullStack items={future} render={(m) => <UpcomingCard m={m} />} />
                                             </div>
                                         )}
 
@@ -5955,7 +5972,7 @@ function SubCategoryPage() {
                                                     onClick={() => setPendingScoreExpanded(v => !v)}
                                                     className="w-full flex items-center justify-between gap-2 mb-2 text-left"
                                                 >
-                                                    <h4 className="text-orange-400 font-bold text-sm">
+                                                    <h4 className="text-orange-400 font-bold text-base">
                                                         {t('websc.pending_score_title')} ({needsScoreEntry.length})
                                                     </h4>
                                                     <span className="text-[#A8A29A] text-lg font-bold leading-none">
@@ -5963,7 +5980,7 @@ function SubCategoryPage() {
                                                     </span>
                                                 </button>
                                                 {pendingScoreExpanded && (
-                                                    <PeekRow
+                                                    <FullStack
                                                         items={needsScoreEntry}
                                                         render={(m) => <UpcomingCard m={m} isPastCard />}
                                                     />
@@ -5979,15 +5996,15 @@ function SubCategoryPage() {
                                                     onClick={() => setScoreConfirmExpanded(v => !v)}
                                                     className="w-full flex items-center justify-between gap-2 mb-2 text-left"
                                                 >
-                                                    <h4 className="text-orange-400 font-bold text-sm">
+                                                    <h4 className="text-orange-400 font-bold text-base">
                                                         {t('websc.score_confirm_pending_title')} ({needsScoreConfirm.length})
                                                     </h4>
                                                     <span className={`text-lg font-bold leading-none ${scoreConfirmNeedsMyAction ? 'text-red-400 animate-pulse' : 'text-[#A8A29A]'}`}>
                                                         {scoreConfirmExpanded ? '▼' : '›'}
                                                     </span>
                                                 </button>
-                                                {scoreConfirmExpanded && (
-                                                    <PeekRow
+                                                {(scoreConfirmExpanded || scoreConfirmNeedsMyAction) && (
+                                                    <FullStack
                                                         items={needsScoreConfirm}
                                                         render={(m) => <ScoreConfirmCard match={m} />}
                                                     />

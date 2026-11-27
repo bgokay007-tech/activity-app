@@ -14,9 +14,20 @@ import App from './App.jsx';
 // so already-open tabs kept running old JS indefinitely (only a fresh/incognito tab,
 // with no service worker yet, ever saw the latest deploy). This registers it for real
 // and force-reloads once as soon as a new version is detected.
+// immediate: true — açılışta hemen kontrol; interval — uzun açık kalan sekmeler de yenilensin
+// (kullanıcı raporu: Ctrl+Shift+R bile eski skor UI'sını gösteriyordu).
 const updateSW = registerSW({
+  immediate: true,
   onNeedRefresh() { updateSW(true); },
 });
+if (typeof window !== 'undefined') {
+  setInterval(() => { try { updateSW?.(true); } catch { /* ignore */ } }, 45_000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      try { updateSW?.(true); } catch { /* ignore */ }
+    }
+  });
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

@@ -3214,6 +3214,7 @@
       "confirmed": "ONAYLANDI",
       "min": "dk",
       "comments": "Yorumlar",
+      "edit": "Düzenle",
       "no_comments": "Henüz yorum yok.",
       "disputed": "İtiraz edildi",
       "awaiting_confirm": "Onay bekleniyor",

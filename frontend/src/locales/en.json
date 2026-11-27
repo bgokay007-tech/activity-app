@@ -3213,6 +3213,7 @@
       "confirmed": "CONFIRMED",
       "min": "min",
       "comments": "Comments",
+      "edit": "Edit",
       "no_comments": "No comments yet.",
       "disputed": "Disputed",
       "awaiting_confirm": "Awaiting confirmation",

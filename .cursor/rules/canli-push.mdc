@@ -10,10 +10,11 @@ Kullanıcı bunu kalıcı kazıdı: canlı görmek için **her zaman push**. “
 ## Her iş bitince (sormadan)
 
 1. İlgili dosyaları commit et (ilgisiz WIP / sırlar / `.env` karışmasın).
-2. `frontend/` değiştiyse canlı web için **mutlaka** build al, public’i de commit’le
-   (`cd frontend && npx vite build --outDir ../backend/public`). Sadece `frontend/src`
-   push’u Railway’de görünmez — Express `backend/public` servis eder. Unutulursa
-   tarayıcılar eski/farklı UI gösterir (mobil–web “senkron değil” sanılır).
+2. `frontend/` değiştiyse canlı web için **mutlaka** build al, public’i de commit’le:
+   `cd frontend && npx vite build --outDir ../backend/public --emptyOutDir`
+   (`--emptyOutDir` şart — aksi halde eski `index-*.js` birikir, PWA SW hepsini
+   precache’ler, kullanıcı sert yenilese bile eski skor UI kalır). Sadece
+   `frontend/src` push’u Railway’de görünmez.
 3. `git push -u origin HEAD` — genelde `main`. Railway backend’i `main` push ile alır.
 4. `mobile/` UI değiştiyse ayrıca EAS Update bas (`canli-metro.mdc`). Push, OTA’nın yerine geçmez.
 5. Kullanıcıya söyle: backend Railway (~1–2 dk); web’de sert yenile (Ctrl+Shift+R);
