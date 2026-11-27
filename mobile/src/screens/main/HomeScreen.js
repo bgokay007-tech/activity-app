@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert, Animated } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Alert, Animated, useWindowDimensions } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,63 @@ import CityPickerModal from '../../components/CityPickerModal';
 import SportPhotoWarmup from '../../components/SportPhotoWarmup';
 import useT from '../../hooks/useT';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
+
+const HOME_H_PAD = 18;
+
+/** İlanları satırlara böler — her satırda `size` kart; fazlası bir alt satıra. */
+function chunkIntoPages(items, size = 3) {
+    const pages = [];
+    for (let i = 0; i < items.length; i += size) pages.push(items.slice(i, i + size));
+    return pages;
+}
+
+/**
+ * Satır başına 3 ilan; 4. alta iner.
+ * ~2.45 kart görünür → 3. kartın ucu peek; sağa kaydırınca tam görünür.
+ */
+function OpenListingsHScroll({ viewportW, items, renderCard, perRow = 3 }) {
+    const rows = chunkIntoPages(items, perRow);
+    if (!rows.length) return null;
+    const cardW = Math.floor(viewportW / 2.45);
+    return (
+        <View>
+            {rows.map((row, ri) => (
+                <ScrollView
+                    key={`ol-row-${ri}`}
+                    horizontal
+                    nestedScrollEnabled
+                    showsHorizontalScrollIndicator={false}
+                    decelerationRate="fast"
+                    bounces
+                    overScrollMode="always"
+                    contentContainerStyle={{ paddingRight: 4 }}
+                >
+                    {row.map((item, ii) => (
+                        <View
+                            key={item.id != null ? `ol-${item.kind === 'tournament' ? 't' : 'r'}-${item.id}` : `ol-${ri}-${ii}`}
+                            style={{ width: cardW, paddingRight: 8 }}
+                        >
+                            {renderCard(item)}
+                        </View>
+                    ))}
+                </ScrollView>
+            ))}
+        </View>
+    );
+}
+
+function listingOwnerInfo(item) {
+    const owner = item?.kind === 'tournament'
+        ? (item.creator || item.sender)
+        : item.sender;
+    if (!owner) return { name: '', rating: null };
+    const name = firstNameOf(owner) || owner.username || '';
+    const interest = Array.isArray(owner.interests) ? owner.interests[0] : null;
+    const rating = interest?.skillRating != null && !Number.isNaN(Number(interest.skillRating))
+        ? Number(interest.skillRating)
+        : null;
+    return { name, rating };
+}
 
 const HOME_CITY_KEY = 'home_listings_city';
 
@@ -293,6 +350,8 @@ export default function HomeScreen({ navigation }) {
     const lang = useSelector(s => s.lang?.lang || 'en');
     const t = useT();
     const insets = useSafeAreaInsets();
+    const { width: winW } = useWindowDimensions();
+    const openListingsViewportW = Math.max(240, winW - HOME_H_PAD * 2);
     const [city, setCity] = useState(null);
     const [hasInterests, setHasInterests] = useState(true);
     const [myMatches, setMyMatches] = useState([]);
@@ -766,39 +825,50 @@ export default function HomeScreen({ navigation }) {
                         <Text style={nv.emptyHeroText}>{t.noListingsInCities}</Text>
                     </View>
                 ) : (
-                    openOnly.slice(0, 12).map(item => {
-                        const isTourn = item.kind === 'tournament';
-                        // Kullanıcı isteği: Nashira toprak → clay foto; zemin belirsiz turnuva → yarı yarıya
-                        const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
-                        const meta = isTourn ? null : listingMeta(item);
-                        // Bu listede artık sadece diğer kullanıcıların ilanları var.
-                        const kicker = isTourn
-                            ? (t.nearbyTournament || t.nearbyListing)
-                            : t.nearbyListing;
-                        const title = isTourn
-                            ? (item.name || getSubCategoryLabel(item.subCategory, lang))
-                            : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
-                        return (
-                            <TouchableOpacity key={`${isTourn ? 't' : 'r'}-${item.id}`} style={nv.row} onPress={() => openListing(item)} activeOpacity={0.85}>
-                                <Image source={photo} style={nv.rowImg} resizeMode="cover" />
-                                <View style={nv.rowBody}>
-                                    <Text style={nv.rowKicker}>{kicker}</Text>
-                                    <Text style={nv.rowTitle} numberOfLines={1}>{title}</Text>
-                                    {isTourn ? (
-                                        <Text style={nv.rowMeta} numberOfLines={1}>
-                                            {getSubCategoryLabel(item.subCategory, lang)}
-                                            {formatWhen(item, t) ? ` · ${formatWhen(item, t)}` : ''}
-                                        </Text>
-                                    ) : (
-                                        <Text style={nv.rowMeta} numberOfLines={1}>{formatWhen(item, t) || item.location || ''}</Text>
-                                    )}
-                                    {(item.courtName || item.location || item.city) ? (
-                                        <Text style={nv.rowPlace} numberOfLines={1}>{item.courtName || item.location || item.city}</Text>
-                                    ) : null}
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })
+                    <OpenListingsHScroll
+                        viewportW={openListingsViewportW}
+                        items={openOnly.slice(0, 12)}
+                        renderCard={(item) => {
+                            const isTourn = item.kind === 'tournament';
+                            // Kullanıcı isteği: Nashira toprak → clay foto; zemin belirsiz turnuva → yarı yarıya
+                            const photo = photoForListing(item) || photoForSub(item.subCategory, item.category) || CAT_PHOTOS[(item.category || '').toUpperCase()] || CAT_PHOTOS.SPORTS;
+                            const meta = isTourn ? null : listingMeta(item);
+                            // Bu listede artık sadece diğer kullanıcıların ilanları var.
+                            const kicker = isTourn
+                                ? (t.nearbyTournament || t.nearbyListing)
+                                : t.nearbyListing;
+                            const title = isTourn
+                                ? (item.name || getSubCategoryLabel(item.subCategory, lang))
+                                : `${getSubCategoryLabel(item.subCategory, lang)}${meta ? ` · ${meta}` : ''}`;
+                            const { name: ownerName, rating: ownerElo } = listingOwnerInfo(item);
+                            return (
+                                <TouchableOpacity style={nv.peekCard} onPress={() => openListing(item)} activeOpacity={0.85}>
+                                    <Image source={photo} style={nv.peekImg} resizeMode="cover" />
+                                    <View style={nv.peekBody}>
+                                        <Text style={nv.peekKicker} numberOfLines={1}>{kicker}</Text>
+                                        <Text style={nv.peekTitle} numberOfLines={2}>{title}</Text>
+                                        {isTourn ? (
+                                            <Text style={nv.peekMeta} numberOfLines={1}>
+                                                {getSubCategoryLabel(item.subCategory, lang)}
+                                                {formatWhen(item, t) ? ` · ${formatWhen(item, t)}` : ''}
+                                            </Text>
+                                        ) : (
+                                            <Text style={nv.peekMeta} numberOfLines={1}>{formatWhen(item, t) || item.location || ''}</Text>
+                                        )}
+                                        {(item.courtName || item.location || item.city) ? (
+                                            <Text style={nv.peekPlace} numberOfLines={1}>{item.courtName || item.location || item.city}</Text>
+                                        ) : null}
+                                        {ownerName ? (
+                                            <Text style={nv.peekOwner} numberOfLines={1}>
+                                                {ownerName}
+                                                {ownerElo != null ? ` · ${ownerElo.toFixed(2)} ★` : ''}
+                                            </Text>
+                                        ) : null}
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        }}
+                    />
                 )}
             </ScrollView>
         </View>
@@ -827,7 +897,7 @@ const s = StyleSheet.create({
 });
 
 const nv = StyleSheet.create({
-    scroll: { paddingHorizontal: 18 },
+    scroll: { paddingHorizontal: HOME_H_PAD },
     brandRow: { alignItems: 'flex-start', marginBottom: 18 },
     hello: { color: colors.text, fontSize: 28, fontWeight: '700', letterSpacing: -0.4 },
     hero: { height: 200, borderRadius: 28, overflow: 'hidden', marginBottom: 22 },
@@ -864,6 +934,17 @@ const nv = StyleSheet.create({
     rowTitle: { color: colors.text, fontSize: 15, fontWeight: '700' },
     rowMeta: { color: colors.textSecondary, fontSize: 12, fontWeight: '500', marginTop: 3 },
     rowPlace: { color: colors.textMuted, fontSize: 12, marginTop: 2 },
+    peekCard: {
+        backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden',
+        marginBottom: 10, borderWidth: 1, borderColor: colors.border,
+    },
+    peekImg: { width: '100%', height: 76 },
+    peekBody: { paddingHorizontal: 8, paddingVertical: 8 },
+    peekKicker: { color: colors.purple, fontSize: 10, fontWeight: '700', marginBottom: 2 },
+    peekTitle: { color: colors.text, fontSize: 13, fontWeight: '700' },
+    peekMeta: { color: colors.textSecondary, fontSize: 11, fontWeight: '500', marginTop: 2 },
+    peekPlace: { color: colors.textMuted, fontSize: 11, marginTop: 1 },
+    peekOwner: { color: '#facc15', fontSize: 11, fontWeight: '800', marginTop: 4 },
     splitRow: { flexDirection: 'row', gap: 10, marginBottom: 8, alignItems: 'flex-start' },
     splitCol: { flex: 1, minWidth: 0 },
     splitHead: {
