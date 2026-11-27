@@ -3685,7 +3685,9 @@ function SubCategoryPage() {
                     api.get(`/rivals?category=${categoryUpper}&subCategory=${sub}&matchType=PLAYER_WANTED`),
                     api.get(`/rivals/upcoming`),
                     api.get(`/rivals/completed?category=${categoryUpper}&subCategory=${sub}`),
-                    api.get(`/rivals/archived?category=${categoryUpper}&subCategory=${sub}`),
+                    // Mobil ile aynı uç: GET /archive?scope=all — /rivals/archived sadece
+                    // "benim maçlarım" döner; mobilde varsayılan tüm dal arşivi (scope=all).
+                    api.get(`/archive?category=${categoryUpper}&subCategory=${sub}&scope=all`),
                     api.get('/interests/my'),
                     api.get(`/posts?category=${categoryUpper}&subCategory=${sub}&type=POST&communityOnly=true&limit=50`),
                     api.get(`/posts?category=${categoryUpper}&subCategory=${sub}&mediaOnly=true&limit=50`),
@@ -3722,7 +3724,7 @@ function SubCategoryPage() {
                     r.category === categoryUpper && r.subCategory === sub
                 ));
                 if (completedRes) setCompletedMatches(completedRes.data);
-                if (archivedRes)  setArchivedMatches(archivedRes.data);
+                if (archivedRes) setArchivedMatches(Array.isArray(archivedRes.data?.rivals) ? archivedRes.data.rivals : (Array.isArray(archivedRes.data) ? archivedRes.data : []));
                 setArchivedTournaments(archivedTournamentsRes?.data || []);
                 if (myInterestsRes) {
                     const myInt = myInterestsRes.data.find(i =>
@@ -5705,15 +5707,17 @@ function SubCategoryPage() {
                                     );
                                 };
 
-                                // Mobil ile aynı: yaklaşan (saati geçmiş) + /completed birleşir,
-                                // scoreStatus PENDING → onay bekleyen; diğerleri → skor girilmesi bekleyen.
+                                // Mobil ile aynı: yaklaşan (saati geçmiş) + /completed birleşir.
+                                // Skor yok / PENDING değil → Skor Girilmesi Bekleyen.
+                                // scoreStatus PENDING + score var → Skor Onaylanması Bekleyen.
+                                // (Eski bug: skorsuz maça da "Onay bekleniyor" yazılıyordu.)
                                 const completedIds = new Set(completedMatches.map(m => m.id));
                                 const pendingScoreAllRaw = [
                                     ...completedMatches,
                                     ...pastNoScore.filter(m => !completedIds.has(m.id)),
                                 ];
-                                const needsScoreEntry = pendingScoreAllRaw.filter(m => m.scoreStatus !== 'PENDING');
-                                const needsScoreConfirm = pendingScoreAllRaw.filter(m => m.scoreStatus === 'PENDING');
+                                const needsScoreEntry = pendingScoreAllRaw.filter(m => !(m.scoreStatus === 'PENDING' && m.score));
+                                const needsScoreConfirm = pendingScoreAllRaw.filter(m => m.scoreStatus === 'PENDING' && m.score);
                                 const scoreConfirmNeedsMyAction = needsScoreConfirm.some(m => {
                                     if (!m.scoreEnteredBy || m.scoreEnteredBy === myId) return false;
                                     const parts = Array.isArray(m.participants) ? m.participants.filter(Boolean) : [];
@@ -5846,11 +5850,7 @@ function SubCategoryPage() {
                                                 {pendingScoreExpanded && (
                                                     <PeekRow
                                                         items={needsScoreEntry}
-                                                        render={(m) => (
-                                                            m.scoreStatus && m.scoreStatus !== 'NONE' && m.score
-                                                                ? <ScoreConfirmCard match={m} />
-                                                                : <UpcomingCard m={m} isPastCard />
-                                                        )}
+                                                        render={(m) => <UpcomingCard m={m} isPastCard />}
                                                     />
                                                 )}
                                             </div>
