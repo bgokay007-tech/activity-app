@@ -2,6 +2,7 @@ import prisma from '../config/prisma.js';
 import { emitToUser } from '../config/socket.js';
 import { createNotification, markScoreEntryRequiredRead } from '../controllers/notification.controller.js';
 import { runScoreConfirmation } from '../controllers/rival.controller.js';
+import { SCORE_ENTRY_WINDOW_HOURS, SCORE_ENTRY_WINDOW_MS } from '../utils/scoreEntryWindow.js';
 import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
 
 export async function autoCompleteExpiredMatches() {
@@ -70,10 +71,10 @@ export async function autoCompleteExpiredMatches() {
     }
 }
 
-// Find opponent matches with no score entered 4h after completion → auto 0-0 draw, no ELO change
+// Skor girilmezse SCORE_ENTRY_WINDOW_HOURS sonra otomatik 0-0 (ELO yok)
 export async function autoDrawUnscored() {
     try {
-        const cutoff = new Date(Date.now() - 4 * 60 * 60 * 1000);
+        const cutoff = new Date(Date.now() - SCORE_ENTRY_WINDOW_MS);
 
         const unscored = await prisma.activityRequest.findMany({
             where: {
@@ -130,7 +131,7 @@ export async function autoDrawUnscored() {
                     uid,
                     'SCORE_CONFIRMED',
                     '🤝 Maç berabere kaydedildi',
-                    '4 saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi. 48 saat içinde Arşiv’den gerçek skoru girebilirsiniz.',
+                    `${SCORE_ENTRY_WINDOW_HOURS} saat içinde skor girilmedi. Maç otomatik olarak 0-0 berabere kaydedildi. ELO puanı değişmedi. 48 saat içinde Arşiv’den gerçek skoru girebilirsiniz.`,
                     { rivalId: r.id, category: r.category, subCategory: r.subCategory, autoDraw: true }
                 );
             }

@@ -18,6 +18,7 @@ import { sanitizeExtraServices } from '../utils/extraServices.js';
 import { subCategoryTR } from '../utils/subCategoryLabels.js';
 import { removeSpectatorOnPromotion } from './spectator.controller.js';
 import { turkeyDateTimeToUtc } from '../utils/tzTime.js';
+import { SCORE_ENTRY_WINDOW_HOURS } from '../utils/scoreEntryWindow.js';
 import { isRacketSetSport, normalizeRacketSets } from '../utils/racketScore.js';
 
 // İlan açma/katılma öncesi ortak aktivite kontrolü: kullanıcı bu dalı "Aktivitelerim"e
@@ -5399,9 +5400,9 @@ export const abandonMatch = async (req, res, next) => {
 // Kullanıcı isteği: skor girilmesi gereken bir maçı olduğu sürece Bildirimler sekmesindeki
 // zil ikonu yanıp sönsün — bu sayaç bildirimin OKUNDU durumundan bağımsız, gerçek maç
 // verisinden hesaplanır (bildirimi okusa bile skoru girmeden yanıp sönme durmaz). "COMPLETED
-// + scoreStatus NONE" durumundaki maçlar zaten kısa ömürlü (bkz. autoDrawUnscored, 4 saat
-// sonra otomatik 0-0 beraberlik) — bu yüzden tüm havuzu çekip bellekte filtrelemek güvenli
-// (autoCompleteMatches.js/demoBotResponder.js'teki aynı desen).
+// + scoreStatus NONE" durumundaki maçlar zaten kısa ömürlü (bkz. autoDrawUnscored,
+// SCORE_ENTRY_WINDOW_HOURS sonra otomatik 0-0 beraberlik) — bu yüzden tüm havuzu çekip
+// bellekte filtrelemek güvenli (autoCompleteMatches.js aynı desen).
 export const getMyPendingScoreCount = async (req, res, next) => {
     try {
         const candidates = await prisma.activityRequest.findMany({
@@ -5880,10 +5881,11 @@ export const extendScoreDeadline = async (req, res, next) => {
         const isInvolved = request.senderId === req.userId || participants.some(p => p?.id === req.userId);
         if (!isInvolved) return res.status(403).json({ message: 'Forbidden' });
 
-        // Push completedAt forward so auto-draw job won't fire for `hours` from now
-        // Job fires when completedAt <= now - 4h
-        // So set completedAt = now + (hours - 4)h → triggers after `hours` total
-        const newCompletedAt = new Date(Date.now() + (Number(hours) - 4) * 60 * 60 * 1000);
+        // completedAt'i ileri al: autoDraw job completedAt <= now - SCORE_ENTRY_WINDOW
+        // bakıyor → now + (hours - pencere) ile toplam ek süre `hours` olur.
+        const newCompletedAt = new Date(
+            Date.now() + (Number(hours) - SCORE_ENTRY_WINDOW_HOURS) * 60 * 60 * 1000
+        );
 
         const updated = await prisma.activityRequest.update({
             where: { id },
