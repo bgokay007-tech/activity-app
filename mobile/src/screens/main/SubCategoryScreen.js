@@ -24019,6 +24019,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
     const t = useT();
     const lang = useSelector(s => s.lang?.lang || 'en');
     const cfg = getConfig(sub);
+    const insets = useSafeAreaInsets();
     // Modal açıkken ekran freeze olmasın — arka plandan dönünce ✕/geri ölü kalıyordu.
     useDisableFreezeWhile(visible);
     // Airsoft'ta "kort" kavramı yok — kullanıcı isteğiyle turnuva formu bu dal için
@@ -24386,22 +24387,38 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                     setTimeout(() => setScrollNudge(0), 80);
                 }, 350);
             }}>
-            <View style={s.modalOverlay}>
+            <View style={[s.modalOverlay, { justifyContent: 'flex-start' }]}>
                 {/* Android'de behavior="height" modal içindeki ScrollView'la çakışıp klavye
                     açılmasa/kapanmasa bile kaydırma sırasında yeniden boyutlandırma tetikleyip
                     kaydırma jestini bozuyordu — CreateRivalModal'daki gibi "padding" kullanılıyor. */}
-                <KeyboardAvoidingView behavior="padding" style={{ flex:1, justifyContent:'flex-end' }}>
-                    {/* Form çok uzun olduğu için maxHeight'a bırakılırsa Android'de ScrollView'ın
-                        kaydırma sınırı ilk çizimde eksik hesaplanıyor, bir alana odaklanana kadar
-                        belli bir noktadan öteye kaydırılamıyordu — sabit height bunu çözüyor. */}
-                    <View style={[s.modalBox, { height: '92%' }]}>
+                <KeyboardAvoidingView behavior="padding" style={{ flex:1 }}>
+                    {/* Kullanıcı isteği: turnuva oluştur formu tam sayfa; alt şeffaf/nav alanı ile
+                        "Oluştur" butonu çakışmasın — insets.bottom + ekstra padding. */}
+                    <View style={[s.modalBox, {
+                        flex: 1,
+                        height: '100%',
+                        maxHeight: '100%',
+                        borderTopLeftRadius: 0,
+                        borderTopRightRadius: 0,
+                        paddingTop: Math.max(12, insets.top + 6),
+                        paddingBottom: 0,
+                    }]}>
                         <View style={s.modalHeader}>
                             <Text style={s.modalTitle}>{isEdit ? (t.sc_0512 || t.tournEditBtn) : t.createTournamentTitle}</Text>
                             <TouchableOpacity onPress={onClose} hitSlop={{ top: 14, bottom: 14, left: 14, right: 14 }}>
                                 <Text style={s.modalClose}>✕</Text>
                             </TouchableOpacity>
                         </View>
-                        <KeyboardAwareForm key={formEpoch} adjustWindow={false} ref={scrollRef} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" overScrollMode="never">
+                        <KeyboardAwareForm
+                            key={formEpoch}
+                            adjustWindow={false}
+                            ref={scrollRef}
+                            showsVerticalScrollIndicator={false}
+                            keyboardShouldPersistTaps="handled"
+                            overScrollMode="never"
+                            bottomOffset={56}
+                            contentContainerStyle={{ paddingBottom: Math.max(28, insets.bottom + 24) }}
+                        >
 
                             {/* Ad | Kapsam | Ülke (Ulusal) — YEREL'de il/ilçe ayrı satırda çoklu seçim */}
                             <View style={{ flexDirection:'row', gap:3, marginBottom:8 }}>
@@ -24615,10 +24632,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0642,
                                         t.sc_0643,
                                         t.sc_0644,
-                                        // Kural 7: 24s müsaitlik + 8 günlük tur + min 3 gün / jokersiz hükmen
-                                        t.tournCompetitiveRule7,
+                                        // Kural 7: 24s müsaitlik… — müsaitliğe göre eşleştir açıkken kalkar; 8. madde 7 olur
+                                        ...(f.availabilityMatchEnabled ? [] : [t.tournCompetitiveRule7]),
                                         t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3 && i !== 6)).map((kural, i) => (
+                                    ].filter((kural, i) => {
+                                        if (f.dayTrip && (i === 2 || i === 3)) return false;
+                                        if (f.dayTrip && kural === t.tournCompetitiveRule7) return false;
+                                        return true;
+                                    }).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
@@ -24640,10 +24661,14 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         t.sc_0651,
                                         t.sc_0652,
                                         t.sc_0653,
-                                        // Kural 9 (lig): 24s müsaitlik + 8 günlük tur + min 3 gün / jokersiz hükmen
-                                        t.tournCompetitiveRule7,
+                                        // Lig kuralı (24s müsaitlik…) — müsaitliğe göre eşleştir açıkken kalkar
+                                        ...(f.availabilityMatchEnabled ? [] : [t.tournCompetitiveRule7]),
                                         t.tournRegionForfeitRule,
-                                    ].filter((_, i) => !f.dayTrip || (i !== 2 && i !== 3 && i !== 8)).map((kural, i) => (
+                                    ].filter((kural, i) => {
+                                        if (f.dayTrip && (i === 2 || i === 3)) return false;
+                                        if (f.dayTrip && kural === t.tournCompetitiveRule7) return false;
+                                        return true;
+                                    }).map((kural, i) => (
                                         <View key={i} style={{ flexDirection:'row', gap:3, marginBottom:6 }}>
                                             <Text style={{ color: cfg.color, fontSize:11, fontWeight:'900', minWidth:16 }}>{i + 1}.</Text>
                                             <Text style={{ color:'#cbd5e1', fontSize:11, lineHeight:17, flex:1 }}>{kural}</Text>
@@ -24808,6 +24833,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         <Text style={{ color: '#94a3b8', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
                                             {t.tournAvailToggleHint || 'Katılımcılar tur/hafta için müsait gün-saat ve maç sayısı girer; sistem ortak aralığa göre eşleştirir, admin onaylar.'}
                                         </Text>
+                                        {(f.type === '1' || f.type === '2') ? (
+                                            <Text style={{ color: '#fbbf24', fontSize: 11, lineHeight: 15, marginTop: 6, fontWeight: '700' }}>
+                                                {t.tournAvailDropsRule7Hint || '(İşaretlenmesi dahilinde 7.maddenin hükmü kalmıyor kurallardan kalkacaktır)'}
+                                            </Text>
+                                        ) : null}
                                     </View>
                                 </TouchableOpacity>
                             )}
