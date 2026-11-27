@@ -206,6 +206,11 @@ function navigateFromNotif(data, isBusiness) {
                     ? { openChatTournamentId: data.tournamentId || null }
                     : {}),
                 ...(type === 'PEER_REVIEW_PROMPT' && { openPeerReviewRivalId: data.rivalId || null }),
+                // Skor onay / maç bitti → Arşiv; 1v1/2v2 paneli default gizli, highlight +
+                // notifNavKey ile SubCategory paneli açıp maç kartını gösterir.
+                ...((type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED' || type === 'PEER_REVIEW_PROMPT') && {
+                    notifNavKey: notifNavKey || String(Date.now()),
+                }),
                 // Kullanıcı isteği: "Sipariş Güncellendi/Onaylandı/Hazır" bildirimine dokununca
                 // doğrudan o maçın detayı, kadro kartında kendi "Adisyonu Var" ikonu otomatik
                 // açılmış halde gösterilsin (bkz. RivalCard/UpcomingCard'daki autoOpenOrder).

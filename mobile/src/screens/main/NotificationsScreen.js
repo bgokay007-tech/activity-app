@@ -491,12 +491,22 @@ export default function NotificationsScreen({ navigation }) {
         } else if (type === 'JOIN_LATE_ACCEPT') {
             goToSub('rivals');
         } else if (type === 'SCORE_CONFIRMED' || type === 'MATCH_COMPLETED') {
-            goToSub('archive');
+            // Arşiv 1v1/2v2 panelleri default gizli — rivalId + notifNavKey ile SubCategory
+            // ilgili paneli açıp maç kartını/detayını gösterir.
+            if (!data.category || !data.subCategory) return;
+            navigation.push('SubCategory', {
+                category: String(data.category).toUpperCase(),
+                sub: data.subCategory,
+                initialTab: 'archive',
+                highlightRivalId: data.rivalId || null,
+                notifNavKey: String(Date.now()),
+            });
         } else if (type === 'PEER_REVIEW_PROMPT') {
             if (!data.category || !data.subCategory) return;
             navigation.push('SubCategory', {
                 category: data.category, sub: data.subCategory, initialTab: 'archive',
                 highlightRivalId: data.rivalId || null, openPeerReviewRivalId: data.rivalId || null,
+                notifNavKey: String(Date.now()),
             });
         } else if (type === 'SCORE_DISPUTED' && data.scoreAppeal) {
             // Admin skor itirazı — rakip ilanına değil Admin → Anlaşmazlık sekmesine.

@@ -27280,18 +27280,25 @@ function SubCategoryScreen({ route, navigation }) {
     const [reassessRatingType, setReassessRatingType] = useState(null);
     const [reassessInterestId, setReassessInterestId] = useState(null);
 
-    // Kullanıcı isteği: "Oyuncuları Değerlendir" bildirimine (OS bildirimi ya da uygulama
-    // içi liste) dokununca artık doğrudan anketi açmıyor — önce o maçın Arşiv'deki detayına
-    // götürüyor (kullanıcı orada hem genel "Değerlendir" butonunu hem her oyuncunun yanındaki
-    // ayrı "Değerlendir" butonunu görüyor), anket oradan açılıyor.
+    // Bildirimden Arşiv'e (skor onay / maç bitti / oyuncu değerlendir): 1v1·2v2 default
+    // gizli (◀) olduğu için kart listede yoktu. İlgili paneli aç + maç detayını göster.
+    const archiveHighlightRivalId = route.params?.openPeerReviewRivalId || highlightRivalId || null;
+    const archiveNotifHandledRef = useRef(null);
     useEffect(() => {
-        if (!route.params?.openPeerReviewRivalId) return;
-        const found = archiveRivals.find(r => r.id === route.params.openPeerReviewRivalId);
-        if (found) {
-            setArchiveSubTab('rivals');
-            setArchiveDetailMatch(found);
+        if (activeTab !== 'archive') return;
+        if (!archiveHighlightRivalId) return;
+        const handleKey = `${archiveHighlightRivalId}:${notifNavKey || ''}`;
+        if (archiveNotifHandledRef.current === handleKey) return;
+        const found = archiveRivals.find(r => r.id === archiveHighlightRivalId);
+        if (!found) return;
+        archiveNotifHandledRef.current = handleKey;
+        setArchiveSubTab('rivals');
+        if (!TEAM_SPORTS.has(sub) && sub !== 'fitness_gym') {
+            if (isDoublesMatch(found)) setArchiveDoublesExpanded(true);
+            else setArchiveSinglesExpanded(true);
         }
-    }, [route.params?.openPeerReviewRivalId, archiveRivals]);
+        setArchiveDetailMatch(found);
+    }, [activeTab, archiveHighlightRivalId, archiveRivals, sub, notifNavKey]);
 
     // Etiket bildiriminden gelen yazı listede yoksa tekil çekip Yazılar'a ekle.
     const openPostFetchedRef = useRef(null);
