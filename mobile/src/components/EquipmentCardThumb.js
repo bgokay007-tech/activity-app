@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Image, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Image, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 
 /**
  * Ekipman liste kartı görseli — detaya girmeden sola kaydırınca diğer fotoğraflar.
+ * Tek tıklama (kaydırma değil) → onPress ile ilan detayı.
  * isAd + adImages varsa otomatik dönen reklam görselleri; yoksa ürün fotoğrafları.
  */
 export default function EquipmentCardThumb({
@@ -11,6 +12,7 @@ export default function EquipmentCardThumb({
     isAd = false,
     height = 120,
     adBadgeLabel = 'Reklam',
+    onPress,
 }) {
     const product = (Array.isArray(images) ? images : []).filter((u) => typeof u === 'string' && u);
     const ads = (Array.isArray(adImages) ? adImages : []).filter((u) => typeof u === 'string' && u);
@@ -38,24 +40,51 @@ export default function EquipmentCardThumb({
         return () => clearInterval(autoRef.current);
     }, [isAd, ads.length, w]);
 
+    const badges = (
+        <>
+            {isAd ? (
+                <View style={s.adBadge} pointerEvents="none">
+                    <Text style={s.adBadgeTxt}>{adBadgeLabel}</Text>
+                </View>
+            ) : null}
+            {slides.length > 1 ? (
+                <View style={s.dots} pointerEvents="none">
+                    {slides.map((_, i) => (
+                        <View key={i} style={[s.dot, i === idx && s.dotOn]} />
+                    ))}
+                </View>
+            ) : null}
+            {!isAd && slides.length > 1 ? (
+                <View style={s.count} pointerEvents="none">
+                    <Text style={s.countTxt}>📷 {slides.length}</Text>
+                </View>
+            ) : null}
+        </>
+    );
+
     if (!slides.length) {
         return (
-            <View style={[s.empty, { height }]}>
+            <Pressable
+                onPress={onPress}
+                disabled={!onPress}
+                style={[s.empty, { height }]}
+            >
                 <Text style={{ fontSize: 36 }}>📦</Text>
-            </View>
+            </Pressable>
         );
     }
 
     if (slides.length === 1) {
         return (
-            <View style={{ height, width: '100%' }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+            <Pressable
+                onPress={onPress}
+                disabled={!onPress}
+                style={{ height, width: '100%' }}
+                onLayout={(e) => setW(e.nativeEvent.layout.width)}
+            >
                 <Image source={{ uri: slides[0] }} style={{ width: '100%', height }} resizeMode="cover" />
-                {isAd ? (
-                    <View style={s.adBadge}>
-                        <Text style={s.adBadgeTxt}>{adBadgeLabel}</Text>
-                    </View>
-                ) : null}
-            </View>
+                {badges}
+            </Pressable>
         );
     }
 
@@ -63,8 +92,6 @@ export default function EquipmentCardThumb({
         <View
             style={{ height, width: '100%' }}
             onLayout={(e) => setW(e.nativeEvent.layout.width)}
-            // Parent TouchableOpacity kart açmasın diye kaydırma alanı kendi jestini alsın
-            onStartShouldSetResponder={() => true}
         >
             {w > 0 ? (
                 <ScrollView
@@ -81,33 +108,22 @@ export default function EquipmentCardThumb({
                     }}
                 >
                     {slides.map((uri, i) => (
-                        <Image
+                        <Pressable
                             key={`${uri}-${i}`}
-                            source={{ uri }}
+                            onPress={onPress}
+                            disabled={!onPress}
                             style={{ width: w, height }}
-                            resizeMode="cover"
-                        />
+                        >
+                            <Image
+                                source={{ uri }}
+                                style={{ width: w, height }}
+                                resizeMode="cover"
+                            />
+                        </Pressable>
                     ))}
                 </ScrollView>
             ) : null}
-            {isAd ? (
-                <View style={s.adBadge}>
-                    <Text style={s.adBadgeTxt}>{adBadgeLabel}</Text>
-                </View>
-            ) : null}
-            <View style={s.dots}>
-                {slides.map((_, i) => (
-                    <View
-                        key={i}
-                        style={[s.dot, i === idx && s.dotOn]}
-                    />
-                ))}
-            </View>
-            {!isAd && slides.length > 1 ? (
-                <View style={s.count}>
-                    <Text style={s.countTxt}>📷 {slides.length}</Text>
-                </View>
-            ) : null}
+            {badges}
         </View>
     );
 }

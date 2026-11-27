@@ -31585,24 +31585,25 @@ function SubCategoryScreen({ route, navigation }) {
                                     {filteredEquipment.map(eq => (
                                         <View key={eq.id}
                                             style={{ width:'48%', backgroundColor: colors.surface2, borderRadius:12, overflow:'hidden', borderWidth:1, borderColor: colors.border }}>
-                                            {/* Foto kaydırma detayı açmasın — sadece alt metin alanı detaya gider */}
+                                            {/* Kaydırma: çoklu foto önizleme; tek tık (görsel veya metin): ilan detayı */}
                                             <EquipmentCardThumb
                                                 images={eq.images}
                                                 adImages={eq.adImages}
                                                 isAd={!!eq.isAd}
                                                 height={120}
                                                 adBadgeLabel={t.equipAdBadge || 'Reklam'}
+                                                onPress={() => { setEqGalleryIdx(0); setEqFullscreen(false); setSelectedEquipment(eq); }}
                                             />
-                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0, zIndex: 2 }}>
+                                            <View style={{ position:'absolute', top:6, left:6, backgroundColor: eq.condition==='NEW' ? '#16a34a' : '#f59e0b', borderRadius:6, paddingHorizontal:2, paddingVertical:0, zIndex: 2 }} pointerEvents="none">
                                                 <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>{eq.condition==='NEW' ? t.sc_0901 : t.sc_0902}</Text>
                                             </View>
                                             {eq.status === 'RESERVED' && (
-                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#f59e0b', borderRadius:6, paddingHorizontal:4, paddingVertical:1, zIndex: 2 }}>
+                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#f59e0b', borderRadius:6, paddingHorizontal:4, paddingVertical:1, zIndex: 2 }} pointerEvents="none">
                                                     <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>⏳</Text>
                                                 </View>
                                             )}
                                             {eq.status === 'SOLD' && (
-                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1, zIndex: 2 }}>
+                                                <View style={{ position:'absolute', top:6, right:6, backgroundColor:'#6b7280', borderRadius:6, paddingHorizontal:4, paddingVertical:1, zIndex: 2 }} pointerEvents="none">
                                                     <Text style={{ color:'#fff', fontSize:9, fontWeight:'800' }}>✅</Text>
                                                 </View>
                                             )}
