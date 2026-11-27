@@ -15,6 +15,12 @@ import TournamentMatchScheduleModal, { formatAgreed } from '../components/Tourna
 import { ENABLED_SUBS, MAINTENANCE_MESSAGE } from '../config/features';
 import { subLabel } from '../config/visualCatalog';
 import { shareRival, shareTournament } from '../utils/share';
+import { isRacketSetSport, isSevenSix, normalizeRacketSets } from '../utils/racketScore.js';
+
+function fmtElo(v) {
+    if (v == null || Number.isNaN(Number(v))) return null;
+    return `${Number(v).toFixed(2)}★`;
+}
 
 // Rival formunda kendi DB'den kort arama + yeni kort ekleme
 async function fetchCourtsFromDB(city, sport) {
@@ -3000,8 +3006,12 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
     const participants  = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
     const isFootball    = match.subCategory === 'football' || match.subCategory === 'basketball';
     const isCompetitive = match.matchMode === 'COMPETITIVE';
+    const racketSport   = isRacketSetSport(match.subCategory);
+    const isVolleyball   = match.subCategory === 'volleyball';
 
-    // Team labels
+    // Team labels + ELO (skor bekleyen kartlarla aynı)
+    const senderElo = fmtElo(match.senderSkillRating ?? match.sender?.interests?.[0]?.skillRating);
+    const opponentElo = fmtElo(participants[0]?.skillRating);
     const senderLabel   = match.sender?.username || t('websc.team_a');
     const opponentLabel = participants[0]?.username || t('websc.team_b');
 
@@ -3020,6 +3030,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
     // ── Set-based sports (tennis, padel…) ───────────────────────────────────
     const [sets, setSets]       = useState(match.score?.sets || [{ sender: '', opponent: '' }]);
     const [setWinner, setSetWinner] = useState(match.score?.winner || '');
+    const [saveError, setSaveError] = useState('');
 
     const addSet    = () => setSets(prev => [...prev, { sender: '', opponent: '' }]);
     const removeSet = (i) => setSets(prev => prev.filter((_, idx) => idx !== i));
@@ -3036,9 +3047,10 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
 
     const canSave = isFootball
         ? (sg !== null && og !== null && finalWinnerFb && finalWinnerFb !== 'draw')
-        : !!(setWinner || autoWinnerSet);
+        : !!(setWinner || autoWinnerSet || racketSport || isVolleyball);
 
     const handleSave = async () => {
+        setSaveError('');
         setIsSaving(true);
         try {
             let payload;
@@ -3047,12 +3059,58 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                     sets: [{ sender: sg, opponent: og }],
                     winner: finalWinnerFb,
                 };
+            } else if (racketSport) {
+                // Mobil ile aynı set kuralları — yanlış skor sessizce reddedilmesin, uyarı çıksın.
+                const deciding = !!match.decidingTiebreak || sets.some(s => s?.matchTiebreak);
+                const checked = normalizeRacketSets(sets, {
+                    decidingTiebreak: deciding,
+                    setsPerMatch: match.setsPerMatch || 3,
+                    a: 'sender', b: 'opponent', tbA: 'tbSender', tbB: 'tbOpponent',
+                });
+                if (!checked.ok) {
+                    setSaveError(checked.message || t('websc.invalid_score'));
+                    setIsSaving(false);
+                    return;
+                }
+                payload = {
+                    sets: checked.sets,
+                    winner: checked.winner === 'a' ? 'sender' : 'opponent',
+                };
+            } else if (isVolleyball) {
+                for (let i = 0; i < sets.length; i++) {
+                    const p1 = Number(sets[i]?.sender) || 0, p2 = Number(sets[i]?.opponent) || 0;
+                    if (p1 === 0 && p2 === 0) continue;
+                    const hi = Math.max(p1, p2), lo = Math.min(p1, p2);
+                    const target = i === 4 ? 15 : 25;
+                    const valid = (hi === target && lo <= target - 2) || (hi > target && hi - lo === 2);
+                    if (!valid) {
+                        setSaveError(t('websc.invalid_volley_set', {
+                            p1, p2, setLabel: i === 4 ? t('websc.set_5') : t('websc.set_n', { n: i + 1 }), target,
+                        }) || `${p1}-${p2} geçersiz set skoru.`);
+                        setIsSaving(false);
+                        return;
+                    }
+                }
+                payload = { sets, winner: setWinner || autoWinnerSet };
+                if (!payload.winner) {
+                    setSaveError(t('websc.pick_winner') || t('websc.invalid_score'));
+                    setIsSaving(false);
+                    return;
+                }
             } else {
                 payload = { sets, winner: setWinner || autoWinnerSet };
+                if (!payload.winner) {
+                    setSaveError(t('websc.pick_winner') || t('websc.invalid_score'));
+                    setIsSaving(false);
+                    return;
+                }
             }
             const { data } = await api.patch(`/rivals/${match.id}/score`, payload);
             onSave(data);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            // Kullanıcı raporu: yanlış skor / API reddi sessiz kalıyordu — nedeni göster.
+            setSaveError(err?.response?.data?.message || t('websc.error') || 'Error');
+        }
         finally { setIsSaving(false); }
     };
 
@@ -3060,10 +3118,10 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
             <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-md" onClick={e => e.stopPropagation()}>
 
-                {/* Header */}
+                {/* Header — web: emoji yok, düz metin */}
                 <div className="flex justify-between items-center px-6 py-4 border-b border-gray-800">
                     <div>
-                        <h3 className="text-white font-bold">📊 {isCompetitive ? t('websc.enter_match_score') : t('websc.log_score')}</h3>
+                        <h3 className="text-white font-bold">{isCompetitive ? t('websc.enter_match_score') : t('websc.log_score')}</h3>
                         {isCompetitive
                             ? <p className="text-red-400 text-xs mt-0.5">{t('websc.ranked_elo')}</p>
                             : <p className="text-gray-500 text-xs mt-0.5">{t('websc.practice_opt')}</p>
@@ -3079,11 +3137,12 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                             <div className="flex items-center gap-4">
                                 {/* Sender */}
                                 <div className="flex-1 text-center">
-                                    <p className="text-gray-400 text-xs font-bold mb-2 truncate">{senderLabel}</p>
+                                    <p className="text-gray-400 text-xs font-bold mb-0.5 truncate">{senderLabel}</p>
+                                    {senderElo && <p className="text-yellow-400 text-[11px] font-bold mb-2">{senderElo}</p>}
                                     <input
                                         type="number" min="0" max="99"
                                         value={senderGoals}
-                                        onChange={e => { setSenderGoals(e.target.value); setManualWinner(''); }}
+                                        onChange={e => { setSenderGoals(e.target.value); setManualWinner(''); setSaveError(''); }}
                                         placeholder="0"
                                         className={`w-full text-center rounded-2xl py-4 border focus:outline-none text-5xl font-black transition
                                             ${sg !== null && og !== null && sg > og
@@ -3094,11 +3153,12 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                                 <span className="text-gray-600 font-black text-2xl flex-shrink-0">—</span>
                                 {/* Opponent */}
                                 <div className="flex-1 text-center">
-                                    <p className="text-gray-400 text-xs font-bold mb-2 truncate">{opponentLabel}</p>
+                                    <p className="text-gray-400 text-xs font-bold mb-0.5 truncate">{opponentLabel}</p>
+                                    {opponentElo && <p className="text-yellow-400 text-[11px] font-bold mb-2">{opponentElo}</p>}
                                     <input
                                         type="number" min="0" max="99"
                                         value={opponentGoals}
-                                        onChange={e => { setOpponentGoals(e.target.value); setManualWinner(''); }}
+                                        onChange={e => { setOpponentGoals(e.target.value); setManualWinner(''); setSaveError(''); }}
                                         placeholder="0"
                                         className={`w-full text-center rounded-2xl py-4 border focus:outline-none text-5xl font-black transition
                                             ${sg !== null && og !== null && og > sg
@@ -3114,7 +3174,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                                     {autoWinnerFb === 'draw'
                                         ? <p className="text-yellow-400 text-sm font-bold">{t('websc.draw_pick')}</p>
                                         : <p className="text-green-400 text-sm font-bold">
-                                            🏆 {autoWinnerFb === 'sender' ? senderLabel : opponentLabel} wins
+                                            {t('websc.winner')}: {autoWinnerFb === 'sender' ? senderLabel : opponentLabel}
                                           </p>
                                     }
                                 </div>
@@ -3128,7 +3188,7 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                                         {[{ val: 'sender', label: senderLabel }, { val: 'opponent', label: opponentLabel }].map(opt => (
                                             <button key={opt.val} onClick={() => setManualWinner(opt.val)}
                                                 className={`py-2.5 rounded-xl border font-bold text-sm transition ${manualWinner === opt.val ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                                                🏆 {opt.label}
+                                                {opt.label}
                                             </button>
                                         ))}
                                     </div>
@@ -3137,7 +3197,16 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                         </>
                     ) : (
                         <>
-                            {/* Set-based (tennis/padel) */}
+                            {/* Set-based (tennis/padel) — oyuncu + ELO */}
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                                <p className="text-[#F4F1EA] font-bold truncate">
+                                    {senderLabel}{senderElo ? <span className="text-yellow-400 font-extrabold"> · {senderElo}</span> : null}
+                                </p>
+                                <span className="text-gray-600 font-bold flex-shrink-0">vs</span>
+                                <p className="text-[#F4F1EA] font-bold truncate text-right">
+                                    {opponentLabel}{opponentElo ? <span className="text-yellow-400 font-extrabold"> · {opponentElo}</span> : null}
+                                </p>
+                            </div>
                             {sets.length > 1 && (
                                 <div className="text-center">
                                     <p className="text-white font-black text-2xl">{senderSetsWon} — {opponentSetsWon}</p>
@@ -3149,55 +3218,80 @@ function ScoreModal({ match, config, myId, onClose, onSave }) {
                                 const s = Number(set.sender), o = Number(set.opponent);
                                 const rw = set.sender !== '' && set.opponent !== ''
                                     ? (s > o ? 'sender' : o > s ? 'opponent' : null) : null;
+                                const needsTb = racketSport && set.sender !== '' && set.opponent !== '' && isSevenSix(s, o);
                                 return (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <span className="text-gray-500 text-xs w-10 text-right flex-shrink-0">Set {i + 1}</span>
-                                        <input type="number" min="0" max="99" value={set.sender}
-                                            onChange={e => updateSet(i, 'sender', e.target.value)} placeholder="0"
-                                            className={`flex-1 text-center rounded-xl px-3 py-2.5 border focus:outline-none text-xl font-black transition ${rw === 'sender' ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 text-white border-gray-700 focus:border-purple-500'}`} />
-                                        <span className="text-gray-600 font-bold text-lg">-</span>
-                                        <input type="number" min="0" max="99" value={set.opponent}
-                                            onChange={e => updateSet(i, 'opponent', e.target.value)} placeholder="0"
-                                            className={`flex-1 text-center rounded-xl px-3 py-2.5 border focus:outline-none text-xl font-black transition ${rw === 'opponent' ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 text-white border-gray-700 focus:border-purple-500'}`} />
-                                        {sets.length > 1 && (
-                                            <button onClick={() => removeSet(i)} className="text-gray-600 hover:text-red-400 text-sm flex-shrink-0 w-5">✕</button>
+                                    <div key={i} className="space-y-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-500 text-xs w-12 text-right flex-shrink-0">{t('websc.set_n', { n: i + 1 }) || `Set ${i + 1}`}</span>
+                                            <input type="number" min="0" max="99" value={set.sender}
+                                                onChange={e => { updateSet(i, 'sender', e.target.value); setSaveError(''); }} placeholder="0"
+                                                className={`flex-1 text-center rounded-xl px-3 py-2.5 border focus:outline-none text-xl font-black transition ${rw === 'sender' ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 text-white border-gray-700 focus:border-purple-500'}`} />
+                                            <span className="text-gray-600 font-bold text-lg">-</span>
+                                            <input type="number" min="0" max="99" value={set.opponent}
+                                                onChange={e => { updateSet(i, 'opponent', e.target.value); setSaveError(''); }} placeholder="0"
+                                                className={`flex-1 text-center rounded-xl px-3 py-2.5 border focus:outline-none text-xl font-black transition ${rw === 'opponent' ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 text-white border-gray-700 focus:border-purple-500'}`} />
+                                            {sets.length > 1 && (
+                                                <button type="button" onClick={() => removeSet(i)} className="text-gray-600 hover:text-red-400 text-sm flex-shrink-0 w-5">✕</button>
+                                            )}
+                                        </div>
+                                        {needsTb && (
+                                            <div className="flex items-center gap-2 pl-12">
+                                                <span className="text-amber-400 text-[10px] font-bold w-8 flex-shrink-0">{t('websc.tiebreak_short') || 'TB'}</span>
+                                                <input type="number" min="0" max="99" value={set.tbSender ?? ''}
+                                                    onChange={e => { updateSet(i, 'tbSender', e.target.value); setSaveError(''); }}
+                                                    placeholder="0"
+                                                    className="flex-1 text-center rounded-lg px-2 py-1.5 border border-amber-500/40 bg-gray-800 text-white text-sm font-bold focus:outline-none" />
+                                                <span className="text-gray-600 text-xs">-</span>
+                                                <input type="number" min="0" max="99" value={set.tbOpponent ?? ''}
+                                                    onChange={e => { updateSet(i, 'tbOpponent', e.target.value); setSaveError(''); }}
+                                                    placeholder="0"
+                                                    className="flex-1 text-center rounded-lg px-2 py-1.5 border border-amber-500/40 bg-gray-800 text-white text-sm font-bold focus:outline-none" />
+                                            </div>
                                         )}
                                     </div>
                                 );
                             })}
 
-                            <button onClick={addSet} className="w-full text-gray-500 hover:text-gray-300 text-xs py-2 border border-dashed border-gray-700 rounded-xl transition">
-                                + Add Set
+                            <button type="button" onClick={addSet} className="w-full text-gray-500 hover:text-gray-300 text-xs py-2 border border-dashed border-gray-700 rounded-xl transition">
+                                {t('websc.add_set') || '+ Set'}
                             </button>
 
-                            <div>
-                                <div className="flex items-center justify-between mb-2">
-                                    <p className="text-gray-400 text-xs">{t('websc.winner')}</p>
-                                    {autoWinnerSet && !setWinner && <p className="text-green-400 text-xs">{t('websc.auto_detected')}</p>}
+                            {!racketSport && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <p className="text-gray-400 text-xs">{t('websc.winner')}</p>
+                                        {autoWinnerSet && !setWinner && <p className="text-green-400 text-xs">{t('websc.auto_detected')}</p>}
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[{ val: 'sender', label: senderLabel }, { val: 'opponent', label: opponentLabel }].map(opt => {
+                                            const active = (setWinner || autoWinnerSet) === opt.val;
+                                            return (
+                                                <button key={opt.val} type="button" onClick={() => setSetWinner(opt.val)}
+                                                    className={`py-2.5 rounded-xl border font-bold text-sm transition ${active ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
+                                                    {opt.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {[{ val: 'sender', label: senderLabel }, { val: 'opponent', label: opponentLabel }].map(opt => {
-                                        const active = (setWinner || autoWinnerSet) === opt.val;
-                                        return (
-                                            <button key={opt.val} onClick={() => setSetWinner(opt.val)}
-                                                className={`py-2.5 rounded-xl border font-bold text-sm transition ${active ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'}`}>
-                                                🏆 {opt.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                            )}
                         </>
                     )}
+
+                    {saveError ? (
+                        <div className="bg-red-500/10 border border-red-500/40 rounded-xl px-3 py-2.5">
+                            <p className="text-red-300 text-xs font-bold whitespace-pre-wrap">{saveError}</p>
+                        </div>
+                    ) : null}
                 </div>
 
                 <div className="px-6 py-4 border-t border-gray-800 flex gap-3">
-                    <button onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 text-sm">
-                        {isCompetitive ? 'Cancel' : 'Skip'}
+                    <button type="button" onClick={onClose} className="flex-1 bg-gray-800 text-gray-300 font-bold py-2.5 rounded-xl border border-gray-700 text-sm">
+                        {t('common.cancel')}
                     </button>
-                    <button onClick={handleSave} disabled={isSaving || !canSave}
+                    <button type="button" onClick={handleSave} disabled={isSaving || (isFootball && !canSave)}
                         className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl disabled:opacity-40 text-sm`}>
-                        {isSaving ? 'Saving...' : isCompetitive ? t('websc.submit_score') : t('websc.save_score')}
+                        {isSaving ? '...' : isCompetitive ? t('websc.submit_score') : t('websc.save_score')}
                     </button>
                 </div>
             </div>
@@ -5334,28 +5428,29 @@ function SubCategoryPage() {
 
                                     return (
                                         <div className="mt-1 space-y-2">
-                                            <div className="flex gap-2">
-                                                <button onClick={onScore}
-                                                    className={`flex-1 font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition ${match.matchMode === 'COMPETITIVE' ? `bg-gradient-to-r ${config.color} text-white` : 'bg-gray-700 border border-gray-600 text-gray-300'}`}>
-                                                    {match.matchMode === 'COMPETITIVE' ? t('websc.enter_score_req') : t('websc.log_score_opt')}
-                                                </button>
+                                            {/* Web: sadece emoji yasak — tam yazı butonları (mobil title ile aynı metin) */}
+                                            <button type="button" onClick={onScore}
+                                                className={`w-full font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition ${match.matchMode === 'COMPETITIVE' ? `bg-gradient-to-r ${config.color} text-white` : 'bg-gray-700 border border-gray-600 text-gray-300'}`}>
+                                                {match.matchMode === 'COMPETITIVE' ? t('websc.enter_score_req') : t('websc.log_score_opt')}
+                                            </button>
+                                            <div className="grid grid-cols-1 gap-1.5">
                                                 <button
+                                                    type="button"
                                                     onClick={() => { setShowExtend(v => !v); setShowAbandon(false); setShowNoShow(false); }}
-                                                    title={t('websc.postponed_title')}
-                                                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showExtend ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
-                                                    ⏱️
+                                                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold text-left transition ${showExtend ? 'bg-orange-500/20 border-orange-500/50 text-orange-300' : 'bg-[#1C1F28] border-[#2A2D36] text-[#E7E2D8] hover:border-gray-500'}`}>
+                                                    {t('websc.postponed_title')}
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     onClick={() => { setShowAbandon(v => !v); setShowExtend(false); setShowNoShow(false); }}
-                                                    title={t('websc.match_failed_title')}
-                                                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showAbandon ? 'bg-red-500/20 border-red-500/50 text-red-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
-                                                    🚫
+                                                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold text-left transition ${showAbandon ? 'bg-red-500/20 border-red-500/50 text-red-300' : 'bg-[#1C1F28] border-[#2A2D36] text-[#E7E2D8] hover:border-gray-500'}`}>
+                                                    {t('websc.match_failed_title')}
                                                 </button>
                                                 <button
+                                                    type="button"
                                                     onClick={() => { setShowNoShow(v => !v); setShowExtend(false); setShowAbandon(false); }}
-                                                    title={t('websc.rival_noshow')}
-                                                    className={`flex-shrink-0 px-3 py-2.5 rounded-xl border text-sm font-bold transition ${showNoShow ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white hover:border-gray-500'}`}>
-                                                    🙅
+                                                    className={`w-full px-3 py-2 rounded-xl border text-xs font-bold text-left transition ${showNoShow ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300' : 'bg-[#1C1F28] border-[#2A2D36] text-[#E7E2D8] hover:border-gray-500'}`}>
+                                                    {t('websc.rival_noshow')}
                                                 </button>
                                             </div>
 
@@ -5458,8 +5553,10 @@ function SubCategoryPage() {
 
                                 const typeLabel = (m) =>
                                     m.matchType === 'PLAYER_WANTED'
-                                        ? `👥 ${m.teamSize}v${m.teamSize} Match — Ready ✓`
-                                        : m.matchType === 'DOUBLE' ? '🎾🎾 Double — CONFIRMED ✓' : '🎾 Single — CONFIRMED ✓';
+                                        ? `${m.teamSize}v${m.teamSize} — ${t('websc.confirmed') || 'CONFIRMED'}`
+                                        : m.matchType === 'DOUBLE'
+                                            ? `2v2 — ${t('websc.confirmed') || 'CONFIRMED'}`
+                                            : `1v1 — ${t('websc.confirmed') || 'CONFIRMED'}`;
 
                                 const TeamBlock = ({ label, members, avgRating, colorClass }) => (
                                     <div className="flex-1 min-w-0">
@@ -5586,9 +5683,9 @@ function SubCategoryPage() {
                                                 </div>
                                                 <div className="text-right flex-shrink-0">
                                                     {m.matchDate && (
-                                                        <p className="text-[#A8A29A] text-[11px]">📅 {new Date(m.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}</p>
+                                                        <p className="text-[#A8A29A] text-[11px]">{new Date(m.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}</p>
                                                     )}
-                                                    {m.matchTime && <p className="text-[#A8A29A] text-[11px]">🕐 {m.matchTime}</p>}
+                                                    {m.matchTime && <p className="text-[#A8A29A] text-[11px]">{m.matchTime}{m.duration ? ` · ${m.duration} ${t('websc.min') || 'min'}` : ''}</p>}
                                                 </div>
                                             </div>
 
@@ -5613,28 +5710,36 @@ function SubCategoryPage() {
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2 flex-wrap mb-3">
-                                                    <div className="flex items-center gap-1.5 bg-gray-800 rounded-full px-3 py-1">
+                                                    <div className="flex items-center gap-1.5 bg-[#1C1F28] rounded-full px-3 py-1">
                                                         <div className={`w-5 h-5 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[9px] font-bold`}>
                                                             {m.sender?.username?.[0]?.toUpperCase()}
                                                         </div>
-                                                        <span className="text-gray-300 text-xs">{m.sender?.username}</span>
+                                                        <span className="text-[#F4F1EA] text-xs font-bold">{m.sender?.username}</span>
+                                                        {fmtElo(m.senderSkillRating ?? m.sender?.interests?.[0]?.skillRating) && (
+                                                            <span className="text-yellow-400 text-[10px] font-extrabold">
+                                                                {fmtElo(m.senderSkillRating ?? m.sender?.interests?.[0]?.skillRating)}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     {parts.length > 0 && <span className="text-gray-600 text-xs font-bold">vs</span>}
                                                     {parts.map(p => (
-                                                        <div key={p.id} className="flex items-center gap-1.5 bg-gray-800 rounded-full px-3 py-1">
+                                                        <div key={p.id} className="flex items-center gap-1.5 bg-[#1C1F28] rounded-full px-3 py-1">
                                                             <div className={`w-5 h-5 rounded-full bg-gradient-to-b ${config.color} flex items-center justify-center text-white text-[9px] font-bold`}>
                                                                 {p.username?.[0]?.toUpperCase()}
                                                             </div>
-                                                            <span className="text-gray-300 text-xs">{p.username}</span>
+                                                            <span className="text-[#F4F1EA] text-xs font-bold">{p.username}</span>
+                                                            {fmtElo(p.skillRating) && (
+                                                                <span className="text-yellow-400 text-[10px] font-extrabold">{fmtElo(p.skillRating)}</span>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
                                             )}
 
-                                            {/* Location */}
+                                            {/* Location — web: emoji yok */}
                                             {(m.courtName || m.location) && (
-                                                <p className="text-gray-400 text-xs mb-2">
-                                                    {m.courtName ? `🏟️ ${m.courtName}${m.courtAddress ? ` — ${m.courtAddress}` : ''}` : `📍 ${m.location}`}
+                                                <p className="text-[#A8A29A] text-xs mb-2">
+                                                    {m.courtName ? `${m.courtName}${m.courtAddress ? ` — ${m.courtAddress}` : ''}` : m.location}
                                                 </p>
                                             )}
 
@@ -5670,9 +5775,9 @@ function SubCategoryPage() {
                                             )}
 
                                             {/* Comments */}
-                                            <button onClick={toggleComments}
+                                            <button type="button" onClick={toggleComments}
                                                 className="mt-2 text-gray-400 hover:text-white text-xs font-bold transition">
-                                                💬 Comments{matchComments.length > 0 ? ` (${matchComments.length})` : ''} {showComments ? '▲' : '▼'}
+                                                {t('websc.comments') || 'Comments'}{matchComments.length > 0 ? ` (${matchComments.length})` : ''} {showComments ? '▲' : '▼'}
                                             </button>
                                             {showComments && (
                                                 <div className="mt-2 space-y-2">
@@ -5740,12 +5845,22 @@ function SubCategoryPage() {
                                     const other = match.senderId === myId
                                         ? (participants[0] || match.receiver)
                                         : match.sender;
+                                    const founderElo = fmtElo(match.senderSkillRating ?? match.sender?.interests?.[0]?.skillRating);
+                                    const otherElo = fmtElo(
+                                        match.senderId === myId
+                                            ? participants[0]?.skillRating
+                                            : (match.senderSkillRating ?? match.sender?.interests?.[0]?.skillRating)
+                                    );
                                     return (
                                         <div className={`h-full rounded-2xl p-3 border flex flex-col ${isDisputed ? 'bg-[#16181F] border-red-500/40' : 'bg-[#16181F] border-orange-500/35'}`}>
                                             <div className="flex items-center justify-between gap-2 mb-2">
                                                 <div className="min-w-0">
                                                     <p className="text-[#F4F1EA] text-sm font-bold truncate">
-                                                        vs @{other?.username || '?'}
+                                                        {match.sender?.username || '?'}
+                                                        {founderElo ? <span className="text-yellow-400"> · {founderElo}</span> : null}
+                                                        {' vs '}
+                                                        {other?.username || '?'}
+                                                        {otherElo && other?.id !== match.senderId ? <span className="text-yellow-400"> · {otherElo}</span> : null}
                                                     </p>
                                                     <p className="text-[#A8A29A] text-[11px] mt-0.5">
                                                         {match.matchType === 'DOUBLE' ? '2v2' : '1v1'}
@@ -5827,7 +5942,7 @@ function SubCategoryPage() {
                                         {/* ── UPCOMING MATCHES (future) ── */}
                                         {future.length > 0 && (
                                             <div className="mt-2">
-                                                <h4 className="text-[#F4F1EA] font-bold mb-3 text-sm">📅 {t('rival.upcoming')}</h4>
+                                                <h4 className="text-[#F4F1EA] font-bold mb-3 text-sm">{t('rival.upcoming')}</h4>
                                                 <PeekRow items={future} render={(m) => <UpcomingCard m={m} />} />
                                             </div>
                                         )}
