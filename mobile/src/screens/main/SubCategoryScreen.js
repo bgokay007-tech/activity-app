@@ -24472,7 +24472,9 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 {/* Android'de behavior="height" modal içindeki ScrollView'la çakışıp klavye
                     açılmasa/kapanmasa bile kaydırma sırasında yeniden boyutlandırma tetikleyip
                     kaydırma jestini bozuyordu — CreateRivalModal'daki gibi "padding" kullanılıyor. */}
-                <KeyboardAvoidingView behavior="padding" style={{ flex:1 }}>
+                {/* Android: KAV kapalı (CreateRivalModal gibi) — KAV+Aware çift küçültme klavye
+                    açıkken max oyuncu → ödül kaydırmasını kilitliyordu. iOS'ta padding. */}
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex:1 }}>
                     {/* Kullanıcı isteği: turnuva oluştur formu tam sayfa; alt şeffaf/nav alanı ile
                         "Oluştur" butonu çakışmasın — insets.bottom + ekstra padding. */}
                     <View style={[s.modalBox, {
@@ -24493,12 +24495,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                         <KeyboardAwareForm
                             key={formEpoch}
                             adjustWindow={false}
+                            mode="layout"
                             ref={scrollRef}
                             showsVerticalScrollIndicator={false}
-                            keyboardShouldPersistTaps="handled"
-                            overScrollMode="never"
-                            bottomOffset={56}
-                            contentContainerStyle={{ paddingBottom: Math.max(28, insets.bottom + 24) }}
+                            keyboardShouldPersistTaps="always"
+                            bottomOffset={96}
+                            contentContainerStyle={{ paddingBottom: Math.max(160, insets.bottom + 140) }}
                         >
 
                             {/* Ad | Kapsam | Ülke (Ulusal) — YEREL'de il/ilçe ayrı satırda çoklu seçim */}
@@ -26455,6 +26457,7 @@ function SubCategoryScreen({ route, navigation }) {
     const dispatch = useDispatch();
     const myId = useSelector(s => s.auth.user?.id);
     const myIsAdmin = useSelector(s => s.auth.user?.isAdmin);
+    const myGender = useSelector(s => s.auth.user?.gender);
     const myInterests = useSelector(s => s.auth.user?.interests || []);
     const myRating = myInterests.find(i => i.subCategory === sub)?.skillRating ?? 0;
 
@@ -30086,6 +30089,44 @@ function SubCategoryScreen({ route, navigation }) {
     };
 
     const handleJoinTournament = useCallback(async (item, partnerId, teamName) => {
+        // Cinsiyet / derece şartı — API'ye gitmeden uyarı (backend de aynı kuralları reddeder).
+        const gt = item?.genderType;
+        if (gt === 'ERKEK' || gt === 'KADIN') {
+            if (myGender !== 'MALE' && myGender !== 'FEMALE') {
+                Alert.alert('', t.tournJoinGenderRequired || 'Cinsiyet kısıtlamalı turnuva için profilinizde cinsiyetinizi belirtin');
+                return;
+            }
+            if ((gt === 'ERKEK' && myGender !== 'MALE') || (gt === 'KADIN' && myGender !== 'FEMALE')) {
+                Alert.alert('', gt === 'ERKEK'
+                    ? (t.tournJoinGenderMismatchMale || 'Bu turnuva yalnızca erkek oyuncular içindir')
+                    : (t.tournJoinGenderMismatchFemale || 'Bu turnuva yalnızca kadın oyuncular içindir'));
+                return;
+            }
+        }
+        const interest = myInterests.find(i => i.subCategory === (item?.subCategory || sub));
+        const isDoubles = ['2', '4', '10', '12', '14'].includes(String(item?.type))
+            || (String(item?.type) === '9' && defiEntryOf(item) === 'PAIR');
+        let rating = interest?.skillRating ?? 0;
+        if (UTR_MOBILE_SUBS.has(item?.subCategory || sub)) {
+            rating = utrDisplayRating(interest, item?.subCategory || sub, isDoubles) ?? 0;
+        }
+        let minR = item?.minRating;
+        let maxR = item?.maxRating;
+        if (item?.ratingGenderSplit) {
+            if (myGender === 'MALE') { minR = item.minRatingMale; maxR = item.maxRatingMale; }
+            else if (myGender === 'FEMALE') { minR = item.minRatingFemale; maxR = item.maxRatingFemale; }
+            else { minR = null; maxR = null; }
+        }
+        if (minR != null && rating < Number(minR)) {
+            Alert.alert('', (t.tournJoinRatingTooLow?.(minR, Number(rating).toFixed(2)))
+                || `Bu turnuva için en az ${minR}★ gerekir. Dereceniz: ${Number(rating).toFixed(2)}★`);
+            return;
+        }
+        if (maxR != null && rating > Number(maxR)) {
+            Alert.alert('', (t.tournJoinRatingTooHigh?.(maxR, Number(rating).toFixed(2)))
+                || `Bu turnuva en fazla ${maxR}★ içindir. Dereceniz: ${Number(rating).toFixed(2)}★`);
+            return;
+        }
         try {
             const body = partnerId || teamName ? { ...(partnerId ? { partnerId } : {}), ...(teamName ? { teamName } : {}) } : undefined;
             await api.post(`/tournaments/${item.id}/join`, body);
@@ -30094,7 +30135,7 @@ function SubCategoryScreen({ route, navigation }) {
         } catch (e) {
             Alert.alert('', e?.response?.data?.message || t.tournJoinFailed);
         }
-    }, [loadTournaments, t]);
+    }, [loadTournaments, t, myGender, myInterests, sub]);
 
     const handleCancelJoinTournament = useCallback(async (id, reason) => {
         try {

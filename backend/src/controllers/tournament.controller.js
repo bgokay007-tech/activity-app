@@ -148,6 +148,44 @@ function sanitizeWhatsappGroupUrl(raw) {
 // Defi ligi çift girişi (padel/tenis çiftler merdiveni) çiftler puanı + partner akışı kullanır.
 const tIsDoubles = (t) => isDoublesFormat({ tournamentType: t.type }) || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
 const tAllowsPartner = (t) => t.type === '2' || t.type === '4' || t.type === '10' || t.type === '12' || t.type === '14' || (isDefi(t) && defiSettingsOf(t).entry === 'PAIR');
+
+// genderType: ERKEK | KADIN | MIX — kullanıcı gender: MALE | FEMALE | OTHER | null
+function tournamentGenderBlockReason(tournament, userGender, { asPartner = false } = {}) {
+    const gt = tournament?.genderType;
+    if (!gt || gt === 'MIX') return null;
+    const need = gt === 'ERKEK' ? 'MALE' : gt === 'KADIN' ? 'FEMALE' : null;
+    if (!need) return null;
+    const who = asPartner ? 'Seçtiğiniz partner' : 'Bu turnuvaya';
+    if (userGender !== 'MALE' && userGender !== 'FEMALE') {
+        return asPartner
+            ? 'Seçtiğiniz partnerin profilinde cinsiyet tanımlı değil'
+            : 'Cinsiyet kısıtlamalı turnuvaya katılmak için profilinizde cinsiyetinizi belirtmelisiniz';
+    }
+    if (userGender !== need) {
+        return gt === 'ERKEK'
+            ? `${who} yalnızca erkek oyuncular içindir`
+            : `${who} yalnızca kadın oyuncular içindir`;
+    }
+    return null;
+}
+
+function tournamentEffRatingBounds(tournament, userGender) {
+    let minR = tournament.minRating;
+    let maxR = tournament.maxRating;
+    if (tournament.ratingGenderSplit) {
+        if (userGender === 'MALE') {
+            minR = tournament.minRatingMale;
+            maxR = tournament.maxRatingMale;
+        } else if (userGender === 'FEMALE') {
+            minR = tournament.minRatingFemale;
+            maxR = tournament.maxRatingFemale;
+        } else {
+            minR = null;
+            maxR = null;
+        }
+    }
+    return { minR, maxR };
+}
 const tIsPracticeIntensity = (t) => t?.type === '13' || t?.type === '14'
     || String(t?.formatConfig?.intensity || '').toUpperCase() === 'PRACTICE'
     || String(t?.formatConfig?.seeding || '').toUpperCase() === 'RANDOM';
@@ -1572,15 +1610,12 @@ export async function checkPollAutoJoinEligibility(tournament, userId) {
     if (userRec?.tournamentBanRemaining > 0) {
         return { ok: false, message: 'Geç iptal cezası nedeniyle şu anda turnuvalara katılamadığınız için otomatik başvurunuz oluşturulamadı.' };
     }
-    const userRating = getDisplayRating(interest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
-    // Cinsiyete göre ayrı derece aralığı seçiliyse (ör. erkek 3-4, kadın 4-5) o aralık kullanılır;
-    // cinsiyeti belirtilmemiş/OTHER olan kullanıcılar için derece kısıtlaması uygulanmaz.
-    let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
-    if (tournament.ratingGenderSplit) {
-        if (userRec?.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
-        else if (userRec?.gender === 'FEMALE') { effMinRating = tournament.minRatingFemale; effMaxRating = tournament.maxRatingFemale; }
-        else { effMinRating = null; effMaxRating = null; }
+    const genderBlock = tournamentGenderBlockReason(tournament, userRec?.gender);
+    if (genderBlock) {
+        return { ok: false, message: `${genderBlock}; otomatik başvurunuz oluşturulamadı.` };
     }
+    const userRating = getDisplayRating(interest, tournament.subCategory, isDoublesFormat({ tournamentType: tournament.type }));
+    const { minR: effMinRating, maxR: effMaxRating } = tournamentEffRatingBounds(tournament, userRec?.gender);
     if (effMinRating != null && userRating < effMinRating) {
         return { ok: false, message: `Bu turnuva en az ${effMinRating}★ derece gerektirdiği için otomatik başvurunuz oluşturulamadı.` };
     }
@@ -1601,18 +1636,30 @@ export const joinTournament = async (req, res, next) => {
         if (partnerId) {
             if (!tAllowsPartner(tournament)) return res.status(400).json({ message: 'Partner seçimi sadece Çiftler Rekabetçi ve Çiftler Antrenman turnuvalarda mümkün' });
             if (partnerId === req.userId) return res.status(400).json({ message: 'Kendinizi partner olarak seçemezsiniz' });
-            const partnerInterest = await prisma.userInterest.findUnique({
-                where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
-                select: {
-                    assessmentCompleted: true,
-                    doublesAssessmentCompleted: true,
-                    wins: true,
-                    losses: true,
-                    singlesMatchCount: true,
-                    doublesMatchCount: true,
-                    matchesSinceAssessment: true,
-                },
-            });
+            const [partnerInterest, partnerUser] = await Promise.all([
+                prisma.userInterest.findUnique({
+                    where: { userId_category_subCategory: { userId: partnerId, category: tournament.category, subCategory: tournament.subCategory } },
+                    select: {
+                        assessmentCompleted: true,
+                        doublesAssessmentCompleted: true,
+                        wins: true,
+                        losses: true,
+                        singlesMatchCount: true,
+                        doublesMatchCount: true,
+                        matchesSinceAssessment: true,
+                        skillRating: true,
+                        singlesRating: true,
+                        doublesRating: true,
+                        singlesSeedRating: true,
+                        doublesSeedRating: true,
+                        singlesRatingOffset: true,
+                        doublesRatingOffset: true,
+                    },
+                }),
+                prisma.user.findUnique({ where: { id: partnerId }, select: { gender: true } }),
+            ]);
+            const partnerGenderBlock = tournamentGenderBlockReason(tournament, partnerUser?.gender, { asPartner: true });
+            if (partnerGenderBlock) return res.status(400).json({ message: partnerGenderBlock });
             if (!hasGeneralAssessment(partnerInterest, tournament.subCategory)) {
                 return res.status(400).json({ message: 'Seçtiğiniz partner bu spor dalında henüz derecelendirme anketini tamamlamamış' });
             }
@@ -1626,6 +1673,14 @@ export const joinTournament = async (req, res, next) => {
                 if (partnerPlayed < MIN_MATCHES_FOR_TOURNAMENT) {
                     return res.status(400).json({ message: `Seçtiğiniz partner bu spor dalında henüz en az ${MIN_MATCHES_FOR_TOURNAMENT} maç yapmamış` });
                 }
+            }
+            const partnerRating = getDisplayRating(partnerInterest, tournament.subCategory, tIsDoubles(tournament));
+            const partnerBounds = tournamentEffRatingBounds(tournament, partnerUser?.gender);
+            if (partnerBounds.minR != null && partnerRating < partnerBounds.minR) {
+                return res.status(400).json({ message: `Seçtiğiniz partnerin derecesi yetersiz (en az ${partnerBounds.minR}★ gerekir)` });
+            }
+            if (partnerBounds.maxR != null && partnerRating > partnerBounds.maxR) {
+                return res.status(400).json({ message: `Seçtiğiniz partnerin derecesi bu turnuva için yüksek (en fazla ${partnerBounds.maxR}★)` });
             }
         }
 
@@ -1688,7 +1743,7 @@ export const joinTournament = async (req, res, next) => {
             }
         }
 
-        // Check tournament ban + rating
+        // Check tournament ban + rating + cinsiyet
         const [userBan, userInterest] = await Promise.all([
             prisma.user.findUnique({ where: { id: req.userId }, select: { tournamentBanRemaining: true, gender: true } }),
             prisma.userInterest.findUnique({
@@ -1700,21 +1755,17 @@ export const joinTournament = async (req, res, next) => {
             return res.status(403).json({ message: `Geç iptal cezası nedeniyle ${userBan.tournamentBanRemaining} turnuvaya daha katılamazsınız.` });
         }
 
-        // Check rating limits — cinsiyete göre ayrı aralık seçiliyse (ör. erkek 3-4, kadın 4-5)
-        // katılımcının cinsiyetine göre uygun aralık kullanılır; cinsiyeti belirtilmemiş/OTHER
-        // olan kullanıcılar için derece kısıtlaması uygulanmaz.
+        // Cinsiyet kısıtı (ERKEK/KADIN) — önceden sadece UI'da görünüyordu, join'de yoktu.
+        const genderBlock = tournamentGenderBlockReason(tournament, userBan?.gender);
+        if (genderBlock) return res.status(403).json({ message: genderBlock });
+
         const userRating = getDisplayRating(userInterest, tournament.subCategory, tIsDoubles(tournament));
         const cleanTeamName = isDefi(tournament) && defiSettingsOf(tournament).entry === 'TEAM'
             ? String(teamName || '').trim().slice(0, 40) : '';
         if (isDefi(tournament) && defiSettingsOf(tournament).entry === 'TEAM' && !cleanTeamName) {
             return res.status(400).json({ message: 'Takım adı zorunlu' });
         }
-        let effMinRating = tournament.minRating, effMaxRating = tournament.maxRating;
-        if (tournament.ratingGenderSplit) {
-            if (userBan?.gender === 'MALE') { effMinRating = tournament.minRatingMale; effMaxRating = tournament.maxRatingMale; }
-            else if (userBan?.gender === 'FEMALE') { effMinRating = tournament.minRatingFemale; effMaxRating = tournament.maxRatingFemale; }
-            else { effMinRating = null; effMaxRating = null; }
-        }
+        const { minR: effMinRating, maxR: effMaxRating } = tournamentEffRatingBounds(tournament, userBan?.gender);
         if (effMinRating !== null && effMinRating !== undefined && userRating < effMinRating) {
             return res.status(403).json({ message: `Bu turnuvaya katılmak için en az ${effMinRating}★ dereceniz olması gerekiyor. Mevcut dereceniz: ${userRating.toFixed(2)}★` });
         }

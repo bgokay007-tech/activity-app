@@ -1813,6 +1813,11 @@ const en = {
     tournJoinNotePh: 'Optional note to organizer...',
     tournJoinSent: '✅ Join request sent. Waiting for organizer approval.',
     tournJoinFailed: 'Could not send join request',
+    tournJoinGenderRequired: 'Set your gender in your profile to join gender-restricted tournaments.',
+    tournJoinGenderMismatchMale: 'This tournament is for men only.',
+    tournJoinGenderMismatchFemale: 'This tournament is for women only.',
+    tournJoinRatingTooLow: (min, mine) => `You need at least ${min}★ to join. Your rating: ${mine}★`,
+    tournJoinRatingTooHigh: (max, mine) => `This tournament allows at most ${max}★. Your rating: ${mine}★`,
 
     // SubCategory — tournament tabs & empty states
     tournOpenTab: 'Listings', tournInProgressTab: 'Ongoing tournaments', tournCompletedTab: 'Completed',
@@ -5237,6 +5242,11 @@ const tr = {
     tournJoinNotePh: 'Organizatöre not (isteğe bağlı)...',
     tournJoinSent: '✅ Katılım isteğiniz gönderildi. Turnuva yöneticisinin onayı bekleniyor.',
     tournJoinFailed: 'Katılım isteği gönderilemedi',
+    tournJoinGenderRequired: 'Cinsiyet kısıtlamalı turnuvaya katılmak için profilinizde cinsiyetinizi belirtin.',
+    tournJoinGenderMismatchMale: 'Bu turnuva yalnızca erkek oyuncular içindir.',
+    tournJoinGenderMismatchFemale: 'Bu turnuva yalnızca kadın oyuncular içindir.',
+    tournJoinRatingTooLow: (min, mine) => `Bu turnuva için en az ${min}★ gerekir. Dereceniz: ${mine}★`,
+    tournJoinRatingTooHigh: (max, mine) => `Bu turnuva en fazla ${max}★ içindir. Dereceniz: ${mine}★`,
 
     // SubCategory — tournament tabs & empty states
     tournOpenTab: 'İlanlar', tournInProgressTab: 'Devam eden turnuvalar', tournCompletedTab: 'Tamamlanan',
@@ -8658,6 +8668,11 @@ const ru = {
     tournJoinNotePh: 'Необязательная заметка организатору...',
     tournJoinSent: '✅ Запрос на участие отправлен. Ожидание одобрения организатора.',
     tournJoinFailed: 'Не удалось отправить запрос на участие',
+    tournJoinGenderRequired: 'Укажите пол в профиле, чтобы подать заявку в турнир с ограничением по полу.',
+    tournJoinGenderMismatchMale: 'Этот турнир только для мужчин.',
+    tournJoinGenderMismatchFemale: 'Этот турнир только для женщин.',
+    tournJoinRatingTooLow: (min, mine) => `Нужен рейтинг не ниже ${min}★. Ваш: ${mine}★`,
+    tournJoinRatingTooHigh: (max, mine) => `В этом турнире максимум ${max}★. Ваш: ${mine}★`,
 
     // SubCategory — tournament tabs & empty states
     tournOpenTab: 'Объявления', tournInProgressTab: 'Текущие турниры', tournCompletedTab: 'Завершённые',
@@ -12078,6 +12093,11 @@ const de = {
     tournJoinNotePh: 'Optionale Notiz an Organisator...',
     tournJoinSent: '✅ Beitrittsanfrage gesendet. Warte auf Genehmigung des Organisators.',
     tournJoinFailed: 'Beitrittsanfrage konnte nicht gesendet werden',
+    tournJoinGenderRequired: 'Trage dein Geschlecht im Profil ein, um geschlechtsbeschränkte Turniere zu betreten.',
+    tournJoinGenderMismatchMale: 'Dieses Turnier ist nur für Männer.',
+    tournJoinGenderMismatchFemale: 'Dieses Turnier ist nur für Frauen.',
+    tournJoinRatingTooLow: (min, mine) => `Mindestens ${min}★ nötig. Dein Rating: ${mine}★`,
+    tournJoinRatingTooHigh: (max, mine) => `Höchstens ${max}★ erlaubt. Dein Rating: ${mine}★`,
 
     // SubCategory — tournament tabs & empty states
     tournOpenTab: 'Anzeigen', tournInProgressTab: 'Laufende Turniere', tournCompletedTab: 'Abgeschlossen',
