@@ -68,6 +68,7 @@ import { shareRival, shareTournament, shareEquipment, shareCoach, shareClub } fr
 import { registerEntityShareOpener } from '../../utils/entityShareBridge';
 import EntityShareModal from '../../components/EntityShareModal';
 import EquipmentCardThumb from '../../components/EquipmentCardThumb';
+import EquipmentStoresModal from '../../components/EquipmentStoresModal';
 import { computeVarDurationPrice } from '../../utils/priceProration';
 import { getSubCategoryLabel } from '../../utils/subCategoryLabels';
 import { sportFacilityLabels, sportEquipmentTabLabel } from '../../utils/sportFacilityLabels';
@@ -26887,6 +26888,7 @@ function SubCategoryScreen({ route, navigation }) {
     const [equipmentForm, setEquipmentForm] = useState({
         title: '', price: '', condition: 'NEW', description: '', location: '', images: [],
         isAd: false, adUrl: '',
+        storeName: '', storePhone: '', storeWebsite: '', storeFeedUrl: '',
     });
     const [submittingEquipment, setSubmittingEquipment] = useState(false);
     const [equipmentMedia, setEquipmentMedia] = useState([]);
@@ -26896,6 +26898,7 @@ function SubCategoryScreen({ route, navigation }) {
     const [equipmentMinPrice, setEquipmentMinPrice] = useState('');
     const [equipmentMaxPrice, setEquipmentMaxPrice] = useState('');
     const [showEquipmentFilter, setShowEquipmentFilter] = useState(false);
+    const [showEquipmentStores, setShowEquipmentStores] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
     // Ekipman detay galerisi — tüm resimler; dokununca tam ekran
     const [eqGalleryIdx, setEqGalleryIdx] = useState(0);
@@ -28983,12 +28986,55 @@ function SubCategoryScreen({ route, navigation }) {
     };
 
     const resetEquipmentForm = () => {
-        setEquipmentForm({ title: '', price: '', condition: 'NEW', description: '', location: '', images: [], isAd: false, adUrl: '' });
+        setEquipmentForm({
+            title: '', price: '', condition: 'NEW', description: '', location: '', images: [],
+            isAd: false, adUrl: '',
+            storeName: '', storePhone: '', storeWebsite: '', storeFeedUrl: '',
+        });
         setEquipmentMedia([]);
         setEquipmentAdMedia([]);
     };
 
     const submitEquipment = async () => {
+        // Mağaza açılışı — sadece isim / telefon / web (+ opsiyonel feed)
+        if (equipmentForm.condition === 'STORE') {
+            const name = (equipmentForm.storeName || '').trim();
+            const website = (equipmentForm.storeWebsite || '').trim();
+            const phone = (equipmentForm.storePhone || '').trim();
+            const feedUrl = (equipmentForm.storeFeedUrl || '').trim();
+            if (!name) return Alert.alert('', t.equipStoreNameRequired || 'Mağaza adı gerekli');
+            if (!/^https?:\/\//i.test(website)) {
+                return Alert.alert('', t.equipStoreWebsiteRequired || 'Geçerli bir https:// web sayfası gerekli');
+            }
+            setSubmittingEquipment(true);
+            try {
+                const { data } = await api.post('/equipment/stores', {
+                    category,
+                    subCategory: sub,
+                    name,
+                    phone: phone || undefined,
+                    websiteUrl: website,
+                    feedUrl: feedUrl && /^https?:\/\//i.test(feedUrl) ? feedUrl : undefined,
+                    city: (equipmentForm.location || '').trim() || undefined,
+                    syncNow: true,
+                });
+                setShowEquipmentForm(false);
+                resetEquipmentForm();
+                const syncMsg = data?.sync?.ok
+                    ? (t.equipStoreSyncOk?.(data.sync.count) || `${data.sync.count} ürün senkronlandı`)
+                    : (data?.sync?.message
+                        ? (t.equipStoreSyncWarn?.(data.sync.message) || data.sync.message)
+                        : (t.equipStoreCreated || 'Mağaza açıldı'));
+                Alert.alert('', syncMsg);
+                setShowEquipmentStores(true);
+            } catch (e) {
+                Alert.alert('', e?.response?.data?.message || t.actionFailed);
+            } finally {
+                setSubmittingEquipment(false);
+            }
+            return;
+        }
+
         if (!equipmentForm.title.trim()) return Alert.alert('', t.sc_0863);
         if (!parseInt(equipmentForm.price) || parseInt(equipmentForm.price) <= 0) return Alert.alert('', t.sc_0864);
         if (!equipmentForm.location.trim()) return Alert.alert('', t.sc_0865);
@@ -31513,7 +31559,11 @@ function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color: equipFilterActive ? cfg.color : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.filterBtn}</Text>
                                     {equipFilterActive && <View style={{ width:6, height:6, borderRadius:3, backgroundColor: cfg.color }} />}
                                 </TouchableOpacity>
-                                {/* İlan ver / Filtre / Satılanlar ile aynı yükseklik: CityAlertBtn
+                                <TouchableOpacity onPress={() => setShowEquipmentStores(true)}
+                                    style={{ flex:1, minWidth:0, flexDirection:'row', alignItems:'center', justifyContent:'center', backgroundColor: colors.surface2, borderRadius:10, paddingVertical:6, paddingHorizontal:4, borderWidth:1, borderColor: colors.border }}>
+                                    <Text style={{ color: colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.equipStoresBtn || 'Mağaza'}</Text>
+                                </TouchableOpacity>
+                                {/* İlan ver / Filtre / Mağaza / Satılanlar ile aynı yükseklik: CityAlertBtn
                                     varsayılan minHeight(touchSize 40) + dikey sayı satırı bu sırada
                                     butonu şişiriyordu — minHeight kapat, sayı zilin yanında. */}
                                 <CityAlertBtn tab="equipment" style={{ paddingVertical:6, paddingHorizontal:4, flexShrink:0, minHeight:0, flexDirection:'row', gap:2 }} />
@@ -31522,6 +31572,14 @@ function SubCategoryScreen({ route, navigation }) {
                                     <Text style={{ color: equipmentViewStatus==='SOLD' ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65}>{t.equipSoldTab}</Text>
                                 </TouchableOpacity>
                             </View>
+                            <EquipmentStoresModal
+                                visible={showEquipmentStores}
+                                onClose={() => setShowEquipmentStores(false)}
+                                category={category}
+                                subCategory={sub}
+                                accentColor={cfg.color}
+                                t={t}
+                            />
                             {/* Filtre modalı */}
                             <Modal visible={showEquipmentFilter} animationType="slide" transparent onRequestClose={() => setShowEquipmentFilter(false)}>
                                 <View style={s.modalOverlay}>
@@ -31665,13 +31723,65 @@ function SubCategoryScreen({ route, navigation }) {
                                         >
                                             <Text style={{ color:'#fff', fontSize:16, fontWeight:'900', marginBottom:12 }}>{t.sc_0904}</Text>
                                             <View style={{ flexDirection:'row', gap:3, marginBottom:10 }}>
-                                                {['NEW','USED'].map(c => (
+                                                {['NEW','USED','STORE'].map(c => (
                                                     <TouchableOpacity key={c} onPress={() => setEquipmentForm(f => ({...f, condition:c}))}
                                                         style={{ flex:1, paddingVertical:5, borderRadius:8, alignItems:'center', backgroundColor: equipmentForm.condition===c ? cfg.color : colors.surface2, borderWidth:1, borderColor: equipmentForm.condition===c ? cfg.color : colors.border }}>
-                                                        <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:13, fontWeight:'700' }}>{c==='NEW' ? t.sc_0905 : t.sc_0906}</Text>
+                                                        <Text style={{ color: equipmentForm.condition===c ? '#fff' : colors.textSecondary, fontSize:12, fontWeight:'700' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                                                            {c==='NEW' ? t.sc_0905 : c==='USED' ? t.sc_0906 : (t.equipStoreOption || 'Mağaza')}
+                                                        </Text>
                                                     </TouchableOpacity>
                                                 ))}
                                             </View>
+                                            {equipmentForm.condition === 'STORE' ? (
+                                                <>
+                                                    <Text style={{ color: colors.textMuted, fontSize: 11, marginBottom: 8, lineHeight: 15 }}>
+                                                        {t.equipStoreFormHint || 'Mağaza adı, iletişim ve web sayfası yeterli. Ürünler sitenizden otomatik çekilir.'}
+                                                    </Text>
+                                                    <TextInput
+                                                        placeholder={t.equipStoreNamePh || 'Mağaza adı'}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        value={equipmentForm.storeName || ''}
+                                                        onChangeText={v => setEquipmentForm(f => ({ ...f, storeName: v }))}
+                                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                                                    />
+                                                    <TextInput
+                                                        placeholder={t.equipStorePhonePh || 'İletişim numarası'}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        value={equipmentForm.storePhone || ''}
+                                                        onChangeText={v => setEquipmentForm(f => ({ ...f, storePhone: v }))}
+                                                        keyboardType="phone-pad"
+                                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                                                    />
+                                                    <TextInput
+                                                        placeholder={t.equipStoreWebsitePh || 'https://magazaniz.com'}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        value={equipmentForm.storeWebsite || ''}
+                                                        onChangeText={v => setEquipmentForm(f => ({ ...f, storeWebsite: v }))}
+                                                        autoCapitalize="none"
+                                                        autoCorrect={false}
+                                                        keyboardType="url"
+                                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                                                    />
+                                                    <TextInput
+                                                        placeholder={t.equipStoreFeedPh || 'JSON feed URL (isteğe bağlı)'}
+                                                        placeholderTextColor={colors.textMuted}
+                                                        value={equipmentForm.storeFeedUrl || ''}
+                                                        onChangeText={v => setEquipmentForm(f => ({ ...f, storeFeedUrl: v }))}
+                                                        autoCapitalize="none"
+                                                        autoCorrect={false}
+                                                        keyboardType="url"
+                                                        style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }}
+                                                    />
+                                                    <CityAutocomplete
+                                                        value={equipmentForm.location || ''}
+                                                        onChangeText={v => setEquipmentForm(f=>({...f,location:v}))}
+                                                        placeholder={t.equipCityPh || t.sc_0910}
+                                                        style={{ marginBottom: 12 }}
+                                                        openUp
+                                                    />
+                                                </>
+                                            ) : (
+                                                <>
                                             <TextInput placeholder={t.sc_0907} placeholderTextColor={colors.textMuted} value={equipmentForm.title} onChangeText={v => setEquipmentForm(f=>({...f,title:v}))} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                             <TextInput placeholder={t.sc_0908} placeholderTextColor={colors.textMuted} value={String(equipmentForm.price)} onChangeText={v => setEquipmentForm(f=>({...f,price:v.replace(/[^0-9]/,'')}))} keyboardType="numeric" style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border }} />
                                             <TextInput placeholder={t.sc_0909} placeholderTextColor={colors.textMuted} value={equipmentForm.description} onChangeText={v => setEquipmentForm(f=>({...f,description:v}))} multiline numberOfLines={3} style={{ backgroundColor:colors.surface2, borderRadius:8, paddingHorizontal:9, paddingVertical:5, color:'#fff', marginBottom:8, borderWidth:1, borderColor:colors.border, minHeight:70, textAlignVertical:'top' }} />
@@ -31787,6 +31897,8 @@ function SubCategoryScreen({ route, navigation }) {
                                                     )}
                                                 </View>
                                             ) : null}
+                                                </>
+                                            )}
 
                                             <View style={{ flexDirection:'row', gap:3 }}>
                                                 <TouchableOpacity onPress={() => { setShowEquipmentForm(false); resetEquipmentForm(); }} style={{ flex:1, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor:colors.surface2, borderWidth:1, borderColor:colors.border }}>
@@ -31794,7 +31906,11 @@ function SubCategoryScreen({ route, navigation }) {
                                                 </TouchableOpacity>
                                                 <TouchableOpacity onPress={submitEquipment} disabled={submittingEquipment || uploadingEquipmentMedia} style={{ flex:2, paddingVertical:8, borderRadius:10, alignItems:'center', backgroundColor: cfg.color }}>
                                                     <Text style={{ color:'#fff', fontWeight:'900', fontSize:14 }}>
-                                                        {uploadingEquipmentMedia ? t.sc_0100 : submittingEquipment ? '...' : t.sc_0913}
+                                                        {uploadingEquipmentMedia ? t.sc_0100 : submittingEquipment ? '...' : (
+                                                            equipmentForm.condition === 'STORE'
+                                                                ? (t.equipStoreSubmit || 'Mağaza Aç')
+                                                                : t.sc_0913
+                                                        )}
                                                     </Text>
                                                 </TouchableOpacity>
                                             </View>

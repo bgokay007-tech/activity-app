@@ -140,6 +140,7 @@ model User {
   equipmentListings   EquipmentListing[]
   equipmentPurchases  EquipmentListing[] @relation("EquipmentSoldTo")
   equipmentOffers     EquipmentOffer[]
+  equipmentStores     EquipmentStore[]
   clubListings        ClubListing[]
   clubMembershipApplications ClubMembershipApplication[] @relation("ClubMembershipApplicant")
   gymListings         GymListing[]
@@ -1090,6 +1091,55 @@ model EquipmentOffer {
   fromUser   User             @relation(fields: [fromUserId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, fromUserId])
+}
+
+// Ekipman sekmesi — Mağaza: web sitesinden ürün senkronu + mağaza vitrini
+model EquipmentStore {
+  id           String   @id @default(uuid())
+  userId       String
+  category     String
+  subCategory  String
+  name         String
+  phone        String?
+  websiteUrl   String
+  // Opsiyonel JSON ürün feed'i; boşsa websiteUrl'den Shopify /products.json vb. dener
+  feedUrl      String?
+  logoUrl      String?
+  city         String?
+  status       String   @default("ACTIVE") // ACTIVE | CLOSED
+  lastSyncedAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products EquipmentStoreProduct[]
+
+  @@index([subCategory, status])
+  @@index([userId, subCategory])
+}
+
+model EquipmentStoreProduct {
+  id          String   @id @default(uuid())
+  storeId     String
+  title       String
+  description String?
+  price       Int      @default(0)
+  currency    String   @default("TRY")
+  stock       Int?
+  imageUrl    String?
+  productUrl  String?
+  externalId  String?
+  brand       String?
+  status      String   @default("ACTIVE") // ACTIVE | OUT_OF_STOCK | REMOVED
+  syncedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store EquipmentStore @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, externalId])
+  @@index([storeId, status])
+  @@index([title])
 }
 
 model UserAchievement {
