@@ -109,6 +109,7 @@
         }
       ],
       "./plugins/withHuaweiWearEngineRepo.js",
+      "./plugins/withForceDarkDisabled.js",
       [
         "@config-plugins/react-native-webrtc",
         {

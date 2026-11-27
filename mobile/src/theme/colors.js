@@ -29,6 +29,7 @@ const newColors = {
     textSecondary: '#A8A29A',
     textMuted: '#78716C',
     // Eski kod colors.purple'ı birincil vurgu sanıyor — yeni dilde lime.
+    // Sabit hex; spor cfg.color / OEM emoji rengine güvenme (marka-bagimsiz-ui).
     purple: '#C8F54A',
     purpleLight: '#D4F86A',
     green: '#16a34a',
@@ -36,6 +37,7 @@ const newColors = {
     yellow: '#eab308',
     red: '#dc2626',
     blue: '#2563eb',
+    // Lime dolgu üstünde her zaman koyu — #fff kullanma (telefona göre yıkanır).
     ctaText: '#0B0C10',
 };
 

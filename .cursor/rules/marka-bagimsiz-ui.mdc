@@ -6,7 +6,8 @@ Telefon markası (Samsung / Xiaomi / Pixel…) **emoji fontu** farklı çizer; a
 
 1. **Alt sekme / header / aksiyon / profil buton ikonları** — Unicode emoji (`🏠` `💬` `🔔` `⏰` `📅` `📞`…) **yasak** (görünüm olarak). `@expo/vector-icons` veya `assets/`.
 2. **Metin + baş emoji** → `ChromeText` (`mobile/src/components/ChromeText.js`) — baştaki emojiyi Ionicons/FA’ya çevirir. Sadece ikon: `UiIcon`. WhatsApp: `WhatsAppIcon`, Telegram: `TelegramIcon`.
-3. **Renk** — `colors.js` hex; OEM emoji rengine güvenme.
-4. Yeni buton eklerken `Text` içine `⏰ Rezervasyon` yazma; `ChromeText` veya `UiIcon` + düz metin kullan.
+3. **Renk** — `theme/colors.js` hex; OEM emoji / spor `cfg.color` / sistem Force Dark rengine güvenme.
+4. **Marka CTA (lime `#C8F54A` = `colors.purple`)** — dolgu `colors.purple`; üstündeki yazı **`colors.ctaText`** (`#0B0C10`). Lime üstüne `#fff` yazma — bazı telefonlarda yıkanır / koyu yeşile kaymış gibi görünür.
+5. Yeni buton eklerken `Text` içine `⏰ Rezervasyon` yazma; `ChromeText` veya `UiIcon` + düz metin kullan.
 
 Dal kapağı / spor görseli: `visualAssets` foto. Liste içi spor emoji (🎾) hâlâ Unicode olabilir — chrome butonlara emoji koyma.

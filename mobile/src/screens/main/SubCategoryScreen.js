@@ -11447,9 +11447,12 @@ const tg = StyleSheet.create({
     title:          { color:'#fff', fontSize:16, fontWeight:'900' },
     close:          { color: colors.textMuted, fontSize:22 },
     cell:           { flex:1, paddingVertical:9, borderRadius:10, backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border, alignItems:'center', justifyContent:'center' },
+    // Marka aksan = colors.purple (#C8F54A lime). Seçili yazı #fff değil — NEW_VISUAL'da
+    // lime üstünde koyu ctaText; telefona göre “koyu yeşil / açık lime” kayması olsa bile
+    // kontrast marka token’ından gelir (OEM emoji/renk sapması, bkz. marka-bagimsiz-ui).
     cellActive:     { backgroundColor: colors.purple, borderColor: colors.purple },
     cellText:       { color: colors.textSecondary, fontSize:12, fontWeight:'700' },
-    cellTextActive: { color:'#fff' },
+    cellTextActive: { color: colors.ctaText },
 });
 
 function RatingPickerModal({ visible, title, value, onSelect, onClose }) {
@@ -11621,7 +11624,7 @@ function RatingRangeModal({ visible, minValue, maxValue, onSelectMin, onSelectMa
                     <TouchableOpacity
                         onPress={onClose}
                         style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:10 }}>
-                        <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
+                        <Text style={{ color: colors.ctaText, fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -17022,7 +17025,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                         <TouchableOpacity
                                             onPress={() => setShowCancelPenaltyModal(false)}
                                             style={{ backgroundColor: colors.purple, borderRadius:12, paddingVertical:12, alignItems:'center', marginTop:10 }}>
-                                            <Text style={{ color:'#fff', fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
+                                            <Text style={{ color: colors.ctaText, fontSize:14, fontWeight:'800' }}>✓ {t.confirmBtn || t.sc_0157}</Text>
                                         </TouchableOpacity>
                                     </View>
                                 </View>
@@ -37516,11 +37519,11 @@ const s = StyleSheet.create({
     chipBtn:          { paddingHorizontal: moderateScale(12), paddingVertical: moderateScale(10), minHeight: touchSize(40), justifyContent:'center', borderRadius: moderateScale(10), backgroundColor: colors.surface2, borderWidth:1, borderColor: colors.border },
     chipBtnActive:    { backgroundColor: colors.purple, borderColor: colors.purple },
     chipBtnText:      { color: colors.textSecondary, fontSize: moderateScale(13), fontWeight:'700' },
-    chipBtnTextActive:{ color:'#fff' },
+    chipBtnTextActive:{ color: colors.ctaText },
     compactSelectBtn: { minHeight: touchSize(40), backgroundColor: colors.surface2, borderRadius: moderateScale(10), borderWidth:1, borderColor: colors.border, paddingHorizontal: moderateScale(8), alignItems:'center', justifyContent:'center' },
     compactSelectText:{ color:'#fff', fontSize: moderateScale(13), fontWeight:'700' },
     submitBtn:        { backgroundColor: colors.purple, borderRadius: moderateScale(14), paddingVertical: moderateScale(14), minHeight: touchSize(48), justifyContent:'center', alignItems:'center', marginTop: moderateScale(8) },
-    submitBtnText:    { color:'#fff', fontWeight:'800', fontSize: moderateScale(16) },
+    submitBtnText:    { color: colors.ctaText, fontWeight:'800', fontSize: moderateScale(16) },
 
     switchRow:        { flexDirection:'row', alignItems:'center', backgroundColor: colors.surface2, borderRadius: moderateScale(14), padding: moderateScale(12), marginBottom: moderateScale(14), borderWidth:1, borderColor: colors.border },
 
