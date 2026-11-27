@@ -3529,6 +3529,10 @@ function SubCategoryPage() {
     const [archivedTournaments, setArchivedTournaments] = useState([]);
     const [expandedArchiveTIds, setExpandedArchiveTIds] = useState(new Set());
     const [scoringMatch, setScoringMatch] = useState(null);
+    // Mobildeki Skor Girilmesi / Onay Bekleyen bölümleri (collapsible). Web'de skor
+    // girilmesi gereken maçlar başlık altında kaçmasın diye varsayılan açık.
+    const [pendingScoreExpanded, setPendingScoreExpanded] = useState(true);
+    const [scoreConfirmExpanded, setScoreConfirmExpanded] = useState(false);
     const [teamChallengeRival, setTeamChallengeRival] = useState(null);
     // Çiftler: bireysel başvurular arası partner davet/kabul/geri çek
     const [partnerActionLoading, setPartnerActionLoading] = useState(false);
@@ -3776,6 +3780,18 @@ function SubCategoryPage() {
         if (activeTab === 'tickets' && !ticketsLoaded) loadSportsTickets();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab, ticketsLoaded]);
+
+    // Mobil: benim onayımı bekleyen skor varsa "Skor Onaylanması Bekleyen" otomatik açılsın.
+    useEffect(() => {
+        if (!myId || !completedMatches?.length) return;
+        const needsMe = completedMatches.some(m => {
+            if (m.scoreStatus !== 'PENDING' || !m.scoreEnteredBy || m.scoreEnteredBy === myId) return false;
+            const parts = Array.isArray(m.participants) ? m.participants : [];
+            const sTeam = Array.isArray(m.senderTeam) ? m.senderTeam : [];
+            return m.senderId === myId || parts.some(p => p?.id === myId) || sTeam.some(p => p?.id === myId);
+        });
+        if (needsMe) setScoreConfirmExpanded(true);
+    }, [completedMatches, myId]);
 
     const loadRefereeListings = async () => {
         setLoadingReferees(true);
@@ -5551,27 +5567,26 @@ function SubCategoryPage() {
                                     const involved = m.senderId === myId || parts.some(p => p.id === myId);
 
                                     return (
-                                        <div className={`rounded-2xl p-4 mb-3 border ${isPastCard ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-green-500/10 border-green-500/30'}`}>
-                                            {/* Header */}
-                                            <div className="flex items-start justify-between gap-2 mb-3">
-                                                <div className="flex items-center gap-2 flex-wrap">
+                                        <div className={`h-full rounded-2xl p-3 border flex flex-col ${isPastCard ? 'bg-[#16181F] border-orange-500/35' : 'bg-[#16181F] border-[#2A2D36]'}`}>
+                                            {/* Header — açık ilan kartlarıyla aynı dil (#16181F) */}
+                                            <div className="flex items-start justify-between gap-2 mb-2">
+                                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                                     {isPastCard
-                                                        ? <span className="font-bold text-sm text-yellow-400">{t('websc.ended_enter_score')}</span>
-                                                        : <span className={`font-bold text-sm bg-gradient-to-r ${config.color} bg-clip-text text-transparent`}>{typeLabel(m)}</span>
+                                                        ? <span className="font-bold text-xs text-orange-400">{t('websc.ended_enter_score')}</span>
+                                                        : <span className={`font-bold text-xs bg-gradient-to-r ${config.color} bg-clip-text text-transparent truncate`}>{typeLabel(m)}</span>
                                                     }
                                                     {m.matchMode === 'COMPETITIVE' && (
-                                                        <span className="text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">{t('websc.ranked')}</span>
+                                                        <span className="text-[10px] font-bold bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded-full">{t('websc.ranked')}</span>
                                                     )}
                                                     {m.matchMode === 'PRACTICE' && (
-                                                        <span className="text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">{t('websc.practice')}</span>
+                                                        <span className="text-[10px] font-bold bg-sky-500/20 text-sky-300 px-1.5 py-0.5 rounded-full">{t('websc.practice')}</span>
                                                     )}
                                                 </div>
                                                 <div className="text-right flex-shrink-0">
                                                     {m.matchDate && (
-                                                        <p className="text-gray-400 text-xs">📅 {new Date(m.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}</p>
+                                                        <p className="text-[#A8A29A] text-[11px]">📅 {new Date(m.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}</p>
                                                     )}
-                                                    {m.matchTime && <p className="text-gray-400 text-xs">🕐 {m.matchTime}</p>}
-                                                    {m.duration && <p className="text-gray-500 text-[10px]">⏳ {m.duration} min</p>}
+                                                    {m.matchTime && <p className="text-[#A8A29A] text-[11px]">🕐 {m.matchTime}</p>}
                                                 </div>
                                             </div>
 
@@ -5690,95 +5705,178 @@ function SubCategoryPage() {
                                     );
                                 };
 
+                                // Mobil ile aynı: yaklaşan (saati geçmiş) + /completed birleşir,
+                                // scoreStatus PENDING → onay bekleyen; diğerleri → skor girilmesi bekleyen.
+                                const completedIds = new Set(completedMatches.map(m => m.id));
+                                const pendingScoreAllRaw = [
+                                    ...completedMatches,
+                                    ...pastNoScore.filter(m => !completedIds.has(m.id)),
+                                ];
+                                const needsScoreEntry = pendingScoreAllRaw.filter(m => m.scoreStatus !== 'PENDING');
+                                const needsScoreConfirm = pendingScoreAllRaw.filter(m => m.scoreStatus === 'PENDING');
+                                const scoreConfirmNeedsMyAction = needsScoreConfirm.some(m => {
+                                    if (!m.scoreEnteredBy || m.scoreEnteredBy === myId) return false;
+                                    const parts = Array.isArray(m.participants) ? m.participants.filter(Boolean) : [];
+                                    const sTeam = Array.isArray(m.senderTeam) ? m.senderTeam.filter(Boolean) : [];
+                                    return m.senderId === myId || parts.some(p => p.id === myId) || sTeam.some(p => p.id === myId);
+                                });
+
+                                const ScoreConfirmCard = ({ match }) => {
+                                    const participants = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
+                                    const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
+                                    const score = match.score;
+                                    const iAmTeamA = match.senderId === myId || senderTeamArr.some(x => x.id === myId);
+                                    const iAmTeamB = participants.some(p => p.id === myId);
+                                    const isInvolved = iAmTeamA || iAmTeamB;
+                                    const teamA_ids = new Set([match.senderId, ...senderTeamArr.map(x => x.id)]);
+                                    const scorerIsTeamA = teamA_ids.has(match.scoreEnteredBy);
+                                    const mySideScored = (iAmTeamA && scorerIsTeamA) || (iAmTeamB && !scorerIsTeamA);
+                                    const canConfirm = score && match.scoreStatus === 'PENDING' && isInvolved && !mySideScored;
+                                    const isDisputed = match.scoreStatus === 'DISPUTED';
+                                    const other = match.senderId === myId
+                                        ? (participants[0] || match.receiver)
+                                        : match.sender;
+                                    return (
+                                        <div className={`h-full rounded-2xl p-3 border flex flex-col ${isDisputed ? 'bg-[#16181F] border-red-500/40' : 'bg-[#16181F] border-orange-500/35'}`}>
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-[#F4F1EA] text-sm font-bold truncate">
+                                                        vs @{other?.username || '?'}
+                                                    </p>
+                                                    <p className="text-[#A8A29A] text-[11px] mt-0.5">
+                                                        {match.matchType === 'DOUBLE' ? '2v2' : '1v1'}
+                                                        {match.matchMode === 'COMPETITIVE' ? ` · ${t('websc.ranked')}` : ''}
+                                                        {match.completedAt || match.matchDate
+                                                            ? ` · ${new Date(match.completedAt || match.matchDate).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}`
+                                                            : ''}
+                                                    </p>
+                                                </div>
+                                                {isDisputed
+                                                    ? <span className="text-red-400 text-[10px] font-bold bg-red-500/10 px-2 py-0.5 rounded-full flex-shrink-0">{t('websc.disputed')}</span>
+                                                    : <span className="text-orange-400 text-[10px] font-bold bg-orange-500/10 px-2 py-0.5 rounded-full flex-shrink-0">{t('websc.awaiting_confirm')}</span>
+                                                }
+                                            </div>
+                                            {score && <ScoreDisplay score={score} match={match} participants={participants} config={config} />}
+                                            <div className="mt-auto pt-2 space-y-2">
+                                                {!score && isInvolved && match.matchType !== 'PLAYER_WANTED' && (
+                                                    <ExtendOrScore
+                                                        match={match}
+                                                        config={config}
+                                                        onScore={() => setScoringMatch(match)}
+                                                        onExtended={(updated) => setCompletedMatches(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r))}
+                                                        onChanged={() => {
+                                                            api.get('/rivals/upcoming').then(({ data }) => setUpcomingMatches(data.filter(r => r.category === categoryUpper && r.subCategory === sub))).catch(() => {});
+                                                            api.get(`/rivals/completed?category=${categoryUpper}&subCategory=${sub}`).then(({ data }) => setCompletedMatches(data)).catch(() => {});
+                                                        }}
+                                                    />
+                                                )}
+                                                {score && match.scoreStatus === 'PENDING' && mySideScored && (
+                                                    <div className="flex gap-2">
+                                                        <div className="flex-1 bg-orange-500/10 border border-orange-500/30 text-orange-300 text-xs font-bold py-2 rounded-xl text-center">
+                                                            {t('websc.waiting_opponent')}
+                                                        </div>
+                                                        <button type="button" onClick={() => setScoringMatch(match)} className="bg-[#1C1F28] text-[#A8A29A] text-xs font-bold px-3 py-2 rounded-xl hover:text-white transition">✏️</button>
+                                                    </div>
+                                                )}
+                                                {canConfirm && (
+                                                    <div className="flex gap-2">
+                                                        <button type="button" onClick={async () => {
+                                                            const { data } = await api.patch(`/rivals/${match.id}/confirm-score`);
+                                                            setCompletedMatches(prev => prev.filter(x => x.id !== match.id));
+                                                            setArchivedMatches(prev => [data, ...prev]);
+                                                        }} className="flex-1 bg-green-600/80 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-xs transition">
+                                                            {t('websc.confirm_score')}
+                                                        </button>
+                                                        <button type="button" onClick={async () => {
+                                                            await api.patch(`/rivals/${match.id}/dispute-score`);
+                                                            setCompletedMatches(prev => prev.map(x => x.id === match.id ? { ...x, scoreStatus: 'DISPUTED' } : x));
+                                                        }} className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2 rounded-xl text-xs transition">
+                                                            {t('websc.dispute')}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {isDisputed && isInvolved && (
+                                                    <button type="button" onClick={async () => {
+                                                        await api.post(`/rivals/${match.id}/report-dispute`, { reason: t('websc.score_disagreement') });
+                                                        alert(t('websc.report_filed'));
+                                                    }} className="w-full bg-red-600/10 border border-red-500/30 text-red-400 font-bold py-2 rounded-xl text-xs hover:bg-red-600/20 transition">
+                                                        {t('websc.report_admin')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                };
+
+                                const PeekRow = ({ items, render }) => (
+                                    <div className="flex gap-2.5 overflow-x-auto pb-1 -mx-0.5 px-0.5 snap-x snap-mandatory [scrollbar-width:thin]">
+                                        {items.map((item) => (
+                                            <div key={item.id} className="min-w-[42%] max-w-[280px] w-[42%] sm:min-w-[260px] sm:w-[260px] flex-shrink-0 snap-start">
+                                                {render(item)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+
                                 return (
                                     <>
                                         {/* ── UPCOMING MATCHES (future) ── */}
                                         {future.length > 0 && (
                                             <div className="mt-2">
-                                                <h4 className="text-white font-bold mb-3">📅 {t('rival.upcoming')}</h4>
-                                                {future.map(m => <UpcomingCard key={m.id} m={m} />)}
+                                                <h4 className="text-[#F4F1EA] font-bold mb-3 text-sm">📅 {t('rival.upcoming')}</h4>
+                                                <PeekRow items={future} render={(m) => <UpcomingCard m={m} />} />
                                             </div>
                                         )}
 
-                                        {/* ── Pending score confirmation ── */}
-                                        {completedMatches.length > 0 && (
-                                            <div className="mt-4 space-y-3">
-                                                {completedMatches.map(match => {
-                                                    const participants = Array.isArray(match.participants) ? match.participants.filter(Boolean) : [];
-                                                    const senderTeamArr = Array.isArray(match.senderTeam) ? match.senderTeam.filter(Boolean) : [];
-                                                    const score = match.score;
-                                                    const iAmTeamA = match.senderId === myId || senderTeamArr.some(m => m.id === myId);
-                                                    const iAmTeamB = participants.some(p => p.id === myId);
-                                                    const isInvolved = iAmTeamA || iAmTeamB;
-                                                    const teamA_ids = new Set([match.senderId, ...senderTeamArr.map(m => m.id)]);
-                                                    const scorerIsTeamA = teamA_ids.has(match.scoreEnteredBy);
-                                                    const mySideScored = (iAmTeamA && scorerIsTeamA) || (iAmTeamB && !scorerIsTeamA);
-                                                    const canConfirm = score && match.scoreStatus === 'PENDING' && isInvolved && !mySideScored;
-                                                    const isDisputed = match.scoreStatus === 'DISPUTED';
-                                                    return (
-                                                        <div key={match.id} className={`rounded-2xl p-4 border ${isDisputed ? 'bg-red-500/5 border-red-500/30' : 'bg-gray-900 border-gray-700'}`}>
-                                                            <div className="flex items-center justify-between mb-2">
-                                                                <span className="text-gray-400 text-xs font-bold">
-                                                                    {match.matchType === 'DOUBLE' ? '2v2' : '1v1'}
-                                                                    {match.matchMode === 'COMPETITIVE' && <span className="ml-1 text-red-400 font-bold"> ⚔️ Ranked</span>}
-                                                                    {match.completedAt && ` · ${new Date(match.completedAt).toLocaleDateString(uiLocale(), { day: 'numeric', month: 'short' })}`}
-                                                                </span>
-                                                                {isDisputed
-                                                                    ? <span className="text-red-400 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded-full">{t('websc.disputed')}</span>
-                                                                    : <span className="text-yellow-400 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded-full">{t('websc.awaiting_confirm')}</span>
-                                                                }
-                                                            </div>
-                                                            {score && <ScoreDisplay score={score} match={match} participants={participants} config={config} />}
-                                                            <div className="mt-3 space-y-2">
-                                                                {!score && isInvolved && match.matchType !== 'PLAYER_WANTED' && (
-                                                                    <ExtendOrScore
-                                                                        match={match}
-                                                                        config={config}
-                                                                        onScore={() => setScoringMatch(match)}
-                                                                        onExtended={(updated) => setCompletedMatches(prev => prev.map(r => r.id === updated.id ? { ...r, ...updated } : r))}
-                                                                        onChanged={() => {
-                                                                            api.get('/rivals/upcoming').then(({ data }) => setUpcomingMatches(data.filter(r => r.category === categoryUpper && r.subCategory === sub))).catch(() => {});
-                                                                            api.get(`/rivals/completed?category=${categoryUpper}&subCategory=${sub}`).then(({ data }) => setCompletedMatches(data)).catch(() => {});
-                                                                        }}
-                                                                    />
-                                                                )}
-                                                                {score && match.scoreStatus === 'PENDING' && mySideScored && (
-                                                                    <div className="flex gap-2">
-                                                                        <div className="flex-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-xs font-bold py-2 rounded-xl text-center">
-                                                                            ⏳ Waiting for opponent to confirm
-                                                                        </div>
-                                                                        <button onClick={() => setScoringMatch(match)} className="bg-gray-700 text-gray-300 text-xs font-bold px-3 py-2 rounded-xl hover:bg-gray-600 transition">✏️</button>
-                                                                    </div>
-                                                                )}
-                                                                {canConfirm && (
-                                                                    <div className="flex gap-2">
-                                                                        <button onClick={async () => {
-                                                                            const { data } = await api.patch(`/rivals/${match.id}/confirm-score`);
-                                                                            setCompletedMatches(prev => prev.filter(m => m.id !== match.id));
-                                                                            setArchivedMatches(prev => [data, ...prev]);
-                                                                        }} className="flex-1 bg-green-600/80 hover:bg-green-600 text-white font-bold py-2 rounded-xl text-sm transition">
-                                                                            ✓ Confirm Score
-                                                                        </button>
-                                                                        <button onClick={async () => {
-                                                                            await api.patch(`/rivals/${match.id}/dispute-score`);
-                                                                            setCompletedMatches(prev => prev.map(m => m.id === match.id ? { ...m, scoreStatus: 'DISPUTED' } : m));
-                                                                        }} className="flex-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-400 font-bold py-2 rounded-xl text-sm transition">
-                                                                            ✕ Dispute
-                                                                        </button>
-                                                                    </div>
-                                                                )}
-                                                                {isDisputed && isInvolved && (
-                                                                    <button onClick={async () => {
-                                                                        await api.post(`/rivals/${match.id}/report-dispute`, { reason: t('websc.score_disagreement') });
-                                                                        alert(t('websc.report_filed'));
-                                                                    }} className="w-full bg-red-600/10 border border-red-500/30 text-red-400 font-bold py-2 rounded-xl text-sm hover:bg-red-600/20 transition">
-                                                                        📋 Report to Admin
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
+                                        {/* ── Skor Girilmesi Bekleyen Maçlar (mobil pendingScoreTitle) ── */}
+                                        {needsScoreEntry.length > 0 && (
+                                            <div className="mt-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPendingScoreExpanded(v => !v)}
+                                                    className="w-full flex items-center justify-between gap-2 mb-2 text-left"
+                                                >
+                                                    <h4 className="text-orange-400 font-bold text-sm">
+                                                        {t('websc.pending_score_title')} ({needsScoreEntry.length})
+                                                    </h4>
+                                                    <span className="text-[#A8A29A] text-lg font-bold leading-none">
+                                                        {pendingScoreExpanded ? '▼' : '›'}
+                                                    </span>
+                                                </button>
+                                                {pendingScoreExpanded && (
+                                                    <PeekRow
+                                                        items={needsScoreEntry}
+                                                        render={(m) => (
+                                                            m.scoreStatus && m.scoreStatus !== 'NONE' && m.score
+                                                                ? <ScoreConfirmCard match={m} />
+                                                                : <UpcomingCard m={m} isPastCard />
+                                                        )}
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* ── Skor Onaylanması Bekleyen Maçlar ── */}
+                                        {needsScoreConfirm.length > 0 && (
+                                            <div className="mt-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setScoreConfirmExpanded(v => !v)}
+                                                    className="w-full flex items-center justify-between gap-2 mb-2 text-left"
+                                                >
+                                                    <h4 className="text-orange-400 font-bold text-sm">
+                                                        {t('websc.score_confirm_pending_title')} ({needsScoreConfirm.length})
+                                                    </h4>
+                                                    <span className={`text-lg font-bold leading-none ${scoreConfirmNeedsMyAction ? 'text-red-400 animate-pulse' : 'text-[#A8A29A]'}`}>
+                                                        {scoreConfirmExpanded ? '▼' : '›'}
+                                                    </span>
+                                                </button>
+                                                {scoreConfirmExpanded && (
+                                                    <PeekRow
+                                                        items={needsScoreConfirm}
+                                                        render={(m) => <ScoreConfirmCard match={m} />}
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     </>
@@ -9038,14 +9136,11 @@ function SubCategoryPage() {
 
                     {/* ARCHIVE TAB */}
                     {activeTab === 'archive' && (() => {
-                        const now = new Date();
-                        const isPast = (m) => m.matchDate ? new Date(m.matchDate) <= now : m.date ? new Date(m.date) <= now : false;
-                        const pastNoScore = upcomingMatches.filter(m => isPast(m) && m.matchType !== 'PLAYER_WANTED');
-                        const allDone = [
-                            ...pastNoScore.map(m => ({ ...m, _kind: 'noScore' })),
-                            ...completedMatches.map(m => ({ ...m, _kind: 'pending' })),
-                            ...archivedMatches.map(m => ({ ...m, _kind: 'archived' })),
-                        ].sort((a, b) => new Date(b.completedAt || b.matchDate || 0) - new Date(a.completedAt || a.matchDate || 0));
+                        // Skor girilmesi / onay bekleyenler Rakip Bul sekmesinde — arşivde sadece
+                        // onaylanmış (CONFIRMED) maçlar, mobil arşiv mantığıyla aynı.
+                        const allDone = archivedMatches
+                            .map(m => ({ ...m, _kind: 'archived' }))
+                            .sort((a, b) => new Date(b.completedAt || b.matchDate || 0) - new Date(a.completedAt || a.matchDate || 0));
 
                         // Filter helpers
                         const fCity  = archiveFilter.city.trim().toLowerCase();

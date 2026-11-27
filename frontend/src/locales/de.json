@@ -3201,6 +3201,8 @@
       "no_one_to_report": "Kein Teilnehmer, den du melden kannst.",
       "swap_positions": "🔀 Positionen tauschen",
       "ended_enter_score": "⏱️ Beendet — Ergebnis eintragen!",
+      "pending_score_title": "Spiele mit ausstehender Ergebniseingabe",
+      "score_confirm_pending_title": "Spiele mit ausstehender Ergebnisbestätigung",
       "ranked": "⚔️ Wertung",
       "practice": "🏃 Training",
       "no_comments": "Noch keine Kommentare.",

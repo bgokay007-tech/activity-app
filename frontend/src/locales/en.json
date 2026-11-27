@@ -3200,6 +3200,8 @@
       "no_one_to_report": "There is no participant you can report.",
       "swap_positions": "🔀 Swap positions",
       "ended_enter_score": "⏱️ Ended — enter score!",
+      "pending_score_title": "Matches Awaiting Score Entry",
+      "score_confirm_pending_title": "Matches Awaiting Score Confirmation",
       "ranked": "⚔️ Ranked",
       "practice": "🏃 Practice",
       "no_comments": "No comments yet.",

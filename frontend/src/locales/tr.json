@@ -3201,6 +3201,8 @@
       "no_one_to_report": "Bildirebileceğiniz bir katılımcı yok.",
       "swap_positions": "🔀 Pozisyon Değiştir",
       "ended_enter_score": "⏱️ Bitti — skor gir!",
+      "pending_score_title": "Skor Girilmesi Bekleyen Maçlar",
+      "score_confirm_pending_title": "Skor Onaylanması Bekleyen Maçlar",
       "ranked": "⚔️ Rekabetçi",
       "practice": "🏃 Antrenman",
       "no_comments": "Henüz yorum yok.",
