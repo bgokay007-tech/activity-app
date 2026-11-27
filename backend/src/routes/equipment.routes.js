@@ -3,6 +3,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 import {
     getListings, getListing, createListing, deleteListing,
     sendOffer, getOffers, respondOffer, cancelReservation, markSold, getListingContacts, confirmSold,
+    getActiveAds,
 } from '../controllers/equipment.controller.js';
 import {
     listStores, getStore, createStore, syncStore, deleteStore, searchStoreProducts,
@@ -15,7 +16,8 @@ router.use(authenticate);
 router.get('/',              getListings);
 router.post('/',             createListing);
 
-// Mağazalar — /:id'den ÖNCE
+// Mağazalar / aktif reklamlar — /:id'den ÖNCE
+router.get('/ads/active',      getActiveAds);
 router.get('/stores/products', searchStoreProducts);
 router.get('/stores',          listStores);
 router.post('/stores',         createStore);

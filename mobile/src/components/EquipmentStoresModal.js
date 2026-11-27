@@ -162,15 +162,12 @@ export default function EquipmentStoresModal({
     );
 
     return (
-        <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-            <View style={{ flex: 1, backgroundColor: '#000000cc', justifyContent: 'flex-end' }}>
-                <View style={{
-                    backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
-                    maxHeight: '92%', paddingBottom: Math.max(insets.bottom, 12),
-                }}>
+        <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
+            <View style={{ flex: 1, backgroundColor: colors.bg || colors.surface, paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 8) }}>
+                <View style={{ flex: 1 }}>
                     <View style={{
                         flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-                        paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10,
+                        paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
                         borderBottomWidth: 1, borderBottomColor: colors.border,
                     }}>
                         <TouchableOpacity
@@ -292,8 +289,8 @@ export default function EquipmentStoresModal({
                     )}
 
                     <ScrollView
-                        style={{ maxHeight: 560 }}
-                        contentContainerStyle={{ padding: 14, paddingBottom: 24 }}
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ padding: 14, paddingBottom: 32, flexGrow: 1 }}
                         keyboardShouldPersistTaps="always"
                         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={accentColor} />}
                     >

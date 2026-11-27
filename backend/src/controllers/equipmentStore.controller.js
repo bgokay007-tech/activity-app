@@ -1,5 +1,9 @@
 import prisma from '../config/prisma.js';
 import { fetchStoreProducts } from '../utils/equipmentStoreSync.js';
+import {
+    buildActiveAdFields,
+    validateWantAd,
+} from '../utils/equipmentAd.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
 
@@ -166,6 +170,7 @@ export const createStore = async (req, res, next) => {
     try {
         const {
             category, subCategory, name, phone, websiteUrl, feedUrl, city, logoUrl, syncNow,
+            isAd, adUrl, adImages, adDays,
         } = req.body;
         if (!category || !subCategory || !name || !String(name).trim()) {
             return res.status(400).json({ message: 'Mağaza adı ve dal zorunlu' });
@@ -175,6 +180,13 @@ export const createStore = async (req, res, next) => {
             return res.status(400).json({ message: 'Geçerli bir https:// web sayfası gerekli' });
         }
         const feed = feedUrl ? cleanUrl(feedUrl) : null;
+
+        const wantAd = !!isAd;
+        if (wantAd) {
+            const adErr = validateWantAd({ adUrl, adImages, adDays });
+            if (adErr) return res.status(400).json({ message: adErr });
+        }
+        const adFields = buildActiveAdFields({ wantAd, adUrl, adImages, adDays });
 
         const store = await prisma.equipmentStore.create({
             data: {
@@ -187,6 +199,7 @@ export const createStore = async (req, res, next) => {
                 feedUrl: feed || null,
                 city: city ? String(city).trim().slice(0, 80) : null,
                 logoUrl: logoUrl ? String(logoUrl).slice(0, 1000) : null,
+                ...adFields,
             },
             include: { user: { select: USER_SELECT } },
         });

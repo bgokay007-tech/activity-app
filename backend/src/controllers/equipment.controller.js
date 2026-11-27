@@ -4,8 +4,15 @@ import { emitToUser, broadcast } from '../config/socket.js';
 import { notifyCitySubscribers } from './cityAlert.controller.js';
 import { notifyActivityAlertSubscribers } from './activityAlert.controller.js';
 import { validateEquipmentRelevance } from '../utils/equipmentRelevance.js';
+import {
+    EQUIP_AD_DAILY_PRICE_TRY,
+    buildActiveAdFields,
+    validateWantAd,
+} from '../utils/equipmentAd.js';
 
 const USER_SELECT = { id: true, username: true, fullName: true, avatar: true };
+
+export { EQUIP_AD_DAILY_PRICE_TRY };
 
 // Opsiyon süresi geçmiş (reservedUntil < now) ilanları otomatik olarak ACTIVE'e döndürür —
 // alıcı tarihine kadar dönmezse ilan tekrar herkese açık hale gelir.
@@ -102,7 +109,7 @@ export const createListing = async (req, res, next) => {
     try {
         const {
             category, subCategory, condition, title, price, images, description, location, city,
-            isAd, adUrl, adImages,
+            isAd, adUrl, adImages, adDays,
         } = req.body;
 
         if (!condition || !title || !category || !subCategory)
@@ -117,20 +124,15 @@ export const createListing = async (req, res, next) => {
             return res.status(400).json({ message: 'Açıklama en az 5 karakter olmalıdır' });
         if (!Array.isArray(images) || images.length === 0)
             return res.status(400).json({ message: 'En az 1 fotoğraf eklemelisiniz' });
+        if (images.length > 10)
+            return res.status(400).json({ message: 'En fazla 10 fotoğraf ekleyebilirsiniz' });
 
         const wantAd = !!isAd;
-        const cleanAdUrl = wantAd && typeof adUrl === 'string' ? adUrl.trim() : '';
-        const cleanAdImages = wantAd && Array.isArray(adImages)
-            ? adImages.filter((u) => typeof u === 'string' && u.trim()).slice(0, 8)
-            : [];
         if (wantAd) {
-            if (!cleanAdUrl || !/^https?:\/\//i.test(cleanAdUrl)) {
-                return res.status(400).json({ message: 'Reklam için geçerli bir https:// site linki gerekli' });
-            }
-            if (cleanAdImages.length === 0) {
-                return res.status(400).json({ message: 'Reklam için en az 1 dönen görsel ekleyin' });
-            }
+            const adErr = validateWantAd({ adUrl, adImages, adDays });
+            if (adErr) return res.status(400).json({ message: adErr });
         }
+        const adFields = buildActiveAdFields({ wantAd, adUrl, adImages, adDays });
 
         // Dal ile tutarsız ekipman (ör. tenis dalında menemen) — AI + sezgisel engel
         const relevance = await validateEquipmentRelevance({
@@ -156,9 +158,7 @@ export const createListing = async (req, res, next) => {
                 description: description.trim(),
                 location: location.trim(),
                 city: city || null,
-                isAd: wantAd,
-                adUrl: wantAd ? cleanAdUrl : null,
-                adImages: wantAd ? cleanAdImages : [],
+                ...adFields,
             },
             include: { user: { select: USER_SELECT } },
         });
@@ -505,5 +505,81 @@ export const confirmSold = async (req, res, next) => {
                 : `"${listing.title}" ürünü için seçtiğin kişi satışı onayladı.`,
             { listingId: id, category: listing.category, subCategory: listing.subCategory }
         ).catch(() => {});
+    } catch (err) { next(err); }
+};
+
+/** Dal içinde tam ekran interstitial — mağaza + bireysel aktif reklamlar */
+export const getActiveAds = async (req, res, next) => {
+    try {
+        const { category, subCategory } = req.query;
+        if (!subCategory) return res.status(400).json({ message: 'subCategory gerekli' });
+        const now = new Date();
+
+        // Süresi dolanları pasifleştir (hafif, her çekimde)
+        await Promise.all([
+            prisma.equipmentListing.updateMany({
+                where: { isAd: true, adStatus: 'ACTIVE', adPaidUntil: { lt: now } },
+                data: { adStatus: 'EXPIRED' },
+            }),
+            prisma.equipmentStore.updateMany({
+                where: { isAd: true, adStatus: 'ACTIVE', adPaidUntil: { lt: now } },
+                data: { adStatus: 'EXPIRED' },
+            }),
+        ]);
+
+        const whereBase = {
+            isAd: true,
+            adStatus: 'ACTIVE',
+            adPaidUntil: { gt: now },
+            subCategory: String(subCategory),
+            ...(category && { category: String(category) }),
+        };
+
+        const [listings, stores] = await Promise.all([
+            prisma.equipmentListing.findMany({
+                where: { ...whereBase, status: { in: ['ACTIVE', 'RESERVED'] } },
+                select: {
+                    id: true, title: true, adUrl: true, adImages: true, userId: true,
+                    user: { select: USER_SELECT },
+                },
+                take: 40,
+                orderBy: { updatedAt: 'desc' },
+            }),
+            prisma.equipmentStore.findMany({
+                where: { ...whereBase, status: 'ACTIVE' },
+                select: {
+                    id: true, name: true, adUrl: true, adImages: true, websiteUrl: true, userId: true,
+                    user: { select: USER_SELECT },
+                },
+                take: 40,
+                orderBy: { updatedAt: 'desc' },
+            }),
+        ]);
+
+        const ads = [
+            ...stores.map((s) => ({
+                type: 'store',
+                id: s.id,
+                title: s.name,
+                adUrl: s.adUrl || s.websiteUrl,
+                adImages: Array.isArray(s.adImages) ? s.adImages : [],
+                userId: s.userId,
+                user: s.user,
+            })),
+            ...listings.map((l) => ({
+                type: 'listing',
+                id: l.id,
+                title: l.title,
+                adUrl: l.adUrl,
+                adImages: Array.isArray(l.adImages) ? l.adImages : [],
+                userId: l.userId,
+                user: l.user,
+            })),
+        ].filter((a) => a.adImages.length > 0);
+
+        res.json({
+            dailyPriceTry: EQUIP_AD_DAILY_PRICE_TRY,
+            ads,
+        });
     } catch (err) { next(err); }
 };

@@ -1046,11 +1046,16 @@ model EquipmentListing {
   description String?
   location    String?
   city        String?
-  // Reklam: satış sitesi linki + arka arkaya dönen tanıtım görselleri
+  // Reklam: satış sitesi linki + tam ekran interstitial (günlük ücret, EFT)
   isAd        Boolean  @default(false)
   adUrl       String?
   adImages    Json     @default("[]")
+  adDays      Int?     // satın alınan gün
+  adStatus    String   @default("NONE") // NONE | PENDING_PAYMENT | ACTIVE | EXPIRED
+  adPaidUntil DateTime?
+  adAmount    Int?     // toplam TL
   status      String   @default("ACTIVE")  // ACTIVE | RESERVED | SOLD | FLAGGED | REMOVED
+
   reportCount Int      @default(0)
 
   // Karşılıklı anlaşınca opsiyonlu (RESERVED) hale getirilir — belirlenen tarihe kadar
@@ -1107,6 +1112,14 @@ model EquipmentStore {
   logoUrl      String?
   city         String?
   status       String   @default("ACTIVE") // ACTIVE | CLOSED
+  // Mağaza reklamı — dal içinde 30 sn'de bir tam ekran (günlük ücret, EFT)
+  isAd         Boolean  @default(false)
+  adUrl        String?
+  adImages     Json     @default("[]")
+  adDays       Int?
+  adStatus     String   @default("NONE") // NONE | PENDING_PAYMENT | ACTIVE | EXPIRED
+  adPaidUntil  DateTime?
+  adAmount     Int?
   lastSyncedAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
