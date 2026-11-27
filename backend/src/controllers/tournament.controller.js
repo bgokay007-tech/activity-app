@@ -22,8 +22,51 @@ import {
     isYmdInWindow,
     groupMatchDeadlineFromBase,
     countDistinctAvailDays,
+    countAvailDaysInHourWindow,
+    resolveAvailRequirement,
+    buildWalkoverSets,
+    AVAIL_WALKOVER_NOTE_TR,
     MIN_AVAIL_DISTINCT_DAYS,
 } from '../utils/tournamentAvailabilityMatch.js';
+
+/** Lig tip 1–4 + günübirlik değil → müsaitlik şartı ayarı kullanılabilir. */
+function canUseAvailRequirement(type, dayTrip) {
+    if (dayTrip) return false;
+    const t = String(type || '');
+    return t === '1' || t === '2' || t === '3' || t === '4';
+}
+
+function sanitizeAvailRequirementFields({
+    availRequirementEnabled,
+    availReqMinDays,
+    availReqHourStart,
+    availReqHourEnd,
+    type,
+    dayTrip,
+}) {
+    const enabled = availRequirementEnabled === true && canUseAvailRequirement(type, dayTrip);
+    if (!enabled) {
+        return {
+            availRequirementEnabled: false,
+            availReqMinDays: null,
+            availReqHourStart: null,
+            availReqHourEnd: null,
+        };
+    }
+    const minDays = Math.max(1, Math.min(8, parseInt(availReqMinDays, 10) || MIN_AVAIL_DISTINCT_DAYS));
+    const hs = availReqHourStart != null && String(availReqHourStart).trim()
+        ? String(availReqHourStart).trim().slice(0, 5)
+        : null;
+    const he = availReqHourEnd != null && String(availReqHourEnd).trim()
+        ? String(availReqHourEnd).trim().slice(0, 5)
+        : null;
+    return {
+        availRequirementEnabled: true,
+        availReqMinDays: minDays,
+        availReqHourStart: hs,
+        availReqHourEnd: he,
+    };
+}
 import {
     swissRoundCount,
     americanoRoundCount,
@@ -1295,6 +1338,7 @@ export const createTournament = async (req, res, next) => {
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
             availabilityMatchEnabled,
+            availRequirementEnabled, availReqMinDays, availReqHourStart, availReqHourEnd,
             setsPerMatch, advantageScoring, decidingTiebreak, thirdSetPlayersDecide, matchesBeforePlayoff, playoffQualifiers,
             teamSize, teamRequiredMaleCount,
             rules, extraServices,
@@ -1400,6 +1444,14 @@ export const createTournament = async (req, res, next) => {
                 matchTimeEnd: matchTimeEnd || null,
                 dayTrip: dayTrip === true,
                 availabilityMatchEnabled: availabilityMatchEnabled === true,
+                ...sanitizeAvailRequirementFields({
+                    availRequirementEnabled,
+                    availReqMinDays,
+                    availReqHourStart,
+                    availReqHourEnd,
+                    type: resolved.type,
+                    dayTrip: dayTrip === true,
+                }),
                 minPlayers: minPlayers ? parseInt(minPlayers) : 2,
                 setsPerMatch: setsPerMatch ? parseInt(setsPerMatch) : null,
                 // true/false/null (serbest) istemciden geldiği gibi kaydedilir — sadece hiç
@@ -2410,6 +2462,25 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.matchFrequency     !== undefined && { matchFrequency: b.matchFrequency || null }),
                 ...(b.matchTimeStart     !== undefined && { matchTimeStart: b.matchTimeStart || null }),
                 ...(b.matchTimeEnd       !== undefined && { matchTimeEnd: b.matchTimeEnd || null }),
+                ...((b.availRequirementEnabled !== undefined
+                    || b.availReqMinDays !== undefined
+                    || b.availReqHourStart !== undefined
+                    || b.availReqHourEnd !== undefined) && sanitizeAvailRequirementFields({
+                    availRequirementEnabled: b.availRequirementEnabled !== undefined
+                        ? b.availRequirementEnabled
+                        : tournament.availRequirementEnabled,
+                    availReqMinDays: b.availReqMinDays !== undefined
+                        ? b.availReqMinDays
+                        : tournament.availReqMinDays,
+                    availReqHourStart: b.availReqHourStart !== undefined
+                        ? b.availReqHourStart
+                        : tournament.availReqHourStart,
+                    availReqHourEnd: b.availReqHourEnd !== undefined
+                        ? b.availReqHourEnd
+                        : tournament.availReqHourEnd,
+                    type: tournament.type,
+                    dayTrip: b.dayTrip !== undefined ? !!b.dayTrip : !!tournament.dayTrip,
+                })),
                 ...(b.minPlayers          !== undefined && { minPlayers: parseInt(b.minPlayers) }),
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
@@ -3902,6 +3973,81 @@ export const enterTournamentMatchScore = async (req, res, next) => {
         } catch (gateErr) {
             if (gateErr?.status === 400) return res.status(400).json({ message: gateErr.message });
             throw gateErr;
+        }
+
+        // Müsaitlik şartı walkover: rakip yeterli gün/saat aralığı sunmadı + alternatif yoksa
+        // → 6-0 setleri + dipnot ile COMPLETED.
+        const walkoverReq = req.body?.walkover === true
+            || req.body?.walkoverReason === 'insufficient_availability';
+        if (walkoverReq) {
+            if (!tournament.availRequirementEnabled) {
+                return res.status(400).json({ message: 'Bu turnuvada müsaitlik şartı walkover kapalı.' });
+            }
+            if (match.status !== 'PENDING') {
+                return res.status(400).json({ message: 'Maç zaten sonuçlanmış.' });
+            }
+            if (!match.p1Id || !match.p2Id) {
+                return res.status(400).json({ message: 'Maç tarafları eksik.' });
+            }
+            const claimSide = p1Members.includes(req.userId) ? 'p1'
+                : p2Members.includes(req.userId) ? 'p2'
+                : (isCreator || isAdminUser) ? (req.body?.winner === 'p2' ? 'p2' : 'p1')
+                : null;
+            if (!claimSide) return res.status(403).json({ message: 'Not authorized' });
+            const winnerSide = (isCreator || isAdminUser) && (req.body?.winner === 'p1' || req.body?.winner === 'p2')
+                ? req.body.winner
+                : claimSide;
+            const loserSide = winnerSide === 'p1' ? 'p2' : 'p1';
+
+            // Rakip alternatif teklif sunduysa (henüz kabul edilmemiş/reddedilmemiş) walkover engelle —
+            // alternatif varsa önce onlar değerlendirilsin.
+            const schedule = (match.scheduleData && typeof match.scheduleData === 'object')
+                ? match.scheduleData : {};
+            const openProposals = (Array.isArray(schedule.proposals) ? schedule.proposals : [])
+                .filter(p => p && !p.rejected && !p.accepted && p.side === loserSide);
+            if (openProposals.length > 0 && !(isCreator || isAdminUser)) {
+                return res.status(400).json({
+                    message: 'Rakip alternatif saat/yer teklifi sunmuş — önce teklifleri değerlendirin.',
+                });
+            }
+
+            const woSets = buildWalkoverSets(tournament.setsPerMatch || 3, winnerSide);
+            let p1SetsW = 0, p2SetsW = 0, p1GamesW = 0, p2GamesW = 0;
+            for (const s of woSets) {
+                p1GamesW += s.p1 || 0; p2GamesW += s.p2 || 0;
+                if ((s.p1 || 0) > (s.p2 || 0)) p1SetsW++; else if ((s.p2 || 0) > (s.p1 || 0)) p2SetsW++;
+            }
+            const winnerId = winnerSide === 'p1' ? match.p1Id : match.p2Id;
+            const note = (typeof req.body?.note === 'string' && req.body.note.trim())
+                ? req.body.note.trim().slice(0, 500)
+                : AVAIL_WALKOVER_NOTE_TR;
+
+            await prisma.tournamentMatch.update({
+                where: { id: matchId },
+                data: {
+                    status: 'COMPLETED',
+                    winnerId,
+                    score: {
+                        sets: woSets,
+                        winner: winnerSide,
+                        p1Sets: p1SetsW, p2Sets: p2SetsW, p1Games: p1GamesW, p2Games: p2GamesW,
+                        walkover: true,
+                        forfeitReason: 'insufficient_availability',
+                        note,
+                    },
+                    p1Confirmed: true,
+                    p2Confirmed: true,
+                    scoreSubmittedAt: new Date(),
+                },
+            });
+
+            await advanceTournamentAfterMatch(tournament, match, isTeamTournament, false);
+
+            const matches = await prisma.tournamentMatch.findMany({
+                where: { tournamentId: id },
+                orderBy: [{ phase: 'asc' }, { round: 'asc' }, { createdAt: 'asc' }],
+            });
+            return res.json(matches);
         }
 
         if (isRacketSetSport(tournament.subCategory)) {
@@ -6013,6 +6159,21 @@ export const setMatchAvailability = async (req, res, next) => {
             });
         }
 
+        const availReq = resolveAvailRequirement(tournament);
+        let requirementWarning = null;
+        if (availReq) {
+            const daysOk = countAvailDaysInHourWindow(
+                cleaned, availReq.hourStart, availReq.hourEnd,
+            );
+            if (daysOk < availReq.minDays) {
+                const hs = availReq.hourStart || '—';
+                const he = availReq.hourEnd || '—';
+                requirementWarning =
+                    `Kurallar: her turda en az ${availReq.minDays} gün ve ${hs}–${he} saat aralığında müsaitlik gerekir (şu an: ${daysOk} gün). ` +
+                    'Eksik kalırsa ve rakip alternatif sunamazsa walkover uygulanabilir.';
+            }
+        }
+
         const schedule = normalizeSchedule(match.scheduleData);
         schedule.availability[side] = cleaned;
         const playersArrange = tournamentPlayersArrangeCourts(tournament);
@@ -6070,6 +6231,7 @@ export const setMatchAvailability = async (req, res, next) => {
             scheduleData: schedule,
             match: updated,
             availWindow: { from: win.fromYmd, to: win.toYmd, roundStart: win.roundStartYmd, roundEnd: win.roundEndYmd },
+            ...(requirementWarning ? { requirementWarning } : {}),
         });
     } catch (e) { next(e); }
 };
@@ -7272,15 +7434,27 @@ export const reserveMatchShare = async (req, res, next) => {
 };
 
 /**
- * Lig rekabetçi kural 7: 8 günlük turda en az MIN_AVAIL_DISTINCT_DAYS gün müsaitlik
- * sunmayan ve joker kullanmayan taraf, eşleştiği rakibe karşı hükmen yenik.
+ * Lig rekabetçi kural 7 / müsaitlik şartı: 8 günlük turda en az N gün (+isteğe bağlı
+ * saat aralığı) müsaitlik sunmayan ve joker kullanmayan taraf hükmen yenik.
+ * N = availRequirementEnabled ise availReqMinDays; değilse (eski) MIN_AVAIL_DISTINCT_DAYS
+ * yalnızca availabilityMatchEnabled açıkken.
  * Dönüş: forfeit uygulandıysa güncellenmiş maç; aksi halde null (çağıran auto-draw'a düşer).
  */
 export async function applyInsufficientAvailabilityForfeit(match, tournament, { notifyPlayers = true } = {}) {
     if (!match || match.status !== 'PENDING' || !match.p1Id || !match.p2Id) return null;
     if (!tournament || tournament.status !== 'IN_PROGRESS') return null;
-    if (!tournament.availabilityMatchEnabled) return null;
+    if (!tournament.availabilityMatchEnabled && !tournament.availRequirementEnabled) return null;
     if (match.phase !== 'GROUP') return null;
+
+    const req = resolveAvailRequirement(tournament);
+    const minDays = req?.minDays
+        ?? (tournament.availabilityMatchEnabled ? MIN_AVAIL_DISTINCT_DAYS : null);
+    if (minDays == null) return null;
+    const hourStart = req?.hourStart || null;
+    const hourEnd = req?.hourEnd || null;
+    const countDays = (slots) => (hourStart && hourEnd)
+        ? countAvailDaysInHourWindow(slots, hourStart, hourEnd)
+        : countDistinctAvailDays(slots);
 
     const schedule = (match.scheduleData && typeof match.scheduleData === 'object')
         ? match.scheduleData
@@ -7289,8 +7463,8 @@ export async function applyInsufficientAvailabilityForfeit(match, tournament, { 
         ? schedule.availability
         : {};
 
-    let p1Days = countDistinctAvailDays(avail.p1);
-    let p2Days = countDistinctAvailDays(avail.p2);
+    let p1Days = countDays(avail.p1);
+    let p2Days = countDays(avail.p2);
 
     // Tur müsaitlik kaydı (eşleştirme motoru) varsa gün sayısına ekle
     if (match.roundId) {
@@ -7313,15 +7487,15 @@ export async function applyInsufficientAvailabilityForfeit(match, tournament, { 
                 if (t2) p2UserIds = [t2.player1Id, t2.player2Id].filter(Boolean);
             }
             for (const row of rows) {
-                const d = countDistinctAvailDays(row.slots);
+                const d = countDays(row.slots);
                 if (p1UserIds.includes(row.userId)) p1Days = Math.max(p1Days, d);
                 if (p2UserIds.includes(row.userId)) p2Days = Math.max(p2Days, d);
             }
         } catch { /* tablo yoksa yok say */ }
     }
 
-    const p1Short = p1Days < MIN_AVAIL_DISTINCT_DAYS;
-    const p2Short = p2Days < MIN_AVAIL_DISTINCT_DAYS;
+    const p1Short = p1Days < minDays;
+    const p2Short = p2Days < minDays;
     if (!p1Short && !p2Short) return null;
 
     // Joker kullanan taraf hükmen müsaitlik cezası almaz
@@ -7361,19 +7535,30 @@ export async function applyInsufficientAvailabilityForfeit(match, tournament, { 
     const loserName = p1Fails ? (match.p1Name || '?') : (match.p2Name || '?');
     const winnerName = p1Fails ? (match.p2Name || '?') : (match.p1Name || '?');
 
+    // Otomatik hükmen: 6-0 setleri + dipnot (skor kartında görünsün)
+    const woWinnerSide = p1Fails ? 'p2' : 'p1';
+    const woSets = buildWalkoverSets(tournament.setsPerMatch || 3, woWinnerSide);
+    let p1Sets = 0, p2Sets = 0, p1Games = 0, p2Games = 0;
+    for (const s of woSets) {
+        p1Games += s.p1 || 0; p2Games += s.p2 || 0;
+        if ((s.p1 || 0) > (s.p2 || 0)) p1Sets++; else if ((s.p2 || 0) > (s.p1 || 0)) p2Sets++;
+    }
+
     const updated = await prisma.tournamentMatch.update({
         where: { id: match.id },
         data: {
-            status: 'FORFEIT',
+            status: 'COMPLETED',
             winnerId,
             score: {
-                sets: [],
-                winner: p1Fails ? 'p2' : 'p1',
-                p1Sets: 0, p2Sets: 0, p1Games: 0, p2Games: 0,
+                sets: woSets,
+                winner: woWinnerSide,
+                p1Sets, p2Sets, p1Games, p2Games,
+                walkover: true,
                 forfeitReason: 'insufficient_availability',
-                forfeitMinDays: MIN_AVAIL_DISTINCT_DAYS,
+                forfeitMinDays: minDays,
                 p1AvailDays: p1Days,
                 p2AvailDays: p2Days,
+                note: AVAIL_WALKOVER_NOTE_TR,
             },
             p1Confirmed: true,
             p2Confirmed: true,
@@ -7385,7 +7570,7 @@ export async function applyInsufficientAvailabilityForfeit(match, tournament, { 
 
     if (notifyPlayers) {
         const title = '⚠️ Hükmen yenilgi — yetersiz müsaitlik';
-        const body = `${tournament.name}: ${loserName}, ${MIN_AVAIL_DISTINCT_DAYS} günden az müsaitlik bildirdiği ve joker kullanmadığı için ${winnerName} karşısında hükmen yenildi.`;
+        const body = `${tournament.name}: ${loserName}, ${minDays} günden az müsaitlik bildirdiği ve joker kullanmadığı için ${winnerName} karşısında hükmen yenildi.`;
         for (const uid of [...new Set([...p1MemberIds, ...p2MemberIds])]) {
             createNotification(
                 uid, 'TOURNAMENT_MATCH_FORFEIT', title, body,

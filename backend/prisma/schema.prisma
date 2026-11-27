@@ -1706,6 +1706,12 @@ model Tournament {
   dayTrip              Boolean      @default(false) // Günübirlik: tüm maçlar tek günde oynanır — joker/haftalık süre kuralları (3./4. madde) geçersizdir
   // true: format aynı kalır; kim kiminle oynayacağı müsaitlik+kapasite algoritması + admin onayı ile belirlenir
   availabilityMatchEnabled Boolean  @default(false)
+  // Lig Rekabetçi / Lig Antreman: her 8 günlük turda min. N gün + saat aralığı müsaitlik şartı
+  // (katılım / müsaitlik bildirimleri / walkover hükmen). Ayrı alanlar — availabilityMatchEnabled'dan bağımsız.
+  availRequirementEnabled Boolean   @default(false)
+  availReqMinDays         Int?      // örn. 3
+  availReqHourStart       String?   // örn. "09:00"
+  availReqHourEnd         String?   // örn. "22:00"
   minPlayers           Int          @default(2)
   maxPlayers           Int          @default(32)
   setsPerMatch         Int?         // 1 | 2 | 3 | 4 | 5

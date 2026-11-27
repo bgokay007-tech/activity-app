@@ -20318,6 +20318,49 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         });
     };
 
+    const submitAvailWalkover = (match) => {
+        if (!item.availRequirementEnabled || !scoreEntry) return;
+        Alert.alert(
+            t.tournAvailWalkoverTitle || 'Müsaitlik walkover',
+            t.tournAvailWalkoverConfirm || 'Rakibin kurallardaki müsaitlik gün/saat şartını sağlamadığı ve alternatif sunamadığı için hükmen 6-0 kazanmak istiyor musunuz? Skor kartına dipnot düşülür.',
+            [
+                { text: t.sc_0004 || t.cancel || 'İptal', style: 'cancel' },
+                {
+                    text: t.tournAvailWalkoverYes || 'Evet, hükmen kazan',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setSubmittingScore(true);
+                        try {
+                            const mySide = match.p1Id === mySideId ? 'p1'
+                                : match.p2Id === mySideId ? 'p2'
+                                : (isCreator || myIsAdmin) ? 'p1' : null;
+                            if (!mySide) {
+                                Alert.alert('', t.actionFailed);
+                                return;
+                            }
+                            const { data } = await api.patch(
+                                `/tournaments/${item.id}/matches/${match.id}/score`,
+                                {
+                                    walkover: true,
+                                    walkoverReason: 'insufficient_availability',
+                                    winner: mySide,
+                                    note: t.tournAvailWalkoverNote
+                                        || 'Kurallardaki müsaitlik zamanları yeterli olmadığı için walkover olundu.',
+                                },
+                            );
+                            setTournMatches(Array.isArray(data) ? data : []);
+                            setScoreEntry(null);
+                        } catch (e) {
+                            Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                        } finally {
+                            setSubmittingScore(false);
+                        }
+                    },
+                },
+            ],
+        );
+    };
+
     const submitScore = async () => {
         if (!scoreEntry) return;
         let sets;
@@ -20830,6 +20873,15 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                         <Text style={{ color:'#c4b5fd', fontSize:10, fontWeight:'800' }}>{t.tournAvailBadge || 'Müsaitliğe göre eşleştir'}</Text>
                     </View>
                 ) : null}
+                {item.availRequirementEnabled ? (
+                    <View style={{ backgroundColor:'#6366f118', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#6366f140' }}>
+                        <Text style={{ color:'#a5b4fc', fontSize:10, fontWeight:'800' }}>
+                            {typeof t.tournAvailReqBadge === 'function'
+                                ? t.tournAvailReqBadge(item.availReqMinDays || 3, item.availReqHourStart || '—', item.availReqHourEnd || '—')
+                                : `Min ${item.availReqMinDays || 3}g · ${item.availReqHourStart || '—'}–${item.availReqHourEnd || '—'}`}
+                        </Text>
+                    </View>
+                ) : null}
                 {item.matchFrequency && item.matchFrequency !== 'FLEXIBLE' ? (
                     <View style={{ backgroundColor:'#1e3a8a20', borderRadius:8, paddingHorizontal:3, paddingVertical:3, borderWidth:1, borderColor:'#1e3a8a50' }}>
                         <Text style={{ color:'#93c5fd', fontSize:10, fontWeight:'800' }} numberOfLines={1}>
@@ -21336,11 +21388,35 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {renderConfirmedScoreActions(match)}
                                 {/* Skor girilmeden: tur listesinde anlaşılan yer/zaman; skor sonrası sadece detayda */}
                                 {!isDone ? <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} /> : null}
+                                {isDone && (match.score?.note || match.score?.walkover) ? (
+                                    <Text style={{ color: '#c4b5fd', fontSize: 9, fontWeight: '700', marginTop: 4, lineHeight: 13 }}>
+                                        {match.score?.note
+                                            || t.tournAvailWalkoverNote
+                                            || 'Kurallardaki müsaitlik zamanları yeterli olmadığı için walkover olundu.'}
+                                    </Text>
+                                ) : null}
                                 {isBye && <Text style={{ color: colors.textMuted, fontSize: 9, marginTop: 3 }}>BYE</Text>}
                                 {/* Skor Gir → aynı satır alta doğru genişler */}
                                 {isEntering && (
                                     <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 5 }}>
                                         {renderThirdSetDecidePanel(match)}
+                                        {item.availRequirementEnabled && scoreEntry?.mode !== 'correction' ? (
+                                            <TouchableOpacity
+                                                onPress={() => submitAvailWalkover(match)}
+                                                disabled={submittingScore}
+                                                style={{
+                                                    backgroundColor: '#7c3aed20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
+                                                    borderWidth: 1, borderColor: '#7c3aed60', marginBottom: 8,
+                                                }}
+                                            >
+                                                <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '800' }}>
+                                                    {t.tournAvailWalkoverBtn || 'Müsaitlik yetersiz → hükmen kazan (6-0)'}
+                                                </Text>
+                                                <Text style={{ color: '#94a3b8', fontSize: 10, lineHeight: 14, marginTop: 3 }}>
+                                                    {t.tournAvailWalkoverHint || 'Rakip kurallardaki gün/saat şartını sağlamadı ve alternatif sunamadıysa: setler otomatik 6-0 girilir, dipnot eklenir.'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ) : null}
                                         <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
                                         <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
                                             <TouchableOpacity onPress={submitScore} disabled={submittingScore || (item.thirdSetPlayersDecide && !match.thirdSetFormat)}
@@ -22046,6 +22122,13 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             )}
                                                         {/* Skor girilmeden tur kartında; skor sonrası sadece maç detayında */}
                                                         {!isDone ? <MatchAgreedScheduleLine agreed={match.scheduleData?.agreed} t={t} /> : null}
+                                                        {isDone && (match.score?.note || match.score?.walkover) ? (
+                                                            <Text style={{ color: '#c4b5fd', fontSize: 9, fontWeight: '700', marginTop: 3, lineHeight: 12 }}>
+                                                                {match.score?.note
+                                                                    || t.tournAvailWalkoverNote
+                                                                    || 'Kurallardaki müsaitlik zamanları yeterli olmadığı için walkover olundu.'}
+                                                            </Text>
+                                                        ) : null}
                                                         {(() => {
                                                             if (isDone || isBye || isTBD || !match.deadline) return null;
                                                             const roundDefaultTime = roundDefaultDeadline[`${match.phase}|${match.round}`];
@@ -22074,6 +22157,23 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                     {isEntering && (
                                                         <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
                                                             {renderThirdSetDecidePanel(match)}
+                                                            {item.availRequirementEnabled && scoreEntry?.mode !== 'correction' ? (
+                                                                <TouchableOpacity
+                                                                    onPress={() => submitAvailWalkover(match)}
+                                                                    disabled={submittingScore}
+                                                                    style={{
+                                                                        backgroundColor: '#7c3aed20', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7,
+                                                                        borderWidth: 1, borderColor: '#7c3aed60', marginBottom: 8,
+                                                                    }}
+                                                                >
+                                                                    <Text style={{ color: '#c4b5fd', fontSize: 11, fontWeight: '800' }}>
+                                                                        {t.tournAvailWalkoverBtn || 'Müsaitlik yetersiz → hükmen kazan (6-0)'}
+                                                                    </Text>
+                                                                    <Text style={{ color: '#94a3b8', fontSize: 10, lineHeight: 14, marginTop: 3 }}>
+                                                                        {t.tournAvailWalkoverHint || 'Rakip kurallardaki gün/saat şartını sağlamadı ve alternatif sunamadıysa: setler otomatik 6-0 girilir, dipnot eklenir.'}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            ) : null}
                                                             <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
                                                             <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
                                                                 <TouchableOpacity onPress={submitScore} disabled={submittingScore || (item.thirdSetPlayersDecide && !match.thirdSetFormat)}
@@ -24086,6 +24186,10 @@ function formFromTournament(item, INIT) {
         matchTimeEnd: item.matchTimeEnd || '',
         dayTrip: !!item.dayTrip,
         availabilityMatchEnabled: !!item.availabilityMatchEnabled,
+        availRequirementEnabled: !!item.availRequirementEnabled,
+        availReqMinDays: item.availReqMinDays != null ? String(item.availReqMinDays) : '3',
+        availReqHourStart: item.availReqHourStart || '09:00',
+        availReqHourEnd: item.availReqHourEnd || '22:00',
         eventStartDate: toDate(item.eventDate),
         eventStartTime: item.eventTime || '',
         eventEndDate: toDate(item.eventEndDate),
@@ -24164,6 +24268,11 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
         minRatingFemale: '', maxRatingFemale: '',
                 matchmakingType: 'ELO', matchFrequency: 'FLEXIBLE', matchTimeStart: '', matchTimeEnd: '', dayTrip: false,
                 availabilityMatchEnabled: false,
+                availRequirementEnabled: false,
+                availReqMinDays: '3',
+                availReqHourStart: '09:00',
+                availReqHourEnd: '22:00',
+                availReqHourField: null,
         eventStartDate: null, eventStartTime: '',
         eventEndDate:   null, eventEndTime:   '',
         regEndDate: null, regEndTime: '',
@@ -24433,6 +24542,13 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 matchTimeEnd: f.matchTimeEnd || null,
                 dayTrip: f.dayTrip,
                 availabilityMatchEnabled: f.availabilityMatchEnabled === true && f.type !== '9' && !f.dayTrip,
+                availRequirementEnabled: f.availRequirementEnabled === true
+                    && ['1', '2', '3', '4'].includes(String(f.type)) && !f.dayTrip && f.type !== '9',
+                availReqMinDays: f.availRequirementEnabled
+                    ? Math.max(1, Math.min(8, parseInt(f.availReqMinDays, 10) || 3))
+                    : null,
+                availReqHourStart: f.availRequirementEnabled ? (f.availReqHourStart || null) : null,
+                availReqHourEnd: f.availRequirementEnabled ? (f.availReqHourEnd || null) : null,
                 minPlayers: f.minPlayers ? parseInt(f.minPlayers) : undefined,
                 maxPlayers: f.maxPlayers ? parseInt(f.maxPlayers) : undefined,
                 location: courtName || null,
@@ -24612,7 +24728,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     onPress={() => setF(p => ({
                                         ...p,
                                         dayTrip: !p.dayTrip,
-                                        ...(!p.dayTrip ? { availabilityMatchEnabled: false } : {}),
+                                        ...(!p.dayTrip ? { availabilityMatchEnabled: false, availRequirementEnabled: false } : {}),
                                     }))}
                                     style={[s.chip, { paddingVertical:3, paddingHorizontal:8 }, f.dayTrip && { backgroundColor: cfg.color + '30', borderColor: cfg.color }]}>
                                     <Text style={[s.chipText, f.dayTrip && { color: cfg.color, fontWeight:'800' }]}>{f.dayTrip ? '✅ ' : ''}{t.tournDayTrip}</Text>
@@ -24991,6 +25107,100 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         ) : null}
                                     </View>
                                 </TouchableOpacity>
+                            )}
+
+                            {/* Lig Rekabetçi / Lig Antreman: min gün + saat aralığı müsaitlik şartı */}
+                            {!f.pollEnabled && ['1', '2', '3', '4'].includes(String(f.type)) && !f.dayTrip && (
+                                <View style={{
+                                    backgroundColor: f.availRequirementEnabled ? cfg.color + '18' : '#1e293b',
+                                    borderRadius: 8,
+                                    padding: 10,
+                                    marginBottom: 10,
+                                    borderWidth: 1,
+                                    borderColor: f.availRequirementEnabled ? cfg.color : '#334155',
+                                }}>
+                                    <TouchableOpacity
+                                        onPress={() => set('availRequirementEnabled', !f.availRequirementEnabled)}
+                                        activeOpacity={0.85}
+                                        style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}
+                                    >
+                                        <View style={{
+                                            width: 22, height: 22, borderRadius: 5, borderWidth: 2,
+                                            borderColor: f.availRequirementEnabled ? cfg.color : '#64748b',
+                                            backgroundColor: f.availRequirementEnabled ? cfg.color : 'transparent',
+                                            alignItems: 'center', justifyContent: 'center', marginTop: 1,
+                                        }}>
+                                            {f.availRequirementEnabled ? (
+                                                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 15 }}>✓</Text>
+                                            ) : null}
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={{ color: f.availRequirementEnabled ? cfg.color : '#e2e8f0', fontSize: 12, fontWeight: '900' }}>
+                                                {t.tournAvailReqToggle || 'Müsaitlik gün/saat şartı'}
+                                            </Text>
+                                            <Text style={{ color: '#94a3b8', fontSize: 11, lineHeight: 16, marginTop: 4 }}>
+                                                {t.tournAvailReqBody || 'Turnuvaya katılacak oyuncular her turda (her tur 8 güne tekabül eder) minimum … gün ve … saat aralıklarında müsaitlik bildirmek zorundadır. Aksi halde eşleştikleri maçlarda walkover, rakibin alternatif sunmasına bağlıdır; alternatif yoksa walkover olur.'}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                    {f.availRequirementEnabled ? (
+                                        <View style={{ marginTop: 10, gap: 8, paddingLeft: 32 }}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                                <Text style={{ color: '#cbd5e1', fontSize: 11, fontWeight: '700' }}>
+                                                    {t.tournAvailReqMinDaysLabel || 'Min. gün'}
+                                                </Text>
+                                                <TextInput
+                                                    value={String(f.availReqMinDays ?? '3')}
+                                                    onChangeText={(v) => set('availReqMinDays', String(v).replace(/[^0-9]/g, '').slice(0, 1))}
+                                                    keyboardType="number-pad"
+                                                    placeholder="3"
+                                                    placeholderTextColor="#64748b"
+                                                    style={{
+                                                        backgroundColor: '#0f172a', color: '#fff', borderRadius: 8,
+                                                        borderWidth: 1, borderColor: '#334155',
+                                                        paddingHorizontal: 12, paddingVertical: 8, minWidth: 48,
+                                                        textAlign: 'center', fontSize: 14, fontWeight: '800',
+                                                    }}
+                                                />
+                                            </View>
+                                            <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700' }}>
+                                                {t.tournAvailReqHoursLabel || 'Saat aralığı'}
+                                            </Text>
+                                            <View style={{ flexDirection: 'row', gap: 8 }}>
+                                                <TouchableOpacity
+                                                    onPress={() => set('availReqHourField', 'start')}
+                                                    style={{
+                                                        flex: 1, backgroundColor: '#0f172a', borderRadius: 8,
+                                                        borderWidth: 1, borderColor: '#334155',
+                                                        paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#64748b', fontSize: 10, fontWeight: '700' }}>
+                                                        {t.tournAvailReqHourStart || 'Başlangıç'}
+                                                    </Text>
+                                                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', marginTop: 2 }}>
+                                                        {f.availReqHourStart || '09:00'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                                <TouchableOpacity
+                                                    onPress={() => set('availReqHourField', 'end')}
+                                                    style={{
+                                                        flex: 1, backgroundColor: '#0f172a', borderRadius: 8,
+                                                        borderWidth: 1, borderColor: '#334155',
+                                                        paddingVertical: 10, paddingHorizontal: 10, alignItems: 'center',
+                                                    }}
+                                                >
+                                                    <Text style={{ color: '#64748b', fontSize: 10, fontWeight: '700' }}>
+                                                        {t.tournAvailReqHourEnd || 'Bitiş'}
+                                                    </Text>
+                                                    <Text style={{ color: '#fff', fontSize: 15, fontWeight: '800', marginTop: 2 }}>
+                                                        {f.availReqHourEnd || '22:00'}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    ) : null}
+                                </View>
                             )}
 
                             {/* Katılım ücreti + kort ücretini kim öder — müsaitlik seçeneğinin hemen altında */}
@@ -25733,6 +25943,18 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                 value={ratingField === 'timeStart' ? f.matchTimeStart : f.matchTimeEnd}
                 onSelect={(v) => { set(ratingField === 'timeStart' ? 'matchTimeStart' : 'matchTimeEnd', v); setRatingField(null); }}
                 onClose={() => setRatingField(null)}
+            />
+            <TimePickerModal
+                visible={f.availReqHourField === 'start' || f.availReqHourField === 'end'}
+                title={f.availReqHourField === 'start'
+                    ? (t.tournAvailReqHourStart || 'Başlangıç')
+                    : (t.tournAvailReqHourEnd || 'Bitiş')}
+                value={f.availReqHourField === 'start' ? f.availReqHourStart : f.availReqHourEnd}
+                onSelect={(v) => {
+                    set(f.availReqHourField === 'start' ? 'availReqHourStart' : 'availReqHourEnd', v);
+                    set('availReqHourField', null);
+                }}
+                onClose={() => set('availReqHourField', null)}
             />
         </Modal>
     );

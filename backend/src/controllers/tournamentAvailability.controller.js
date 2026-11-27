@@ -14,6 +14,8 @@ import {
     isPlayersArrangeCourts,
     getRoundAvailWindow,
     usesEightDayRoundCycle,
+    resolveAvailRequirement,
+    countAvailDaysInHourWindow,
 } from '../utils/tournamentAvailabilityMatch.js';
 import { notifyTournamentMatchPairings } from '../utils/tournamentMatchNotify.js';
 
@@ -260,6 +262,20 @@ export const upsertRoundAvailability = async (req, res, next) => {
                     : `En az bir geçerli gün/saat girin (tur: ${win?.roundStartYmd || '?'} – ${win?.roundEndYmd || '?'}; geçmiş günler yok)`,
             });
         }
+        const availReq = resolveAvailRequirement(tournament);
+        let requirementWarning = null;
+        if (availReq) {
+            const daysOk = countAvailDaysInHourWindow(
+                cleanSlots, availReq.hourStart, availReq.hourEnd,
+            );
+            if (daysOk < availReq.minDays) {
+                const hs = availReq.hourStart || '—';
+                const he = availReq.hourEnd || '—';
+                requirementWarning =
+                    `Kurallar: her turda en az ${availReq.minDays} gün ve ${hs}–${he} saat aralığında müsaitlik gerekir (şu an: ${daysOk} gün). ` +
+                    'Eksik kalırsa ve rakip alternatif sunamazsa walkover uygulanabilir.';
+            }
+        }
 
         const arrange = isPlayersArrangeCourts(tournament);
         const cleanCourts = arrange
@@ -297,7 +313,7 @@ export const upsertRoundAvailability = async (req, res, next) => {
             });
         }
 
-        res.json(row);
+        res.json(requirementWarning ? { ...row, requirementWarning } : row);
     } catch (e) { next(e); }
 };
 

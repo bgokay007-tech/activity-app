@@ -87,6 +87,71 @@ export function countDistinctAvailDays(slots) {
     return dates.size;
 }
 
+const MIN_HOUR_OVERLAP_MIN = 30;
+
+/** Slot, turnuva zorunlu saat aralığıyla en az 30 dk örtüşüyor mu? */
+export function slotOverlapsHourWindow(slot, hourStart, hourEnd) {
+    if (!hourStart || !hourEnd) return true;
+    if (!slot || typeof slot !== 'object') return false;
+    const fromM = timeToMin(String(slot.timeFrom || '').slice(0, 5));
+    const toM = timeToMin(String(slot.timeTo || '').slice(0, 5));
+    const winFrom = timeToMin(String(hourStart).slice(0, 5));
+    const winTo = timeToMin(String(hourEnd).slice(0, 5));
+    if (fromM == null || toM == null || winFrom == null || winTo == null) return false;
+    if (toM <= fromM || winTo <= winFrom) return false;
+    const overlap = Math.min(toM, winTo) - Math.max(fromM, winFrom);
+    return overlap >= MIN_HOUR_OVERLAP_MIN;
+}
+
+/**
+ * Zorunlu saat aralığına giren (veya aralık yoksa tüm) farklı gün sayısı.
+ * Lig müsaitlik şartı (availRequirementEnabled) için.
+ */
+export function countAvailDaysInHourWindow(slots, hourStart, hourEnd) {
+    if (!Array.isArray(slots)) return 0;
+    const dates = new Set();
+    for (const s of slots) {
+        if (!s || typeof s !== 'object') continue;
+        const d = s.date != null ? String(s.date).slice(0, 10) : '';
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+        if (!slotOverlapsHourWindow(s, hourStart, hourEnd)) continue;
+        dates.add(d);
+    }
+    return dates.size;
+}
+
+/** Turnuva müsaitlik şartı açıksa { minDays, hourStart, hourEnd }; değilse null. */
+export function resolveAvailRequirement(tournament) {
+    if (!tournament?.availRequirementEnabled) return null;
+    const minDays = Math.max(1, Math.min(8, parseInt(tournament.availReqMinDays, 10) || MIN_AVAIL_DISTINCT_DAYS));
+    const hourStart = tournament.availReqHourStart
+        ? String(tournament.availReqHourStart).slice(0, 5)
+        : null;
+    const hourEnd = tournament.availReqHourEnd
+        ? String(tournament.availReqHourEnd).slice(0, 5)
+        : null;
+    return { minDays, hourStart, hourEnd };
+}
+
+/**
+ * Hükmen 6-0 setleri — best-of N için kazanmak için gereken set sayısı kadar.
+ * winnerSide: 'p1' | 'p2'
+ */
+export function buildWalkoverSets(setsPerMatch, winnerSide = 'p1') {
+    const n = Math.max(1, Math.min(5, parseInt(setsPerMatch, 10) || 3));
+    const need = Math.ceil(n / 2);
+    const sets = [];
+    for (let i = 0; i < need; i++) {
+        sets.push(winnerSide === 'p1' ? { p1: 6, p2: 0 } : { p1: 0, p2: 6 });
+    }
+    return sets;
+}
+
+export const AVAIL_WALKOVER_NOTE_TR =
+    'Kurallardaki müsaitlik zamanları yeterli olmadığı için walkover olundu.';
+export const AVAIL_WALKOVER_NOTE_EN =
+    'Walkover: availability windows required by the rules were not met.';
+
 /**
  * Tenis / lig-rekabetçi tur döngüsü: 24s (müsaitlik + isteyenler maç da yapabilir) + 7 gün resmi tur = 8 gün.
  * Klasik maç penceresi / deadline de bu 8 günü kapsar — ilk 24s oyun dışı değil.
