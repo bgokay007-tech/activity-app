@@ -2,12 +2,27 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Her build benzersiz — Edge/PWA eski index.html+JS tutunca skor bölümleri "yok" görünüyordu.
+const BUILD_ID = `web-${Date.now().toString(36)}`
+
 export default defineConfig({
+  define: {
+    __APP_BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico'],
+      // index.html precache + NavigationRoute Edge'de eski HTML'i ömür boyu tutuyordu —
+      // navigateFallback kapalı; HTML her zaman ağdan gelsin.
+      workbox: {
+        globPatterns: ['**/*.{js,css,ico,png,svg,webp,jpg,jpeg,gif,woff2}'],
+        navigateFallback: null,
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       manifest: {
         name: 'AcTiViTy',
         short_name: 'AcTiViTy',

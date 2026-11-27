@@ -8,33 +8,56 @@ import './index.css';
 import './i18n.js';
 import App from './App.jsx';
 
-// vite.config.js sets registerType: 'autoUpdate', but that alone only makes the
-// generated service worker skipWaiting/clientsClaim server-side — nothing was actually
-// calling navigator.serviceWorker.register() or reacting to a new version being found,
-// so already-open tabs kept running old JS indefinitely (only a fresh/incognito tab,
-// with no service worker yet, ever saw the latest deploy). This registers it for real
-// and force-reloads once as soon as a new version is detected.
-// immediate: true — açılışta hemen kontrol; interval — uzun açık kalan sekmeler de yenilensin
-// (kullanıcı raporu: Ctrl+Shift+R bile eski skor UI'sını gösteriyordu).
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() { updateSW(true); },
-});
-if (typeof window !== 'undefined') {
+/* global __APP_BUILD_ID__ */
+const BUILD_ID = typeof __APP_BUILD_ID__ !== 'undefined' ? __APP_BUILD_ID__ : 'dev';
+const BUILD_KEY = 'activity_web_build_id';
+
+// Edge (ve diğerleri): eski service worker + Cache Storage skor bölümlerini eski JS ile
+ // bırakıyordu — build id değişince bir kez SW/cache temizle + yenile.
+async function purgeStaleClientIfNeeded() {
+  if (typeof window === 'undefined') return false;
+  try {
+    const prev = localStorage.getItem(BUILD_KEY);
+    if (prev === BUILD_ID) return false;
+    localStorage.setItem(BUILD_KEY, BUILD_ID);
+    // İlk ziyaret (prev null): kaydet, yenileme yok
+    if (prev == null) return false;
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if (typeof caches !== 'undefined') {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+    // Tek seferlik soft reload — yeni HTML/JS ağdan gelsin
+    window.location.reload();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const purged = await purgeStaleClientIfNeeded();
+if (!purged) {
+  const updateSW = registerSW({
+    immediate: true,
+    onNeedRefresh() { updateSW(true); },
+  });
   setInterval(() => { try { updateSW?.(true); } catch { /* ignore */ } }, 45_000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       try { updateSW?.(true); } catch { /* ignore */ }
     }
   });
-}
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <Provider store={store}>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </Provider>
-  </StrictMode>
-);
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <Provider store={store}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </Provider>
+    </StrictMode>
+  );
+}

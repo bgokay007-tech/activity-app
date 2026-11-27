@@ -3777,7 +3777,9 @@ function SubCategoryPage() {
                 const results = await Promise.allSettled([
                     api.get(`/rivals?category=${categoryUpper}&subCategory=${sub}`),
                     api.get(`/rivals?category=${categoryUpper}&subCategory=${sub}&matchType=PLAYER_WANTED`),
-                    api.get(`/rivals/upcoming`),
+                    // Mobil ile aynı: kategori+dal filtreli upcoming — saati geçmiş MATCHED
+                    // maçlar (skor bekleyen) bu listede kalır, client isPast ile ayrılır.
+                    api.get(`/rivals/upcoming?category=${categoryUpper}&subCategory=${sub}`),
                     api.get(`/rivals/completed?category=${categoryUpper}&subCategory=${sub}`),
                     // Mobil ile aynı uç: GET /archive?scope=all — /rivals/archived sadece
                     // "benim maçlarım" döner; mobilde varsayılan tüm dal arşivi (scope=all).
@@ -3814,10 +3816,16 @@ function SubCategoryPage() {
                     ...r,
                     _mySentRequest: r._myJoinStatus === 'PENDING' || r._myJoinStatus === 'ACCEPTED',
                 })));
-                if (upcomingRes) setUpcomingMatches(upcomingRes.data.filter(r =>
-                    r.category === categoryUpper && r.subCategory === sub
-                ));
-                if (completedRes) setCompletedMatches(completedRes.data);
+                if (upcomingRes) {
+                    const up = Array.isArray(upcomingRes.data) ? upcomingRes.data : [];
+                    setUpcomingMatches(up.filter(r =>
+                        (!r.category || r.category === categoryUpper) && r.subCategory === sub
+                    ));
+                }
+                if (completedRes) {
+                    const done = Array.isArray(completedRes.data) ? completedRes.data : [];
+                    setCompletedMatches(done);
+                }
                 if (archivedRes) setArchivedMatches(Array.isArray(archivedRes.data?.rivals) ? archivedRes.data.rivals : (Array.isArray(archivedRes.data) ? archivedRes.data : []));
                 setArchivedTournaments(archivedTournamentsRes?.data || []);
                 if (myInterestsRes) {
