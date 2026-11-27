@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, Keyboard } from 'react-native';
 import colors from '../theme/colors';
 
 // Uygulama genelinde tek saat seçilen her yerde kullanılan tek saat seçici — hepsi
@@ -20,9 +20,26 @@ function isValidTimeStr(t) {
     return /^\d{2}:\d{2}$/.test(n) && parseInt(n.slice(0, 2)) <= 24 && parseInt(n.slice(3)) < 60;
 }
 
+function blurAwayFromForm() {
+    Keyboard.dismiss();
+    try {
+        TextInput.State?.blurTextInput?.(TextInput.State?.currentlyFocusedInput?.());
+    } catch { /* ignore */ }
+}
+
 export default function TimePickerModal({ visible, title, value, onSelect, onClose, step = 15, minTime = null }) {
     const [manual, setManual] = useState(value || '');
     useEffect(() => { setManual(value || ''); }, [value, visible]);
+    // Nested Modal kapanınca RN önceki TextInput'a (IBAN vb.) odak geri verebiliyor.
+    useEffect(() => {
+        if (visible) {
+            blurAwayFromForm();
+            return undefined;
+        }
+        const t1 = setTimeout(blurAwayFromForm, 50);
+        const t2 = setTimeout(blurAwayFromForm, 250);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, [visible]);
 
     const times = [];
     for (let h = 0; h < 24; h++) {

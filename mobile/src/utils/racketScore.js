@@ -188,16 +188,33 @@ export function racketAlertText(t, check) {
     return t.actionFailed || '';
 }
 
-/** Oluşturma / düzenleme picker değeri: '1'|'2'|'3'|'3tb'|'4'|'5'|'5tb' */
-export function encodeSetsFormat(setsPerMatch, decidingTiebreak) {
+/**
+ * Oluşturma / düzenleme picker: '1'|'2'|'3'|'3tb'|'4'|'5'|'5tb'
+ * 3tb = 3 set; 3. set SET veya süper TB — oyuncular maç öncesi ortak karar verir.
+ * 5tb = 5 set; 5. set zorunlu süper TB (eski davranış).
+ */
+export function encodeSetsFormat(setsPerMatch, decidingTiebreak, thirdSetPlayersDecide = false) {
     const n = String(setsPerMatch || '');
-    if (decidingTiebreak && n === '3') return '3tb';
+    if ((decidingTiebreak || thirdSetPlayersDecide) && n === '3') return '3tb';
     if (decidingTiebreak && n === '5') return '5tb';
     return n;
 }
 
 export function decodeSetsFormat(value) {
-    if (value === '3tb') return { setsPerMatch: '3', decidingTiebreak: true };
-    if (value === '5tb') return { setsPerMatch: '5', decidingTiebreak: true };
-    return { setsPerMatch: String(value || ''), decidingTiebreak: false };
+    if (value === '3tb') {
+        return { setsPerMatch: '3', decidingTiebreak: true, thirdSetPlayersDecide: true };
+    }
+    if (value === '5tb') {
+        return { setsPerMatch: '5', decidingTiebreak: true, thirdSetPlayersDecide: false };
+    }
+    return { setsPerMatch: String(value || ''), decidingTiebreak: false, thirdSetPlayersDecide: false };
+}
+
+/** Skor doğrulama: oyuncular karar verdiyse match.thirdSetFormat'a göre deciding. */
+export function resolveMatchDecidingTiebreak(tournament, match) {
+    if (!tournament?.decidingTiebreak) return false;
+    if (tournament.thirdSetPlayersDecide) {
+        return match?.thirdSetFormat === 'SUPER_TB';
+    }
+    return true;
 }

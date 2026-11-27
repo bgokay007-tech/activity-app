@@ -265,7 +265,7 @@ function collectTournamentLines(tournament, t, lang, opts = {}) {
         {
             const fmtKey = tournament.decidingTiebreak && Number(tournament.setsPerMatch) === 5
                 ? 'tournSetsOpt_5tb'
-                : tournament.decidingTiebreak && Number(tournament.setsPerMatch) === 3
+                : (tournament.thirdSetPlayersDecide || tournament.decidingTiebreak) && Number(tournament.setsPerMatch) === 3
                     ? 'tournSetsOpt_3tb'
                     : null;
             const setsLabel = (fmtKey && t?.[fmtKey]) || String(tournament.setsPerMatch);

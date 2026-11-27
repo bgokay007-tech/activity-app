@@ -31,7 +31,7 @@ import * as Notifications from 'expo-notifications';
 import { isHealthAvailable, requestHealthPermissions, getWorkoutSummary } from '../../../modules/health-bridge';
 import { estimateCalories } from '../../utils/calorieEstimate';
 import { fetchMatchWorkoutStats, rivalMatchTimeWindow } from '../../utils/matchHealthSync';
-import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, syncDecidingSet, formatSetScore, racketAlertText, encodeSetsFormat, decodeSetsFormat, decidingTiebreakAllowed } from '../../utils/racketScore';
+import { isRacketSetSport, isSevenSix, normalizeRacketSets, syncSplitThirdSet, syncDecidingSet, formatSetScore, racketAlertText, encodeSetsFormat, decodeSetsFormat, decidingTiebreakAllowed, resolveMatchDecidingTiebreak } from '../../utils/racketScore';
 import api from '../../services/api';
 import { prefetchBranchLists, recallBranch, rememberBranch, dropBranchListCache, hydrateBranch } from '../../services/branchCache';
 import { prefetchRival, takePrefetchedRival } from '../../services/rivalPrefetch';
@@ -19010,6 +19010,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
     const [editSetsPerMatch, setEditSetsPerMatch] = useState(String(item.setsPerMatch || 3));
     const [editAdvantageScoring, setEditAdvantageScoring] = useState(item.advantageScoring !== undefined ? item.advantageScoring : null);
     const [editDecidingTiebreak, setEditDecidingTiebreak] = useState(!!item.decidingTiebreak);
+    const [editThirdSetPlayersDecide, setEditThirdSetPlayersDecide] = useState(!!item.thirdSetPlayersDecide);
     const [editLocation, setEditLocation] = useState(item.location || '');
     const [editSurface, setEditSurface] = useState(item.surface || '');
     const [editIsIndoor, setEditIsIndoor] = useState(!!item.isIndoor);
@@ -20215,11 +20216,72 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         );
     };
 
+    const renderThirdSetDecidePanel = (match) => {
+        if (!item.thirdSetPlayersDecide) return null;
+        if (match.thirdSetFormat) {
+            return (
+                <Text style={{ color: '#4ade80', fontSize: 10, fontWeight: '700', marginBottom: 6 }}>
+                    {match.thirdSetFormat === 'SUPER_TB'
+                        ? (t.tournThirdSetLockedTb || '3. set: süper TB')
+                        : (t.tournThirdSetLockedSet || '3. set: normal set')}
+                </Text>
+            );
+        }
+        return (
+            <View style={{ marginBottom: 8, padding: 8, borderRadius: 8, backgroundColor: '#a855f715', borderWidth: 1, borderColor: '#a855f740' }}>
+                <Text style={{ color: '#c084fc', fontSize: 11, fontWeight: '800', marginBottom: 6 }}>
+                    {t.tournThirdSetDecideTitle || '3. set: ortak karar'}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontSize: 10, marginBottom: 6, lineHeight: 14 }}>
+                    {t.tournThirdSetDecideHint || 'Maç başlamadan önce 3. set normal set mi yoksa süper TB mi — iki taraf da aynı seçeneği işaretlemeli.'}
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                    {['SET', 'SUPER_TB'].map((choice) => {
+                        const votes = match.thirdSetVotes || {};
+                        const mine = (votes.p1 === choice || votes.p2 === choice);
+                        return (
+                            <TouchableOpacity
+                                key={choice}
+                                onPress={async () => {
+                                    try {
+                                        await api.post(`/tournaments/${item.id}/matches/${match.id}/third-set-format`, { choice });
+                                        fetchMatches?.();
+                                    } catch (e) {
+                                        Alert.alert('', e?.response?.data?.message || t.actionFailed);
+                                    }
+                                }}
+                                style={{
+                                    flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center',
+                                    backgroundColor: mine ? '#a855f730' : colors.surface2,
+                                    borderWidth: 1, borderColor: mine ? '#a855f7' : colors.border,
+                                }}
+                            >
+                                <Text style={{ color: mine ? '#c084fc' : '#fff', fontSize: 11, fontWeight: '800' }}>
+                                    {choice === 'SET'
+                                        ? (t.tournThirdSetOptSet || 'Normal set')
+                                        : (t.tournThirdSetOptTb || 'Süper TB')}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+                {(match.thirdSetVotes?.p1 || match.thirdSetVotes?.p2) ? (
+                    <Text style={{ color: colors.textMuted, fontSize: 10, marginTop: 6 }}>
+                        {(t.tournThirdSetVotes || 'Oylar')}: P1 {match.thirdSetVotes?.p1 || '—'} · P2 {match.thirdSetVotes?.p2 || '—'}
+                    </Text>
+                ) : null}
+            </View>
+        );
+    };
+
     const updateTournSet = (si, field, val) => {
         const clean = String(val || '').replace(/[^0-9]/g, '');
         const racketSport = isRacketSetSport(item.subCategory);
         const effectiveN = (numSets === 2 && item.decidingTiebreak) ? 3 : numSets;
-        const deciding = racketSport && !!item.decidingTiebreak && decidingTiebreakAllowed(effectiveN);
+        const matchObj = (tournMatches || []).find(m => m.id === scoreEntry?.matchId)
+            || (item.tournamentMatches || item.matches || []).find(m => m.id === scoreEntry?.matchId)
+            || scoreEntry?.match;
+        const deciding = racketSport && resolveMatchDecidingTiebreak(item, matchObj) && decidingTiebreakAllowed(effectiveN);
         setScoreSets(prev => {
             const patched = prev.map((s, i) => i === si ? { ...s, [field]: clean } : s);
             if (racketSport && effectiveN >= 2) {
@@ -20239,7 +20301,14 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
         let sets;
         let winner;
         if (isRacketSetSport(item.subCategory)) {
-            const deciding = !!item.decidingTiebreak && (numSets === 2 || numSets === 3 || numSets === 5);
+            const matchObj = (tournMatches || []).find(m => m.id === scoreEntry.matchId)
+                || (item.tournamentMatches || item.matches || []).find(m => m.id === scoreEntry.matchId)
+                || scoreEntry.match;
+            if (item.thirdSetPlayersDecide && !matchObj?.thirdSetFormat) {
+                Alert.alert('', t.tournThirdSetNeedAgree || 'Önce 3. set için ortak karar verin: normal set veya süper TB.');
+                return;
+            }
+            const deciding = resolveMatchDecidingTiebreak(item, matchObj);
             const checked = normalizeRacketSets(scoreSets, {
                 decidingTiebreak: deciding,
                 setsPerMatch: numSets,
@@ -20372,6 +20441,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 setsPerMatch: editSetsPerMatch ? parseInt(editSetsPerMatch) : null,
                 advantageScoring: editAdvantageScoring,
                 decidingTiebreak: isRacketSetSport(item.subCategory) && decidingTiebreakAllowed(editSetsPerMatch) && editDecidingTiebreak,
+                thirdSetPlayersDecide: isRacketSetSport(item.subCategory) && parseInt(editSetsPerMatch, 10) === 3 && editThirdSetPlayersDecide && editDecidingTiebreak,
                 matchesBeforePlayoff: editMatches ? parseInt(editMatches) : null,
                 playoffQualifiers: editQualifiers ? parseInt(editQualifiers) : null,
                 location: editLocation || null,
@@ -20681,7 +20751,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                 ) : null}
                 {item.setsPerMatch ? (
                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
+                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak, item.thirdSetPlayersDecide)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
                     </View>
                 ) : null}
                 {item.advantageScoring !== undefined ? (
@@ -21241,10 +21311,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 {/* Skor Gir → aynı satır alta doğru genişler */}
                                 {isEntering && (
                                     <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 5 }}>
+                                        {renderThirdSetDecidePanel(match)}
                                         <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
                                         <View style={{ flexDirection: 'row', gap: 3, marginTop: 6 }}>
-                                            <TouchableOpacity onPress={submitScore} disabled={submittingScore}
-                                                style={{ backgroundColor: '#16a34a30', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 5, borderWidth: 1, borderColor: '#16a34a60' }}>
+                                            <TouchableOpacity onPress={submitScore} disabled={submittingScore || (item.thirdSetPlayersDecide && !match.thirdSetFormat)}
+                                                style={{ backgroundColor: '#16a34a30', borderRadius: 8, paddingHorizontal: 11, paddingVertical: 5, borderWidth: 1, borderColor: '#16a34a60', opacity: (item.thirdSetPlayersDecide && !match.thirdSetFormat) ? 0.45 : 1 }}>
                                                 <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '800' }}>
                                                     {submittingScore ? '...' : (scoreEntry?.mode === 'correction'
                                                         ? (t.tournScoreCorrectionSubmit || t.sc_0118)
@@ -21973,10 +22044,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                         </View>
                                                     {isEntering && (
                                                         <View style={{ marginTop:8, borderTopWidth:1, borderTopColor: colors.border, paddingTop:5 }}>
+                                                            {renderThirdSetDecidePanel(match)}
                                                             <TournSetScoreFields scoreSets={scoreSets} onChange={updateTournSet} p1Name={match.p1Name} p2Name={match.p2Name} t={t} />
                                                             <View style={{ flexDirection:'row', gap:3, marginTop:6 }}>
-                                                                <TouchableOpacity onPress={submitScore} disabled={submittingScore}
-                                                                    style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60' }}>
+                                                                <TouchableOpacity onPress={submitScore} disabled={submittingScore || (item.thirdSetPlayersDecide && !match.thirdSetFormat)}
+                                                                    style={{ backgroundColor:'#16a34a30', borderRadius:8, paddingHorizontal:11, paddingVertical:2, borderWidth:1, borderColor:'#16a34a60', opacity: (item.thirdSetPlayersDecide && !match.thirdSetFormat) ? 0.45 : 1 }}>
                                                                     <Text style={{ color:'#4ade80', fontSize:12, fontWeight:'800' }}>
                                                                         {submittingScore ? '...' : (scoreEntry?.mode === 'correction'
                                                                             ? (t.tournScoreCorrectionSubmit || t.sc_0118)
@@ -22418,7 +22490,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                             : ['1', '2', '3', '4', '5']
                                         ).map(v => {
                                             const active = isRacketSetSport(item.subCategory)
-                                                ? encodeSetsFormat(editSetsPerMatch, editDecidingTiebreak) === v
+                                                ? encodeSetsFormat(editSetsPerMatch, editDecidingTiebreak, editThirdSetPlayersDecide) === v
                                                 : String(editSetsPerMatch) === v;
                                             return (
                                                 <TouchableOpacity
@@ -22428,9 +22500,11 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                                             const d = decodeSetsFormat(v);
                                                             setEditSetsPerMatch(d.setsPerMatch);
                                                             setEditDecidingTiebreak(d.decidingTiebreak);
+                                                            setEditThirdSetPlayersDecide(!!d.thirdSetPlayersDecide);
                                                         } else {
                                                             setEditSetsPerMatch(v);
                                                             setEditDecidingTiebreak(false);
+                                                            setEditThirdSetPlayersDecide(false);
                                                         }
                                                     }}
                                                     style={[s.chipBtn, { minWidth: '30%', flexGrow: 1 }, active && s.chipBtnActive]}
@@ -23418,7 +23492,7 @@ function TournamentCard({ item, myId, myIsAdmin, t, cfg, onJoin, onCancelJoin, o
                                 ) : null}
                                 {item.setsPerMatch ? (
                                     <View style={{ backgroundColor: infoColor+'15', borderRadius:8, paddingHorizontal:8, paddingVertical:4, borderWidth:1, borderColor: infoColor+'40' }}>
-                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
+                                        <Text style={{ color: infoColor, fontSize:10, fontWeight:'700' }}>{t.sc_0401} {isRacketSetSport(item.subCategory) ? (t[`tournSetsOpt_${encodeSetsFormat(item.setsPerMatch, item.decidingTiebreak, item.thirdSetPlayersDecide)}`] || item.setsPerMatch) : item.setsPerMatch}</Text>
                                     </View>
                                 ) : null}
                                 {item.advantageScoring !== undefined ? (
@@ -24010,6 +24084,7 @@ function formFromTournament(item, INIT) {
         setsPerMatch: item.setsPerMatch != null ? String(item.setsPerMatch) : '',
         advantageScoring: item.advantageScoring !== undefined ? item.advantageScoring : undefined,
         decidingTiebreak: !!item.decidingTiebreak,
+        thirdSetPlayersDecide: !!item.thirdSetPlayersDecide,
         matchesBeforePlayoff: strOr(item.matchesBeforePlayoff),
         playoffQualifiers: strOr(item.playoffQualifiers),
         rules: Array.isArray(item.rules) ? item.rules : [],
@@ -24059,7 +24134,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
         surface: 'PLAYERS_DECIDE', isPaid: false,
         feeType: 'SHARED', playerFee: '', paymentMethod: '', ibanNumber: '', ibanHolder: '',
         prize1: '', prize2: '', prize3: '', surpriseGifts: '', contactPhone: '', whatsappGroupUrl: '', description: '',
-        setsPerMatch: '', advantageScoring: undefined, decidingTiebreak: false,
+        setsPerMatch: '', advantageScoring: undefined, decidingTiebreak: false, thirdSetPlayersDecide: false,
         matchesBeforePlayoff: '', playoffQualifiers: '',
         rules: [],
         extraServices: [],
@@ -24343,6 +24418,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                     setsPerMatch: f.setsPerMatch ? parseInt(f.setsPerMatch) : null,
                     advantageScoring: f.advantageScoring,
                     decidingTiebreak: isRacketSetSport(sub) && decidingTiebreakAllowed(f.setsPerMatch) && !!f.decidingTiebreak,
+                    thirdSetPlayersDecide: isRacketSetSport(sub) && parseInt(f.setsPerMatch, 10) === 3 && !!f.thirdSetPlayersDecide && !!f.decidingTiebreak,
                     matchesBeforePlayoff: f.matchesBeforePlayoff ? parseInt(f.matchesBeforePlayoff) : null,
                     playoffQualifiers: f.playoffQualifiers ? parseInt(f.playoffQualifiers) : null,
                 }),
@@ -25204,7 +25280,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         <View style={{ flexDirection:'row', gap:2 }}>
                                             <TouchableOpacity
                                                 style={[s.triBtn, dateVal && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
-                                                onPress={() => { setTimeField(null); setDpField(field); }}>
+                                                onPress={() => {
+                                                    Keyboard.dismiss();
+                                                    TextInput.State?.blurTextInput?.(TextInput.State?.currentlyFocusedInput?.());
+                                                    setTimeField(null);
+                                                    setDpField(field);
+                                                }}>
                                                 <Text style={[s.triLabel, { fontSize:7 }]}>{t.dateLabel}</Text>
                                                 <Text style={[s.triValue, !dateVal && s.triPlaceholder, { fontSize:9 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                                                     {dateVal ? `${String(dateVal.getDate()).padStart(2,'0')}/${String(dateVal.getMonth()+1).padStart(2,'0')}` : '—'}
@@ -25212,7 +25293,12 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                             </TouchableOpacity>
                                             <TouchableOpacity
                                                 style={[s.triBtn, timeVal && s.triBtnFilled, { flex:1, paddingVertical:3, paddingHorizontal:1 }]}
-                                                onPress={() => { setDpField(null); setTimeField(field); }}>
+                                                onPress={() => {
+                                                    Keyboard.dismiss();
+                                                    TextInput.State?.blurTextInput?.(TextInput.State?.currentlyFocusedInput?.());
+                                                    setDpField(null);
+                                                    setTimeField(field);
+                                                }}>
                                                 <Text style={[s.triLabel, { fontSize:7 }]}>{t.timeLabel}</Text>
                                                 <Text style={[s.triValue, !timeVal && s.triPlaceholder, { fontSize:9 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>{timeVal || '—'}</Text>
                                             </TouchableOpacity>
@@ -25224,6 +25310,8 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                 visible={dpField === 'end'}
                                 value={f.regEndDate}
                                 onSelect={(date) => {
+                                    Keyboard.dismiss();
+                                    TextInput.State?.blurTextInput?.(TextInput.State?.currentlyFocusedInput?.());
                                     const next = { regEndDate: date };
                                     if (f.regEndTime) {
                                         const probe = new Date(date);
@@ -25237,7 +25325,10 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     setF(prev => ({ ...prev, ...next }));
                                     setDpField(null);
                                 }}
-                                onClose={() => setDpField(null)}
+                                onClose={() => {
+                                    Keyboard.dismiss();
+                                    setDpField(null);
+                                }}
                             />
                             <TimePickerModal
                                 visible={timeField === 'end'}
@@ -25375,7 +25466,7 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                         <Text style={{ color: f.setsPerMatch ? '#fff' : colors.textMuted, fontSize:10, fontWeight:'800' }} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55}>
                                             {f.setsPerMatch
                                                 ? (isRacketSetSport(sub)
-                                                    ? (t[`tournSetsOpt_${encodeSetsFormat(f.setsPerMatch, f.decidingTiebreak)}`] || f.setsPerMatch)
+                                                    ? (t[`tournSetsOpt_${encodeSetsFormat(f.setsPerMatch, f.decidingTiebreak, f.thirdSetPlayersDecide)}`] || f.setsPerMatch)
                                                     : f.setsPerMatch)
                                                 : t.tournSelectPlaceholder}
                                         </Text>
@@ -25420,16 +25511,24 @@ function CreateTournamentModal({ visible, onClose, category, sub, onCreated, edi
                                     }))
                                     : ['1', '2', '3', '4', '5'].map(n => ({ value: n, label: n }))}
                                 value={isRacketSetSport(sub)
-                                    ? encodeSetsFormat(f.setsPerMatch, f.decidingTiebreak)
+                                    ? encodeSetsFormat(f.setsPerMatch, f.decidingTiebreak, f.thirdSetPlayersDecide)
                                     : f.setsPerMatch}
                                 onSelect={(v) => {
                                     if (isRacketSetSport(sub)) {
                                         const d = decodeSetsFormat(v);
-                                        set('setsPerMatch', d.setsPerMatch);
-                                        set('decidingTiebreak', d.decidingTiebreak);
+                                        setF(p => ({
+                                            ...p,
+                                            setsPerMatch: d.setsPerMatch,
+                                            decidingTiebreak: d.decidingTiebreak,
+                                            thirdSetPlayersDecide: !!d.thirdSetPlayersDecide,
+                                        }));
                                     } else {
-                                        set('setsPerMatch', v);
-                                        set('decidingTiebreak', false);
+                                        setF(p => ({
+                                            ...p,
+                                            setsPerMatch: v,
+                                            decidingTiebreak: false,
+                                            thirdSetPlayersDecide: false,
+                                        }));
                                     }
                                 }}
                                 onClose={() => setShowSetsPicker(false)}

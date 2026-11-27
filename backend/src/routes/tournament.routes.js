@@ -19,6 +19,7 @@ import {
     startTournament,
     getTournamentMatches,
     enterTournamentMatchScore,
+    voteThirdSetFormat,
     confirmTournamentMatchScore,
     proposeTournamentScoreCorrection,
     respondTournamentScoreCorrection,
@@ -95,6 +96,7 @@ router.post('/:id/start',                               startTournament);
 router.post('/:id/rematch',                             rematchTournament);
 router.get('/:id/matches',                   getTournamentMatches);
 router.patch('/:id/matches/:matchId/score',  enterTournamentMatchScore);
+router.post('/:id/matches/:matchId/third-set-format', voteThirdSetFormat);
 router.post('/:id/matches/:matchId/confirm', confirmTournamentMatchScore);
 router.post('/:id/matches/:matchId/score-correction', proposeTournamentScoreCorrection);
 router.post('/:id/matches/:matchId/score-correction/respond', respondTournamentScoreCorrection);

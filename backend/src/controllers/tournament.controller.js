@@ -1257,7 +1257,7 @@ export const createTournament = async (req, res, next) => {
             ratingGenderSplit, minRatingMale, maxRatingMale, minRatingFemale, maxRatingFemale,
             matchmakingType, matchFrequency, matchTimeStart, matchTimeEnd, dayTrip,
             availabilityMatchEnabled,
-            setsPerMatch, advantageScoring, decidingTiebreak, matchesBeforePlayoff, playoffQualifiers,
+            setsPerMatch, advantageScoring, decidingTiebreak, thirdSetPlayersDecide, matchesBeforePlayoff, playoffQualifiers,
             teamSize, teamRequiredMaleCount,
             rules, extraServices,
             location, city, cities,
@@ -1368,9 +1368,11 @@ export const createTournament = async (req, res, next) => {
                 // gönderilmediyse (undefined) şema varsayılanı (true) devreye girsin diye dokunulmaz.
                 ...(advantageScoring !== undefined && { advantageScoring }),
                 // 3 set + deciding → 1-1'de 3. set süper TB; 5 set + deciding → 2-2'de 5. set süper TB.
-                // (Eski 2+TB kayıtları skor tarafında hâlâ 3 set STB gibi okunur.)
+                // thirdSetPlayersDecide: 3. set SET/STB oyuncular maç öncesi ortak karar verir.
                 decidingTiebreak: !!decidingTiebreak && isRacketSetSport(subCategory)
                     && [3, 5].includes(parseInt(setsPerMatch)),
+                thirdSetPlayersDecide: !!thirdSetPlayersDecide && isRacketSetSport(subCategory)
+                    && parseInt(setsPerMatch) === 3 && !!decidingTiebreak,
                 matchesBeforePlayoff: matchesBeforePlayoff ? parseInt(matchesBeforePlayoff) : null,
                 playoffQualifiers: playoffQualifiers ? parseInt(playoffQualifiers) : null,
                 // Airsoft vb. takım tabanlı dallarda Min/Max Oyuncu yerine kullanılıyor — teamSize
@@ -2361,10 +2363,16 @@ export const updateTournament = async (req, res, next) => {
                 ...(b.maxPlayers          !== undefined && { maxPlayers: parseInt(b.maxPlayers) }),
                 ...(b.setsPerMatch        !== undefined && { setsPerMatch: b.setsPerMatch ? parseInt(b.setsPerMatch) : null }),
                 ...(b.advantageScoring    !== undefined && { advantageScoring: b.advantageScoring }),
-                ...(b.setsPerMatch !== undefined && ![3, 5].includes(parseInt(b.setsPerMatch)) ? { decidingTiebreak: false } : {}),
+                ...(b.setsPerMatch !== undefined && ![3, 5].includes(parseInt(b.setsPerMatch))
+                    ? { decidingTiebreak: false, thirdSetPlayersDecide: false } : {}),
                 ...(b.decidingTiebreak !== undefined && isRacketSetSport(tournament.subCategory)
                     && [3, 5].includes(parseInt(b.setsPerMatch ?? tournament.setsPerMatch))
                     ? { decidingTiebreak: !!b.decidingTiebreak } : {}),
+                ...(b.thirdSetPlayersDecide !== undefined && isRacketSetSport(tournament.subCategory)
+                    && parseInt(b.setsPerMatch ?? tournament.setsPerMatch) === 3
+                    ? {
+                        thirdSetPlayersDecide: !!b.thirdSetPlayersDecide && !!(b.decidingTiebreak ?? tournament.decidingTiebreak),
+                    } : {}),
                 ...(b.matchesBeforePlayoff !== undefined && { matchesBeforePlayoff: b.matchesBeforePlayoff ? parseInt(b.matchesBeforePlayoff) : null }),
                 ...(b.playoffQualifiers   !== undefined && { playoffQualifiers: b.playoffQualifiers ? parseInt(b.playoffQualifiers) : null }),
                 ...(b.eventDate    !== undefined && { eventDate:    b.eventDate ? new Date(b.eventDate) : null }),
@@ -3847,7 +3855,14 @@ export const enterTournamentMatchScore = async (req, res, next) => {
 
         if (isRacketSetSport(tournament.subCategory)) {
             const spm = tournament.setsPerMatch || 3;
-            const deciding = !!tournament.decidingTiebreak && [2, 3, 5].includes(spm);
+            if (tournament.thirdSetPlayersDecide && !match.thirdSetFormat) {
+                return res.status(400).json({
+                    message: 'Önce 3. set için ortak karar gerekli: normal set veya süper TB.',
+                });
+            }
+            const deciding = tournament.thirdSetPlayersDecide
+                ? match.thirdSetFormat === 'SUPER_TB'
+                : (!!tournament.decidingTiebreak && [2, 3, 5].includes(spm));
             const checked = normalizeRacketSets(sets, {
                 decidingTiebreak: deciding,
                 setsPerMatch: spm,
@@ -4401,7 +4416,14 @@ export const proposeTournamentScoreCorrection = async (req, res, next) => {
 
         if (isRacketSetSport(tournament.subCategory)) {
             const spm = tournament.setsPerMatch || 3;
-            const deciding = !!tournament.decidingTiebreak && [2, 3, 5].includes(spm);
+            if (tournament.thirdSetPlayersDecide && !match.thirdSetFormat) {
+                return res.status(400).json({
+                    message: 'Önce 3. set için ortak karar gerekli: normal set veya süper TB.',
+                });
+            }
+            const deciding = tournament.thirdSetPlayersDecide
+                ? match.thirdSetFormat === 'SUPER_TB'
+                : (!!tournament.decidingTiebreak && [2, 3, 5].includes(spm));
             const checked = normalizeRacketSets(sets, {
                 decidingTiebreak: deciding,
                 setsPerMatch: spm,
@@ -7600,6 +7622,68 @@ export const drawUnscoredMatches = async (req, res, next) => {
         }
 
         res.json({ drawn, matches: allMatches });
+    } catch (e) { next(e); }
+};
+
+/** 3.set SET / SUPER_TB ortak kararı (thirdSetPlayersDecide turnuvaları) */
+export const voteThirdSetFormat = async (req, res, next) => {
+    try {
+        const { id, matchId } = req.params;
+        const choice = String(req.body?.choice || '').toUpperCase();
+        if (choice !== 'SET' && choice !== 'SUPER_TB') {
+            return res.status(400).json({ message: 'choice SET veya SUPER_TB olmalı' });
+        }
+        const tournament = await prisma.tournament.findUnique({ where: { id } });
+        if (!tournament) return res.status(404).json({ message: 'Turnuva bulunamadı' });
+        if (!tournament.thirdSetPlayersDecide) {
+            return res.status(400).json({ message: 'Bu turnuvada 3. set oyuncu kararı yok' });
+        }
+        const match = await prisma.tournamentMatch.findFirst({
+            where: { id: matchId, tournamentId: id },
+        });
+        if (!match) return res.status(404).json({ message: 'Maç bulunamadı' });
+        if (match.status === 'COMPLETED' || match.status === 'BYE' || match.status === 'FORFEIT') {
+            return res.status(400).json({ message: 'Maç bitmiş' });
+        }
+        if (match.thirdSetFormat) {
+            return res.json(match);
+        }
+
+        const { p1Members, p2Members } = await resolveTournamentMatchSideMembers(tournament, match);
+        const isP1 = p1Members.includes(req.userId);
+        const isP2 = p2Members.includes(req.userId);
+        if (!isP1 && !isP2) return res.status(403).json({ message: 'Bu maçta yer almıyorsunuz.' });
+
+        const prev = (match.thirdSetVotes && typeof match.thirdSetVotes === 'object')
+            ? match.thirdSetVotes
+            : {};
+        const nextVotes = {
+            ...prev,
+            ...(isP1 ? { p1: choice } : {}),
+            ...(isP2 ? { p2: choice } : {}),
+        };
+        let thirdSetFormat = null;
+        if (nextVotes.p1 && nextVotes.p2 && nextVotes.p1 === nextVotes.p2) {
+            thirdSetFormat = nextVotes.p1;
+        }
+
+        const updated = await prisma.tournamentMatch.update({
+            where: { id: match.id },
+            data: {
+                thirdSetVotes: nextVotes,
+                ...(thirdSetFormat ? { thirdSetFormat } : {}),
+            },
+        });
+
+        const parts = await prisma.tournamentParticipant.findMany({
+            where: { tournamentId: id, status: 'ACCEPTED', userId: { not: null } },
+            select: { userId: true },
+        });
+        const notifyIds = new Set([tournament.creatorId, ...parts.map((p) => p.userId)].filter(Boolean));
+        for (const uid of notifyIds) {
+            emitToUser(uid, 'tournament:match_scored', { tournamentId: id, match: updated });
+        }
+        res.json(updated);
     } catch (e) { next(e); }
 };
 

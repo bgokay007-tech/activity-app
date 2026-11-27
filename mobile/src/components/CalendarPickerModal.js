@@ -1,7 +1,14 @@
-import { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Keyboard, TextInput } from 'react-native';
 import colors from '../theme/colors';
 import useT from '../hooks/useT';
+
+function blurAwayFromForm() {
+    Keyboard.dismiss();
+    try {
+        TextInput.State?.blurTextInput?.(TextInput.State?.currentlyFocusedInput?.());
+    } catch { /* ignore */ }
+}
 
 // Uygulama genelinde tek tarih seçilen her yerde (turnuva/maç tarihleri, konser/tiyatro
 // filtreleri, işletme rezervasyon formları vb.) kullanılan tek takvim bileşeni — hepsi
@@ -12,6 +19,17 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose,
     const init = value || today;
     const [yr, setYr] = useState(init.getFullYear());
     const [mo, setMo] = useState(init.getMonth());
+
+    // Nested Modal kapanınca RN önceki TextInput'a odak geri verebiliyor (IBAN vb.).
+    useEffect(() => {
+        if (visible) {
+            blurAwayFromForm();
+            return undefined;
+        }
+        const t1 = setTimeout(blurAwayFromForm, 50);
+        const t2 = setTimeout(blurAwayFromForm, 250);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, [visible]);
 
     const firstDow = new Date(yr, mo, 1).getDay();
     const startOff = firstDow === 0 ? 6 : firstDow - 1;
@@ -46,7 +64,12 @@ export default function CalendarPickerModal({ visible, value, onSelect, onClose,
                                 <TouchableOpacity
                                     key={i}
                                     style={[s.cell, isSel(d) && s.cellSel, (!d || isPast(d)) && s.cellDis]}
-                                    onPress={() => { if (d && !isPast(d)) onSelect(new Date(yr, mo, d)); }}
+                                    onPress={() => {
+                                        if (!d || isPast(d)) return;
+                                        blurAwayFromForm();
+                                        onSelect(new Date(yr, mo, d));
+                                        setTimeout(blurAwayFromForm, 80);
+                                    }}
                                     activeOpacity={d && !isPast(d) ? 0.7 : 1}
                                 >
                                     <Text style={[s.cellTxt, isSel(d) && s.cellTxtSel, (!d || isPast(d)) && s.cellTxtDis]}>
