@@ -16323,6 +16323,18 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
         ? f.courtResults.filter(c => [c.name, c.venueName, c.city].filter(Boolean).join(' ').toLowerCase().includes(searchQuery))
         : f.courtResults;
 
+    // Modal iskeleti hemen açılsın; ağır form bir kare sonra — tuş gecikmesi/donma azalır.
+    const [formPaintReady, setFormPaintReady] = useState(false);
+    useEffect(() => {
+        if (!visible) { setFormPaintReady(false); return undefined; }
+        let cancelled = false;
+        const task = InteractionManager.runAfterInteractions(() => {
+            if (!cancelled) setFormPaintReady(true);
+        });
+        const fallback = setTimeout(() => { if (!cancelled) setFormPaintReady(true); }, 80);
+        return () => { cancelled = true; task?.cancel?.(); clearTimeout(fallback); };
+    }, [visible]);
+
     return (
         <>
         <Modal visible={visible} animationType="slide" transparent
@@ -16342,6 +16354,9 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                             <Text style={s.modalTitle}>{isMatchedEdit ? t.sc_0338((isVolleyball && volleyVenueShort(f.surface, t)) || t.sc_0197) : editItem ? t.editRivalTitle : (sub === 'airsoft' ? t.createTitleAirsoft : isEventStyleSub ? t.createEventBtn : t.createTitle)}</Text>
                             <TouchableOpacity onPress={onClose}><Text style={s.modalClose}>✕</Text></TouchableOpacity>
                         </View>
+                        {!formPaintReady ? (
+                            <ActivityIndicator color={cfg.color} style={{ marginVertical: 36 }} />
+                        ) : (
                         <KeyboardAwareForm adjustWindow={false} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="always"
                             contentContainerStyle={{ paddingBottom: Math.max(20, insets.bottom + 16) }}>
 
@@ -18053,6 +18068,7 @@ function CreateRivalModal({ visible, onClose, category, sub, onCreated, prefill 
                                 <Text style={s.submitBtnText}>{editItem ? (submitting ? t.savingText : t.saveBtn) : (submitting ? t.submittingBtn : t.createListingBtn)}</Text>
                             </TouchableOpacity>
                         </KeyboardAwareForm>
+                        )}
                         {/* Liste açıkken boş/diğer alana dokunuş → seçmeden kapat (iç içe Modal yok). */}
                         {anchoredMenu ? (
                             <Pressable
@@ -26497,11 +26513,14 @@ function SubCategoryScreen({ route, navigation }) {
     // gibi) skillRating görünüyordu. Bu da "kendi puanınız 0.00, en az X★ isteyemezsiniz" gibi
     // yanlış derece kısıtlaması reddiyle sonuçlanıyordu. Dala her girişte kendi güncel bilgisi
     // sessizce tazeleniyor.
+    // Her focus'ta değil (~5 dk): setUser tüm SubCategory'yi gereksiz yeniden çizerdi.
+    const lastAuthMeAtRef = useRef(0);
     useFocusEffect(useCallback(() => {
-        // İlk kareyle yarışmasın: profil tazelemesi ekran oturduktan sonra.
         const id = setTimeout(() => {
+            if (Date.now() - lastAuthMeAtRef.current < 5 * 60 * 1000) return;
+            lastAuthMeAtRef.current = Date.now();
             api.get('/auth/me').then(({ data }) => dispatch(setUser(data))).catch(() => {});
-        }, 700);
+        }, 1200);
         return () => clearTimeout(id);
     }, [dispatch]));
 
@@ -26530,6 +26549,24 @@ function SubCategoryScreen({ route, navigation }) {
     // Padel/pickleball: varsayılan/birincil anket ÇİFTLER. Tenis/masa tenisi/badminton: TEKLİ.
     const defaultAssessRatingType = (sub === 'padel' || sub === 'pickleball') ? 'doubles' : undefined;
     const requireActivity = async (onOk, actionLabel = 'bu özelliği kullanabilmen', opts = {}) => {
+        // Hızlı yol: Redux'ta dal+anket tamam → /interests/my beklemeden aç (~1 sn gecikmenin sebebi).
+        const cached = (myInterests || []).find(i => i.category === category && i.subCategory === sub && !i.hidden);
+        if (cached) {
+            const generalAssessmentDone = UTR_MOBILE_SUBS.has(sub)
+                ? (cached.assessmentCompleted || cached.doublesAssessmentCompleted)
+                : cached.assessmentCompleted;
+            if (RATING_REQUIRED_SUBS.has(sub) && !generalAssessmentDone) {
+                setGateAssessTarget({
+                    interestId: cached.id,
+                    pendingAction: onOk,
+                    ratingType: defaultAssessRatingType,
+                    seedCreate: !!opts.seedCreate,
+                });
+                return;
+            }
+            onOk();
+            return;
+        }
         try {
             const { data } = await api.get('/interests/my');
             let interest = Array.isArray(data) ? data.find(i => i.category === category && i.subCategory === sub && !i.hidden) : null;
@@ -26723,6 +26760,8 @@ function SubCategoryScreen({ route, navigation }) {
         return fn;
     };
     const screenFocused = useIsFocused();
+    const screenFocusedRef = useRef(screenFocused);
+    screenFocusedRef.current = screenFocused;
     const [audiblePostId, setAudiblePostId] = useState(null);
     useFocusEffect(useCallback(() => {
         return () => { stopActivePostMusic(); };
@@ -26789,7 +26828,7 @@ function SubCategoryScreen({ route, navigation }) {
     // (TAZE GET'lerden gelen doğru veriyi cache'leyip broadcast'teki eksiği doldurma) burada da
     // uygulanıyor.
     const senderInterestCacheRef = useRef({});
-    // Her saniye tick → Yaklaşan/Oynanan/Skor Bekleyen zaman filtreleri yenilenir
+    // Zaman filtreleri (Yaklaşan→Oynanan) — eskiden her 1 sn tüm ekranı yeniden çiziyordu (donma).
     const [, setTimeTick] = useState(0);
     const [textPosts, setTextPosts] = useState(cachedBranch?.textPosts || []);
     const [mediaPosts, setMediaPosts] = useState(cachedBranch?.mediaPosts || []);
@@ -30356,12 +30395,16 @@ function SubCategoryScreen({ route, navigation }) {
             setPlayerWanted(bump);
             setRefereeMatches(bump);
         });
-        const offReconnect = onSocketReconnect(() => load());
-        // Fallback: socket missed event → periyodik yenileme (30s)
-        const pollInterval = setInterval(() => load(), 30000);
-        // Maç saati gelince Yaklaşan → Oynanan geçişi sayfa yenilemeden olsun diye her saniye
-        // yeniden hesaplanır. Eskiden +60sn tampon + 5sn tick yüzünden ~1 dk gecikiyordu.
-        const tickInterval = setInterval(() => setTimeTick(n => n + 1), 1000);
+        const offReconnect = onSocketReconnect(() => { if (screenFocusedRef.current) load(); });
+        // Fallback: socket kaçırırsa — 30s→90s ve sadece ekran odaktayken (arka planda JS yorma).
+        const pollInterval = setInterval(() => {
+            if (screenFocusedRef.current) load();
+        }, 90000);
+        // Maç saati Yaklaşan→Oynanan: 1 sn tick tüm SubCategory'yi (36k satır) donduruyordu.
+        // 15 sn yeterli; saat gelince birkaç sn gecikme kabul edilebilir.
+        const tickInterval = setInterval(() => {
+            if (screenFocusedRef.current) setTimeTick(n => n + 1);
+        }, 15000);
         return () => { offUpdate(); offDeleted(); offNewComment(); offReconnect(); clearInterval(pollInterval); clearInterval(tickInterval); };
     }, [category, sub]);
 
@@ -30839,8 +30882,9 @@ function SubCategoryScreen({ route, navigation }) {
         <View style={[s.container, { paddingTop: Platform.OS==='ios' ? 56 : 40 }]}>
             {chromeReady && <>
             {/* Dal içinde aktif mağaza/bireysel reklam — ~30 sn'de bir tam ekran */}
+            {/* Sadece Ekipman sekmesinde — rakip/ilan ekranında 30 sn'de bir tam ekran reklam donma yaratıyordu. */}
             <EquipmentAdInterstitial
-                enabled={!showEquipmentForm && !showEquipmentStores && !selectedEquipment}
+                enabled={activeTab === 'equipment' && !showEquipmentForm && !showEquipmentStores && !selectedEquipment}
                 category={category}
                 subCategory={sub}
                 myUserId={myId}
