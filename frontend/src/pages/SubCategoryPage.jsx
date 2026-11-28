@@ -16,10 +16,42 @@ import { ENABLED_SUBS, MAINTENANCE_MESSAGE } from '../config/features';
 import { subLabel } from '../config/visualCatalog';
 import { shareRival, shareTournament } from '../utils/share';
 import { isRacketSetSport, isSevenSix, normalizeRacketSets } from '../utils/racketScore.js';
+import AssessmentModal from '../components/AssessmentModal';
 
 function fmtElo(v) {
     if (v == null || Number.isNaN(Number(v))) return null;
     return `${Number(v).toFixed(2)}★`;
+}
+
+const ASSESSMENT_ERR_CODES = new Set([
+    'ASSESSMENT_REQUIRED',
+    'SINGLES_ASSESSMENT_REQUIRED',
+    'DOUBLES_ASSESSMENT_REQUIRED',
+]);
+
+/** API code + maç formatı → tekler/çiftler anketi */
+function resolveAssessRatingType(code, matchType, sub) {
+    if (code === 'DOUBLES_ASSESSMENT_REQUIRED') return 'doubles';
+    if (code === 'SINGLES_ASSESSMENT_REQUIRED') return null;
+    if (matchType === 'DOUBLE') return 'doubles';
+    if (matchType === 'SINGLE') return null;
+    if (sub === 'padel' || sub === 'pickleball') return 'doubles';
+    return null;
+}
+
+async function ensureInterestForAssess(category, subCategory) {
+    const { data } = await api.get('/interests/my');
+    let interest = Array.isArray(data)
+        ? data.find(i => i.subCategory === subCategory && !i.hidden)
+        : null;
+    if (!interest) {
+        const { data: added } = await api.post('/interests/add', {
+            category: category || 'SPORTS',
+            subCategory,
+        });
+        interest = added;
+    }
+    return interest;
 }
 
 // Rival formunda kendi DB'den kort arama + yeni kort ekleme
@@ -480,7 +512,7 @@ function VenueSearchModal({ sub, config, onClose, onBooked, initialName = '', mo
 }
 
 // Rival Form Component
-function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatchType = 'SINGLE', myId, myInterest, editItem = null }) {
+function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatchType = 'SINGLE', myId, myInterest, editItem = null, onNeedAssessment }) {
     const { t } = useTranslation();
     const isTeamSport = TEAM_SPORTS.has(sub);
     const isVolleyball = sub === 'volleyball';
@@ -806,10 +838,12 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     }));
 
     const [validationError, setValidationError] = useState('');
+    const [assessmentCode, setAssessmentCode] = useState(null);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setValidationError('');
+        setAssessmentCode(null);
 
         if (sub === 'tennis' && !form.flexibleSchedule) {
             const missing = [];
@@ -963,7 +997,10 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             if (venueReservationId) {
                 api.delete(`/venues/reservations/${venueReservationId}`).catch(() => {});
             }
-            setValidationError(err?.response?.data?.message || err?.message || t('websc.server_error'));
+            const code = err?.response?.data?.code;
+            const msg = err?.response?.data?.message || err?.message || t('websc.server_error');
+            setValidationError(msg);
+            setAssessmentCode(ASSESSMENT_ERR_CODES.has(code) ? code : null);
         } finally {
             setIsSubmitting(false);
         }
@@ -1876,9 +1913,23 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                 </p>
             )}
             {validationError && (
-                <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
-                    ⚠️ {validationError}
-                </p>
+                <div className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 space-y-2">
+                    <p>⚠️ {validationError}</p>
+                    {assessmentCode && typeof onNeedAssessment === 'function' && (
+                        <button
+                            type="button"
+                            onClick={() => onNeedAssessment({
+                                code: assessmentCode,
+                                matchType: form.matchType,
+                            })}
+                            className={`w-full bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
+                        >
+                            {form.matchType === 'DOUBLE'
+                                ? (t('shell.go_to_doubles_assessment') || 'Çiftler anketine git →')
+                                : (t('shell.go_to_singles_assessment') || 'Tekler anketine git →')}
+                        </button>
+                    )}
+                </div>
             )}
             <button
                 type="submit"
@@ -1954,7 +2005,7 @@ function InvitePickerRow({ value, myId, excludeIds = [], onSelect, onRemove, pla
 }
 
 // Team Challenge Modal — opponent builds their team before sending a join request
-function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInterest, onClose, onSent }) {
+function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInterest, onClose, onSent, onNeedAssessment }) {
     const { t } = useTranslation();
     const [joiningTeam, setJoiningTeam] = useState([]);
     const [searchQ, setSearchQ] = useState('');
@@ -1998,7 +2049,17 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
             onSent();
             onClose();
         } catch (err) {
-            alert(err.response?.data?.message || 'Error');
+            const code = err.response?.data?.code;
+            const msg = err.response?.data?.message || 'Error';
+            if (ASSESSMENT_ERR_CODES.has(code) && typeof onNeedAssessment === 'function') {
+                onNeedAssessment({
+                    code,
+                    matchType: rival?.matchType || 'DOUBLE',
+                    message: msg,
+                });
+                return;
+            }
+            alert(msg);
         } finally {
             setIsSending(false);
         }
@@ -2134,7 +2195,7 @@ function TeamChallengeModal({ config, sub, categoryUpper, rival, myId, myInteres
 }
 
 // Player Wanted Tab — volleyball: looking for individual players for a match
-function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, onMatchFull }) {
+function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, onMatchFull, onNeedAssessment }) {
     const { t } = useTranslation();
     const [showForm, setShowForm] = useState(false);
     const [form, setForm]         = useState({
@@ -2202,7 +2263,19 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
         try {
             const { data } = await api.post(`/rivals/${rivalId}/respond`);
             alert(data.message);
-        } catch (err) { alert(err.response?.data?.message || 'Error'); }
+        } catch (err) {
+            const code = err.response?.data?.code;
+            const msg = err.response?.data?.message || 'Error';
+            if (ASSESSMENT_ERR_CODES.has(code) && typeof onNeedAssessment === 'function') {
+                onNeedAssessment({
+                    code,
+                    matchType: 'SINGLE',
+                    message: msg,
+                });
+                return;
+            }
+            alert(msg);
+        }
     };
 
     const handleDemoRequests = async () => {
@@ -3627,6 +3700,9 @@ function SubCategoryPage() {
     const [pendingScoreExpanded, setPendingScoreExpanded] = useState(true);
     const [scoreConfirmExpanded, setScoreConfirmExpanded] = useState(false);
     const [teamChallengeRival, setTeamChallengeRival] = useState(null);
+    // Anket zorunlu uyarısı → tekler/çiftler AssessmentModal
+    const [assessPrompt, setAssessPrompt] = useState(null); // { code, matchType, message }
+    const [assessGate, setAssessGate] = useState(null); // { interestId, ratingType }
     // Çiftler: bireysel başvurular arası partner davet/kabul/geri çek
     const [partnerActionLoading, setPartnerActionLoading] = useState(false);
     const [joinInvitePicker, setJoinInvitePicker] = useState(null); // { rivalId, candidates }
@@ -4261,6 +4337,35 @@ function SubCategoryPage() {
         }
     };
 
+    const startAssessment = async ({ code, matchType }) => {
+        try {
+            let interest = myInterest;
+            if (!interest?.id) {
+                interest = await ensureInterestForAssess(categoryUpper, sub);
+                if (interest) setMyInterest(interest);
+            }
+            if (!interest?.id) {
+                alert(t('shell.sh_0179'));
+                return;
+            }
+            setAssessGate({
+                interestId: interest.id,
+                ratingType: resolveAssessRatingType(code, matchType, sub),
+            });
+            setAssessPrompt(null);
+        } catch (e) {
+            alert(e?.response?.data?.message || t('websc.server_error') || 'Error');
+        }
+    };
+
+    const openAssessmentGate = ({ code, matchType, message }) => {
+        if (message) {
+            setAssessPrompt({ code, matchType, message });
+            return;
+        }
+        startAssessment({ code, matchType });
+    };
+
     const handleCancel = async (rivalId) => {
         try {
             await api.patch(`/rivals/${rivalId}/cancel`);
@@ -4278,7 +4383,18 @@ function SubCategoryPage() {
             // Mark as "request sent" in UI
             setRivals(prev => prev.map(r => r.id === rivalId ? { ...r, _mySentRequest: true } : r));
         } catch (err) {
-            alert(err.response?.data?.message || 'Error');
+            const code = err.response?.data?.code;
+            const msg = err.response?.data?.message || 'Error';
+            if (ASSESSMENT_ERR_CODES.has(code)) {
+                const rival = rivals.find(r => r.id === rivalId);
+                openAssessmentGate({
+                    code,
+                    matchType: rival?.matchType || 'SINGLE',
+                    message: msg,
+                });
+                return;
+            }
+            alert(msg);
         }
     };
 
@@ -5013,6 +5129,7 @@ function SubCategoryPage() {
                                     myInterest={myInterest}
                                     defaultMatchType={(sub === 'padel' || sub === 'pickleball') ? 'DOUBLE' : 'SINGLE'}
                                     editItem={editingRival}
+                                    onNeedAssessment={({ code, matchType }) => startAssessment({ code, matchType })}
                                     onSubmit={(data, isEdit) => {
                                         if (isEdit) {
                                             setRivals(prev => prev.map(r => r.id === data.id ? data : r));
@@ -6020,6 +6137,7 @@ function SubCategoryPage() {
                         <PlayerWantedTab
                             config={config} categoryUpper={categoryUpper} sub={sub} myId={myId}
                             posts={playerWantedPosts.filter(p => !Array.isArray(p.positions) || (!p.positions.includes('REFEREE') && !p.positions.includes('REFEREE_OFFER')))} setPosts={setPlayerWantedPosts}
+                            onNeedAssessment={openAssessmentGate}
                             onMatchFull={(match) => {
                                 setPlayerWantedPosts(prev => prev.filter(p => p.id !== match.id));
                                 setUpcomingMatches(prev => {
@@ -9812,6 +9930,68 @@ function SubCategoryPage() {
                     }}
                 />
             )}
+            {assessPrompt && (
+                <div className="fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4" onClick={() => setAssessPrompt(null)}>
+                    <div className="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-md p-5 space-y-4" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-white font-bold text-lg">
+                            {t('shell.assessment_required_title') || 'Anket gerekli'}
+                        </h3>
+                        <p className="text-gray-300 text-sm leading-relaxed">
+                            {assessPrompt.message || t('shell.sh_0179')}
+                        </p>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setAssessPrompt(null)}
+                                className="flex-1 border border-gray-600 text-gray-300 font-bold py-2.5 rounded-xl text-sm hover:bg-gray-800 transition"
+                            >
+                                {t('common.cancel') || 'İptal'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => startAssessment({
+                                    code: assessPrompt.code,
+                                    matchType: assessPrompt.matchType,
+                                })}
+                                className={`flex-1 bg-gradient-to-r ${config.color} text-white font-bold py-2.5 rounded-xl text-sm hover:opacity-90 transition`}
+                            >
+                                {assessPrompt.matchType === 'DOUBLE' || assessPrompt.code === 'DOUBLES_ASSESSMENT_REQUIRED'
+                                    ? (t('shell.go_to_doubles_assessment') || 'Çiftler anketine git →')
+                                    : (t('shell.go_to_singles_assessment') || 'Tekler anketine git →')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {assessGate && (
+                <AssessmentModal
+                    interestId={assessGate.interestId}
+                    subCategory={sub}
+                    categoryColor={config.color}
+                    ratingType={assessGate.ratingType}
+                    onClose={() => setAssessGate(null)}
+                    onComplete={(result) => {
+                        setMyInterest(prev => {
+                            if (!prev) return prev;
+                            if (result?.ratingType === 'doubles' || assessGate.ratingType === 'doubles') {
+                                return {
+                                    ...prev,
+                                    doublesAssessmentCompleted: true,
+                                    doublesSkillRating: result?.doublesSkillRating ?? result?.skillRating ?? prev.doublesSkillRating,
+                                };
+                            }
+                            return {
+                                ...prev,
+                                assessmentCompleted: true,
+                                level: result?.level ?? prev.level,
+                                skillRating: result?.skillRating ?? prev.skillRating,
+                                totalPoints: result?.totalPoints ?? prev.totalPoints,
+                            };
+                        });
+                        setAssessGate(null);
+                    }}
+                />
+            )}
             {teamChallengeRival && (
                 <TeamChallengeModal
                     config={config}
@@ -9820,6 +10000,7 @@ function SubCategoryPage() {
                     rival={teamChallengeRival}
                     myId={myId}
                     myInterest={myInterest}
+                    onNeedAssessment={openAssessmentGate}
                     onClose={() => setTeamChallengeRival(null)}
                     onSent={() => {
                         setRivals(prev => prev.map(r =>

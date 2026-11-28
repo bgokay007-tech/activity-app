@@ -41,11 +41,13 @@ const FOOTBALL_POSITIONS = {
     ],
 };
 
-export default function AssessmentModal({ interestId, subCategory, categoryColor, onClose, onComplete }) {
+export default function AssessmentModal({ interestId, subCategory, categoryColor, onClose, onComplete, ratingType = null }) {
     const { t } = useTranslation();
 
     const lang = useSelector(state => state.lang.lang);
     const positions = FOOTBALL_POSITIONS[lang] || FOOTBALL_POSITIONS.en;
+    // ratingType='doubles' → tekli ankette ayrı soru seti (mobil AssessmentModal ile aynı)
+    const isDoubles = ratingType === 'doubles';
 
     const [position, setPosition]         = useState(null);   // only for football
     const [questions, setQuestions]       = useState([]);
@@ -59,15 +61,19 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
     const [result, setResult]             = useState(null);
 
     const isFootball = subCategory === 'football';
-    const needsPositionPick = isFootball && position === null;
+    const needsPositionPick = isFootball && position === null && !isDoubles;
 
     // Fetch questions once position is known (or immediately for non-football)
     useEffect(() => {
-        if (isFootball && !position) return;
+        if (isFootball && !position && !isDoubles) return;
         setIsLoading(true);
-        const url = isFootball
+        setCurrent(0);
+        setAnswers([]);
+        setSelectedOption(null);
+        setResult(null);
+        const url = isFootball && position
             ? `/interests/assessment/${subCategory}?position=${position}&lang=${lang}`
-            : `/interests/assessment/${subCategory}?lang=${lang}`;
+            : `/interests/assessment/${subCategory}?lang=${lang}${isDoubles ? '&ratingType=doubles' : ''}`;
         api.get(url)
             .then(({ data }) => {
                 setQuestions(data.questions);
@@ -76,7 +82,7 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
             })
             .catch(console.error)
             .finally(() => setIsLoading(false));
-    }, [subCategory, position, lang]);
+    }, [subCategory, position, lang, isDoubles]);
 
     const q = questions[current];
     const progress = questions.length > 0 ? (current / questions.length) * 100 : 0;
@@ -112,7 +118,10 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
     const submitAssessment = async (finalAnswers) => {
         setIsSaving(true);
         try {
-            const { data } = await api.patch(`/interests/${interestId}/assess`, { answers: finalAnswers });
+            const { data } = await api.patch(`/interests/${interestId}/assess`, {
+                answers: finalAnswers,
+                ...(isDoubles ? { ratingType: 'doubles' } : {}),
+            });
             setResult(data);
         } catch (err) {
             console.error(err);
@@ -122,7 +131,12 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
     };
 
     const lvl = result ? LEVEL_CONFIG[result.level] || LEVEL_CONFIG.BEGINNER : null;
-    const pct = result ? Math.round((result.totalScore / result.maxScore) * 100) : 0;
+    const displayRating = result?.doublesSkillRating != null && isDoubles
+        ? result.doublesSkillRating
+        : result?.skillRating;
+    const pct = result && result.maxScore
+        ? Math.round((result.totalScore / result.maxScore) * 100)
+        : 0;
 
     return (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
@@ -132,7 +146,9 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
                 <div className="flex justify-between items-center px-6 py-4 border-b border-gray-800 flex-shrink-0">
                     <div>
                         <h3 className="text-white font-bold text-lg capitalize">
-                            {subCategory} Assessment
+                            {subCategory} {isDoubles
+                                ? (lang === 'tr' ? 'Çiftler Anketi' : lang === 'ru' ? 'Парный опрос' : lang === 'de' ? 'Doppel-Umfrage' : 'Doubles Assessment')
+                                : (lang === 'tr' ? 'Tekler Anketi' : lang === 'ru' ? 'Одиночный опрос' : lang === 'de' ? 'Einzel-Umfrage' : 'Singles Assessment')}
                             {position && <span className="ml-2 text-gray-400 text-sm font-normal">
                                 · {positions.find(p => p.id === position)?.emoji} {positions.find(p => p.id === position)?.label}
                             </span>}
@@ -192,56 +208,66 @@ export default function AssessmentModal({ interestId, subCategory, categoryColor
                 ) : result ? (
                     /* ── RESULT SCREEN ── */
                     <div className="flex-1 flex flex-col items-center justify-center px-8 py-8 text-center">
-                        <div className={`w-24 h-24 rounded-full bg-gradient-to-b ${lvl.color} flex items-center justify-center mb-5 shadow-lg`}>
-                            <span className="text-4xl">{lvl.badge}</span>
-                        </div>
-                        <h2 className="text-white font-black text-3xl mb-1">{lvl.label}</h2>
+                        {!isDoubles && lvl ? (
+                            <div className={`w-24 h-24 rounded-full bg-gradient-to-b ${lvl.color} flex items-center justify-center mb-5 shadow-lg`}>
+                                <span className="text-4xl">{lvl.badge}</span>
+                            </div>
+                        ) : (
+                            <div className="w-24 h-24 rounded-full bg-gradient-to-b from-cyan-400 to-blue-500 flex items-center justify-center mb-5 shadow-lg">
+                                <span className="text-4xl">👥</span>
+                            </div>
+                        )}
+                        <h2 className="text-white font-black text-3xl mb-1">
+                            {isDoubles
+                                ? (lang === 'tr' ? 'Çiftler puanı' : lang === 'ru' ? 'Парный рейтинг' : lang === 'de' ? 'Doppel-Rating' : 'Doubles rating')
+                                : (lvl?.label || '')}
+                        </h2>
                         <div className="flex items-baseline gap-2 mb-1">
-                            <span className={`font-black text-5xl bg-gradient-to-r ${lvl.color} bg-clip-text text-transparent`}>
-                                {result.skillRating?.toFixed(2)}
+                            <span className={`font-black text-5xl bg-gradient-to-r ${isDoubles ? 'from-cyan-400 to-blue-500' : lvl.color} bg-clip-text text-transparent`}>
+                                {displayRating != null ? Number(displayRating).toFixed(2) : '—'}
                             </span>
                             <span className="text-gray-500 text-xl font-bold">/ 5</span>
                         </div>
-                        <p className="text-gray-500 text-xs mb-4">{result.totalPoints} pts · {result.totalScore}/{result.maxScore} score</p>
-
-                        <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
-                            <div
-                                className={`h-full rounded-full bg-gradient-to-r ${lvl.color} transition-all duration-1000`}
-                                style={{ width: `${pct}%` }}
-                            />
-                        </div>
-                        <p className="text-gray-500 text-sm mb-6">
-                            {result.totalScore} / {result.maxScore} points ({pct}%)
-                        </p>
-
-                        <div className="w-full grid grid-cols-4 gap-2 mb-6">
-                            {[
-                                { key: 'BEGINNER',     range: '0–27%' },
-                                { key: 'INTERMEDIATE', range: '28–55%' },
-                                { key: 'ADVANCED',     range: '56–79%' },
-                                { key: 'PRO',          range: '80%+' },
-                            ].map(item => {
-                                const cfg = LEVEL_CONFIG[item.key];
-                                const active = result.level === item.key;
-                                return (
-                                    <div key={item.key}
-                                        className={`rounded-xl p-2 text-center border transition ${active ? `${cfg.bg} border-current` : 'bg-gray-800/50 border-gray-700'}`}>
-                                        <p className="text-base">{cfg.badge}</p>
-                                        <p className={`text-xs font-bold ${active ? cfg.text : 'text-gray-500'}`}>{cfg.label}</p>
-                                        <p className="text-gray-600 text-[9px]">{item.range}</p>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        {!isDoubles && (
+                            <>
+                                <p className="text-gray-500 text-xs mb-4">{result.totalPoints} pts · {result.totalScore}/{result.maxScore} score</p>
+                                <div className="w-full bg-gray-800 rounded-full h-3 mb-2">
+                                    <div
+                                        className={`h-full rounded-full bg-gradient-to-r ${lvl.color} transition-all duration-1000`}
+                                        style={{ width: `${pct}%` }}
+                                    />
+                                </div>
+                                <p className="text-gray-500 text-sm mb-6">
+                                    {result.totalScore} / {result.maxScore} points ({pct}%)
+                                </p>
+                                <div className="w-full grid grid-cols-4 gap-2 mb-6">
+                                    {[
+                                        { key: 'BEGINNER',     range: '0–27%' },
+                                        { key: 'INTERMEDIATE', range: '28–55%' },
+                                        { key: 'ADVANCED',     range: '56–79%' },
+                                        { key: 'PRO',          range: '80%+' },
+                                    ].map(item => {
+                                        const cfg = LEVEL_CONFIG[item.key];
+                                        const active = result.level === item.key;
+                                        return (
+                                            <div key={item.key}
+                                                className={`rounded-xl p-2 text-center border transition ${active ? `${cfg.bg} border-current` : 'bg-gray-800/50 border-gray-700'}`}>
+                                                <p className="text-base">{cfg.badge}</p>
+                                                <p className={`text-xs font-bold ${active ? cfg.text : 'text-gray-500'}`}>{cfg.label}</p>
+                                                <p className="text-gray-600 text-[9px]">{item.range}</p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </>
+                        )}
+                        {isDoubles && <div className="mb-6" />}
 
                         <button
-                            onClick={() => { onComplete({ ...result }); onClose(); }}
+                            onClick={() => { onComplete({ ...result, ratingType: isDoubles ? 'doubles' : 'singles' }); onClose(); }}
                             className={`w-full bg-gradient-to-r ${categoryColor} text-white font-black py-3 rounded-xl text-base hover:opacity-90 transition`}>
-                            View my profile →
+                            {t('shell.go_to_assessment_done') || (lang === 'tr' ? 'Tamam →' : 'Done →')}
                         </button>
-                        <p className="text-gray-600 text-xs mt-3">
-                            You can retake this assessment anytime from your profile
-                        </p>
                     </div>
 
                 ) : q ? (
