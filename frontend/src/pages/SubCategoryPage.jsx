@@ -99,6 +99,12 @@ const TEAM_SPORTS = new Set(['volleyball', 'football']);
 const TICKET_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'volleyball']);
 const COACH_EXPANDED_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'volleyball']);
 const EQUIPMENT_SPORTS = new Set(['tennis', 'padel', 'pickleball', 'squash', 'basketball', 'volleyball']);
+// Mobil ile aynı: ilan/kort öncesi derece anketi zorunlu dallar
+const RATING_REQUIRED_SUBS = new Set([
+    'tennis', 'padel', 'pickleball', 'squash', 'volleyball', 'basketball', 'football',
+    'badminton', 'golf', 'handball', 'table_tennis',
+]);
+const UTR_WEB_SUBS = new Set(['tennis', 'padel', 'badminton', 'table_tennis', 'pickleball', 'squash']);
 
 // 15-minute interval time select (06:00 – 23:45)
 const TIME_OPTIONS = (() => {
@@ -217,97 +223,105 @@ function uiLocale() {
     return ({ tr: 'tr-TR', ru: 'ru-RU', de: 'de-DE' })[lang] || 'en-GB';
 }
 
-function VenueCourtColumn({ court, data, date, selected, onPick }) {
+// Kort satırı: sol sticky kort adı, sağa doğru saat hücreleri (yatay kaydırma paneliyle).
+function VenueCourtRow({ court, data, date, selected, onPick }) {
     const { t } = useTranslation();
-    // Esnek: pencere + seçilen başlangıç saati (mobildeki customStart)
     const [varSel, setVarSel] = useState(null); // { winStart, winEnd, customStart }
-    const colCls = 'w-full min-w-0 bg-gray-900 border border-gray-800 rounded-xl p-3 h-full';
+    const label = (
+        <div className="sticky left-0 z-10 w-36 shrink-0 self-stretch bg-gray-950 border-r border-gray-800 px-3 py-2 flex flex-col justify-center">
+            <p className="text-white font-bold text-sm leading-tight">{court.name}</p>
+            {data?.type && !data.loading && !data.error && (
+                <p className="text-gray-500 text-[10px] mt-0.5">{slotTypeLabel(t, data.type) || data.type}</p>
+            )}
+        </div>
+    );
+
     if (!data || data.loading) {
-        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-gray-500 text-xs text-center py-6">{t('websc.loading')}</p></div>;
+        return <div className="flex border-b border-gray-800/80 min-h-[64px]">{label}<div className="px-4 py-3 text-gray-500 text-xs self-center">{t('websc.loading')}</div></div>;
     }
     if (data.error || !data.type) {
-        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-red-400 text-xs text-center py-6">{t('websc.load_failed')}</p></div>;
+        return <div className="flex border-b border-gray-800/80 min-h-[64px]">{label}<div className="px-4 py-3 text-red-400 text-xs self-center">{t('websc.load_failed')}</div></div>;
     }
     if (data.type === 'NOT_YET_OPEN') {
-        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-yellow-400 text-xs text-center py-6">⏳ {data.message || t('websc.not_open')}</p></div>;
+        return <div className="flex border-b border-gray-800/80 min-h-[64px]">{label}<div className="px-4 py-3 text-yellow-400 text-xs self-center">⏳ {data.message || t('websc.not_open')}</div></div>;
     }
     if (data.type === 'MAINTENANCE') {
-        return <div className={colCls}><p className="text-white font-bold text-sm mb-2">{court.name}</p><p className="text-orange-400 text-xs text-center py-6">{t('websc.maintenance_court')}</p></div>;
+        return <div className="flex border-b border-gray-800/80 min-h-[64px]">{label}<div className="px-4 py-3 text-orange-400 text-xs self-center">{t('websc.maintenance_court')}</div></div>;
     }
 
     if (data.type === 'VAR_DURATION' || data.type === 'FLEXIBLE') {
         const windows = data.windows || [];
         const DURATIONS = [60, 90, 120, 150, 180];
         return (
-            <div className={colCls}>
-                <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({slotTypeLabel(t, data.type) || data.type})</span></p>
-                <div className="space-y-2">
-                    {windows.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('websc.no_window')}</p>}
-                    {windows.map((w, i) => {
-                        const isSel = varSel?.winStart === w.start;
-                        const customStart = isSel ? (varSel.customStart || w.start) : w.start;
+            <div className="flex border-b border-gray-800/80 items-stretch min-h-[72px]">
+                {label}
+                <div className="flex flex-col gap-1.5 px-2 py-2">
+                    <div className="flex gap-1.5 items-stretch">
+                        {windows.length === 0 && <p className="text-gray-500 text-xs self-center px-2">{t('websc.no_window')}</p>}
+                        {windows.map((w, i) => {
+                            const isSel = varSel?.winStart === w.start;
+                            return (
+                                <button key={i} type="button"
+                                    onClick={() => setVarSel(isSel ? null : { winStart: w.start, winEnd: w.end, customStart: w.start })}
+                                    className={`shrink-0 min-w-[104px] text-left px-2.5 py-2 rounded-lg border text-xs font-bold transition ${isSel ? 'bg-purple-600/20 border-purple-500 text-purple-200' : 'bg-gray-900 border-gray-700 text-gray-200 hover:border-purple-500'}`}>
+                                    <span className="block">{w.start}–{w.end}</span>
+                                    <span className="block text-[10px] font-normal opacity-80">
+                                        {w.pricePerHour > 0 ? t('websc.per_hour', { price: w.pricePerHour }) : t('websc.free')}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    {varSel && (() => {
+                        const w = windows.find(x => x.start === varSel.winStart);
+                        if (!w) return null;
+                        const customStart = varSel.customStart || w.start;
                         const startM = vbToMins(customStart);
                         const winEndM = vbToMins(w.end) <= vbToMins(w.start) ? vbToMins(w.end) + 24 * 60 : vbToMins(w.end);
                         const starts = vbStartOptions(w.start, w.end, 30).filter(s => !vbIsPastSlot(date, s));
                         return (
-                            <div key={i} className={`rounded-lg border p-2 ${isSel ? 'border-purple-500 bg-purple-600/10' : 'border-gray-700'}`}>
-                                <button type="button"
-                                    onClick={() => setVarSel(isSel ? null : { winStart: w.start, winEnd: w.end, customStart: w.start })}
-                                    className="w-full text-left">
-                                    <p className="text-gray-300 text-xs font-bold">🕐 {w.start}–{w.end}</p>
-                                    <p className="text-gray-500 text-[10px]">{w.pricePerHour > 0 ? t('websc.per_hour', { price: w.pricePerHour }) : t('websc.free')}</p>
-                                </button>
-                                {isSel && (
-                                    <div className="mt-2 space-y-2">
-                                        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">{t('rival.start_time') || t('websc.start_time') || 'Start'}</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {starts.length === 0 && <p className="text-gray-500 text-[10px]">{t('websc.past')}</p>}
-                                            {starts.map(s => {
-                                                const on = customStart === s;
-                                                return (
-                                                    <button key={s} type="button"
-                                                        onClick={() => setVarSel(p => ({ ...p, customStart: s }))}
-                                                        className={`text-[11px] font-bold px-2 py-1 rounded-lg border transition ${on ? 'bg-purple-600/30 border-purple-500 text-purple-200' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
-                                                        {s}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide">{t('rival.duration') || t('websc.duration') || 'Duration'}</p>
-                                        <div className="flex flex-wrap gap-1">
-                                            {DURATIONS.filter(d => startM + d <= winEndM).map(d => {
-                                                const end = vbToTime(startM + d);
-                                                const price = Math.round((w.pricePerHour || 0) * (d / 60));
-                                                const isPicked = selected?.courtId === court.id && selected?.startTime === customStart && selected?.endTime === end;
-                                                const past = vbIsPastSlot(date, customStart);
-                                                return (
-                                                    <button key={d} type="button" disabled={past}
-                                                        onClick={() => onPick(court, { start: customStart, end, price, durationMins: d })}
-                                                        className={`text-[10px] font-bold px-2 py-1.5 rounded-lg border transition text-left ${isPicked ? 'bg-green-600/20 border-green-600 text-green-400' : past ? 'opacity-40 cursor-not-allowed bg-gray-800 border-gray-800 text-gray-600' : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
-                                                        <span className="block">{isPicked ? '✓ ' : ''}{d < 60 ? t('websc.mins_short', { n: d }) : t('websc.hours_short', { n: d / 60 })}</span>
-                                                        <span className="block opacity-80 font-semibold">{customStart}–{end}</span>
-                                                        {price > 0 && <span className="block text-purple-300">{price}₺</span>}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                            <div className="flex flex-col gap-1.5 pl-1">
+                                <div className="flex gap-1 items-center flex-nowrap">
+                                    <span className="text-gray-500 text-[10px] font-bold shrink-0">{t('rival.start_time') || 'Start'}</span>
+                                    {starts.map(s => (
+                                        <button key={s} type="button"
+                                            onClick={() => setVarSel(p => ({ ...p, customStart: s }))}
+                                            className={`shrink-0 text-[11px] font-bold px-2 py-1 rounded-lg border transition ${customStart === s ? 'bg-purple-600/30 border-purple-500 text-purple-200' : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                                <div className="flex gap-1 items-center flex-nowrap">
+                                    <span className="text-gray-500 text-[10px] font-bold shrink-0">{t('rival.duration') || 'Duration'}</span>
+                                    {DURATIONS.filter(d => startM + d <= winEndM).map(d => {
+                                        const end = vbToTime(startM + d);
+                                        const price = Math.round((w.pricePerHour || 0) * (d / 60));
+                                        const isPicked = selected?.courtId === court.id && selected?.startTime === customStart && selected?.endTime === end;
+                                        const past = vbIsPastSlot(date, customStart);
+                                        return (
+                                            <button key={d} type="button" disabled={past}
+                                                onClick={() => onPick(court, { start: customStart, end, price, durationMins: d })}
+                                                className={`shrink-0 text-[10px] font-bold px-2 py-1.5 rounded-lg border transition text-left ${isPicked ? 'bg-green-600/20 border-green-600 text-green-400' : past ? 'opacity-40 cursor-not-allowed bg-gray-900 border-gray-800 text-gray-600' : 'bg-gray-900 border-gray-700 text-gray-300 hover:border-purple-500'}`}>
+                                                <span className="block whitespace-nowrap">{isPicked ? '✓ ' : ''}{d < 60 ? t('websc.mins_short', { n: d }) : t('websc.hours_short', { n: d / 60 })} · {customStart}–{end}</span>
+                                                {price > 0 && <span className="block text-purple-300">{price}₺</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         );
-                    })}
+                    })()}
                 </div>
             </div>
         );
     }
 
-    // FULL_HOUR / HALF_HOUR / NINETY_MIN
     const slots = data.slots || [];
     return (
-        <div className={colCls}>
-            <p className="text-white font-bold text-sm mb-2">{court.name} <span className="text-gray-500 font-normal text-xs">({slotTypeLabel(t, data.type) || data.type})</span></p>
-            <div className="space-y-1.5">
-                {slots.length === 0 && <p className="text-gray-500 text-xs text-center py-6">{t('websc.no_slot')}</p>}
+        <div className="flex border-b border-gray-800/80 items-stretch min-h-[64px]">
+            {label}
+            <div className="flex gap-1.5 px-2 py-2 items-stretch">
+                {slots.length === 0 && <p className="text-gray-500 text-xs self-center px-2">{t('websc.no_slot')}</p>}
                 {slots.map(s => {
                     const isPicked = selected?.courtId === court.id && selected?.startTime === s.start;
                     const isPast = s.free && !s.maintenance && vbIsPastSlot(date, s.start);
@@ -315,13 +329,13 @@ function VenueCourtColumn({ court, data, date, selected, onPick }) {
                     return (
                         <button key={s.start} type="button" disabled={disabled}
                             onClick={() => onPick(court, { start: s.start, end: s.end, price: s.price || 0 })}
-                            className={`w-full text-left px-2 py-1.5 rounded-lg border text-xs font-bold transition ${
+                            className={`shrink-0 min-w-[88px] text-left px-2 py-1.5 rounded-lg border text-xs font-bold transition ${
                                 isPicked ? 'bg-green-600/20 border-green-600 text-green-400'
-                                : disabled ? 'bg-gray-800/50 border-gray-800 text-gray-600 cursor-not-allowed'
-                                : 'bg-gray-800 border-gray-700 text-gray-200 hover:border-purple-500'
+                                : disabled ? 'bg-gray-900/50 border-gray-800 text-gray-600 cursor-not-allowed'
+                                : 'bg-gray-900 border-gray-700 text-gray-200 hover:border-purple-500'
                             }`}>
-                            <span className="block">{s.start}–{s.end}</span>
-                            <span className="block text-[10px] font-normal opacity-80">
+                            <span className="block whitespace-nowrap">{s.start}–{s.end}</span>
+                            <span className="block text-[10px] font-normal opacity-80 whitespace-nowrap">
                                 {isPicked ? t('websc.selected') : !s.free ? (s.status === 'PENDING' ? t('websc.pending_approval') : t('websc.slot_full')) : s.maintenance ? t('websc.slot_maint') : isPast ? t('websc.past') : (s.price > 0 ? `${s.price}₺` : t('websc.free'))}
                             </span>
                         </button>
@@ -336,7 +350,7 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
     const { t } = useTranslation();
     const [date, setDate] = useState(VB_DATE_OPTIONS[0]);
     const [slotsByCourt, setSlotsByCourt] = useState({});
-    const [selected, setSelected] = useState(null); // { courtId, courtName, startTime, endTime, price, surface, indoor }
+    const [selected, setSelected] = useState(null);
 
     const fetchAll = useCallback(() => {
         const courts = venue.courts || [];
@@ -359,18 +373,23 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
         });
     };
 
+    const courts = [...(venue.courts || [])].sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || ''), 'tr', { numeric: true })
+    );
+
+    // Tam ekran: kortlar aşağı, saatler sağa; tek yatay kaydırma tüm satırları birlikte kaydırır.
     return (
-        <div className="fixed inset-0 bg-black/80 z-[60] flex flex-col" onClick={onClose}>
-            <div className="bg-gray-950 flex-1 flex flex-col w-full max-w-[1400px] mx-auto my-0 sm:my-3 sm:rounded-2xl overflow-hidden border border-gray-800" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800 shrink-0">
+        <div className="fixed inset-0 bg-gray-950 z-[60] flex flex-col" onClick={onClose}>
+            <div className="flex-1 flex flex-col w-full h-full overflow-hidden" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
                     <div className="min-w-0">
                         <h3 className="text-white font-black text-lg truncate">{venue.name}</h3>
                         <p className="text-gray-500 text-xs truncate">📍 {venue.city}{venue.district ? ` / ${venue.district}` : ''}{venue.address ? ` — ${venue.address}` : ''}</p>
                     </div>
-                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none shrink-0">✕</button>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-white text-2xl leading-none shrink-0 ml-3">✕</button>
                 </div>
 
-                <div className="flex gap-2 overflow-x-auto px-5 py-3 shrink-0">
+                <div className="flex gap-2 overflow-x-auto px-4 py-2.5 shrink-0 border-b border-gray-900">
                     {VB_DATE_OPTIONS.map(d => (
                         <button key={d} type="button" onClick={() => setDate(d)}
                             className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${date === d ? `bg-gradient-to-r ${config.color} border-transparent text-white` : 'bg-gray-900 border-gray-700 text-gray-400 hover:border-gray-500'}`}>
@@ -379,25 +398,28 @@ function VenueSlotPanel({ venue, config, onClose, onConfirm, confirming }) {
                     ))}
                 </div>
 
-                {/* Sağ boşluğu doldur: auto-fill grid; saatler alta doğru aksın (dikey scroll panelde) */}
-                <div className="flex-1 min-h-0 overflow-y-auto px-5 pb-3">
-                    <div
-                        className="grid gap-3 items-start"
-                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}
-                    >
-                        {(venue.courts || []).map(court => (
-                            <VenueCourtColumn key={court.id} court={court} data={slotsByCourt[court.id]} date={date} selected={selected} onPick={pick} />
+                <div className="flex-1 min-h-0 overflow-auto">
+                    <div className="min-w-max">
+                        {courts.map(court => (
+                            <VenueCourtRow
+                                key={court.id}
+                                court={court}
+                                data={slotsByCourt[court.id]}
+                                date={date}
+                                selected={selected}
+                                onPick={pick}
+                            />
                         ))}
                     </div>
                 </div>
 
-                <div className="px-5 py-3 border-t border-gray-800 shrink-0 flex items-center justify-between gap-3">
+                <div className="px-4 py-3 border-t border-gray-800 shrink-0 flex items-center justify-between gap-3 bg-gray-950">
                     <p className="text-gray-400 text-xs flex-1 min-w-0 truncate">
                         {selected ? `${selected.courtName} · ${vbDateLabel(date)} · ${selected.startTime}–${selected.endTime}${selected.price > 0 ? ` · ${selected.price}₺` : ''}` : t('websc.pick_time')}
                     </p>
                     <button type="button" disabled={!selected || confirming}
                         onClick={() => onConfirm(venue, date, selected)}
-                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-5 py-2 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50 shrink-0`}>
+                        className={`bg-gradient-to-r ${config.color} text-white font-bold px-5 py-2.5 rounded-xl text-sm hover:opacity-90 transition disabled:opacity-50 shrink-0`}>
                         {confirming ? '...' : t('websc.pick_this_slot')}
                     </button>
                 </div>
@@ -1092,6 +1114,17 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         <button key={opt.value} type="button" disabled={editHasParticipants}
                             onClick={() => {
                                 if (editHasParticipants) return alert(t('websc.format_locked'));
+                                // Mobil CreateRivalModal format kapısı ile aynı.
+                                if (UTR_WEB_SUBS.has(sub) && typeof onNeedAssessment === 'function') {
+                                    if (opt.value === 'DOUBLE' && !myInterest?.doublesAssessmentCompleted) {
+                                        onNeedAssessment({ code: 'DOUBLES_ASSESSMENT_REQUIRED', matchType: 'DOUBLE' });
+                                        return;
+                                    }
+                                    if (opt.value === 'SINGLE' && !myInterest?.assessmentCompleted) {
+                                        onNeedAssessment({ code: 'SINGLES_ASSESSMENT_REQUIRED', matchType: 'SINGLE' });
+                                        return;
+                                    }
+                                }
                                 setForm(f => ({ ...f, matchType: opt.value }));
                             }}
                             className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition ${form.matchType === opt.value ? `bg-gradient-to-r ${config.color} text-white border-transparent` : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-500'} ${editHasParticipants ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -3703,6 +3736,8 @@ function SubCategoryPage() {
     // Anket zorunlu uyarısı → tekler/çiftler AssessmentModal
     const [assessPrompt, setAssessPrompt] = useState(null); // { code, matchType, message }
     const [assessGate, setAssessGate] = useState(null); // { interestId, ratingType }
+    // Mobil requireActivity: anket bitince ilan formu / kort araması açılsın
+    const [pendingAfterAssess, setPendingAfterAssess] = useState(null); // 'create' | 'venue' | null
     // Çiftler: bireysel başvurular arası partner davet/kabul/geri çek
     const [partnerActionLoading, setPartnerActionLoading] = useState(false);
     const [joinInvitePicker, setJoinInvitePicker] = useState(null); // { rivalId, candidates }
@@ -4364,6 +4399,38 @@ function SubCategoryPage() {
             return;
         }
         startAssessment({ code, matchType });
+    };
+
+    // Mobil requireActivity — ELO/anket yoksa formu açmadan AssessmentModal'a yönlendir.
+    const requireActivityThen = async (action) => {
+        const defaultMatchType = (sub === 'padel' || sub === 'pickleball') ? 'DOUBLE' : 'SINGLE';
+        try {
+            let interest = myInterest;
+            if (!interest?.id) {
+                interest = await ensureInterestForAssess(categoryUpper, sub);
+                if (interest) setMyInterest(interest);
+            }
+            const generalDone = UTR_WEB_SUBS.has(sub)
+                ? !!(interest?.assessmentCompleted || interest?.doublesAssessmentCompleted)
+                : !!interest?.assessmentCompleted;
+            if (RATING_REQUIRED_SUBS.has(sub) && !generalDone) {
+                setPendingAfterAssess(action);
+                await startAssessment({
+                    code: 'ASSESSMENT_REQUIRED',
+                    matchType: defaultMatchType,
+                });
+                return;
+            }
+        } catch (e) {
+            alert(e?.response?.data?.message || t('websc.server_error') || 'Error');
+            return;
+        }
+        if (action === 'create') {
+            setEditingRival(null);
+            setShowRivalForm(true);
+        } else if (action === 'venue') {
+            setShowCourtResModal(true);
+        }
     };
 
     const handleCancel = async (rivalId) => {
@@ -5086,7 +5153,7 @@ function SubCategoryPage() {
                                     {['tennis', 'padel', 'pickleball', 'squash', 'table_tennis', 'badminton', 'volleyball'].includes(sub) && (
                                         <button
                                             type="button"
-                                            onClick={() => setShowCourtResModal(true)}
+                                            onClick={() => requireActivityThen('venue')}
                                             className="bg-emerald-700 hover:bg-emerald-600 border border-emerald-500 text-white font-bold px-3 py-2 rounded-xl text-sm transition whitespace-nowrap"
                                         >
                                             {sub === 'volleyball'
@@ -5103,7 +5170,14 @@ function SubCategoryPage() {
                                         </button>
                                     )}
                                     <button
-                                        onClick={() => { setShowRivalForm(!showRivalForm); setEditingRival(null); }}
+                                        onClick={() => {
+                                            if (showRivalForm) {
+                                                setShowRivalForm(false);
+                                                setEditingRival(null);
+                                                return;
+                                            }
+                                            requireActivityThen('create');
+                                        }}
                                         className={`bg-gradient-to-r ${config.color} text-white font-bold px-4 py-2 rounded-xl text-sm`}
                                     >
                                         {showRivalForm ? `✕ ${t('common.cancel')}` : `+ ${t('rival.create_listing')}`}
@@ -9969,7 +10043,7 @@ function SubCategoryPage() {
                     subCategory={sub}
                     categoryColor={config.color}
                     ratingType={assessGate.ratingType}
-                    onClose={() => setAssessGate(null)}
+                    onClose={() => { setAssessGate(null); setPendingAfterAssess(null); }}
                     onComplete={(result) => {
                         setMyInterest(prev => {
                             if (!prev) return prev;
@@ -9988,7 +10062,15 @@ function SubCategoryPage() {
                                 totalPoints: result?.totalPoints ?? prev.totalPoints,
                             };
                         });
+                        const next = pendingAfterAssess;
+                        setPendingAfterAssess(null);
                         setAssessGate(null);
+                        if (next === 'create') {
+                            setEditingRival(null);
+                            setShowRivalForm(true);
+                        } else if (next === 'venue') {
+                            setShowCourtResModal(true);
+                        }
                     }}
                 />
             )}
