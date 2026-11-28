@@ -4410,43 +4410,49 @@ function SubCategoryPage() {
         connectSocket(myId);
 
         const applyRivalUpdate = (updatedRival) => {
+            // Mobil ile aynı: başka dalın broadcast'i bu sayfanın listesine karışmasın.
+            if (
+                updatedRival.category?.toUpperCase() !== categoryUpper?.toUpperCase()
+                || updatedRival.subCategory !== sub
+            ) return;
+
             const upsertCompleted = (prev) => {
                 const exists = prev.some(r => r.id === updatedRival.id);
                 return exists
                     ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
                     : [updatedRival, ...prev];
             };
+            // Yeni OPEN ilan (mobil/web create) — yoksa başa ekle; varsa güncelle.
+            // Eski kod sadece exists ise map ediyordu; mobilde açılan ilan web'de
+            // yenilemeden hiç düşmüyordu.
+            const upsertOpen = (prev) => {
+                const exists = prev.some(r => r.id === updatedRival.id);
+                if (exists) return prev.map(r => r.id === updatedRival.id ? { ...r, ...updatedRival } : r);
+                return [updatedRival, ...prev];
+            };
 
             // Player Wanted posts update
             if (updatedRival.matchType === 'PLAYER_WANTED') {
                 if (updatedRival.status === 'OPEN') {
-                    setPlayerWantedPosts(prev => {
-                        const exists = prev.find(r => r.id === updatedRival.id);
-                        return exists
-                            ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
-                            : prev;
-                    });
+                    setPlayerWantedPosts(upsertOpen);
                 } else if (updatedRival.status === 'MATCHED') {
                     setPlayerWantedPosts(prev => prev.filter(r => r.id !== updatedRival.id));
-                    if (updatedRival.category === categoryUpper && updatedRival.subCategory === sub) {
-                        setUpcomingMatches(prev => {
-                            const exists = prev.some(r => r.id === updatedRival.id);
-                            return exists
-                                ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
-                                : [...prev, updatedRival];
-                        });
-                    }
+                    setUpcomingMatches(prev => {
+                        const exists = prev.some(r => r.id === updatedRival.id);
+                        return exists
+                            ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
+                            : [...prev, updatedRival];
+                    });
                 } else if (updatedRival.status === 'COMPLETED') {
                     setPlayerWantedPosts(prev => prev.filter(r => r.id !== updatedRival.id));
                     setUpcomingMatches(prev => prev.filter(r => r.id !== updatedRival.id));
-                    if (updatedRival.category === categoryUpper && updatedRival.subCategory === sub) {
-                        if (updatedRival.scoreStatus === 'CONFIRMED') {
-                            setCompletedMatches(prev => prev.filter(r => r.id !== updatedRival.id));
-                        } else {
-                            setCompletedMatches(upsertCompleted);
-                        }
+                    if (updatedRival.scoreStatus === 'CONFIRMED') {
+                        setCompletedMatches(prev => prev.filter(r => r.id !== updatedRival.id));
+                    } else {
+                        setCompletedMatches(upsertCompleted);
                     }
                 } else {
+                    // CANCELLED vb.
                     setPlayerWantedPosts(prev => prev.filter(r => r.id !== updatedRival.id));
                 }
                 return;
@@ -4454,42 +4460,36 @@ function SubCategoryPage() {
 
             // Update rival in open list (join requests changed, or status changed)
             if (updatedRival.status === 'OPEN') {
-                setRivals(prev => {
-                    const exists = prev.find(r => r.id === updatedRival.id);
-                    return exists
-                        ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
-                        : prev;
-                });
+                setRivals(upsertOpen);
             } else if (updatedRival.status === 'MATCHED') {
                 setRivals(prev => prev.filter(r => r.id !== updatedRival.id));
-                if (updatedRival.category === categoryUpper && updatedRival.subCategory === sub) {
-                    // Always upsert — if HTTP response already added it, update; otherwise add
-                    setUpcomingMatches(prev => {
-                        const exists = prev.some(r => r.id === updatedRival.id);
-                        return exists
-                            ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
-                            : [...prev, updatedRival];
-                    });
-                }
+                setUpcomingMatches(prev => {
+                    const exists = prev.some(r => r.id === updatedRival.id);
+                    return exists
+                        ? prev.map(r => r.id === updatedRival.id ? updatedRival : r)
+                        : [...prev, updatedRival];
+                });
             } else if (updatedRival.status === 'COMPLETED') {
                 setRivals(prev => prev.filter(r => r.id !== updatedRival.id));
                 setUpcomingMatches(prev => prev.filter(r => r.id !== updatedRival.id));
-                if (updatedRival.category === categoryUpper && updatedRival.subCategory === sub) {
-                    // Skor CONFIRMED olunca /completed API'si artık döndürmez — socket'in
-                    // upsert'i onaylı maçı "Skor Bekleyen"e geri basıyordu (yenileyince
-                    // kayboluyordu). Onaylıyı completed'dan çıkar, arşive taşı.
-                    if (updatedRival.scoreStatus === 'CONFIRMED') {
-                        setCompletedMatches(prev => prev.filter(r => r.id !== updatedRival.id));
-                        setArchivedMatches(prev => {
-                            const exists = prev.some(r => r.id === updatedRival.id);
-                            return exists
-                                ? prev.map(r => r.id === updatedRival.id ? { ...r, ...updatedRival } : r)
-                                : [updatedRival, ...prev];
-                        });
-                    } else {
-                        setCompletedMatches(upsertCompleted);
-                    }
+                // Skor CONFIRMED olunca /completed API'si artık döndürmez — socket'in
+                // upsert'i onaylı maçı "Skor Bekleyen"e geri basıyordu (yenileyince
+                // kayboluyordu). Onaylıyı completed'dan çıkar, arşive taşı.
+                if (updatedRival.scoreStatus === 'CONFIRMED') {
+                    setCompletedMatches(prev => prev.filter(r => r.id !== updatedRival.id));
+                    setArchivedMatches(prev => {
+                        const exists = prev.some(r => r.id === updatedRival.id);
+                        return exists
+                            ? prev.map(r => r.id === updatedRival.id ? { ...r, ...updatedRival } : r)
+                            : [updatedRival, ...prev];
+                    });
+                } else {
+                    setCompletedMatches(upsertCompleted);
                 }
+            } else {
+                // CANCELLED — açık listeden düşür
+                setRivals(prev => prev.filter(r => r.id !== updatedRival.id));
+                setUpcomingMatches(prev => prev.filter(r => r.id !== updatedRival.id));
             }
         };
 
