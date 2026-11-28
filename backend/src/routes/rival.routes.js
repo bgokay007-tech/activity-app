@@ -12,6 +12,7 @@ import {
     proposeSchedule, acceptSchedule, updateRivalRequest,
     getForReservation, getRefereeApplications, submitRefereeReview, getRivalBill, getMyRivalOrders,
     requestBillPayment, reportBillUnpaid, disputeReferee, removeReferee,
+    checkSchedule,
 } from '../controllers/rival.controller.js';
 import { reportNoShow } from '../controllers/noshow.controller.js';
 import { getPeerReviewTargets, submitPeerReview } from '../controllers/peerReview.controller.js';
@@ -28,6 +29,7 @@ router.post('/',                     authenticate, createRivalRequest);
 router.patch('/:id',                 authenticate, updateRivalRequest);
 router.get('/upcoming',              authenticate, getUpcomingMatches);
 router.get('/my-upcoming',           authenticate, getMyUpcomingMatches);
+router.get('/schedule-check',        authenticate, checkSchedule);
 router.get('/my-history',            authenticate, getMyMatchHistory);
 router.get('/my-pending-score-count', authenticate, getMyPendingScoreCount);
 router.get('/completed',             authenticate, getCompletedMatches);

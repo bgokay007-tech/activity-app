@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
@@ -127,6 +127,89 @@ function TimeSelect({ value, onChange, className = '' }) {
                 <option key={o.value} value={o.value}>{o.label}</option>
             ))}
         </select>
+    );
+}
+
+function isLocalDateTimePast(dateStr, timeStr) {
+    if (!dateStr || !timeStr) return false;
+    const [hh, mm] = String(timeStr).split(':').map(Number);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return false;
+    const dt = new Date(`${dateStr}T00:00:00`);
+    dt.setHours(hh, mm, 0, 0);
+    return dt.getTime() <= Date.now();
+}
+
+function localTodayStr() {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+}
+
+/** Geçmiş saat + aynı slot çakışması — seçerken anlık uyarı. */
+function useScheduleSelectGuard({ date, time, duration, excludeId, enabled = true, mode = 'create' }) {
+    const { t, i18n } = useTranslation();
+    const [warn, setWarn] = useState(null);
+    const todayStr = useMemo(() => localTodayStr(), []);
+
+    useEffect(() => {
+        if (!enabled || !date || !time) {
+            setWarn(w => (w?.type === 'conflict' ? null : w));
+            return undefined;
+        }
+        if (isLocalDateTimePast(date, time)) {
+            setWarn({ type: 'past', text: t('websc.past_time_select') });
+            return undefined;
+        }
+        let cancelled = false;
+        const tid = setTimeout(async () => {
+            try {
+                const { data } = await api.get('/rivals/schedule-check', {
+                    params: {
+                        matchDate: date,
+                        matchTime: time,
+                        duration: duration || '60',
+                        excludeId: excludeId || undefined,
+                        mode,
+                    },
+                });
+                if (cancelled) return;
+                if (data?.reason === 'past') {
+                    setWarn({ type: 'past', text: t('websc.past_time_select') });
+                } else if (data?.reason === 'conflict' && data.conflict) {
+                    const sport = subLabel(data.conflict.subCategory, i18n.language) || data.conflict.subCategory;
+                    setWarn({
+                        type: 'conflict',
+                        text: t('websc.schedule_conflict', {
+                            sport,
+                            time: data.conflict.matchTime || time,
+                        }),
+                    });
+                } else {
+                    setWarn(w => (w?.type === 'conflict' || w?.type === 'past' ? null : w));
+                }
+            } catch {
+                /* sessiz — gönderimde backend yine doğrular */
+            }
+        }, 350);
+        return () => { cancelled = true; clearTimeout(tid); };
+    }, [date, time, duration, excludeId, enabled, mode, t, i18n.language]);
+
+    return { warn, setWarn, todayStr, isPast: isLocalDateTimePast };
+}
+
+function ScheduleWarnBanner({ warn }) {
+    if (!warn?.text) return null;
+    const past = warn.type === 'past';
+    return (
+        <div
+            role="alert"
+            className={`rounded-xl px-3 py-2 text-xs font-semibold border ${
+                past
+                    ? 'bg-red-500/10 border-red-500/40 text-red-300'
+                    : 'bg-amber-500/10 border-amber-500/40 text-amber-200'
+            }`}
+        >
+            {warn.text}
+        </div>
     );
 }
 
@@ -682,6 +765,39 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
     const [newCourt, setNewCourt] = useState({ name: '', address: '', surface: '', indoor: false, fee: false, feeAmount: '', lights: false });
     const [isAddingCourt, setIsAddingCourt] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const {
+        warn: scheduleWarn,
+        setWarn: setScheduleWarn,
+        todayStr: scheduleTodayStr,
+        isPast: isSchedulePast,
+    } = useScheduleSelectGuard({
+        date: form.matchDate,
+        time: form.matchTime,
+        duration: form.duration,
+        excludeId: editItem?.id,
+        enabled: !form.flexibleSchedule,
+        mode: 'create',
+    });
+
+    const onMatchDateChange = (v) => {
+        if (form.matchTime && isSchedulePast(v, form.matchTime)) {
+            setScheduleWarn({ type: 'past', text: t('websc.past_time_cleared') });
+            setForm(f => ({ ...f, matchDate: v, matchTime: '' }));
+            return;
+        }
+        setScheduleWarn(w => (w?.type === 'past' ? null : w));
+        setForm(f => ({ ...f, matchDate: v }));
+    };
+
+    const onMatchTimeChange = (v) => {
+        if (form.matchDate && isSchedulePast(form.matchDate, v)) {
+            setScheduleWarn({ type: 'past', text: t('websc.past_time_select') });
+            return;
+        }
+        setScheduleWarn(w => (w?.type === 'past' ? null : w));
+        setForm(f => ({ ...f, matchTime: v }));
+    };
 
     // Competitive team builder (football COMPETITIVE, teamSize > 1)
     const [senderTeam, setSenderTeam] = useState([]);   // additional teammates (not including self)
@@ -1417,19 +1533,21 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
             )}
 
             {!form.flexibleSchedule && (sub === 'tennis' ? (
+                <div className="space-y-2">
                 <div className="grid grid-cols-3 gap-2">
                     <div>
                         <label className="text-gray-400 text-xs mb-1 block">📅 {t('rival.date_label')}</label>
                         <input
                             type="date" onClick={e => e.target.showPicker?.()}
+                            min={scheduleTodayStr}
                             value={form.matchDate}
-                            onChange={e => setForm({ ...form, matchDate: e.target.value })}
+                            onChange={e => onMatchDateChange(e.target.value)}
                             className="w-full bg-gray-800 text-white rounded-xl px-2 py-2 border border-gray-700 focus:outline-none text-xs"
                         />
                     </div>
                     <div>
                         <label className="text-gray-400 text-xs mb-1 block">🕐 {t('rival.time')}</label>
-                        <TimeSelect value={form.matchTime} onChange={v => setForm({ ...form, matchTime: v })} className="w-full text-xs" />
+                        <TimeSelect value={form.matchTime} onChange={onMatchTimeChange} className="w-full text-xs" />
                     </div>
                     <div>
                         <label className="text-gray-400 text-xs mb-1 block">⏱️ {t('rival.duration')}</label>
@@ -1445,6 +1563,8 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                         </select>
                     </div>
                 </div>
+                <ScheduleWarnBanner warn={scheduleWarn} />
+                </div>
             ) : (
             <>
             <div className="grid grid-cols-2 gap-3">
@@ -1452,16 +1572,18 @@ function RivalForm({ config, categoryUpper, sub, onSubmit, onClose, defaultMatch
                     <label className="text-gray-400 text-xs mb-1 block">📅 {t('rival.date_label')}</label>
                     <input
                         type="date" onClick={e => e.target.showPicker?.()}
+                        min={scheduleTodayStr}
                         value={form.matchDate}
-                        onChange={e => setForm({ ...form, matchDate: e.target.value })}
+                        onChange={e => onMatchDateChange(e.target.value)}
                         className="w-full bg-gray-800 text-white rounded-xl px-4 py-2 border border-gray-700 focus:outline-none text-sm"
                     />
                 </div>
                 <div>
                     <label className="text-gray-400 text-xs mb-1 block">🕐 {t('rival.start_time')}</label>
-                    <TimeSelect value={form.matchTime} onChange={v => setForm({ ...form, matchTime: v })} className="w-full" />
+                    <TimeSelect value={form.matchTime} onChange={onMatchTimeChange} className="w-full" />
                 </div>
             </div>
+            <ScheduleWarnBanner warn={scheduleWarn} />
 
             {/* Duration */}
             <div>
@@ -2252,6 +2374,38 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
     const [teamInput, setTeamInput]     = useState('');
     const [showTeamSection, setShowTeamSection] = useState(false);
 
+    const {
+        warn: pwScheduleWarn,
+        setWarn: setPwScheduleWarn,
+        todayStr: pwTodayStr,
+        isPast: isPwSchedulePast,
+    } = useScheduleSelectGuard({
+        date: form.matchDate,
+        time: form.matchTime,
+        duration: form.duration,
+        enabled: showForm,
+        mode: 'create',
+    });
+
+    const onPwMatchDateChange = (v) => {
+        if (form.matchTime && isPwSchedulePast(v, form.matchTime)) {
+            setPwScheduleWarn({ type: 'past', text: t('websc.past_time_cleared') });
+            setForm(f => ({ ...f, matchDate: v, matchTime: '' }));
+            return;
+        }
+        setPwScheduleWarn(w => (w?.type === 'past' ? null : w));
+        setForm(f => ({ ...f, matchDate: v }));
+    };
+
+    const onPwMatchTimeChange = (v) => {
+        if (form.matchDate && isPwSchedulePast(form.matchDate, v)) {
+            setPwScheduleWarn({ type: 'past', text: t('websc.past_time_select') });
+            return;
+        }
+        setPwScheduleWarn(w => (w?.type === 'past' ? null : w));
+        setForm(f => ({ ...f, matchTime: v }));
+    };
+
     // posts/setPosts come from parent (SubCategoryPage) — no local fetch needed
 
     const handlePost = async (e) => {
@@ -2405,14 +2559,15 @@ function PlayerWantedTab({ config, categoryUpper, sub, myId, posts, setPosts, on
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-gray-400 text-xs mb-1 block">{t('websc.date_label')}</label>
-                            <input type="date" onClick={e => e.target.showPicker?.()} value={form.matchDate} onChange={e => setForm(f => ({...f, matchDate: e.target.value}))}
+                            <input type="date" onClick={e => e.target.showPicker?.()} min={pwTodayStr} value={form.matchDate} onChange={e => onPwMatchDateChange(e.target.value)}
                                 className="w-full bg-gray-800 text-white rounded-xl px-3 py-2 border border-gray-700 focus:outline-none text-sm" />
                         </div>
                         <div>
                             <label className="text-gray-400 text-xs mb-1 block">{t('websc.start_time')}</label>
-                            <TimeSelect value={form.matchTime} onChange={v => setForm(f => ({...f, matchTime: v}))} className="w-full" />
+                            <TimeSelect value={form.matchTime} onChange={onPwMatchTimeChange} className="w-full" />
                         </div>
                     </div>
+                    <ScheduleWarnBanner warn={pwScheduleWarn} />
 
                     {/* Duration */}
                     <div>

@@ -3158,6 +3158,48 @@ async function findSchedulingConflict(userId, matchDate, matchTime, duration, ex
     return null;
 }
 
+/** Anlık tarih/saat seçiminde geçmiş + çakışma kontrolü (web/mobil form). */
+export const checkSchedule = async (req, res, next) => {
+    try {
+        const { matchDate, matchTime, duration, excludeId, mode } = req.query;
+        if (!matchDate || !matchTime) return res.json({ ok: true });
+
+        const [h, m] = String(matchTime).split(':').map(Number);
+        if (!Number.isFinite(h) || !Number.isFinite(m)) {
+            return res.status(400).json({ ok: false, reason: 'invalid_time' });
+        }
+        // createRivalRequest ile aynı İstanbul ofseti
+        const matchUTC = new Date(new Date(matchDate).getTime() + (h * 60 + m) * 60000 - 3 * 3600000);
+        if (matchUTC <= new Date()) {
+            return res.json({ ok: false, reason: 'past' });
+        }
+
+        const onlyMatched = mode !== 'join';
+        const conflict = await findSchedulingConflict(
+            req.userId,
+            matchDate,
+            matchTime,
+            duration != null && duration !== '' ? Number(duration) : null,
+            excludeId || null,
+            { onlyMatched },
+        );
+        if (conflict) {
+            return res.json({
+                ok: false,
+                reason: 'conflict',
+                conflict: {
+                    subCategory: conflict.subCategory,
+                    matchTime: conflict.matchTime,
+                    duration: conflict.duration,
+                },
+            });
+        }
+        return res.json({ ok: true });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // Send a join request (pending — creator must accept)
 export const sendJoinRequest = async (req, res, next) => {
     try {
