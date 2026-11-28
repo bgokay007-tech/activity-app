@@ -4285,7 +4285,11 @@ function SubCategoryPage() {
                     setPlayerWantedPosts(prev => prev.filter(r => r.id !== updatedRival.id));
                     setUpcomingMatches(prev => prev.filter(r => r.id !== updatedRival.id));
                     if (updatedRival.category === categoryUpper && updatedRival.subCategory === sub) {
-                        setCompletedMatches(upsertCompleted);
+                        if (updatedRival.scoreStatus === 'CONFIRMED') {
+                            setCompletedMatches(prev => prev.filter(r => r.id !== updatedRival.id));
+                        } else {
+                            setCompletedMatches(upsertCompleted);
+                        }
                     }
                 } else {
                     setPlayerWantedPosts(prev => prev.filter(r => r.id !== updatedRival.id));
@@ -4316,7 +4320,20 @@ function SubCategoryPage() {
                 setRivals(prev => prev.filter(r => r.id !== updatedRival.id));
                 setUpcomingMatches(prev => prev.filter(r => r.id !== updatedRival.id));
                 if (updatedRival.category === categoryUpper && updatedRival.subCategory === sub) {
-                    setCompletedMatches(upsertCompleted);
+                    // Skor CONFIRMED olunca /completed API'si artık döndürmez — socket'in
+                    // upsert'i onaylı maçı "Skor Bekleyen"e geri basıyordu (yenileyince
+                    // kayboluyordu). Onaylıyı completed'dan çıkar, arşive taşı.
+                    if (updatedRival.scoreStatus === 'CONFIRMED') {
+                        setCompletedMatches(prev => prev.filter(r => r.id !== updatedRival.id));
+                        setArchivedMatches(prev => {
+                            const exists = prev.some(r => r.id === updatedRival.id);
+                            return exists
+                                ? prev.map(r => r.id === updatedRival.id ? { ...r, ...updatedRival } : r)
+                                : [updatedRival, ...prev];
+                        });
+                    } else {
+                        setCompletedMatches(upsertCompleted);
+                    }
                 }
             }
         };
@@ -6024,9 +6041,15 @@ function SubCategoryPage() {
                                 const pendingScoreAllRaw = [
                                     ...completedMatches,
                                     ...pastNoScore.filter(m => !completedIds.has(m.id)),
-                                ];
-                                const needsScoreEntry = pendingScoreAllRaw.filter(m => !(m.scoreStatus === 'PENDING' && m.score));
-                                const needsScoreConfirm = pendingScoreAllRaw.filter(m => m.scoreStatus === 'PENDING' && m.score);
+                                ].filter(m => m.scoreStatus !== 'CONFIRMED');
+                                // PENDING+skor → onay bekleyen; DISPUTED da onay kartında kalır.
+                                // Eski bug: !(PENDING&&score) CONFIRMED'ı da "skor gir" listesine sokuyordu.
+                                const needsScoreConfirm = pendingScoreAllRaw.filter(m =>
+                                    (m.scoreStatus === 'PENDING' && m.score) || m.scoreStatus === 'DISPUTED'
+                                );
+                                const needsScoreEntry = pendingScoreAllRaw.filter(m =>
+                                    !(m.scoreStatus === 'PENDING' && m.score) && m.scoreStatus !== 'DISPUTED'
+                                );
                                 const scoreConfirmNeedsMyAction = needsScoreConfirm.some(m => {
                                     if (!m.scoreEnteredBy || m.scoreEnteredBy === myId) return false;
                                     const parts = Array.isArray(m.participants) ? m.participants.filter(Boolean) : [];
